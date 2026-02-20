@@ -193,6 +193,7 @@ export async function POST(request: Request) {
         organizationId,
         isAnonymous,
         projectId: body.projectId || null,
+        tagId: body.tagId || null,
         // end keeperhub code //
       })
       .returning();
