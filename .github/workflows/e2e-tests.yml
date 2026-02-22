@@ -274,13 +274,10 @@ jobs:
       - name: Generate plugin registry
         run: pnpm discover-plugins
 
-      - name: Run database migrations
-        run: pnpm db:push
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
-
-      - name: Seed database
+      - name: Setup database
         run: |
+          pnpm db:setup-workflow
+          pnpm db:migrate
           pnpm db:seed
           pnpm db:seed-test-wallet
         env:
