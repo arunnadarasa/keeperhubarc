@@ -63,6 +63,10 @@ vi.mock("@/keeperhub/lib/abi-cache", () => ({
   resolveAbi: mocks.resolveAbi,
 }));
 
+vi.mock("@/keeperhub/api/execute/_lib/wallet-check", () => ({
+  requireWallet: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock("@/lib/utils", () => ({
   getErrorMessage: (err: unknown) =>
     err instanceof Error ? err.message : String(err),
