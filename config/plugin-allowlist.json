@@ -1,5 +1,16 @@
 {
   "$schema": "./plugin-allowlist.schema.json",
   "description": "Plugin allowlist - only plugins listed here will be enabled",
-  "plugins": ["discord", "sendgrid", "slack", "telegram", "web3", "webhook"]
+  "plugins": [
+    "code",
+    "discord",
+    "math",
+    "protocol",
+    "safe",
+    "sendgrid",
+    "slack",
+    "telegram",
+    "web3",
+    "webhook"
+  ]
 }
