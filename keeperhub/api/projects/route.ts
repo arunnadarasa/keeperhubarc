@@ -80,25 +80,50 @@ export async function GET(request: Request) {
   }
 }
 
+async function resolveCreatorContext(
+  request: Request
+): Promise<
+  { organizationId: string; userId: string } | { error: string; status: number }
+> {
+  const apiKeyAuth = await authenticateApiKey(request);
+  if (apiKeyAuth.authenticated) {
+    const organizationId = apiKeyAuth.organizationId || null;
+    const userId = apiKeyAuth.userId || null;
+    if (!organizationId) {
+      return { error: "No active organization", status: 400 };
+    }
+    if (!userId) {
+      return {
+        error: "API key has no associated user. Please recreate the API key.",
+        status: 400,
+      };
+    }
+    return { organizationId, userId };
+  }
+
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user) {
+    return { error: "Unauthorized", status: 401 };
+  }
+
+  const context = await getOrgContext();
+  const organizationId = context.organization?.id || null;
+  if (!organizationId) {
+    return { error: "No active organization", status: 400 };
+  }
+  return { organizationId, userId: session.user.id };
+}
+
 export async function POST(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const context = await getOrgContext();
-    const organizationId = context.organization?.id;
-
-    if (!organizationId) {
+    const resolved = await resolveCreatorContext(request);
+    if ("error" in resolved) {
       return NextResponse.json(
-        { error: "No active organization" },
-        { status: 400 }
+        { error: resolved.error },
+        { status: resolved.status }
       );
     }
+    const { organizationId, userId: creatorUserId } = resolved;
 
     const body = await request.json().catch(() => ({}));
     const name = body.name?.trim();
@@ -122,7 +147,7 @@ export async function POST(request: Request) {
         description: body.description?.trim() || null,
         color,
         organizationId,
-        userId: session.user.id,
+        userId: creatorUserId,
       })
       .returning();
 
