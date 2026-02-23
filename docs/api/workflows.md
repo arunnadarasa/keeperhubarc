@@ -20,11 +20,12 @@ Returns all workflows for the authenticated user.
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `projectId` | string | Optional. Filter workflows by project ID |
+| `tagId` | string | Optional. Filter workflows by tag ID |
 
 ### Example
 
 ```http
-GET /api/workflows?projectId=proj_123
+GET /api/workflows?projectId=proj_123&tagId=tag_456
 ```
 
 ### Response
