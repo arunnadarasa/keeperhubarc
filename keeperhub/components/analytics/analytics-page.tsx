@@ -22,33 +22,41 @@ export function AnalyticsPage(): ReactNode {
 
   if (hasNoData && !loading) {
     return (
-      <div className="flex flex-col gap-6 p-6">
-        <AnalyticsHeader onRefetch={refetch} />
-        <EmptyState />
+      <div className="pointer-events-auto fixed inset-0 overflow-y-auto bg-sidebar">
+        <div className="transition-[margin-left] duration-200 ease-out md:ml-[var(--nav-sidebar-width,60px)]">
+          <div className="flex flex-col gap-6 p-6">
+            <AnalyticsHeader onRefetch={refetch} />
+            <EmptyState />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <AnalyticsHeader onRefetch={refetch} />
+    <div className="pointer-events-auto fixed inset-0 overflow-y-auto bg-sidebar">
+      <div className="transition-[margin-left] duration-200 ease-out md:ml-[var(--nav-sidebar-width,60px)]">
+        <div className="flex flex-col gap-6 p-6">
+          <AnalyticsHeader onRefetch={refetch} />
 
-      {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
-          {error}
+          {error ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
+              {error}
+            </div>
+          ) : null}
+
+          <KpiCards />
+          <TimeSeriesChart />
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <GasBreakdownChart />
+            <SpendCapGauge />
+          </div>
+
+          <RunsFilters />
+          <RunsTable />
         </div>
-      ) : null}
-
-      <KpiCards />
-      <TimeSeriesChart />
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <GasBreakdownChart />
-        <SpendCapGauge />
       </div>
-
-      <RunsFilters />
-      <RunsTable />
     </div>
   );
 }
