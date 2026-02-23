@@ -1,6 +1,13 @@
 "use client";
 
-import { Box, ChevronLeft, ChevronRight, ExternalLink, Eye, Pencil } from "lucide-react";
+import {
+  Box,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Eye,
+  Pencil,
+} from "lucide-react";
 import Image from "next/image";
 import { useCallback, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";

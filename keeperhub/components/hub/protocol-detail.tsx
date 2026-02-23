@@ -339,9 +339,7 @@ export function ProtocolDetail({
         <>
           <div className="my-6 border-t border-border/30" />
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="font-bold text-lg">
-              Automate {protocol.name}
-            </h3>
+            <h3 className="font-bold text-lg">Automate {protocol.name}</h3>
             <div className={`gap-2 ${arrowVisibility}`}>
               <Button
                 aria-label="Scroll left"

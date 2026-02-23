@@ -15,8 +15,8 @@ export function ProtocolDetailPage({
       <div className="transition-[margin-left] duration-200 ease-out md:ml-[var(--nav-sidebar-width,60px)]">
         <div className="mx-auto w-full max-w-5xl px-4 py-8">
           <Link
-            href="/hub"
             className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            href="/hub"
           >
             <ArrowLeft className="size-4" />
             Back to Hub
