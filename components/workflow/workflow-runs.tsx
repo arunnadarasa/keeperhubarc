@@ -1233,7 +1233,10 @@ export function WorkflowRuns({
 
               <button
                 className="min-w-0 flex-1 text-left transition-colors hover:opacity-80"
-                onClick={() => selectRun(execution.id)}
+                onClick={() => {
+                  selectRun(execution.id);
+                  toggleRun(execution.id);
+                }}
                 type="button"
               >
                 <div className="mb-1 flex items-center gap-2">
