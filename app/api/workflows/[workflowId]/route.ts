@@ -7,7 +7,7 @@ import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { validateWorkflowIntegrations } from "@/lib/db/integrations";
-import { publicTags, workflowPublicTags, workflows } from "@/lib/db/schema";
+import { projects, publicTags, tags, workflowPublicTags, workflows } from "@/lib/db/schema";
 import { syncWorkflowSchedule } from "@/lib/schedule-service";
 
 // end keeperhub code //
@@ -332,6 +332,45 @@ export async function PATCH(
         { error: "Invalid visibility value. Must be 'private' or 'public'" },
         { status: 400 }
       );
+    }
+
+    // Validate projectId/tagId ownership when provided
+    if (body.projectId !== undefined || body.tagId !== undefined) {
+      const targetOrgId = existingWorkflow.organizationId || organizationId;
+
+      if (!targetOrgId) {
+        if (body.projectId || body.tagId) {
+          return NextResponse.json(
+            { error: "Cannot assign project or tag without an organization" },
+            { status: 400 }
+          );
+        }
+      } else {
+        if (body.projectId) {
+          const projRows = await db
+            .select({ orgId: projects.organizationId })
+            .from(projects)
+            .where(eq(projects.id, body.projectId));
+          if (!(projRows[0] && projRows[0].orgId === targetOrgId)) {
+            return NextResponse.json(
+              { error: "Project not found in this organization" },
+              { status: 404 }
+            );
+          }
+        }
+        if (body.tagId) {
+          const tagRows = await db
+            .select({ orgId: tags.organizationId })
+            .from(tags)
+            .where(eq(tags.id, body.tagId));
+          if (!(tagRows[0] && tagRows[0].orgId === targetOrgId)) {
+            return NextResponse.json(
+              { error: "Tag not found in this organization" },
+              { status: 404 }
+            );
+          }
+        }
+      }
     }
 
     const updateData = buildUpdateData(body);
