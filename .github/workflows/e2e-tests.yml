@@ -405,7 +405,7 @@ jobs:
             CF_HEADERS="-H CF-Access-Client-Id:${CF_ACCESS_CLIENT_ID} -H CF-Access-Client-Secret:${CF_ACCESS_CLIENT_SECRET}"
           fi
           for i in {1..30}; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" $CF_HEADERS "${{ env.BASE_URL }}/api/health")
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" $CF_HEADERS "${{ env.BASE_URL }}/api/health" || echo "000")
             if [[ "$STATUS" == "200" ]]; then
               echo "PR environment is ready!"
               exit 0
