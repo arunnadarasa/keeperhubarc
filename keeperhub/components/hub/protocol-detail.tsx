@@ -2,6 +2,7 @@
 
 import {
   ArrowLeft,
+  ArrowUpRight,
   Box,
   ChevronLeft,
   ChevronRight,
@@ -10,6 +11,7 @@ import {
 } from "lucide-react";
 import { nanoid } from "nanoid";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -40,6 +42,8 @@ type ProtocolDetailProps = {
   protocol: ProtocolDefinition;
   onBack?: () => void;
   hideBackButton?: boolean;
+  pageUrl?: string;
+  modalUrl?: string;
 };
 
 function ActionTypeBadge({
@@ -78,6 +82,8 @@ export function ProtocolDetail({
   protocol,
   onBack,
   hideBackButton,
+  pageUrl,
+  modalUrl,
 }: ProtocolDetailProps): React.ReactElement {
   const router = useRouter();
   const { data: session } = useSession();
@@ -293,6 +299,24 @@ export function ProtocolDetail({
               >
                 <ExternalLink className="size-4" />
               </a>
+            )}
+            {pageUrl && (
+              <Link
+                className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-0.5 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
+                href={pageUrl}
+              >
+                View as page
+                <ArrowUpRight className="size-3" />
+              </Link>
+            )}
+            {modalUrl && (
+              <Link
+                className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-0.5 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
+                href={modalUrl}
+              >
+                View as modal
+                <ArrowUpRight className="size-3" />
+              </Link>
             )}
           </div>
           <p className="mt-1 text-muted-foreground text-sm">

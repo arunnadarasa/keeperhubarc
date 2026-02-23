@@ -264,8 +264,9 @@ function HubPageContent(): React.ReactElement {
               </div>
             )}
 
-            <div className="bg-sidebar pt-4 pb-8">
-              <div className="container mx-auto px-4">
+            <div className="relative pt-6 pb-8">
+              <div className="absolute inset-0 bg-[#171f2e]" />
+              <div className="relative container mx-auto px-4">
                 <h2 className="mb-4 font-bold text-2xl">Community Workflows</h2>
                 <div className="grid grid-cols-[1fr_3fr] items-start gap-8">
                   <div className="sticky top-28">

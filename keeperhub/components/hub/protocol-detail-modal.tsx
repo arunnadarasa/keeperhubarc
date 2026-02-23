@@ -22,14 +22,20 @@ export function ProtocolDetailModal({
 }: ProtocolDetailModalProps): React.ReactElement {
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-4xl">
+      <DialogContent className="max-h-[80vh] overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:max-w-4xl">
         <DialogTitle className="sr-only">
           {protocol?.name ?? "Protocol Details"}
         </DialogTitle>
         <DialogDescription className="sr-only">
           {protocol?.description ?? "Protocol actions and details"}
         </DialogDescription>
-        {protocol && <ProtocolDetail hideBackButton protocol={protocol} />}
+        {protocol && (
+          <ProtocolDetail
+            hideBackButton
+            pageUrl={`/hub/protocol/${protocol.slug}`}
+            protocol={protocol}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );
