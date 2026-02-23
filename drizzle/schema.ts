@@ -376,6 +376,8 @@ export const workflows = pgTable("workflows", {
 	enabled: boolean().default(false).notNull(),
 	featured: boolean().default(false).notNull(),
 	featuredOrder: integer("featured_order").default(0),
+	featuredProtocol: text("featured_protocol"),
+	featuredProtocolOrder: integer("featured_protocol_order").default(0),
 	projectId: text("project_id"),
 	tagId: text("tag_id"),
 	categoryId: text("category_id"),

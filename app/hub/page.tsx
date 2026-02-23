@@ -1,14 +1,20 @@
 "use client";
 
-import { Search, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { FeaturedCarousel } from "@/keeperhub/components/hub/featured-carousel";
 import { getWorkflowTrigger } from "@/keeperhub/components/hub/get-workflow-trigger";
 import { HubHero } from "@/keeperhub/components/hub/hub-hero";
 import { HubResults } from "@/keeperhub/components/hub/hub-results";
-import { ProtocolGrid } from "@/keeperhub/components/hub/protocol-grid";
+import { ProtocolDetailModal } from "@/keeperhub/components/hub/protocol-detail-modal";
+import { ProtocolStrip } from "@/keeperhub/components/hub/protocol-strip";
 import { WorkflowSearchFilter } from "@/keeperhub/components/hub/workflow-search-filter";
 import { useDebounce } from "@/keeperhub/lib/hooks/use-debounce";
 import type { ProtocolDefinition } from "@/keeperhub/lib/protocol-registry";
@@ -40,9 +46,32 @@ function HubPageContent(): React.ReactElement {
 
   const [protocols, setProtocols] = useState<ProtocolDefinition[]>([]);
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get("tab") ?? "workflows";
-  const [activeTab, setActiveTab] = useState<string>(initialTab);
-  const [protocolSearch, setProtocolSearch] = useState("");
+  const [selectedProtocolSlug, setSelectedProtocolSlug] = useState<
+    string | null
+  >(searchParams.get("protocol"));
+
+  const selectedProtocol = useMemo(
+    () => protocols.find((p) => p.slug === selectedProtocolSlug) ?? null,
+    [protocols, selectedProtocolSlug]
+  );
+
+  const handleProtocolSelect = useCallback(
+    (slug: string): void => {
+      setSelectedProtocolSlug(slug);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("protocol", slug);
+      router.replace(`/hub?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams]
+  );
+
+  const clearProtocolSelection = useCallback((): void => {
+    setSelectedProtocolSlug(null);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("protocol");
+    const qs = params.toString();
+    router.replace(qs ? `/hub?${qs}` : "/hub", { scroll: false });
+  }, [router, searchParams]);
 
   const triggers = useMemo(() => {
     const unique = new Set<string>();
@@ -104,10 +133,6 @@ function HubPageContent(): React.ReactElement {
     setSelectedTagSlugs((prev) =>
       prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
     );
-  };
-
-  const handleTabChange = (val: string): void => {
-    setActiveTab(val);
   };
 
   useEffect(() => {
@@ -227,88 +252,55 @@ function HubPageContent(): React.ReactElement {
               </div>
             </div>
 
-            <Tabs
-              defaultValue="workflows"
-              onValueChange={handleTabChange}
-              value={activeTab}
-            >
-              {/* start custom keeperhub code */}
-              <div className="bg-sidebar pt-4">
-                <div className="container mx-auto px-4 max-w-sm">
-                  <TabsList className="w-full">
-                    <TabsTrigger className="flex-1" value="workflows">
-                      Workflows
-                    </TabsTrigger>
-                    <TabsTrigger className="flex-1" value="protocols">
-                      Protocols
-                    </TabsTrigger>
-                  </TabsList>
+            {/* start custom keeperhub code */}
+            {protocols.length > 0 && (
+              <div className="bg-sidebar py-6">
+                <div className="container mx-auto px-4">
+                  <ProtocolStrip
+                    onSelect={handleProtocolSelect}
+                    protocols={protocols}
+                  />
                 </div>
               </div>
-              {/* end keeperhub code */}
+            )}
 
-              <TabsContent className="bg-sidebar pt-4 pb-8" value="workflows">
-                <div className="container mx-auto px-4">
-                  <h2 className="mb-4 font-bold text-2xl">
-                    Community Workflows
-                  </h2>
-                  <div className="grid grid-cols-[1fr_3fr] items-start gap-8">
-                    <div className="sticky top-28">
-                      <WorkflowSearchFilter
-                        onSearchChange={setSearchQuery}
-                        onTagToggle={handleToggleTag}
-                        onTriggerChange={setSelectedTrigger}
-                        publicTags={publicTags}
-                        searchQuery={searchQuery}
-                        selectedTagSlugs={selectedTagSlugs}
-                        selectedTrigger={selectedTrigger}
-                        triggers={triggers}
-                      />
-                    </div>
-
-                    <HubResults
-                      communityWorkflows={communityWorkflows}
-                      isSearchActive={isSearchActive}
-                      searchResults={searchResults}
+            <div className="relative pt-6 pb-8">
+              <div className="absolute inset-0 bg-[#171f2e]" />
+              <div className="relative container mx-auto px-4">
+                <h2 className="mb-4 font-bold text-2xl">Community Workflows</h2>
+                <div className="grid grid-cols-[1fr_3fr] items-start gap-8">
+                  <div className="sticky top-28">
+                    <WorkflowSearchFilter
+                      onSearchChange={setSearchQuery}
+                      onTagToggle={handleToggleTag}
+                      onTriggerChange={setSelectedTrigger}
+                      publicTags={publicTags}
+                      searchQuery={searchQuery}
+                      selectedTagSlugs={selectedTagSlugs}
+                      selectedTrigger={selectedTrigger}
+                      triggers={triggers}
                     />
                   </div>
-                </div>
-              </TabsContent>
 
-              <TabsContent className="bg-sidebar pt-4 pb-8" value="protocols">
-                <div className="container mx-auto px-4">
-                  <div className="grid grid-cols-[1fr_3fr] items-start gap-8">
-                    <div className="sticky top-28">
-                      <div className="flex w-full items-center gap-2 rounded-md border border-input bg-transparent shadow-xs transition-colors focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50 min-h-10 px-3 py-1 text-sm">
-                        <Search className="size-4 shrink-0 text-muted-foreground" />
-                        <input
-                          className="flex-1 bg-transparent placeholder:text-muted-foreground focus:outline-none"
-                          onChange={(e) => setProtocolSearch(e.target.value)}
-                          placeholder="Search protocols..."
-                          type="text"
-                          value={protocolSearch}
-                        />
-                        {protocolSearch && (
-                          <button
-                            className="shrink-0 text-muted-foreground hover:text-foreground"
-                            onClick={() => setProtocolSearch("")}
-                            type="button"
-                          >
-                            <X className="size-4" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <ProtocolGrid
-                      onSelect={(slug) => router.push(`/hub/protocol/${slug}`)}
-                      protocols={protocols}
-                      searchQuery={protocolSearch}
-                    />
-                  </div>
+                  <HubResults
+                    communityWorkflows={communityWorkflows}
+                    isSearchActive={isSearchActive}
+                    searchResults={searchResults}
+                  />
                 </div>
-              </TabsContent>
-            </Tabs>
+              </div>
+            </div>
+
+            <ProtocolDetailModal
+              onOpenChange={(open) => {
+                if (!open) {
+                  clearProtocolSelection();
+                }
+              }}
+              open={selectedProtocolSlug !== null}
+              protocol={selectedProtocol}
+            />
+            {/* end keeperhub code */}
           </>
         )}
       </div>

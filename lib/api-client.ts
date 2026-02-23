@@ -46,6 +46,8 @@ export type SavedWorkflow = WorkflowData & {
   projectId?: string | null;
   tagId?: string | null;
   featuredOrder?: number;
+  featuredProtocol?: string | null;
+  featuredProtocolOrder?: number;
   publicTags?: PublicTag[];
   // end custom KeeperHub code
 };
@@ -528,6 +530,11 @@ export const workflowApi = {
   // Get featured workflows
   getFeatured: () =>
     apiCall<SavedWorkflow[]>("/api/workflows/public?featured=true"),
+  // Get protocol-featured workflows
+  getProtocolFeatured: (slug: string) =>
+    apiCall<SavedWorkflow[]>(
+      `/api/workflows/public?featuredProtocol=${encodeURIComponent(slug)}`
+    ),
   // end custom KeeperHub code
 
   // Get a specific workflow
@@ -779,6 +786,7 @@ export type Tag = {
   color: string;
   workflowCount: number;
   organizationId: string;
+  userId: string;
   createdAt: string;
   updatedAt: string;
 };
