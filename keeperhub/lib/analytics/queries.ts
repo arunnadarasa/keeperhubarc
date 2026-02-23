@@ -299,69 +299,74 @@ export async function getTimeSeries(
   const rangeStart = getTimeRangeStart(range, customStart);
   const rangeEnd = customEnd ? new Date(customEnd) : new Date();
   const { sqlInterval } = getBucketInterval(range);
+  const bucketExpr = bucketSql(sqlInterval);
 
-  const workflowBuckets = await db.execute<{
-    bucket: string;
-    success: string;
-    error: string;
-    pending: string;
-    running: string;
-  }>(sql`
-    SELECT
-      date_trunc('hour', ${workflowExecutions.startedAt}) -
-        (EXTRACT(MINUTE FROM ${workflowExecutions.startedAt})::int % ${sql.raw(extractMinutes(sqlInterval))}) * INTERVAL '1 minute' AS bucket,
-      SUM(CASE WHEN ${workflowExecutions.status} = 'success' THEN 1 ELSE 0 END) AS success,
-      SUM(CASE WHEN ${workflowExecutions.status} IN ('error', 'cancelled') THEN 1 ELSE 0 END) AS error,
-      SUM(CASE WHEN ${workflowExecutions.status} = 'pending' THEN 1 ELSE 0 END) AS pending,
-      SUM(CASE WHEN ${workflowExecutions.status} = 'running' THEN 1 ELSE 0 END) AS running
-    FROM ${workflowExecutions}
-    INNER JOIN ${workflows} ON ${workflowExecutions.workflowId} = ${workflows.id}
-    WHERE ${workflows.organizationId} = ${organizationId}
-      AND ${workflowExecutions.startedAt} >= ${rangeStart}
-      AND ${workflowExecutions.startedAt} < ${rangeEnd}
-    GROUP BY bucket
-    ORDER BY bucket ASC
-  `);
+  const workflowBuckets = await db
+    .select({
+      bucket: sql<string>`${bucketExpr(workflowExecutions.startedAt)}`,
+      success: sql<string>`SUM(CASE WHEN ${workflowExecutions.status} = 'success' THEN 1 ELSE 0 END)`,
+      error: sql<string>`SUM(CASE WHEN ${workflowExecutions.status} IN ('error', 'cancelled') THEN 1 ELSE 0 END)`,
+      pending: sql<string>`SUM(CASE WHEN ${workflowExecutions.status} = 'pending' THEN 1 ELSE 0 END)`,
+      running: sql<string>`SUM(CASE WHEN ${workflowExecutions.status} = 'running' THEN 1 ELSE 0 END)`,
+    })
+    .from(workflowExecutions)
+    .innerJoin(workflows, eq(workflowExecutions.workflowId, workflows.id))
+    .where(
+      and(
+        eq(workflows.organizationId, organizationId),
+        gte(workflowExecutions.startedAt, rangeStart),
+        lt(workflowExecutions.startedAt, rangeEnd)
+      )
+    )
+    .groupBy(sql`${bucketExpr(workflowExecutions.startedAt)}`)
+    .orderBy(sql`${bucketExpr(workflowExecutions.startedAt)} ASC`);
 
-  const directBuckets = await db.execute<{
-    bucket: string;
-    success: string;
-    error: string;
-    pending: string;
-    running: string;
-  }>(sql`
-    SELECT
-      date_trunc('hour', ${directExecutions.createdAt}) -
-        (EXTRACT(MINUTE FROM ${directExecutions.createdAt})::int % ${sql.raw(extractMinutes(sqlInterval))}) * INTERVAL '1 minute' AS bucket,
-      SUM(CASE WHEN ${directExecutions.status} = 'completed' THEN 1 ELSE 0 END) AS success,
-      SUM(CASE WHEN ${directExecutions.status} = 'failed' THEN 1 ELSE 0 END) AS error,
-      SUM(CASE WHEN ${directExecutions.status} = 'pending' THEN 1 ELSE 0 END) AS pending,
-      SUM(CASE WHEN ${directExecutions.status} = 'running' THEN 1 ELSE 0 END) AS running
-    FROM ${directExecutions}
-    WHERE ${directExecutions.organizationId} = ${organizationId}
-      AND ${directExecutions.createdAt} >= ${rangeStart}
-      AND ${directExecutions.createdAt} < ${rangeEnd}
-    GROUP BY bucket
-    ORDER BY bucket ASC
-  `);
+  const directBuckets = await db
+    .select({
+      bucket: sql<string>`${bucketExpr(directExecutions.createdAt)}`,
+      success: sql<string>`SUM(CASE WHEN ${directExecutions.status} = 'completed' THEN 1 ELSE 0 END)`,
+      error: sql<string>`SUM(CASE WHEN ${directExecutions.status} = 'failed' THEN 1 ELSE 0 END)`,
+      pending: sql<string>`SUM(CASE WHEN ${directExecutions.status} = 'pending' THEN 1 ELSE 0 END)`,
+      running: sql<string>`SUM(CASE WHEN ${directExecutions.status} = 'running' THEN 1 ELSE 0 END)`,
+    })
+    .from(directExecutions)
+    .where(
+      and(
+        eq(directExecutions.organizationId, organizationId),
+        gte(directExecutions.createdAt, rangeStart),
+        lt(directExecutions.createdAt, rangeEnd)
+      )
+    )
+    .groupBy(sql`${bucketExpr(directExecutions.createdAt)}`)
+    .orderBy(sql`${bucketExpr(directExecutions.createdAt)} ASC`);
 
   return mergeBuckets(
-    workflowBuckets as unknown as BucketRow[],
-    directBuckets as unknown as BucketRow[]
+    workflowBuckets as BucketRow[],
+    directBuckets as BucketRow[]
   );
 }
 
-function extractMinutes(sqlInterval: string): string {
-  if (sqlInterval === "5 minutes") {
-    return "5";
-  }
-  if (sqlInterval === "1 hour") {
-    return "60";
+/**
+ * Build a SQL fragment that truncates a timestamp column to the given bucket interval.
+ * Uses date_trunc for standard intervals and integer division for sub-hour buckets.
+ */
+function bucketSql(
+  sqlInterval: string
+): (
+  col: typeof workflowExecutions.startedAt | typeof directExecutions.createdAt
+) => ReturnType<typeof sql> {
+  if (sqlInterval === "1 day") {
+    return (col) => sql`date_trunc('day', ${col})`;
   }
   if (sqlInterval === "6 hours") {
-    return "60";
+    return (col) =>
+      sql`date_trunc('day', ${col}) + FLOOR(EXTRACT(HOUR FROM ${col}) / 6) * INTERVAL '6 hours'`;
   }
-  return "60";
+  if (sqlInterval === "5 minutes") {
+    return (col) =>
+      sql`date_trunc('hour', ${col}) + FLOOR(EXTRACT(MINUTE FROM ${col}) / 5) * 5 * INTERVAL '1 minute'`;
+  }
+  return (col) => sql`date_trunc('hour', ${col})`;
 }
 
 type BucketRow = {

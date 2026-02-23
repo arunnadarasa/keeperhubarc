@@ -90,21 +90,21 @@ export function useAnalytics(): UseAnalyticsReturn {
         throw new Error(`Runs fetch failed: ${runsRes.status}`);
       }
 
-      const [summary, timeSeries, networks, runs] = (await Promise.all([
+      const [summary, timeSeriesData, networksData, runs] = (await Promise.all([
         summaryRes.json(),
         timeSeriesRes.json(),
         networksRes.json(),
         runsRes.json(),
       ])) as [
         AnalyticsSummary,
-        TimeSeriesBucket[],
-        NetworkBreakdown[],
+        { buckets: TimeSeriesBucket[] },
+        { networks: NetworkBreakdown[] },
         RunsResponse,
       ];
 
       setSummary(summary);
-      setTimeSeries(timeSeries);
-      setNetworks(networks);
+      setTimeSeries(timeSeriesData.buckets);
+      setNetworks(networksData.networks);
       setRuns(runs);
       setLastUpdated(new Date());
     } catch (err: unknown) {
