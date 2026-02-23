@@ -514,8 +514,14 @@ async function fetchWorkflowRuns(
   cursor: string | undefined,
   limit: number
 ): Promise<UnifiedRun[]> {
+  // Scope to org's workflows via subquery so leftJoin still enforces org isolation
+  const orgWorkflowIds = db
+    .select({ id: workflows.id })
+    .from(workflows)
+    .where(eq(workflows.organizationId, organizationId));
+
   const conditions = [
-    eq(workflows.organizationId, organizationId),
+    sql`${workflowExecutions.workflowId} IN (${orgWorkflowIds})`,
     gte(workflowExecutions.startedAt, rangeStart),
     lt(workflowExecutions.startedAt, rangeEnd),
   ];
@@ -547,7 +553,7 @@ async function fetchWorkflowRuns(
       completedSteps: workflowExecutions.completedSteps,
     })
     .from(workflowExecutions)
-    .innerJoin(workflows, eq(workflowExecutions.workflowId, workflows.id))
+    .leftJoin(workflows, eq(workflowExecutions.workflowId, workflows.id))
     .where(and(...conditions))
     .orderBy(desc(workflowExecutions.startedAt))
     .limit(limit);
@@ -560,7 +566,7 @@ async function fetchWorkflowRuns(
     completedAt: row.completedAt?.toISOString() ?? null,
     durationMs: row.duration ? Number(row.duration) : null,
     workflowId: row.workflowId,
-    workflowName: row.workflowName,
+    workflowName: row.workflowName ?? "(Deleted)",
     directType: null,
     network: null,
     transactionHash: null,

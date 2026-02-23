@@ -24,7 +24,7 @@ export function AnalyticsPage(): ReactNode {
     return (
       <div className="pointer-events-auto fixed inset-0 overflow-y-auto bg-sidebar">
         <div className="transition-[margin-left] duration-200 ease-out md:ml-[var(--nav-sidebar-width,60px)]">
-          <div className="flex flex-col gap-6 p-6">
+          <div className="flex flex-col gap-6 p-6 pt-20 pt-20">
             <AnalyticsHeader onRefetch={refetch} />
             <EmptyState />
           </div>
@@ -36,7 +36,7 @@ export function AnalyticsPage(): ReactNode {
   return (
     <div className="pointer-events-auto fixed inset-0 overflow-y-auto bg-sidebar">
       <div className="transition-[margin-left] duration-200 ease-out md:ml-[var(--nav-sidebar-width,60px)]">
-        <div className="flex flex-col gap-6 p-6">
+        <div className="flex flex-col gap-6 p-6 pt-20">
           <AnalyticsHeader onRefetch={refetch} />
 
           {error ? (

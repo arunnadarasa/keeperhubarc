@@ -218,6 +218,7 @@ function ExpandableRunRow({ run }: ExpandableRunRowProps): ReactNode {
     }
   }, [run.source, run.workflowId, router]);
 
+  const isDeleted = run.workflowName === "(Deleted)";
   const runName =
     run.source === "workflow"
       ? (run.workflowName ?? "Unnamed Workflow")
@@ -249,8 +250,15 @@ function ExpandableRunRow({ run }: ExpandableRunRowProps): ReactNode {
         </td>
         <td className="py-3 pr-3">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-medium capitalize">{runName}</span>
-            {run.source === "workflow" && run.workflowId ? (
+            <span
+              className={cn(
+                "text-sm font-medium capitalize",
+                isDeleted && "italic text-muted-foreground line-through"
+              )}
+            >
+              {runName}
+            </span>
+            {run.source === "workflow" && run.workflowId && !isDeleted ? (
               <button
                 className="opacity-0 transition-opacity group-hover:opacity-100"
                 onClick={(e) => {
