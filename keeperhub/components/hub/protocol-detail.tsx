@@ -17,7 +17,8 @@ import { authClient, useSession } from "@/lib/auth-client";
 
 type ProtocolDetailProps = {
   protocol: ProtocolDefinition;
-  onBack: () => void;
+  onBack?: () => void;
+  hideBackButton?: boolean;
 };
 
 function ActionTypeBadge({
@@ -55,6 +56,7 @@ function collectAllChains(
 export function ProtocolDetail({
   protocol,
   onBack,
+  hideBackButton,
 }: ProtocolDetailProps): React.ReactElement {
   const router = useRouter();
   const { data: session } = useSession();
@@ -150,14 +152,16 @@ export function ProtocolDetail({
 
   return (
     <div>
-      <Button
-        className="mb-6 text-muted-foreground hover:text-foreground"
-        onClick={onBack}
-        variant="ghost"
-      >
-        <ArrowLeft className="mr-2 size-4" />
-        Back to Protocols
-      </Button>
+      {!hideBackButton && onBack && (
+        <Button
+          className="mb-6 text-muted-foreground hover:text-foreground"
+          onClick={onBack}
+          variant="ghost"
+        >
+          <ArrowLeft className="mr-2 size-4" />
+          Back to Protocols
+        </Button>
+      )}
 
       <div className="flex items-start gap-4">
         <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-[#2a3342]">

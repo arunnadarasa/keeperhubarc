@@ -4,6 +4,7 @@ export default {
   code: "Code",
   math: "Math",
   safe: "Safe",
+  "safe-wallet": "Safe Wallet",
   sky: "Sky",
   discord: "Discord",
   telegram: "Telegram",

@@ -9,7 +9,7 @@
  * 2. Add a system integration to SYSTEM_INTEGRATION_TYPES in discover-plugins.ts
  * 3. Run: pnpm discover-plugins
  *
- * Generated types: ai-gateway, clerk, code, database, discord, linear, math, protocol, resend, safe, sendgrid, sky, slack, telegram, v0, web3, webflow, webhook, weth
+ * Generated types: ai-gateway, clerk, code, database, discord, linear, math, protocol, resend, safe, safe-wallet, sendgrid, sky, slack, telegram, v0, web3, webflow, webhook, weth
  */
 
 // Integration type union - plugins + system integrations
@@ -24,6 +24,7 @@ export type IntegrationType =
   | "protocol"
   | "resend"
   | "safe"
+  | "safe-wallet"
   | "sendgrid"
   | "sky"
   | "slack"
