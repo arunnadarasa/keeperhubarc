@@ -212,6 +212,8 @@ export const workflows = pgTable("workflows", {
   isAnonymous: boolean("is_anonymous").default(false).notNull(),
   featured: boolean("featured").default(false).notNull(),
   featuredOrder: integer("featured_order").default(0),
+  featuredProtocol: text("featured_protocol"),
+  featuredProtocolOrder: integer("featured_protocol_order").default(0),
   projectId: text("project_id").references(() => projects.id, {
     onDelete: "set null",
   }),
@@ -322,15 +324,21 @@ export const workflowExecutionLogs = pgTable("workflow_execution_logs", {
 // KeeperHub: Para Wallets, Organization API Keys, and Organization Tokens (imported from KeeperHub schema extensions)
 // Note: Using relative path instead of @/ alias for drizzle-kit compatibility
 export {
+  type DirectExecution,
+  directExecutions,
+  type NewDirectExecution,
   type NewOrganizationApiKey,
+  type NewOrganizationSpendCap,
   type NewOrganizationToken,
   type NewParaWallet,
   type NewPublicTag,
   type NewSupportedToken,
   type NewWorkflowPublicTag,
   type OrganizationApiKey,
+  type OrganizationSpendCap,
   type OrganizationToken,
   organizationApiKeys,
+  organizationSpendCaps,
   organizationTokens,
   type ParaWallet,
   type PendingTransaction,

@@ -807,7 +807,7 @@ function ExecutionLogEntry({
   return (
     <div className="relative flex gap-3" key={log.id}>
       {/* Timeline connector */}
-      <div className="relative -ml-px flex flex-col items-center pt-2">
+      <div className="-ml-px relative flex flex-col items-center pt-2">
         {!isFirst && (
           <div className="absolute bottom-full h-2 w-px bg-border" />
         )}
@@ -1233,7 +1233,12 @@ export function WorkflowRuns({
 
               <button
                 className="min-w-0 flex-1 text-left transition-colors hover:opacity-80"
-                onClick={() => selectRun(execution.id)}
+                // start custom keeperhub code //
+                onClick={() => {
+                  selectRun(execution.id);
+                  toggleRun(execution.id);
+                }}
+                // end keeperhub code //
                 type="button"
               >
                 <div className="mb-1 flex items-center gap-2">

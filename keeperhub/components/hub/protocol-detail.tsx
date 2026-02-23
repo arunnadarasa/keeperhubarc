@@ -1,23 +1,49 @@
 "use client";
 
-import { ArrowLeft, Box, ExternalLink } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  Box,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Eye,
+} from "lucide-react";
 import { nanoid } from "nanoid";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { getChainName, getExplorerUrl } from "@/keeperhub/lib/chain-utils";
 import type {
   ProtocolAction,
   ProtocolDefinition,
 } from "@/keeperhub/lib/protocol-registry";
-import { api } from "@/lib/api-client";
+import { api, type SavedWorkflow } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
+import { WorkflowMiniMap } from "./workflow-mini-map";
+import { WorkflowNodeIcons } from "./workflow-node-icons";
 
 type ProtocolDetailProps = {
   protocol: ProtocolDefinition;
-  onBack: () => void;
+  onBack?: () => void;
+  hideBackButton?: boolean;
+  pageUrl?: string;
+  modalUrl?: string;
 };
 
 function ActionTypeBadge({
@@ -55,13 +81,98 @@ function collectAllChains(
 export function ProtocolDetail({
   protocol,
   onBack,
+  hideBackButton,
+  pageUrl,
+  modalUrl,
 }: ProtocolDetailProps): React.ReactElement {
   const router = useRouter();
   const { data: session } = useSession();
   const [creatingActionSlug, setCreatingActionSlug] = useState<string | null>(
     null
   );
+  const [featuredWorkflows, setFeaturedWorkflows] = useState<SavedWorkflow[]>(
+    []
+  );
+  const [duplicatingIds, setDuplicatingIds] = useState<Set<string>>(new Set());
+  const scrollRef = useRef<HTMLDivElement>(null);
   const allChains = collectAllChains(protocol.contracts);
+
+  const arrowVisibility = useMemo((): string => {
+    const count = featuredWorkflows.length;
+    if (count > 4) {
+      return "flex";
+    }
+    if (count > 3) {
+      return "flex lg:hidden";
+    }
+    if (count > 2) {
+      return "flex md:hidden";
+    }
+    if (count > 1) {
+      return "flex sm:hidden";
+    }
+    return "hidden";
+  }, [featuredWorkflows.length]);
+
+  const scroll = useCallback((direction: "left" | "right") => {
+    const container = scrollRef.current;
+    if (!container) {
+      return;
+    }
+    const cardWidth = 260;
+    const gap = 16;
+    const scrollAmount = cardWidth + gap;
+    container.scrollBy({
+      left: direction === "left" ? -scrollAmount : scrollAmount,
+      behavior: "smooth",
+    });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.workflow
+      .getProtocolFeatured(protocol.slug)
+      .then((workflows) => {
+        if (!cancelled) {
+          setFeaturedWorkflows(workflows);
+        }
+      })
+      .catch(() => {
+        // Silently ignore -- featured workflows are optional
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [protocol.slug]);
+
+  async function handleDuplicate(workflowId: string): Promise<void> {
+    if (duplicatingIds.has(workflowId)) {
+      return;
+    }
+
+    setDuplicatingIds((prev) => new Set(prev).add(workflowId));
+
+    try {
+      if (!session?.user) {
+        await authClient.signIn.anonymous();
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      const duplicated = await api.workflow.duplicate(workflowId);
+      toast.success("Workflow duplicated successfully");
+      router.push(`/workflows/${duplicated.id}`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to duplicate workflow"
+      );
+    } finally {
+      setDuplicatingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(workflowId);
+        return next;
+      });
+    }
+  }
 
   async function handleUseInWorkflow(
     protocolDef: ProtocolDefinition,
@@ -77,6 +188,13 @@ export function ProtocolDetail({
 
       const actionTypeId = `${protocolDef.slug}/${action.slug}`;
       const actionLabel = `${protocolDef.name}: ${action.label}`;
+
+      const protocolMeta = JSON.stringify({
+        protocolSlug: protocolDef.slug,
+        contractKey: action.contract,
+        functionName: action.function,
+        actionType: action.type,
+      });
 
       const triggerId = nanoid();
       const actionId = nanoid();
@@ -104,7 +222,10 @@ export function ProtocolDetail({
             label: actionLabel,
             description: "",
             type: "action" as const,
-            config: { actionType: actionTypeId },
+            config: {
+              actionType: actionTypeId,
+              _protocolMeta: protocolMeta,
+            },
             status: "idle" as const,
           },
         },
@@ -140,14 +261,16 @@ export function ProtocolDetail({
 
   return (
     <div>
-      <Button
-        className="mb-6 text-muted-foreground hover:text-foreground"
-        onClick={onBack}
-        variant="ghost"
-      >
-        <ArrowLeft className="mr-2 size-4" />
-        Back to Protocols
-      </Button>
+      {!hideBackButton && onBack && (
+        <Button
+          className="mb-6 text-muted-foreground hover:text-foreground"
+          onClick={onBack}
+          variant="ghost"
+        >
+          <ArrowLeft className="mr-2 size-4" />
+          Back to Protocols
+        </Button>
+      )}
 
       <div className="flex items-start gap-4">
         <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-[#2a3342]">
@@ -165,7 +288,7 @@ export function ProtocolDetail({
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="font-bold text-xl">{protocol.name}</h2>
+            <h2 className="font-bold text-2xl">{protocol.name}</h2>
             {explorerUrl && (
               <a
                 className="text-muted-foreground hover:text-foreground transition-colors"
@@ -176,6 +299,24 @@ export function ProtocolDetail({
               >
                 <ExternalLink className="size-4" />
               </a>
+            )}
+            {pageUrl && (
+              <Link
+                className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-0.5 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
+                href={pageUrl}
+              >
+                View as page
+                <ArrowUpRight className="size-3" />
+              </Link>
+            )}
+            {modalUrl && (
+              <Link
+                className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-0.5 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
+                href={modalUrl}
+              >
+                View as modal
+                <ArrowUpRight className="size-3" />
+              </Link>
             )}
           </div>
           <p className="mt-1 text-muted-foreground text-sm">
@@ -194,9 +335,95 @@ export function ProtocolDetail({
         </div>
       </div>
 
+      {featuredWorkflows.length > 0 && (
+        <>
+          <div className="my-6 border-t border-border/30" />
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="font-bold text-lg">Automate {protocol.name}</h3>
+            <div className={`gap-2 ${arrowVisibility}`}>
+              <Button
+                aria-label="Scroll left"
+                onClick={() => scroll("left")}
+                size="icon"
+                variant="outline"
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              <Button
+                aria-label="Scroll right"
+                onClick={() => scroll("right")}
+                size="icon"
+                variant="outline"
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+          </div>
+          <div
+            className="flex gap-4 overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            ref={scrollRef}
+          >
+            {featuredWorkflows.map((workflow) => {
+              const isDuplicating = duplicatingIds.has(workflow.id);
+
+              return (
+                <Card
+                  className="flex w-[260px] shrink-0 flex-col gap-0 overflow-hidden border border-border/30 bg-sidebar py-0"
+                  key={workflow.id}
+                >
+                  <div className="relative flex h-[130px] w-full items-center justify-center overflow-hidden px-8">
+                    <WorkflowMiniMap
+                      edges={workflow.edges}
+                      height={120}
+                      nodes={workflow.nodes}
+                      width={220}
+                    />
+                  </div>
+                  <CardHeader className="pt-0 pb-2">
+                    <CardTitle className="line-clamp-2">
+                      {workflow.name}
+                    </CardTitle>
+                    {workflow.description && (
+                      <CardDescription className="line-clamp-2">
+                        {workflow.description}
+                      </CardDescription>
+                    )}
+                    <WorkflowNodeIcons nodes={workflow.nodes} />
+                  </CardHeader>
+                  <div className="flex-1" />
+                  <CardFooter className="gap-2 pb-3">
+                    <Button
+                      className="flex-1"
+                      disabled={isDuplicating}
+                      onClick={() => handleDuplicate(workflow.id)}
+                      variant="default"
+                    >
+                      {isDuplicating ? "Duplicating..." : "Use Template"}
+                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          onClick={() =>
+                            router.push(`/workflows/${workflow.id}`)
+                          }
+                          variant="outline"
+                        >
+                          <Eye className="size-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">View Template</TooltipContent>
+                    </Tooltip>
+                  </CardFooter>
+                </Card>
+              );
+            })}
+          </div>
+        </>
+      )}
+
       <div className="my-6 border-t border-border/30" />
 
-      <h3 className="mb-4 font-semibold text-base">
+      <h3 className="mb-4 font-bold text-lg">
         Actions ({protocol.actions.length})
       </h3>
 

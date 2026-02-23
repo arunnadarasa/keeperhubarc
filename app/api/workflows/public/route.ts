@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 import { db } from "@/lib/db";
@@ -62,6 +62,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(request.url);
     const isFeaturedRequest = searchParams.get("featured") === "true";
+    const featuredProtocol = searchParams.get("featuredProtocol");
     const tagSlug = searchParams.get("tag");
 
     let workflowIdFilter: string[] | null = null;
@@ -74,10 +75,17 @@ export async function GET(request: Request): Promise<NextResponse> {
       workflowIdFilter = result;
     }
 
-    const conditions = [
-      eq(workflows.visibility, "public"),
-      eq(workflows.featured, isFeaturedRequest),
-    ];
+    const isProtocolFeaturedRequest = Boolean(featuredProtocol);
+
+    const conditions = [eq(workflows.visibility, "public")];
+
+    if (isProtocolFeaturedRequest) {
+      conditions.push(
+        eq(workflows.featuredProtocol, featuredProtocol as string)
+      );
+    } else {
+      conditions.push(eq(workflows.featured, isFeaturedRequest));
+    }
 
     if (workflowIdFilter) {
       conditions.push(inArray(workflows.id, workflowIdFilter));
@@ -93,6 +101,8 @@ export async function GET(request: Request): Promise<NextResponse> {
         isAnonymous: workflows.isAnonymous,
         featured: workflows.featured,
         featuredOrder: workflows.featuredOrder,
+        featuredProtocol: workflows.featuredProtocol,
+        featuredProtocolOrder: workflows.featuredProtocolOrder,
         projectId: workflows.projectId,
         tagId: workflows.tagId,
         nodes: workflows.nodes,
@@ -105,9 +115,11 @@ export async function GET(request: Request): Promise<NextResponse> {
       .from(workflows)
       .where(and(...conditions))
       .orderBy(
-        ...(isFeaturedRequest
-          ? [desc(workflows.featuredOrder), desc(workflows.updatedAt)]
-          : [desc(workflows.updatedAt)])
+        ...(isProtocolFeaturedRequest
+          ? [asc(workflows.featuredProtocolOrder), desc(workflows.updatedAt)]
+          : isFeaturedRequest
+            ? [desc(workflows.featuredOrder), desc(workflows.updatedAt)]
+            : [desc(workflows.updatedAt)])
       );
 
     const tagsByWorkflow = await fetchTagsByWorkflow(
