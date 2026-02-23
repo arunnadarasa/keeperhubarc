@@ -115,7 +115,7 @@ export function ProtocolStrip({
 
           return (
             <button
-              className="relative flex w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-sidebar text-left transition-colors hover:border-border hover:brightness-110"
+              className="relative flex w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-[#1a2230] text-left transition-colors hover:border-border hover:brightness-110"
               key={protocol.slug}
               onClick={() => onSelect(protocol.slug)}
               type="button"
