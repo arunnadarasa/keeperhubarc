@@ -398,6 +398,7 @@ jobs:
         run: pnpm exec playwright install-deps chromium
 
       - name: Wait for PR environment to be ready
+        id: health-check
         run: |
           echo "Waiting for ${{ env.BASE_URL }}/api/health to return 200..."
           CF_HEADERS=""
@@ -438,7 +439,7 @@ jobs:
           retention-days: 7
 
       - name: Comment test results on PR
-        if: always()
+        if: always() && steps.health-check.outcome == 'success'
         uses: actions/github-script@v7
         with:
           script: |
