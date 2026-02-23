@@ -194,15 +194,13 @@ function ExpandableRunRow({ run }: ExpandableRunRowProps): ReactNode {
 
     setExpanded(true);
 
-    if (steps.length > 0) {
+    if (run.source === "direct" || steps.length > 0) {
       return;
     }
 
     setLoadingSteps(true);
     try {
-      const response = await fetch(
-        `/api/analytics/runs/${run.id}/steps?source=${run.source}`
-      );
+      const response = await fetch(`/api/analytics/runs/${run.id}/steps`);
       if (response.ok) {
         const data = (await response.json()) as StepLog[];
         setSteps(data);

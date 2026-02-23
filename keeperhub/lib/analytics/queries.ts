@@ -723,7 +723,10 @@ async function getUnifiedRunsTotal(
 /**
  * Fetch step-level logs for a workflow execution.
  */
-export async function getStepLogs(executionId: string): Promise<StepLog[]> {
+export async function getStepLogs(
+  executionId: string,
+  organizationId: string
+): Promise<StepLog[]> {
   const result = await db
     .select({
       id: workflowExecutionLogs.id,
@@ -739,7 +742,17 @@ export async function getStepLogs(executionId: string): Promise<StepLog[]> {
       forEachNodeId: workflowExecutionLogs.forEachNodeId,
     })
     .from(workflowExecutionLogs)
-    .where(eq(workflowExecutionLogs.executionId, executionId))
+    .innerJoin(
+      workflowExecutions,
+      eq(workflowExecutionLogs.executionId, workflowExecutions.id)
+    )
+    .innerJoin(workflows, eq(workflowExecutions.workflowId, workflows.id))
+    .where(
+      and(
+        eq(workflowExecutionLogs.executionId, executionId),
+        eq(workflows.organizationId, organizationId)
+      )
+    )
     .orderBy(workflowExecutionLogs.startedAt);
 
   return result.map((row) => ({

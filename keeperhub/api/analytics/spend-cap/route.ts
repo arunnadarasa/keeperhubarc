@@ -17,7 +17,7 @@ export const GET = requireOrganization(
     try {
       const data = await getSpendCapData(organizationId);
       return NextResponse.json(data);
-    } catch (error) {
+    } catch (error: unknown) {
       return apiError(error, "Failed to fetch spend cap data");
     }
   }
