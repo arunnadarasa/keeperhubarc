@@ -38,11 +38,18 @@ jobs:
             # Triggered by Deploy PR Environment workflow
             if [[ "${{ github.event.workflow_run.conclusion }}" == "success" ]]; then
               echo "run-deployed=true" >> $GITHUB_OUTPUT
-              # Extract PR number from the workflow run
-              PR_NUMBER=$(echo '${{ github.event.workflow_run.head_branch }}' | grep -oP 'pr-\K\d+' || echo "")
+
+              # Try pull_requests array first (works for same-repo PRs)
+              PR_NUMBER="${{ github.event.workflow_run.pull_requests[0].number }}"
+
+              # Fallback: query the API for PRs matching the head branch
               if [[ -z "$PR_NUMBER" ]]; then
-                # Try to get from pull_requests array
-                PR_NUMBER="${{ github.event.workflow_run.pull_requests[0].number }}"
+                HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
+                PR_NUMBER=$(gh pr list --head "$HEAD_BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
+              fi
+
+              if [[ -z "$PR_NUMBER" ]]; then
+                echo "::warning::Could not determine PR number from workflow_run event"
               fi
               echo "pr-number=$PR_NUMBER" >> $GITHUB_OUTPUT
             fi
@@ -268,19 +275,31 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Get Playwright version
+        run: echo "PW_VERSION=$(pnpm exec playwright --version | awk '{print $2}')" >> $GITHUB_ENV
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ env.PW_VERSION }}
+
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm exec playwright install --with-deps chromium
+
+      - name: Install Playwright system deps
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
 
       - name: Generate plugin registry
         run: pnpm discover-plugins
 
-      - name: Run database migrations
-        run: pnpm db:push
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
-
-      - name: Seed database
+      - name: Setup database
         run: |
+          pnpm db:setup-workflow
+          pnpm db:migrate
           pnpm db:seed
           pnpm db:seed-test-wallet
         env:
@@ -288,17 +307,18 @@ jobs:
           TEST_PARA_USER_SHARE: ${{ secrets.TEST_PARA_USER_SHARE }}
           WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
 
-      - name: Build application
-        run: pnpm build
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
-
       - name: Run Playwright tests
         run: pnpm test:e2e
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
           PARA_API_KEY: ${{ secrets.TEST_PARA_API_KEY }}
           PARA_ENVIRONMENT: beta
+          WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
+          INTEGRATION_ENCRYPTION_KEY: ${{ secrets.TEST_INTEGRATION_ENCRYPTION_KEY }}
+          PARA_PORTAL_ORG_ID: ${{ secrets.PARA_PORTAL_ORG_ID }}
+          PARA_PORTAL_PROJECT_ID: ${{ secrets.PARA_PORTAL_PROJECT_ID }}
+          PARA_PORTAL_KEY_ID: ${{ secrets.PARA_PORTAL_KEY_ID }}
+          PARA_PORTAL_API_KEY: ${{ secrets.PARA_PORTAL_API_KEY }}
           CI: true
 
       - name: Upload Playwright report
@@ -360,18 +380,34 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Get Playwright version
+        run: echo "PW_VERSION=$(pnpm exec playwright --version | awk '{print $2}')" >> $GITHUB_ENV
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ env.PW_VERSION }}
+
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm exec playwright install --with-deps chromium
+
+      - name: Install Playwright system deps
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
 
       - name: Wait for PR environment to be ready
         run: |
-          echo "Waiting for ${{ env.BASE_URL }} to be ready..."
+          echo "Waiting for ${{ env.BASE_URL }}/api/health to return 200..."
           for i in {1..30}; do
-            if curl -s -o /dev/null -w "%{http_code}" "${{ env.BASE_URL }}" | grep -q "200\|301\|302"; then
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ env.BASE_URL }}/api/health")
+            if [[ "$STATUS" == "200" ]]; then
               echo "PR environment is ready!"
               exit 0
             fi
-            echo "Attempt $i/30: Not ready yet, waiting 10s..."
+            echo "Attempt $i/30: got HTTP $STATUS, waiting 10s..."
             sleep 10
           done
           echo "PR environment did not become ready in time"
