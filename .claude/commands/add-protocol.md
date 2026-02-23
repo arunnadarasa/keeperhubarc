@@ -55,6 +55,7 @@ defineProtocol({
     label: string,
     addresses: Record<string, string>,  // chainId string -> 0x-prefixed hex address (exactly 42 chars)
     abi?: string,                       // OMIT for auto-fetch (recommended -- see ABI handling below)
+    userSpecifiedAddress?: boolean,     // When true, the runtime address comes from user input (see below)
   }>,
 
   actions: Array<{
@@ -102,6 +103,15 @@ ABI HANDLING:
 - Proxy detection is automatic: EIP-1967, EIP-1822, EIP-2535 (Diamond) -- ABI follows the implementation
 - Only provide inline `abi` if: contract is unverified on all explorers AND you have the ABI string
 - Add a comment noting proxy status: `// Proxy -- ABI auto-resolved via abi-cache`
+
+USER-SPECIFIED ADDRESS CONTRACTS:
+- Some protocols (e.g., Safe multisig wallets) are deployed at user-specific addresses rather than fixed protocol-level addresses
+- Set `userSpecifiedAddress: true` on such contracts
+- The `addresses` field still serves as chain-availability metadata -- populate it with reference addresses (e.g., singleton/implementation addresses) so `collectAllChains()` in the UI correctly shows supported chains
+- Address format validation is skipped for these contracts (the reference addresses are informational)
+- At build time, `buildConfigFieldsFromAction()` automatically inserts a `contractAddress` template-input field at the top of the action config
+- At runtime, `protocol-read.ts` and `protocol-write.ts` read `input.contractAddress` instead of looking up from the fixed addresses map
+- Reference: `keeperhub/protocols/safe-wallet.ts` (canonical example)
 
 ICON HANDLING:
 - Icon is fully optional -- if omitted, a default square protocol icon (`ProtocolIcon`) is displayed everywhere (Hub, workflow builder, etc.)

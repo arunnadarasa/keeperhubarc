@@ -16,6 +16,7 @@ import {
 
 type ProtocolReadInput = StepInput & {
   network: string;
+  contractAddress?: string;
   _protocolMeta?: string;
   _actionType?: string;
   [key: string]: unknown;
@@ -76,11 +77,15 @@ export async function protocolReadStep(
     };
   }
 
-  const contractAddress = contract.addresses[input.network];
+  const contractAddress = contract.userSpecifiedAddress
+    ? input.contractAddress
+    : contract.addresses[input.network];
   if (!contractAddress) {
     return {
       success: false,
-      error: `Protocol "${meta.protocolSlug}" contract "${meta.contractKey}" is not deployed on network "${input.network}"`,
+      error: contract.userSpecifiedAddress
+        ? `Missing contract address for "${meta.contractKey}" in protocol "${meta.protocolSlug}"`
+        : `Protocol "${meta.protocolSlug}" contract "${meta.contractKey}" is not deployed on network "${input.network}"`,
     };
   }
 

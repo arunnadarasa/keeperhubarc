@@ -16,6 +16,7 @@ export type ProtocolContract = {
   label: string;
   addresses: Record<string, string>;
   abi?: string;
+  userSpecifiedAddress?: boolean;
 };
 
 export type ProtocolActionInput = {
@@ -64,6 +65,9 @@ function validateSlug(slug: string, context: string): void {
 
 function validateAddresses(contracts: Record<string, ProtocolContract>): void {
   for (const [contractKey, contract] of Object.entries(contracts)) {
+    if (contract.userSpecifiedAddress) {
+      continue;
+    }
     for (const [chain, address] of Object.entries(contract.addresses)) {
       if (!HEX_ADDRESS_REGEX.test(address)) {
         throw new Error(
@@ -128,6 +132,7 @@ function buildConfigFieldsFromAction(
   def: ProtocolDefinition,
   action: ProtocolAction
 ): ActionConfigFieldBase[] {
+  const contract = def.contracts[action.contract];
   const fields: ActionConfigFieldBase[] = [
     {
       key: "network",
@@ -137,6 +142,17 @@ function buildConfigFieldsFromAction(
       required: true,
     },
   ];
+
+  if (contract?.userSpecifiedAddress) {
+    fields.push({
+      key: "contractAddress",
+      label: `${contract.label} Address`,
+      type: "template-input",
+      placeholder: "0x...",
+      required: true,
+      isAddressField: true,
+    });
+  }
 
   for (const input of action.inputs) {
     fields.push({
