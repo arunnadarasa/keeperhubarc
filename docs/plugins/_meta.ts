@@ -4,6 +4,7 @@ export default {
   code: "Code",
   math: "Math",
   safe: "Safe",
+  ajna: "Ajna",
   sky: "Sky",
   discord: "Discord",
   telegram: "Telegram",
