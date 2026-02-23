@@ -205,12 +205,6 @@ export default defineProtocol({
           label: "Threshold Price (WAD)",
           decimals: 18,
         },
-        {
-          name: "neutralPrice",
-          type: "uint256",
-          label: "Neutral Price (WAD)",
-          decimals: 18,
-        },
       ],
     },
     {
