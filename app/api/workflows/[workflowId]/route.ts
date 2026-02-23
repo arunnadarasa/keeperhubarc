@@ -334,6 +334,7 @@ export async function PATCH(
       );
     }
 
+    // start custom keeperhub code //
     // Validate projectId/tagId ownership when provided
     if (body.projectId !== undefined || body.tagId !== undefined) {
       const targetOrgId = existingWorkflow.organizationId || organizationId;
@@ -372,6 +373,7 @@ export async function PATCH(
         }
       }
     }
+    // end keeperhub code //
 
     const updateData = buildUpdateData(body);
 

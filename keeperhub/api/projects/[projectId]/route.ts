@@ -1,36 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { authenticateApiKey } from "@/keeperhub/lib/api-key-auth";
-import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
-import { auth } from "@/lib/auth";
+import { resolveOrganizationId } from "@/keeperhub/lib/middleware/auth-helpers";
 import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
-
-async function resolveOrganizationId(
-  request: Request
-): Promise<{ organizationId: string } | { error: string; status: number }> {
-  const apiKeyAuth = await authenticateApiKey(request);
-
-  if (apiKeyAuth.authenticated) {
-    const organizationId = apiKeyAuth.organizationId;
-    if (!organizationId) {
-      return { error: "No active organization", status: 400 };
-    }
-    return { organizationId };
-  }
-
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user) {
-    return { error: "Unauthorized", status: 401 };
-  }
-
-  const orgContext = await getOrgContext();
-  const organizationId = orgContext.organization?.id;
-  if (!organizationId) {
-    return { error: "No active organization", status: 400 };
-  }
-  return { organizationId };
-}
 
 export async function PATCH(
   request: Request,

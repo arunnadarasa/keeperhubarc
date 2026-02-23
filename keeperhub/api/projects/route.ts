@@ -1,6 +1,7 @@
 import { count, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { authenticateApiKey } from "@/keeperhub/lib/api-key-auth";
+import { resolveCreatorContext } from "@/keeperhub/lib/middleware/auth-helpers";
 import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -78,40 +79,6 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
-
-async function resolveCreatorContext(
-  request: Request
-): Promise<
-  { organizationId: string; userId: string } | { error: string; status: number }
-> {
-  const apiKeyAuth = await authenticateApiKey(request);
-  if (apiKeyAuth.authenticated) {
-    const organizationId = apiKeyAuth.organizationId || null;
-    const userId = apiKeyAuth.userId || null;
-    if (!organizationId) {
-      return { error: "No active organization", status: 400 };
-    }
-    if (!userId) {
-      return {
-        error: "API key has no associated user. Please recreate the API key.",
-        status: 400,
-      };
-    }
-    return { organizationId, userId };
-  }
-
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user) {
-    return { error: "Unauthorized", status: 401 };
-  }
-
-  const context = await getOrgContext();
-  const organizationId = context.organization?.id || null;
-  if (!organizationId) {
-    return { error: "No active organization", status: 400 };
-  }
-  return { organizationId, userId: session.user.id };
 }
 
 export async function POST(request: Request) {
