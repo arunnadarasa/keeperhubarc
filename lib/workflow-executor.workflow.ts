@@ -778,6 +778,9 @@ export type LoopBodyInfo = {
   bodyNodeIds: string[];
   collectNodeId: string | undefined;
   bodyEdgesBySource: Map<string, string[]>;
+  // start custom keeperhub code //
+  bodyEdgesBySourceHandle: Map<string, Map<string, string[]>>;
+  // end keeperhub code //
 };
 
 /**
@@ -807,10 +810,16 @@ function computeNextDepth(
 export function identifyLoopBody(
   forEachNodeId: string,
   edgesBySource: Map<string, string[]>,
-  nodeMap: Map<string, WorkflowNode>
+  nodeMap: Map<string, WorkflowNode>,
+  // start custom keeperhub code //
+  edgesBySourceHandle?: Map<string, Map<string, string[]>>
+  // end keeperhub code //
 ): LoopBodyInfo {
   const bodyNodeIds: string[] = [];
   const bodyEdgesBySource = new Map<string, string[]>();
+  // start custom keeperhub code //
+  const bodyEdgesBySourceHandle = new Map<string, Map<string, string[]>>();
+  // end keeperhub code //
   let collectNodeId: string | undefined;
   const visited = new Set<string>();
 
@@ -862,6 +871,18 @@ export function identifyLoopBody(
 
     bodyNodeIds.push(nodeId);
 
+    // start custom keeperhub code //
+    // Copy handle-aware edges for this node into body map
+    const nodeHandleMap = edgesBySourceHandle?.get(nodeId);
+    if (nodeHandleMap) {
+      const bodyHandleMap = new Map<string, string[]>();
+      for (const [handle, targets] of nodeHandleMap) {
+        bodyHandleMap.set(handle, [...targets]);
+      }
+      bodyEdgesBySourceHandle.set(nodeId, bodyHandleMap);
+    }
+    // end keeperhub code //
+
     const nextDepth = computeNextDepth(isForEach, isCollect, depth);
     const nextIds = edgesBySource.get(nodeId) ?? [];
     for (const nextId of nextIds) {
@@ -873,7 +894,7 @@ export function identifyLoopBody(
     }
   }
 
-  return { bodyNodeIds, collectNodeId, bodyEdgesBySource };
+  return { bodyNodeIds, collectNodeId, bodyEdgesBySource, bodyEdgesBySourceHandle };
 }
 
 /**
@@ -962,10 +983,27 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
   // Build node and edge maps
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const edgesBySource = new Map<string, string[]>();
+  // start custom keeperhub code //
+  // Handle-aware edge map: sourceNodeId -> handleId -> targetNodeIds[]
+  const edgesBySourceHandle = new Map<string, Map<string, string[]>>();
+  // end keeperhub code //
   for (const edge of edges) {
     const targets = edgesBySource.get(edge.source) || [];
     targets.push(edge.target);
     edgesBySource.set(edge.source, targets);
+
+    // start custom keeperhub code //
+    if (edge.sourceHandle) {
+      let handleMap = edgesBySourceHandle.get(edge.source);
+      if (!handleMap) {
+        handleMap = new Map<string, string[]>();
+        edgesBySourceHandle.set(edge.source, handleMap);
+      }
+      const handleTargets = handleMap.get(edge.sourceHandle) || [];
+      handleTargets.push(edge.target);
+      handleMap.set(edge.sourceHandle, handleTargets);
+    }
+    // end keeperhub code //
   }
 
   // Find trigger nodes
@@ -1099,7 +1137,10 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     bodyResults: Record<string, ExecutionResult>,
     bodyEdgesBySource: Map<string, string[]>,
     collectNodeId: string | undefined,
-    iterationMeta?: { iterationIndex: number; forEachNodeId: string }
+    iterationMeta?: { iterationIndex: number; forEachNodeId: string },
+    // start custom keeperhub code //
+    bodyHandleMap?: Map<string, Map<string, string[]>>
+    // end keeperhub code //
   ): Promise<void> {
     if (bodyVisited.has(nodeId)) {
       return;
@@ -1130,7 +1171,10 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           bodyResults,
           bodyEdgesBySource,
           collectNodeId,
-          iterationMeta
+          iterationMeta,
+          // start custom keeperhub code //
+          bodyHandleMap
+          // end keeperhub code //
         );
       }
       return;
@@ -1223,32 +1267,59 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
                 bodyResults,
                 bodyEdgesBySource,
                 collectNodeId,
-                iterationMeta
+                iterationMeta,
+                // start custom keeperhub code //
+                bodyHandleMap
+                // end keeperhub code //
               );
             }
           },
         });
       } else if (actionType === "Condition") {
+        // start custom keeperhub code //
         const conditionValue = (result.data as { condition?: boolean })
           ?.condition;
-        if (conditionValue !== true) {
+        const nodeHandles = bodyHandleMap?.get(nodeId);
+        if (nodeHandles) {
+          const handleId = conditionValue === true ? "true" : "false";
+          const handleTargets = nodeHandles.get(handleId) ?? [];
+          for (const next of handleTargets) {
+            await executeBodyNode(
+              next,
+              bodyVisited,
+              scopedOutputs,
+              bodyResults,
+              bodyEdgesBySource,
+              collectNodeId,
+              iterationMeta,
+              bodyHandleMap
+            );
+          }
+        } else if (conditionValue !== true) {
+          // Legacy fallback: gate behavior
           return;
         }
+        // end keeperhub code //
       }
 
-      // Continue to downstream body nodes
-      const nextNodes = bodyEdgesBySource.get(nodeId) ?? [];
-      for (const next of nextNodes) {
-        await executeBodyNode(
-          next,
-          bodyVisited,
-          scopedOutputs,
-          bodyResults,
-          bodyEdgesBySource,
-          collectNodeId,
-          iterationMeta
-        );
+      // start custom keeperhub code //
+      // Continue to downstream body nodes (skip if condition already routed via handles)
+      if (actionType !== "Condition" || !bodyHandleMap?.has(nodeId)) {
+        const nextNodes = bodyEdgesBySource.get(nodeId) ?? [];
+        for (const next of nextNodes) {
+          await executeBodyNode(
+            next,
+            bodyVisited,
+            scopedOutputs,
+            bodyResults,
+            bodyEdgesBySource,
+            collectNodeId,
+            iterationMeta,
+            bodyHandleMap
+          );
+        }
       }
+      // end keeperhub code //
     } catch (error) {
       const errorMessage = await getErrorMessageAsync(error);
       bodyResults[nodeId] = { success: false, error: errorMessage };
@@ -1295,11 +1366,14 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     const itemsToProcess = resolvedArray.slice(0, maxIterations);
 
     // 2. Identify body subgraph
-    const { bodyNodeIds, collectNodeId, bodyEdgesBySource } = identifyLoopBody(
+    // start custom keeperhub code //
+    const { bodyNodeIds, collectNodeId, bodyEdgesBySource, bodyEdgesBySourceHandle } = identifyLoopBody(
       forEachNodeId,
       currentEdgesBySource,
-      nodeMap
+      nodeMap,
+      edgesBySourceHandle
     );
+    // end keeperhub code //
 
     const sanitizedForEachId = forEachNodeId.replace(/[^a-zA-Z0-9]/g, "_");
 
@@ -1343,7 +1417,10 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           bodyResults,
           bodyEdgesBySource,
           collectNodeId,
-          iterationMeta
+          iterationMeta,
+          // start custom keeperhub code //
+          bodyEdgesBySourceHandle
+          // end keeperhub code //
         );
       }
 
@@ -1732,29 +1809,33 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           results[nodeId] = { success: true, data: iterationSummary };
         } else if (currentActionType === "Condition") {
           // end keeperhub code //
-          // For condition nodes, only execute next nodes if condition is true
+          // For condition nodes, route to true/false handle targets
           const conditionResult = (result.data as { condition?: boolean })
             ?.condition;
-          console.log(
-            "[Workflow Executor] Condition node result:",
-            conditionResult
-          );
 
-          if (conditionResult === true) {
-            const nextNodes = edgesBySource.get(nodeId) || [];
-            console.log(
-              "[Workflow Executor] Condition is true, executing",
-              nextNodes.length,
-              "next nodes in parallel"
-            );
+          // start custom keeperhub code //
+          const handleMap = edgesBySourceHandle.get(nodeId);
+          if (handleMap) {
+            // Handle-aware routing: use sourceHandle to determine targets
+            const handleId = conditionResult === true ? "true" : "false";
+            const handleTargets = handleMap.get(handleId) ?? [];
             await Promise.all(
-              nextNodes.map((nextNodeId) => executeNode(nextNodeId, visited))
+              handleTargets.map((nextNodeId) =>
+                executeNode(nextNodeId, visited)
+              )
             );
           } else {
-            console.log(
-              "[Workflow Executor] Condition is false, skipping next nodes"
-            );
+            // Legacy fallback: no sourceHandle on edges, use old gate behavior
+            if (conditionResult === true) {
+              const nextNodes = edgesBySource.get(nodeId) ?? [];
+              await Promise.all(
+                nextNodes.map((nextNodeId) =>
+                  executeNode(nextNodeId, visited)
+                )
+              );
+            }
           }
+          // end keeperhub code //
         } else {
           // For non-condition nodes, execute all next nodes in parallel
           const nextNodes = edgesBySource.get(nodeId) || [];
