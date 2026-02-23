@@ -22,7 +22,7 @@ export function ProtocolDetailModal({
 }: ProtocolDetailModalProps): React.ReactElement {
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-4xl">
         <DialogTitle className="sr-only">
           {protocol?.name ?? "Protocol Details"}
         </DialogTitle>

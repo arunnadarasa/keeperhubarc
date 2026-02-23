@@ -237,3 +237,4 @@ curl http://localhost:3000/api/mcp/schemas?category=web3
 # Without chains
 curl http://localhost:3000/api/mcp/schemas?includeChains=false
 ```
+

@@ -212,6 +212,8 @@ export const workflows = pgTable("workflows", {
   isAnonymous: boolean("is_anonymous").default(false).notNull(),
   featured: boolean("featured").default(false).notNull(),
   featuredOrder: integer("featured_order").default(0),
+  featuredProtocol: text("featured_protocol"),
+  featuredProtocolOrder: integer("featured_protocol_order").default(0),
   projectId: text("project_id").references(() => projects.id, {
     onDelete: "set null",
   }),

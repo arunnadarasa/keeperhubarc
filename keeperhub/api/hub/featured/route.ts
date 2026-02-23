@@ -8,11 +8,15 @@ import { workflows } from "@/lib/db/schema";
 type FeaturedFields = {
   featured?: boolean;
   featuredOrder?: number | null;
+  featuredProtocol?: string | null;
+  featuredProtocolOrder?: number | null;
 };
 
 const ALLOWED_FEATURED_FIELDS: (keyof FeaturedFields)[] = [
   "featured",
   "featuredOrder",
+  "featuredProtocol",
+  "featuredProtocolOrder",
 ];
 
 export async function POST(request: Request) {
@@ -45,7 +49,9 @@ export async function POST(request: Request) {
 
     const updateData: FeaturedFields = {};
 
-    if (fields.featured === undefined) {
+    const isProtocolFeatured =
+      "featuredProtocol" in fields && fields.featuredProtocol;
+    if (fields.featured === undefined && !isProtocolFeatured) {
       updateData.featured = true;
     }
 
@@ -64,6 +70,8 @@ export async function POST(request: Request) {
         name: workflows.name,
         featured: workflows.featured,
         featuredOrder: workflows.featuredOrder,
+        featuredProtocol: workflows.featuredProtocol,
+        featuredProtocolOrder: workflows.featuredProtocolOrder,
       });
 
     return NextResponse.json({
