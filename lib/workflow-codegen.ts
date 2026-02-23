@@ -1,3 +1,6 @@
+// start custom keeperhub code //
+import { buildEdgesBySourceHandle } from "@/keeperhub/lib/edge-handle-utils";
+// end keeperhub code //
 import { findActionById, flattenConfigFields } from "@/plugins";
 import {
   analyzeNodeUsage,
@@ -50,25 +53,12 @@ export function generateWorkflowCode(
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const edgesBySource = new Map<string, string[]>();
   // start custom keeperhub code //
-  const edgesBySourceHandle = new Map<string, Map<string, string[]>>();
+  const edgesBySourceHandle = buildEdgesBySourceHandle(edges);
   // end keeperhub code //
   for (const edge of edges) {
     const targets = edgesBySource.get(edge.source) || [];
     targets.push(edge.target);
     edgesBySource.set(edge.source, targets);
-
-    // start custom keeperhub code //
-    if (edge.sourceHandle) {
-      let handleMap = edgesBySourceHandle.get(edge.source);
-      if (!handleMap) {
-        handleMap = new Map<string, string[]>();
-        edgesBySourceHandle.set(edge.source, handleMap);
-      }
-      const handleTargets = handleMap.get(edge.sourceHandle) || [];
-      handleTargets.push(edge.target);
-      handleMap.set(edge.sourceHandle, handleTargets);
-    }
-    // end keeperhub code //
   }
 
   // Find trigger nodes (nodes with no incoming edges)

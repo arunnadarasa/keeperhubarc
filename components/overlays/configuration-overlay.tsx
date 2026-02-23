@@ -165,7 +165,7 @@ export function ConfigurationOverlay({ overlayId }: ConfigurationOverlayProps) {
 
   // start custom keeperhub code //
   const handleUpdateConfig = useCallback(
-    (key: string, value: string | Record<string, unknown>) => {
+    (key: string, value: string | Record<string, unknown> | undefined) => {
     // end keeperhub code //
       if (!selectedNode) {
         return;

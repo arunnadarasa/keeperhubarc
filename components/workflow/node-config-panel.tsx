@@ -547,7 +547,7 @@ export const PanelInner = () => {
 
   // start custom keeperhub code //
   // Widened value type to support structured config objects (e.g. conditionConfig)
-  const handleUpdateConfig = (key: string, value: string | Record<string, unknown>) => {
+  const handleUpdateConfig = (key: string, value: string | Record<string, unknown> | undefined) => {
   // end keeperhub code //
     if (selectedNode) {
       // start custom keeperhub code //

@@ -68,7 +68,7 @@ import { ActionConfigRenderer } from "./action-config-renderer";
 import { SchemaBuilder, type SchemaField } from "./schema-builder";
 
 // start custom keeperhub code //
-type ConfigValue = string | Record<string, unknown>;
+type ConfigValue = string | Record<string, unknown> | undefined;
 // end keeperhub code //
 
 type ActionConfigProps = {
@@ -273,7 +273,7 @@ function ConditionFields({
   const handleModeSwitch = (newMode: "visual" | "expression"): void => {
     if (newMode === "expression" && existingConditionConfig) {
       // Clear visual config so the raw expression takes precedence on reload
-      onUpdateConfig("conditionConfig", "" as unknown as ConfigValue);
+      onUpdateConfig("conditionConfig", undefined);
     }
     setMode(newMode);
   };

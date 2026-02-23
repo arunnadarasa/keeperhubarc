@@ -29,6 +29,10 @@ import {
 } from "@/keeperhub/lib/metrics/instrumentation/workflow";
 import { ARRAY_SOURCE_RE } from "@/keeperhub/lib/for-each-utils";
 import {
+  buildEdgesBySourceHandle,
+  type EdgesBySourceHandle,
+} from "@/keeperhub/lib/edge-handle-utils";
+import {
   preValidateConditionExpression,
   validateConditionExpression,
 } from "@/lib/condition-validator";
@@ -779,7 +783,7 @@ export type LoopBodyInfo = {
   collectNodeId: string | undefined;
   bodyEdgesBySource: Map<string, string[]>;
   // start custom keeperhub code //
-  bodyEdgesBySourceHandle: Map<string, Map<string, string[]>>;
+  bodyEdgesBySourceHandle: EdgesBySourceHandle;
   // end keeperhub code //
 };
 
@@ -812,13 +816,13 @@ export function identifyLoopBody(
   edgesBySource: Map<string, string[]>,
   nodeMap: Map<string, WorkflowNode>,
   // start custom keeperhub code //
-  edgesBySourceHandle?: Map<string, Map<string, string[]>>
+  edgesBySourceHandle?: EdgesBySourceHandle
   // end keeperhub code //
 ): LoopBodyInfo {
   const bodyNodeIds: string[] = [];
   const bodyEdgesBySource = new Map<string, string[]>();
   // start custom keeperhub code //
-  const bodyEdgesBySourceHandle = new Map<string, Map<string, string[]>>();
+  const bodyEdgesBySourceHandle: EdgesBySourceHandle = new Map();
   // end keeperhub code //
   let collectNodeId: string | undefined;
   const visited = new Set<string>();
@@ -994,26 +998,12 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const edgesBySource = new Map<string, string[]>();
   // start custom keeperhub code //
-  // Handle-aware edge map: sourceNodeId -> handleId -> targetNodeIds[]
-  const edgesBySourceHandle = new Map<string, Map<string, string[]>>();
+  const edgesBySourceHandle = buildEdgesBySourceHandle(edges);
   // end keeperhub code //
   for (const edge of edges) {
     const targets = edgesBySource.get(edge.source) || [];
     targets.push(edge.target);
     edgesBySource.set(edge.source, targets);
-
-    // start custom keeperhub code //
-    if (edge.sourceHandle) {
-      let handleMap = edgesBySourceHandle.get(edge.source);
-      if (!handleMap) {
-        handleMap = new Map<string, string[]>();
-        edgesBySourceHandle.set(edge.source, handleMap);
-      }
-      const handleTargets = handleMap.get(edge.sourceHandle) || [];
-      handleTargets.push(edge.target);
-      handleMap.set(edge.sourceHandle, handleTargets);
-    }
-    // end keeperhub code //
   }
 
   // Find trigger nodes
@@ -1149,7 +1139,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     collectNodeId: string | undefined,
     iterationMeta?: { iterationIndex: number; forEachNodeId: string },
     // start custom keeperhub code //
-    bodyHandleMap?: Map<string, Map<string, string[]>>
+    bodyHandleMap?: EdgesBySourceHandle
     // end keeperhub code //
   ): Promise<void> {
     if (bodyVisited.has(nodeId)) {
