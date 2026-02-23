@@ -871,18 +871,6 @@ export function identifyLoopBody(
 
     bodyNodeIds.push(nodeId);
 
-    // start custom keeperhub code //
-    // Copy handle-aware edges for this node into body map
-    const nodeHandleMap = edgesBySourceHandle?.get(nodeId);
-    if (nodeHandleMap) {
-      const bodyHandleMap = new Map<string, string[]>();
-      for (const [handle, targets] of nodeHandleMap) {
-        bodyHandleMap.set(handle, [...targets]);
-      }
-      bodyEdgesBySourceHandle.set(nodeId, bodyHandleMap);
-    }
-    // end keeperhub code //
-
     const nextDepth = computeNextDepth(isForEach, isCollect, depth);
     const nextIds = edgesBySource.get(nodeId) ?? [];
     for (const nextId of nextIds) {
@@ -893,6 +881,28 @@ export function identifyLoopBody(
       queue.push({ nodeId: nextId, depth: nextDepth });
     }
   }
+
+  // start custom keeperhub code //
+  // Copy handle-aware edges, filtering targets to body-only nodes so
+  // condition handles cannot accidentally route outside the loop body.
+  const bodyNodeSet = new Set(bodyNodeIds);
+  for (const bodyNodeId of bodyNodeIds) {
+    const nodeHandleMap = edgesBySourceHandle?.get(bodyNodeId);
+    if (!nodeHandleMap) {
+      continue;
+    }
+    const filteredHandleMap = new Map<string, string[]>();
+    for (const [handle, targets] of nodeHandleMap) {
+      const filteredTargets = targets.filter((t) => bodyNodeSet.has(t));
+      if (filteredTargets.length > 0) {
+        filteredHandleMap.set(handle, filteredTargets);
+      }
+    }
+    if (filteredHandleMap.size > 0) {
+      bodyEdgesBySourceHandle.set(bodyNodeId, filteredHandleMap);
+    }
+  }
+  // end keeperhub code //
 
   return { bodyNodeIds, collectNodeId, bodyEdgesBySource, bodyEdgesBySourceHandle };
 }

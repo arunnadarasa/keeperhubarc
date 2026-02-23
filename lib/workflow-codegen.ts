@@ -876,11 +876,15 @@ export function generateWorkflowCode(
     const hasHandleEdges = trueTargets.length > 0 || falseTargets.length > 0;
 
     const nextNodes = hasHandleEdges ? [] : (edgesBySource.get(nodeId) ?? []);
-    const trueNode = hasHandleEdges ? trueTargets[0] : nextNodes[0];
-    const falseNode = hasHandleEdges ? falseTargets[0] : nextNodes[1];
+    const effectiveTrueTargets = hasHandleEdges
+      ? trueTargets
+      : nextNodes.slice(0, 1);
+    const effectiveFalseTargets = hasHandleEdges
+      ? falseTargets
+      : nextNodes.slice(1, 2);
     // end keeperhub code //
 
-    if (trueNode || falseNode) {
+    if (effectiveTrueTargets.length > 0 || effectiveFalseTargets.length > 0) {
       let convertedCondition: string;
       if (condition) {
         convertedCondition = convertConditionToJS(condition);
@@ -891,15 +895,17 @@ export function generateWorkflowCode(
       }
 
       lines.push(`${indent}if (${convertedCondition}) {`);
-      if (trueNode) {
-        const trueNodeCode = generateNodeCode(trueNode, `${indent}  `);
-        lines.push(...trueNodeCode);
+      if (effectiveTrueTargets.length > 0) {
+        lines.push(
+          ...generateParallelNodeCode(effectiveTrueTargets, `${indent}  `)
+        );
       }
 
-      if (falseNode) {
+      if (effectiveFalseTargets.length > 0) {
         lines.push(`${indent}} else {`);
-        const falseNodeCode = generateNodeCode(falseNode, `${indent}  `);
-        lines.push(...falseNodeCode);
+        lines.push(
+          ...generateParallelNodeCode(effectiveFalseTargets, `${indent}  `)
+        );
       }
 
       lines.push(`${indent}}`);
@@ -1002,11 +1008,15 @@ export function generateWorkflowCode(
     const hasHandleEdges = trueTargets.length > 0 || falseTargets.length > 0;
 
     const nextNodes = hasHandleEdges ? [] : (edgesBySource.get(nodeId) ?? []);
-    const trueNodeId = hasHandleEdges ? trueTargets[0] : nextNodes[0];
-    const falseNodeId = hasHandleEdges ? falseTargets[0] : nextNodes[1];
+    const effectiveTrueTargets = hasHandleEdges
+      ? trueTargets
+      : nextNodes.slice(0, 1);
+    const effectiveFalseTargets = hasHandleEdges
+      ? falseTargets
+      : nextNodes.slice(1, 2);
     // end keeperhub code //
 
-    if (trueNodeId || falseNodeId) {
+    if (effectiveTrueTargets.length > 0 || effectiveFalseTargets.length > 0) {
       let convertedCondition: string;
       if (condition) {
         convertedCondition = convertConditionToJS(condition);
@@ -1017,16 +1027,18 @@ export function generateWorkflowCode(
       }
 
       lines.push(`${indent}if (${convertedCondition}) {`);
-      if (trueNodeId) {
+      for (const targetId of effectiveTrueTargets) {
         lines.push(
-          ...generateBranchCode(trueNodeId, `${indent}  `, branchVisited)
+          ...generateBranchCode(targetId, `${indent}  `, branchVisited)
         );
       }
-      if (falseNodeId) {
+      if (effectiveFalseTargets.length > 0) {
         lines.push(`${indent}} else {`);
-        lines.push(
-          ...generateBranchCode(falseNodeId, `${indent}  `, branchVisited)
-        );
+        for (const targetId of effectiveFalseTargets) {
+          lines.push(
+            ...generateBranchCode(targetId, `${indent}  `, branchVisited)
+          );
+        }
       }
       lines.push(`${indent}}`);
     }

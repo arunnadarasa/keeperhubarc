@@ -548,7 +548,9 @@ export async function GET(request: Request) {
         id: "string - Unique edge identifier",
         source: "string - Source node ID",
         target: "string - Target node ID",
-        note: "Do NOT use sourceHandle or targetHandle - KeeperHub uses simple handles",
+        sourceHandle:
+          "string (optional) - Only for edges from Condition nodes: set to 'true' or 'false' to control branch routing. Omit for all other node types.",
+        note: "Do NOT use targetHandle. sourceHandle is only needed for Condition node edges.",
       },
     },
 

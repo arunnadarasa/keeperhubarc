@@ -228,14 +228,15 @@ function ConditionFields({
     return expressionToConditionGroup(conditionValue);
   }, [conditionValue, existingConditionConfig]);
 
-  // Persist the parsed group to config so it's saved with the workflow
-  const hasPersisted = useRef(false);
+  // Persist the parsed group to config so it's saved with the workflow.
+  // Track identity via conditionValue to reset when switching between nodes.
+  const persistedForExpression = useRef<string | null>(null);
   useEffect(() => {
-    if (parsedGroup && !hasPersisted.current) {
+    if (parsedGroup && persistedForExpression.current !== conditionValue) {
       onUpdateConfig("conditionConfig", { group: parsedGroup });
-      hasPersisted.current = true;
+      persistedForExpression.current = conditionValue;
     }
-  }, [parsedGroup, onUpdateConfig]);
+  }, [parsedGroup, conditionValue, onUpdateConfig]);
 
   const [mode, setMode] = useState<"visual" | "expression">(() => {
     if (!conditionValue || existingConditionConfig) {
@@ -269,8 +270,17 @@ function ConditionFields({
     onUpdateConfig("condition", expression);
   };
 
+  const handleModeSwitch = (newMode: "visual" | "expression"): void => {
+    if (newMode === "expression" && existingConditionConfig) {
+      // Clear visual config so the raw expression takes precedence on reload
+      onUpdateConfig("conditionConfig", "" as unknown as ConfigValue);
+    }
+    setMode(newMode);
+  };
+
+  const emptyGroup = useMemo(() => createEmptyGroup(), []);
   const currentGroup =
-    existingConditionConfig?.group ?? parsedGroup ?? createEmptyGroup();
+    existingConditionConfig?.group ?? parsedGroup ?? emptyGroup;
 
   return (
     <div className="space-y-3">
@@ -284,7 +294,7 @@ function ConditionFields({
                 : "text-muted-foreground hover:text-foreground"
             }`}
             disabled={disabled}
-            onClick={() => setMode("visual")}
+            onClick={() => handleModeSwitch("visual")}
             type="button"
           >
             Visual
@@ -296,7 +306,7 @@ function ConditionFields({
                 : "text-muted-foreground hover:text-foreground"
             }`}
             disabled={disabled}
-            onClick={() => setMode("expression")}
+            onClick={() => handleModeSwitch("expression")}
             type="button"
           >
             Expression

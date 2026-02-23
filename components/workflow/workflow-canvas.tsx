@@ -360,37 +360,40 @@ export function WorkflowCanvas() {
   const onConnect: OnConnect = useCallback(
     (connection: XYFlowConnection) => {
       // start custom keeperhub code //
-      // Auto-assign sourceHandle for For Each and Condition connections when not already set
-      let { sourceHandle } = connection;
-      if (!sourceHandle) {
-        const sourceNode = nodes.find((n) => n.id === connection.source);
-        const sourceActionType = sourceNode
-          ? getActionType(sourceNode)
-          : undefined;
+      // Auto-assign sourceHandle for For Each and Condition connections.
+      // Uses functional updater to read current edges and avoid stale closures.
+      setEdges((currentEdges) => {
+        let { sourceHandle } = connection;
+        if (!sourceHandle) {
+          const sourceNode = nodes.find((n) => n.id === connection.source);
+          const sourceActionType = sourceNode
+            ? getActionType(sourceNode)
+            : undefined;
 
-        if (sourceActionType === "For Each") {
-          const targetNode = nodes.find((n) => n.id === connection.target);
-          sourceHandle =
-            targetNode && getActionType(targetNode) === "Collect"
-              ? "done"
-              : "loop";
-        } else if (sourceActionType === "Condition") {
-          const hasTrueEdge = edges.some(
-            (e) =>
-              e.source === connection.source && e.sourceHandle === "true"
-          );
-          sourceHandle = hasTrueEdge ? "false" : "true";
+          if (sourceActionType === "For Each") {
+            const targetNode = nodes.find((n) => n.id === connection.target);
+            sourceHandle =
+              targetNode && getActionType(targetNode) === "Collect"
+                ? "done"
+                : "loop";
+          } else if (sourceActionType === "Condition") {
+            const hasTrueEdge = currentEdges.some(
+              (e) =>
+                e.source === connection.source && e.sourceHandle === "true"
+            );
+            sourceHandle = hasTrueEdge ? "false" : "true";
+          }
         }
-      }
-      // end keeperhub code //
+        // end keeperhub code //
 
-      const newEdge = {
-        id: nanoid(),
-        ...connection,
-        sourceHandle,
-        type: "animated",
-      };
-      setEdges((currentEdges) => [...currentEdges, newEdge]);
+        const newEdge = {
+          id: nanoid(),
+          ...connection,
+          sourceHandle,
+          type: "animated",
+        };
+        return [...currentEdges, newEdge];
+      });
       setHasUnsavedChanges(true);
       // Trigger immediate autosave when nodes are connected
       triggerAutosave({ immediate: true });
