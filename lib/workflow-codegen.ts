@@ -844,7 +844,34 @@ export function generateWorkflowCode(
     return lines;
   }
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: handle-aware condition routing adds inherent branching for true/false/legacy paths
+  // start custom keeperhub code //
+  /** Resolve true/false targets for a condition node, using handle edges with positional fallback. */
+  function resolveConditionTargets(nodeId: string): {
+    trueTargets: string[];
+    falseTargets: string[];
+  } {
+    const handleMap = edgesBySourceHandle.get(nodeId);
+    const trueHandleTargets = handleMap?.get("true") ?? [];
+    const falseHandleTargets = handleMap?.get("false") ?? [];
+    const hasHandleEdges =
+      trueHandleTargets.length > 0 || falseHandleTargets.length > 0;
+
+    if (hasHandleEdges) {
+      return {
+        trueTargets: trueHandleTargets,
+        falseTargets: falseHandleTargets,
+      };
+    }
+
+    // Legacy fallback: first edge is true branch, second is false
+    const nextNodes = edgesBySource.get(nodeId) ?? [];
+    return {
+      trueTargets: nextNodes.slice(0, 1),
+      falseTargets: nextNodes.slice(1, 2),
+    };
+  }
+  // end keeperhub code //
+
   function generateConditionNodeCode(
     node: WorkflowNode,
     nodeId: string,
@@ -859,19 +886,10 @@ export function generateWorkflowCode(
     const condition = node.data.config?.condition as string;
 
     // start custom keeperhub code //
-    // Use handle-aware targets if available, fall back to positional
-    const handleMap = edgesBySourceHandle.get(nodeId);
-    const trueTargets = handleMap?.get("true") ?? [];
-    const falseTargets = handleMap?.get("false") ?? [];
-    const hasHandleEdges = trueTargets.length > 0 || falseTargets.length > 0;
-
-    const nextNodes = hasHandleEdges ? [] : (edgesBySource.get(nodeId) ?? []);
-    const effectiveTrueTargets = hasHandleEdges
-      ? trueTargets
-      : nextNodes.slice(0, 1);
-    const effectiveFalseTargets = hasHandleEdges
-      ? falseTargets
-      : nextNodes.slice(1, 2);
+    const {
+      trueTargets: effectiveTrueTargets,
+      falseTargets: effectiveFalseTargets,
+    } = resolveConditionTargets(nodeId);
     // end keeperhub code //
 
     if (effectiveTrueTargets.length > 0 || effectiveFalseTargets.length > 0) {
@@ -981,7 +999,6 @@ export function generateWorkflowCode(
   /**
    * Generate condition branch code with if/else
    */
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: handle-aware condition routing adds inherent branching for true/false/legacy paths
   function generateConditionBranchCode(
     node: WorkflowNode,
     nodeId: string,
@@ -992,18 +1009,10 @@ export function generateWorkflowCode(
     const condition = node.data.config?.condition as string;
 
     // start custom keeperhub code //
-    const handleMap = edgesBySourceHandle.get(nodeId);
-    const trueTargets = handleMap?.get("true") ?? [];
-    const falseTargets = handleMap?.get("false") ?? [];
-    const hasHandleEdges = trueTargets.length > 0 || falseTargets.length > 0;
-
-    const nextNodes = hasHandleEdges ? [] : (edgesBySource.get(nodeId) ?? []);
-    const effectiveTrueTargets = hasHandleEdges
-      ? trueTargets
-      : nextNodes.slice(0, 1);
-    const effectiveFalseTargets = hasHandleEdges
-      ? falseTargets
-      : nextNodes.slice(1, 2);
+    const {
+      trueTargets: effectiveTrueTargets,
+      falseTargets: effectiveFalseTargets,
+    } = resolveConditionTargets(nodeId);
     // end keeperhub code //
 
     if (effectiveTrueTargets.length > 0 || effectiveFalseTargets.length > 0) {

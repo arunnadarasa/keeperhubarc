@@ -220,12 +220,17 @@ function ConditionFields({
     | { group: ConditionGroup }
     | undefined;
 
-  // Parse legacy expression into visual form (memoized, computed once)
-  const parsedGroup = useMemo(() => {
+  // Parse legacy expression into visual form (memoized, computed once).
+  // Also derives the initial mode to avoid parsing the expression twice.
+  const { parsedGroup, initialMode } = useMemo(() => {
     if (existingConditionConfig || !conditionValue) {
-      return null;
+      return { parsedGroup: null, initialMode: "visual" as const };
     }
-    return expressionToConditionGroup(conditionValue);
+    const parsed = expressionToConditionGroup(conditionValue);
+    return {
+      parsedGroup: parsed,
+      initialMode: parsed !== null ? ("visual" as const) : ("expression" as const),
+    };
   }, [conditionValue, existingConditionConfig]);
 
   // Persist the parsed group to config so it's saved with the workflow.
@@ -238,14 +243,7 @@ function ConditionFields({
     }
   }, [parsedGroup, conditionValue, onUpdateConfig]);
 
-  const [mode, setMode] = useState<"visual" | "expression">(() => {
-    if (!conditionValue || existingConditionConfig) {
-      return "visual";
-    }
-    return expressionToConditionGroup(conditionValue) !== null
-      ? "visual"
-      : "expression";
-  });
+  const [mode, setMode] = useState<"visual" | "expression">(initialMode);
 
   const [validationError, setValidationError] = useState<string | null>(null);
 
