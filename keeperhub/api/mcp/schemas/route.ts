@@ -28,18 +28,22 @@ const SYSTEM_ACTIONS = {
     actionType: "Condition",
     label: "Condition",
     description:
-      "Conditional gate - only continues to connected nodes if condition evaluates to true. For if/else logic, create TWO separate Condition nodes from the same source with opposite conditions.",
+      "Conditional branch with dual output paths (true/false). Connect downstream nodes to the 'true' or 'false' source handles to create if/else logic in a single Condition node.",
     category: "System",
     requiredFields: {
       condition:
         'string - JavaScript expression using {{@nodeId:Label.field}} syntax, e.g., "{{@check-balance:Check Balance.balance}} < 0.1"',
     },
-    optionalFields: {},
+    optionalFields: {
+      conditionConfig:
+        "object - Visual condition builder config with { group: ConditionGroup }. When provided, the 'condition' field is auto-generated from this visual config.",
+    },
     outputFields: {
       result: "boolean - Whether the condition evaluated to true",
     },
+    sourceHandles: ["true", "false"],
     behavior:
-      "GATE (not branch) - execution only continues if condition is TRUE. No false branch exists.",
+      "BRANCH - has two output handles ('true' and 'false'). Edges from sourceHandle 'true' execute when condition is true; edges from sourceHandle 'false' execute when condition is false. For new workflows, always set sourceHandle on edges from Condition nodes.",
   },
   "HTTP Request": {
     actionType: "HTTP Request",
@@ -590,9 +594,9 @@ export async function GET(request: Request) {
       "actionType must match exactly (e.g., 'web3/check-balance', not 'Get Wallet Balance')",
       "Use {{@nodeId:Label.field}} syntax to reference outputs from previous nodes",
       "network should be chain ID as string (e.g., '1' for mainnet, '11155111' for sepolia)",
-      "Edges only need id, source, and target - do NOT use sourceHandle or targetHandle",
+      "Edges need id, source, and target. For Condition nodes, also set sourceHandle to 'true' or 'false' to control which branch executes.",
       "For verified contracts, ABI is auto-fetched. For unverified contracts, provide ABI manually.",
-      "Condition nodes act as GATES, not branches. For if/else, create TWO condition nodes with opposite expressions.",
+      "Condition nodes have dual output handles ('true' and 'false'). Set sourceHandle on edges to route execution. For if/else, connect different nodes to each handle of a single Condition node.",
       "integrationId is required for actions that need credentials (discord, sendgrid, database)",
       "web3 read actions (check-balance, read-contract) don't require wallet integration",
       "web3 write actions (transfer-funds, write-contract) require wallet integration",
