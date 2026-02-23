@@ -126,10 +126,7 @@ function GasChartContent({
           type="category"
           width={100}
         />
-        <RechartsTooltip
-          content={<ChartTooltip />}
-          cursor={{ fill: "hsl(var(--muted) / 0.3)" }}
-        />
+        <RechartsTooltip content={<ChartTooltip />} cursor={false} />
         <Bar dataKey="gasEth" radius={[0, 4, 4, 0]}>
           {chartData.map((entry, index) => (
             <Cell

@@ -118,27 +118,29 @@ type StepLogRowProps = {
 function StepLogRow({ step }: StepLogRowProps): ReactNode {
   return (
     <tr className="border-t border-dashed border-muted">
-      <td className="py-1.5 pl-10 pr-3">
-        <span
-          className={cn(
-            "inline-block size-1.5 rounded-full",
-            getStepStatusColor(step.status)
-          )}
-        />
-      </td>
-      <td className="py-1.5 text-xs text-muted-foreground" colSpan={3}>
-        {step.nodeName}
-        <span className="ml-1.5 text-muted-foreground/60">
-          ({step.nodeType})
-        </span>
-      </td>
-      <td className="py-1.5 text-xs text-muted-foreground">
-        {formatDuration(step.durationMs)}
-      </td>
-      <td className="py-1.5 text-xs text-muted-foreground" colSpan={3}>
-        {step.error ? (
-          <span className="text-red-600 dark:text-red-400">{step.error}</span>
-        ) : null}
+      <td colSpan={8}>
+        <div className="flex items-center gap-3 py-1.5 pl-10 pr-3">
+          <span
+            className={cn(
+              "inline-block size-1.5 shrink-0 rounded-full",
+              getStepStatusColor(step.status)
+            )}
+          />
+          <span className="min-w-0 truncate text-xs text-muted-foreground">
+            {step.nodeName}
+            <span className="ml-1.5 text-muted-foreground/60">
+              ({step.nodeType})
+            </span>
+          </span>
+          <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+            {formatDuration(step.durationMs)}
+          </span>
+          {step.error ? (
+            <span className="shrink-0 text-xs text-red-600 dark:text-red-400">
+              {step.error}
+            </span>
+          ) : null}
+        </div>
       </td>
     </tr>
   );
@@ -267,16 +269,16 @@ function ExpandableRunRow({ run }: ExpandableRunRowProps): ReactNode {
             </span>
           ) : null}
         </td>
-        <td className="py-3 pr-3 text-sm text-muted-foreground">
+        <td className="whitespace-nowrap py-3 pr-3 text-sm text-muted-foreground">
           {formatDuration(run.durationMs)}
         </td>
-        <td className="py-3 pr-3 text-sm text-muted-foreground">
+        <td className="whitespace-nowrap py-3 pr-3 text-sm text-muted-foreground">
           {run.network ?? "--"}
         </td>
-        <td className="py-3 pr-3 text-sm text-muted-foreground">
+        <td className="whitespace-nowrap py-3 pr-3 text-sm text-muted-foreground">
           {formatGasAsEth(run.gasUsedWei)}
         </td>
-        <td className="py-3 pr-3 text-right text-sm text-muted-foreground">
+        <td className="whitespace-nowrap py-3 pr-3 text-right text-sm text-muted-foreground">
           {formatTimeAgo(run.startedAt)}
         </td>
       </tr>
@@ -327,20 +329,10 @@ function RunsTableContent({
   return (
     <>
       <div className="overflow-x-auto">
-        <table className="w-full table-fixed text-left">
-          <colgroup>
-            <col className="w-10" />
-            <col className="w-[90px]" />
-            <col className="w-[90px]" />
-            <col />
-            <col className="w-[90px]" />
-            <col className="w-[100px]" />
-            <col className="w-[110px]" />
-            <col className="w-[80px]" />
-          </colgroup>
+        <table className="min-w-[700px] w-full text-left">
           <thead>
             <tr className="border-b text-xs text-muted-foreground">
-              <th className="pb-2 pl-3" />
+              <th className="w-8 pb-2 pl-3" />
               <th className="pb-2 pr-3 font-medium">Status</th>
               <th className="pb-2 pr-3 font-medium">Source</th>
               <th className="pb-2 pr-3 font-medium">Name</th>
