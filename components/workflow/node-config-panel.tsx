@@ -545,7 +545,10 @@ export const PanelInner = () => {
     [updateNodeData, setPendingIntegrationNodes]
   );
 
-  const handleUpdateConfig = (key: string, value: string) => {
+  // start custom keeperhub code //
+  // Widened value type to support structured config objects (e.g. conditionConfig)
+  const handleUpdateConfig = (key: string, value: string | Record<string, unknown>) => {
+  // end keeperhub code //
     if (selectedNode) {
       // start custom keeperhub code //
       const baseConfig = pendingConfigRef.current ?? selectedNode.data.config;
@@ -560,7 +563,7 @@ export const PanelInner = () => {
       // start custom keeperhub code //
       // When action type is selected, persist defaultValues from configFields
       // into config so that showWhen conditions and validation work immediately
-      if (key === "actionType") {
+      if (key === "actionType" && typeof value === "string") {
         const selectedAction = findActionById(value);
         if (selectedAction?.configFields) {
           for (const field of flattenConfigFields(selectedAction.configFields)) {
@@ -584,7 +587,7 @@ export const PanelInner = () => {
       updateNodeData({ id: selectedNode.id, data: { config: newConfig } });
 
       // When action type changes, auto-select integration if only one exists
-      if (key === "actionType") {
+      if (key === "actionType" && typeof value === "string") {
         // Cancel any pending auto-select operation for this node
         const existingController =
           autoSelectAbortControllersRef.current[selectedNode.id];
