@@ -64,7 +64,9 @@ COPY --from=source /app/tsconfig.json ./tsconfig.json
 # Run migrations only: docker run --env DATABASE_URL=xxx keeperhub-migrator pnpm db:migrate
 # Run seed only: docker run --env DATABASE_URL=xxx keeperhub-migrator pnpm db:seed
 
-# Stage 2.7a: Scheduler Dependencies (minimal deps for scheduler scripts)
+# Stage 2.7a: Scheduler Dependencies (uses main project deps)
+# The scheduler scripts now live in scripts/scheduler/ and import from
+# the main project's dependencies, so we reuse the full deps stage.
 FROM node:25-alpine AS scheduler-deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
@@ -72,12 +74,12 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm
 
-# Copy scheduler-specific package.json with minimal dependencies
-COPY scheduler/package.json ./
+# Use main project package.json (scheduler/package.json was removed)
+COPY package.json pnpm-lock.yaml ./
 
-# Install only scheduler dependencies (production only) with cache mount
+# Install only production dependencies with cache mount
 RUN --mount=type=cache,id=pnpm-scheduler,target=/root/.local/share/pnpm/store \
-    pnpm install --prod
+    pnpm install --prod --frozen-lockfile
 
 # Stage 2.7b: Scheduler stage (for schedule dispatcher and job spawner)
 FROM node:25-alpine AS scheduler
@@ -100,8 +102,8 @@ ENV NODE_ENV=production
 # - Job spawner (Deployment): polls SQS, creates K8s Jobs
 #
 # Build with: docker build --target scheduler -t keeperhub-scheduler .
-# Run dispatcher: docker run keeperhub-scheduler tsx scripts/schedule-dispatcher.ts
-# Run job spawner: docker run keeperhub-scheduler tsx scripts/job-spawner.ts
+# Run dispatcher: docker run keeperhub-scheduler tsx scripts/scheduler/schedule-dispatcher.ts
+# Run job spawner: docker run keeperhub-scheduler tsx scripts/scheduler/job-spawner.ts
 
 # Stage 2.8: Workflow Runner stage (for executing workflows in K8s Jobs)
 FROM node:25-alpine AS workflow-runner
@@ -111,7 +113,7 @@ COPY --from=deps /etc/ssl/certs/rds-combined-ca-bundle.pem /etc/ssl/certs/rds-co
 
 # Copy dependencies and workflow execution files
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=source /app/scripts/workflow-runner.ts ./scripts/workflow-runner.ts
+COPY --from=source /app/scripts/runtime/workflow-runner.ts ./scripts/runtime/workflow-runner.ts
 COPY --from=source /app/lib ./lib
 COPY --from=source /app/plugins ./plugins
 COPY --from=source /app/keeperhub ./keeperhub
@@ -138,7 +140,7 @@ ENV NODE_ENV=production
 #   WORKFLOW_ID, EXECUTION_ID, SCHEDULE_ID, WORKFLOW_INPUT, DATABASE_URL
 #
 # Build with: docker build --target workflow-runner -t keeperhub-runner .
-CMD ["tsx", "scripts/workflow-runner.ts"]
+CMD ["tsx", "scripts/runtime/workflow-runner.ts"]
 
 # Stage 3: Runner (main Next.js app)
 FROM node:25-alpine AS runner
