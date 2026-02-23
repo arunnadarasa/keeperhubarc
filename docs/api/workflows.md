@@ -13,7 +13,7 @@ Manage workflows programmatically.
 GET /api/workflows
 ```
 
-Returns all workflows for the authenticated user.
+Returns all workflows for the authenticated user (session) or organization (API key).
 
 ### Query Parameters
 
@@ -31,20 +31,18 @@ GET /api/workflows?projectId=proj_123&tagId=tag_456
 ### Response
 
 ```json
-{
-  "data": [
-    {
-      "id": "wf_123",
-      "name": "My Workflow",
-      "description": "Monitors ETH balance",
-      "visibility": "private",
-      "nodes": [...],
-      "edges": [...],
-      "createdAt": "2024-01-01T00:00:00Z",
-      "updatedAt": "2024-01-01T00:00:00Z"
-    }
-  ]
-}
+[
+  {
+    "id": "wf_123",
+    "name": "My Workflow",
+    "description": "Monitors ETH balance",
+    "visibility": "private",
+    "nodes": [],
+    "edges": [],
+    "createdAt": "2024-01-01T00:00:00Z",
+    "updatedAt": "2024-01-01T00:00:00Z"
+  }
+]
 ```
 
 ## Get Workflow
@@ -83,7 +81,7 @@ Public workflows include a `publicTags` array showing all assigned tags.
 ## Create Workflow
 
 ```http
-POST /api/workflows
+POST /api/workflows/create
 ```
 
 ### Request Body
