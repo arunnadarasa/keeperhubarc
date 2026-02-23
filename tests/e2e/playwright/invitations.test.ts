@@ -1,7 +1,7 @@
 import type { BrowserContext, Page } from "@playwright/test";
-import { expect, test } from "@playwright/test";
 import dotenv from "dotenv";
 import postgres from "postgres";
+import { expect, test } from "./fixtures";
 
 dotenv.config({ path: ".env" });
 dotenv.config({ path: ".env.local" });

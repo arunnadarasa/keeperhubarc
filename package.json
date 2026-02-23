@@ -34,6 +34,7 @@
     "test:integration": "vitest run tests/integration",
     "test:e2e": "playwright test",
     "discover": "tsx tests/e2e/playwright/discover.ts",
+    "test:health": "tsx tests/e2e/playwright/health.ts",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:vitest": "vitest run tests/e2e/vitest",
     "test:e2e:schedule": "vitest run tests/e2e/vitest/schedule-pipeline.test.ts",

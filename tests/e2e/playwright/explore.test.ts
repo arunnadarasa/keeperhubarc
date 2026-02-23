@@ -15,7 +15,7 @@
  *   Run: PW_DISCOVER=1 pnpm test:e2e --grep "explore"
  */
 
-import { test } from "@playwright/test";
+import { test } from "./fixtures";
 import {
   autoProbe,
   clearHighlights,

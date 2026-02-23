@@ -18,6 +18,7 @@ export interface ElementInfo {
   inputType: string | null;
   visible: boolean;
   disabled: boolean;
+  disabledReason: string | null;
   bounds: { x: number; y: number; width: number; height: number } | null;
   parentContext: string | null;
 }
@@ -173,6 +174,61 @@ export async function getInteractiveElements(
       return tag;
     };
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: browser-context function with independent disability checks, cannot be extracted
+    const getDisabledReason = (el: Element): string | null => {
+      const reasons: string[] = [];
+
+      if ((el as HTMLButtonElement).disabled) {
+        reasons.push("disabled attribute");
+      }
+      if (el.getAttribute("aria-disabled") === "true") {
+        reasons.push("aria-disabled");
+      }
+
+      // Check parent fieldset[disabled]
+      let parent = el.parentElement;
+      while (parent) {
+        if (
+          parent.tagName === "FIELDSET" &&
+          (parent as HTMLFieldSetElement).disabled
+        ) {
+          reasons.push("parent fieldset[disabled]");
+          break;
+        }
+        parent = parent.parentElement;
+      }
+
+      const style = window.getComputedStyle(el);
+      if (style.pointerEvents === "none") {
+        reasons.push("pointer-events: none");
+      }
+
+      // Check aria-busy on self or ancestors
+      let busyEl: Element | null = el;
+      while (busyEl) {
+        if (busyEl.getAttribute("aria-busy") === "true") {
+          reasons.push(
+            busyEl === el ? "aria-busy" : "ancestor aria-busy"
+          );
+          break;
+        }
+        busyEl = busyEl.parentElement;
+      }
+
+      // Check for nearby loading indicators
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const loadingIndicator = parentEl.querySelector(
+          '[class*="loading"], [class*="spinner"], [data-loading]'
+        );
+        if (loadingIndicator) {
+          reasons.push("loading indicator nearby");
+        }
+      }
+
+      return reasons.length > 0 ? reasons.join("; ") : null;
+    };
+
     const results: Array<{
       locator: string;
       tag: string;
@@ -185,6 +241,7 @@ export async function getInteractiveElements(
       inputType: string | null;
       visible: boolean;
       disabled: boolean;
+      disabledReason: string | null;
       bounds: {
         x: number;
         y: number;
@@ -220,6 +277,7 @@ export async function getInteractiveElements(
         disabled:
           (el as HTMLButtonElement).disabled ||
           el.getAttribute("aria-disabled") === "true",
+        disabledReason: getDisabledReason(el),
         bounds: isVisible
           ? {
               x: Math.round(rect.x),
@@ -614,12 +672,12 @@ export function formatDiff(diff: StateDiff): string {
   if (diff.newElements.length > 0) {
     lines.push("## New Elements");
     lines.push("");
-    lines.push("| Locator | Tag | Text | Disabled |");
-    lines.push("|---------|-----|------|----------|");
+    lines.push("| Locator | Tag | Text | Disabled | Why Disabled |");
+    lines.push("|---------|-----|------|----------|--------------|");
     for (const el of diff.newElements) {
       const text = el.text || el.ariaLabel || el.placeholder || "-";
       lines.push(
-        `| \`${el.locator}\` | ${el.tag} | ${text.substring(0, 40)} | ${el.disabled ? "yes" : "-"} |`
+        `| \`${el.locator}\` | ${el.tag} | ${text.substring(0, 40)} | ${el.disabled ? "yes" : "-"} | ${el.disabledReason ?? "-"} |`
       );
     }
     lines.push("");
@@ -915,13 +973,13 @@ function formatForClaude(report: DiscoveryReport): string {
     const elements = groupedObj[context];
     lines.push(`### ${context}`);
     lines.push("");
-    lines.push("| # | Locator | Tag | Text | Disabled |");
-    lines.push("|---|---------|-----|------|----------|");
+    lines.push("| # | Locator | Tag | Text | Disabled | Why Disabled |");
+    lines.push("|---|---------|-----|------|----------|--------------|");
     for (let i = 0; i < elements.length; i++) {
       const el = elements[i];
       const text = el.text || el.ariaLabel || el.placeholder || "-";
       lines.push(
-        `| ${i} | \`${el.locator}\` | ${el.tag} | ${text.substring(0, 40)} | ${el.disabled ? "yes" : "-"} |`
+        `| ${i} | \`${el.locator}\` | ${el.tag} | ${text.substring(0, 40)} | ${el.disabled ? "yes" : "-"} | ${el.disabledReason ?? "-"} |`
       );
     }
     lines.push("");
