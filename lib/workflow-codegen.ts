@@ -49,10 +49,26 @@ export function generateWorkflowCode(
   // Build a map of node connections
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const edgesBySource = new Map<string, string[]>();
+  // start custom keeperhub code //
+  const edgesBySourceHandle = new Map<string, Map<string, string[]>>();
+  // end keeperhub code //
   for (const edge of edges) {
     const targets = edgesBySource.get(edge.source) || [];
     targets.push(edge.target);
     edgesBySource.set(edge.source, targets);
+
+    // start custom keeperhub code //
+    if (edge.sourceHandle) {
+      let handleMap = edgesBySourceHandle.get(edge.source);
+      if (!handleMap) {
+        handleMap = new Map<string, string[]>();
+        edgesBySourceHandle.set(edge.source, handleMap);
+      }
+      const handleTargets = handleMap.get(edge.sourceHandle) || [];
+      handleTargets.push(edge.target);
+      handleMap.set(edge.sourceHandle, handleTargets);
+    }
+    // end keeperhub code //
   }
 
   // Find trigger nodes (nodes with no incoming edges)
@@ -838,6 +854,7 @@ export function generateWorkflowCode(
     return lines;
   }
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: handle-aware condition routing adds inherent branching for true/false/legacy paths
   function generateConditionNodeCode(
     node: WorkflowNode,
     nodeId: string,
@@ -850,15 +867,20 @@ export function generateWorkflowCode(
     }
 
     const condition = node.data.config?.condition as string;
-    const nextNodes = edgesBySource.get(nodeId) || [];
 
-    if (nextNodes.length > 0) {
-      const trueNode = nextNodes[0];
-      const falseNode = nextNodes[1];
+    // start custom keeperhub code //
+    // Use handle-aware targets if available, fall back to positional
+    const handleMap = edgesBySourceHandle.get(nodeId);
+    const trueTargets = handleMap?.get("true") ?? [];
+    const falseTargets = handleMap?.get("false") ?? [];
+    const hasHandleEdges = trueTargets.length > 0 || falseTargets.length > 0;
 
-      // Convert template references in condition to JavaScript expressions (not template literal syntax)
-      // KEEP-1284: Collect validation error when condition is empty/unconfigured.
-      // Conditions must have an explicit expression to be valid.
+    const nextNodes = hasHandleEdges ? [] : (edgesBySource.get(nodeId) ?? []);
+    const trueNode = hasHandleEdges ? trueTargets[0] : nextNodes[0];
+    const falseNode = hasHandleEdges ? falseTargets[0] : nextNodes[1];
+    // end keeperhub code //
+
+    if (trueNode || falseNode) {
       let convertedCondition: string;
       if (condition) {
         convertedCondition = convertConditionToJS(condition);
@@ -963,6 +985,7 @@ export function generateWorkflowCode(
   /**
    * Generate condition branch code with if/else
    */
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: handle-aware condition routing adds inherent branching for true/false/legacy paths
   function generateConditionBranchCode(
     node: WorkflowNode,
     nodeId: string,
@@ -971,11 +994,19 @@ export function generateWorkflowCode(
   ): string[] {
     const lines: string[] = [`${indent}// Condition: ${node.data.label}`];
     const condition = node.data.config?.condition as string;
-    const nextNodes = edgesBySource.get(nodeId) || [];
 
-    if (nextNodes.length > 0) {
-      // KEEP-1284: Collect validation error when condition is empty/unconfigured.
-      // Conditions must have an explicit expression to be valid.
+    // start custom keeperhub code //
+    const handleMap = edgesBySourceHandle.get(nodeId);
+    const trueTargets = handleMap?.get("true") ?? [];
+    const falseTargets = handleMap?.get("false") ?? [];
+    const hasHandleEdges = trueTargets.length > 0 || falseTargets.length > 0;
+
+    const nextNodes = hasHandleEdges ? [] : (edgesBySource.get(nodeId) ?? []);
+    const trueNodeId = hasHandleEdges ? trueTargets[0] : nextNodes[0];
+    const falseNodeId = hasHandleEdges ? falseTargets[0] : nextNodes[1];
+    // end keeperhub code //
+
+    if (trueNodeId || falseNodeId) {
       let convertedCondition: string;
       if (condition) {
         convertedCondition = convertConditionToJS(condition);
@@ -986,15 +1017,15 @@ export function generateWorkflowCode(
       }
 
       lines.push(`${indent}if (${convertedCondition}) {`);
-      if (nextNodes[0]) {
+      if (trueNodeId) {
         lines.push(
-          ...generateBranchCode(nextNodes[0], `${indent}  `, branchVisited)
+          ...generateBranchCode(trueNodeId, `${indent}  `, branchVisited)
         );
       }
-      if (nextNodes[1]) {
+      if (falseNodeId) {
         lines.push(`${indent}} else {`);
         lines.push(
-          ...generateBranchCode(nextNodes[1], `${indent}  `, branchVisited)
+          ...generateBranchCode(falseNodeId, `${indent}  `, branchVisited)
         );
       }
       lines.push(`${indent}}`);
