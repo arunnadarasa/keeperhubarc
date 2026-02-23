@@ -155,7 +155,10 @@ function TimeSeriesContent({
           tickLine={false}
           width={40}
         />
-        <RechartsTooltip content={<ChartTooltip />} />
+        <RechartsTooltip
+          content={<ChartTooltip />}
+          cursor={{ stroke: "hsl(var(--muted-foreground) / 0.3)" }}
+        />
         <Area
           dataKey="success"
           fill={CHART_COLORS.success}

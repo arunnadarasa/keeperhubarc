@@ -126,7 +126,7 @@ function StepLogRow({ step }: StepLogRowProps): ReactNode {
           )}
         />
       </td>
-      <td className="py-1.5 text-xs text-muted-foreground" colSpan={2}>
+      <td className="py-1.5 text-xs text-muted-foreground" colSpan={3}>
         {step.nodeName}
         <span className="ml-1.5 text-muted-foreground/60">
           ({step.nodeType})
@@ -327,10 +327,20 @@ function RunsTableContent({
   return (
     <>
       <div className="overflow-x-auto">
-        <table className="w-full text-left">
+        <table className="w-full table-fixed text-left">
+          <colgroup>
+            <col className="w-10" />
+            <col className="w-[90px]" />
+            <col className="w-[90px]" />
+            <col />
+            <col className="w-[90px]" />
+            <col className="w-[100px]" />
+            <col className="w-[110px]" />
+            <col className="w-[80px]" />
+          </colgroup>
           <thead>
             <tr className="border-b text-xs text-muted-foreground">
-              <th className="w-8 pb-2 pl-3" />
+              <th className="pb-2 pl-3" />
               <th className="pb-2 pr-3 font-medium">Status</th>
               <th className="pb-2 pr-3 font-medium">Source</th>
               <th className="pb-2 pr-3 font-medium">Name</th>
