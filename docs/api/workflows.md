@@ -213,12 +213,14 @@ The `name` is required. `publicTagIds` is an array of public tag IDs to associat
 GET /api/workflows/public
 ```
 
-Returns all public workflows with optional tag filtering.
+Returns all public workflows with optional filtering.
 
 ### Query Parameters
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
+| `featured` | boolean | Optional. Filter for featured workflows (`?featured=true`) |
+| `featuredProtocol` | string | Optional. Filter for protocol-featured workflows (e.g., `?featuredProtocol=sky`) |
 | `tag` | string | Optional. Filter by public tag slug (e.g., "defi", "nft") |
 
 ### Response
