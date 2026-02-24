@@ -32,7 +32,7 @@ const SYSTEM_ACTIONS = {
     category: "System",
     requiredFields: {
       condition:
-        'string - JavaScript expression using {{@nodeId:Label.field}} syntax, e.g., "{{@check-balance:Check Balance.balance}} < 0.1"',
+        'string - JavaScript expression using {{@nodeId:Label.field}} syntax. Supported operators: == (soft equals), === (equals), != (soft not equals), !== (not equals), >, >=, <, <=, contains, startsWith, endsWith, matchesRegex, isEmpty, isNotEmpty, exists, doesNotExist. Use == for cross-type comparisons (e.g., string "0" vs number 0). Example: "{{@check-balance:Check Balance.balance}} == 0"',
     },
     optionalFields: {
       conditionConfig:
