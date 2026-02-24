@@ -15,7 +15,9 @@ type OperatorMeta = {
 };
 
 export const OPERATOR_METADATA: Record<ConditionOperator, OperatorMeta> = {
+  "==": { label: "soft equals", unary: false, category: "comparison" },
   "===": { label: "equals", unary: false, category: "comparison" },
+  "!=": { label: "soft not equals", unary: false, category: "comparison" },
   "!==": { label: "not equals", unary: false, category: "comparison" },
   ">": { label: "greater than", unary: false, category: "comparison" },
   ">=": {
@@ -43,7 +45,7 @@ export function createEmptyRule(): ConditionRule {
   return {
     id: nanoid(),
     leftOperand: "",
-    operator: "===",
+    operator: "==",
     rightOperand: "",
   };
 }
@@ -100,7 +102,9 @@ function ruleToExpression(rule: ConditionRule): string {
   const left = wrapOperand(rule.leftOperand);
 
   switch (rule.operator) {
+    case "==":
     case "===":
+    case "!=":
     case "!==":
     case ">":
     case ">=":
@@ -134,7 +138,7 @@ function ruleToExpression(rule: ConditionRule): string {
 
     default: {
       const _exhaustive: never = rule.operator;
-      return `${left} === ${wrapOperand(rule.rightOperand)}`;
+      return `${left} == ${wrapOperand(rule.rightOperand)}`;
     }
   }
 }
@@ -200,7 +204,7 @@ const IS_NOT_EMPTY_PATTERN =
   /^(.+?) !== null && \1 !== undefined && \1 !== ""$/;
 const EXISTS_PATTERN = /^(.+?) !== null && \1 !== undefined$/;
 const DOES_NOT_EXIST_PATTERN = /^(.+?) === null \|\| \1 === undefined$/;
-const COMPARISON_PATTERN = /^(.+?)\s+(===|!==|>=|<=|>|<)\s+(.+)$/;
+const COMPARISON_PATTERN = /^(.+?)\s+(===|!==|==|!=|>=|<=|>|<)\s+(.+)$/;
 
 function unwrapOperand(raw: string): string {
   const s = raw.trim();

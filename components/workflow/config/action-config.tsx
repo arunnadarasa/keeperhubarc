@@ -220,11 +220,21 @@ function ConditionFields({
     | { group: ConditionGroup }
     | undefined;
 
-  // Parse legacy expression into visual form (memoized, computed once).
+  // Parse expression into visual form (memoized, computed once).
   // Also derives the initial mode to avoid parsing the expression twice.
+  // Re-parses when the stored visual group's expression doesn't match the
+  // actual condition expression (e.g. after operator support was extended).
   const { parsedGroup, initialMode } = useMemo(() => {
-    if (existingConditionConfig || !conditionValue) {
+    if (!conditionValue) {
       return { parsedGroup: null, initialMode: "visual" as const };
+    }
+    if (existingConditionConfig) {
+      const storedExpression = visualConditionToExpression(
+        existingConditionConfig.group
+      );
+      if (storedExpression === conditionValue) {
+        return { parsedGroup: null, initialMode: "visual" as const };
+      }
     }
     const parsed = expressionToConditionGroup(conditionValue);
     return {

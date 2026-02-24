@@ -33,7 +33,7 @@ describe("condition-builder-utils", () => {
       const r = createEmptyRule();
       expect(r.id).toBeTruthy();
       expect(r.leftOperand).toBe("");
-      expect(r.operator).toBe("===");
+      expect(r.operator).toBe("==");
       expect(r.rightOperand).toBe("");
     });
   });
@@ -64,12 +64,22 @@ describe("condition-builder-utils", () => {
 
   describe("visualConditionToExpression", () => {
     describe("comparison operators", () => {
-      it("should generate equals expression", () => {
+      it("should generate loose equals expression", () => {
+        const g = group("AND", [rule("status", "==", "200")]);
+        expect(visualConditionToExpression(g)).toBe('"status" == 200');
+      });
+
+      it("should generate strict equals expression", () => {
         const g = group("AND", [rule("status", "===", "200")]);
         expect(visualConditionToExpression(g)).toBe('"status" === 200');
       });
 
-      it("should generate not-equals expression", () => {
+      it("should generate loose not-equals expression", () => {
+        const g = group("AND", [rule("status", "!=", "404")]);
+        expect(visualConditionToExpression(g)).toBe('"status" != 404');
+      });
+
+      it("should generate strict not-equals expression", () => {
         const g = group("AND", [rule("status", "!==", "404")]);
         expect(visualConditionToExpression(g)).toBe('"status" !== 404');
       });
@@ -326,14 +336,26 @@ describe("condition-builder-utils", () => {
     }
 
     describe("comparison operators", () => {
-      it("should parse equals", () => {
+      it("should parse loose equals", () => {
+        const r = parseFirstRule('"status" == 200');
+        expect(r.leftOperand).toBe("status");
+        expect(r.operator).toBe("==");
+        expect(r.rightOperand).toBe("200");
+      });
+
+      it("should parse strict equals", () => {
         const r = parseFirstRule('"status" === 200');
         expect(r.leftOperand).toBe("status");
         expect(r.operator).toBe("===");
         expect(r.rightOperand).toBe("200");
       });
 
-      it("should parse not-equals", () => {
+      it("should parse loose not-equals", () => {
+        const r = parseFirstRule('"code" != 404');
+        expect(r.operator).toBe("!=");
+      });
+
+      it("should parse strict not-equals", () => {
         const r = parseFirstRule('"code" !== 404');
         expect(r.operator).toBe("!==");
       });
@@ -425,6 +447,17 @@ describe("condition-builder-utils", () => {
         expect(r.rightOperand).toBe("100");
       });
 
+      it("should parse template reference with loose equals", () => {
+        const r = parseFirstRule(
+          "{{@w3gEica3jTc_Vjqzn-wzV:Get Native Token Balance.balanceWei}} == 0"
+        );
+        expect(r.leftOperand).toBe(
+          "{{@w3gEica3jTc_Vjqzn-wzV:Get Native Token Balance.balanceWei}}"
+        );
+        expect(r.operator).toBe("==");
+        expect(r.rightOperand).toBe("0");
+      });
+
       it("should parse template references on both sides", () => {
         const r = parseFirstRule("{{@a:A.x}} > {{@b:B.y}}");
         expect(r.leftOperand).toBe("{{@a:A.x}}");
@@ -473,13 +506,36 @@ describe("condition-builder-utils", () => {
     }
 
     describe("roundtrip: visual -> expression -> visual", () => {
-      it("should roundtrip a simple comparison", () => {
+      it("should roundtrip loose equals", () => {
+        const r = roundtripFirstRule(
+          group("AND", [rule("status", "==", "200")])
+        );
+        expect(r.leftOperand).toBe("status");
+        expect(r.operator).toBe("==");
+        expect(r.rightOperand).toBe("200");
+      });
+
+      it("should roundtrip strict equals", () => {
         const r = roundtripFirstRule(
           group("AND", [rule("status", "===", "200")])
         );
         expect(r.leftOperand).toBe("status");
         expect(r.operator).toBe("===");
         expect(r.rightOperand).toBe("200");
+      });
+
+      it("should roundtrip loose not-equals", () => {
+        const r = roundtripFirstRule(
+          group("AND", [rule("status", "!=", "404")])
+        );
+        expect(r.operator).toBe("!=");
+      });
+
+      it("should roundtrip strict not-equals", () => {
+        const r = roundtripFirstRule(
+          group("AND", [rule("status", "!==", "404")])
+        );
+        expect(r.operator).toBe("!==");
       });
 
       it("should roundtrip contains", () => {

@@ -51,61 +51,57 @@ function RuleRow({
   const unary = isUnaryOperator(rule.operator);
 
   return (
-    <div className="space-y-1">
-      {canRemove && (
-        <div className="flex justify-end">
-          <Button
-            className="size-6"
-            disabled={disabled}
-            onClick={onRemove}
-            size="icon"
-            variant="ghost"
-          >
-            <X className="size-3" />
-          </Button>
-        </div>
-      )}
+    <div className="flex items-center gap-2">
+      <div className="min-w-0 flex-1 [&_[contenteditable]]:max-h-9 [&_[contenteditable]]:overflow-hidden [&_[contenteditable]]:whitespace-nowrap">
+        <TemplateBadgeInput
+          disabled={disabled}
+          onChange={(value) => onChange({ ...rule, leftOperand: value })}
+          placeholder="Value or @ref"
+          value={rule.leftOperand}
+        />
+      </div>
 
-      <div className="flex items-center gap-2">
+      <Select
+        disabled={disabled}
+        onValueChange={(value) =>
+          onChange({ ...rule, operator: value as ConditionOperator })
+        }
+        value={rule.operator}
+      >
+        <SelectTrigger className="h-9 w-[120px] shrink-0 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {OPERATOR_OPTIONS.map(([op, meta]) => (
+            <SelectItem key={op} value={op}>
+              {meta.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {!unary && (
         <div className="min-w-0 flex-1 [&_[contenteditable]]:max-h-9 [&_[contenteditable]]:overflow-hidden [&_[contenteditable]]:whitespace-nowrap">
           <TemplateBadgeInput
             disabled={disabled}
-            onChange={(value) => onChange({ ...rule, leftOperand: value })}
+            onChange={(value) => onChange({ ...rule, rightOperand: value })}
             placeholder="Value or @ref"
-            value={rule.leftOperand}
+            value={rule.rightOperand}
           />
         </div>
+      )}
 
-        <Select
+      {canRemove && (
+        <Button
+          className="size-6 shrink-0"
           disabled={disabled}
-          onValueChange={(value) =>
-            onChange({ ...rule, operator: value as ConditionOperator })
-          }
-          value={rule.operator}
+          onClick={onRemove}
+          size="icon"
+          variant="ghost"
         >
-          <SelectTrigger className="h-9 w-[160px] shrink-0 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {OPERATOR_OPTIONS.map(([op, meta]) => (
-              <SelectItem key={op} value={op}>
-                {meta.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {!unary && (
-          <div className="min-w-0 flex-1 [&_[contenteditable]]:max-h-9 [&_[contenteditable]]:overflow-hidden [&_[contenteditable]]:whitespace-nowrap">
-            <TemplateBadgeInput
-              disabled={disabled}
-              onChange={(value) => onChange({ ...rule, rightOperand: value })}
-              placeholder="Value or @ref"
-              value={rule.rightOperand}
-            />
-          </div>
-        )}
-      </div>
+          <X className="size-3" />
+        </Button>
+      )}
     </div>
   );
 }
@@ -150,7 +146,9 @@ function GroupBuilder({
 
   const logicToggle = (
     <div className="flex items-center gap-2 py-1">
-      <div className="h-px flex-1 bg-border" />
+      <div className="min-w-0 flex-1">
+        <div className="h-px w-full bg-border" />
+      </div>
       <Select
         disabled={disabled}
         onValueChange={(value) =>
@@ -158,7 +156,7 @@ function GroupBuilder({
         }
         value={group.logic}
       >
-        <SelectTrigger className="h-6 w-[70px] text-xs">
+        <SelectTrigger className="h-6 w-[120px] shrink-0 text-xs">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -166,7 +164,10 @@ function GroupBuilder({
           <SelectItem value="OR">OR</SelectItem>
         </SelectContent>
       </Select>
-      <div className="h-px flex-1 bg-border" />
+      <div className="min-w-0 flex-1">
+        <div className="h-px w-full bg-border" />
+      </div>
+      <div className="size-6 shrink-0" />
     </div>
   );
 
