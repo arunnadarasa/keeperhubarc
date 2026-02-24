@@ -39,6 +39,8 @@ Organization members can invite others to join:
 
 The invited user will see the invitation in their Invitations tab and can accept or decline.
 
+**Note**: Invitations are created successfully even if the invitation email fails to deliver. The invitation remains valid and can be accessed through the invitation link or the user's Invitations tab.
+
 ## Managing Invitations
 
 In the Invitations tab:

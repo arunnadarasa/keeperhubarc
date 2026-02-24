@@ -36,6 +36,17 @@ Returns aggregated analytics for the organization including run counts, success 
 }
 ```
 
+**Field Definitions**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `totalRuns` | number | Combined count of workflow executions and direct executions |
+| `successfulRuns` | number | Number of executions that completed successfully |
+| `failedRuns` | number | Number of executions that failed |
+| `successRate` | number | Percentage of successful executions (0-100) |
+| `totalGasUsedWei` | string | Total gas consumed in wei across both workflow executions and direct executions |
+| `avgExecutionTimeMs` | number | Average execution duration in milliseconds |
+
 ## Get Time Series Data
 
 ```http
@@ -69,7 +80,7 @@ Same as summary endpoint.
 GET /api/analytics/networks
 ```
 
-Returns execution counts and gas usage grouped by blockchain network.
+Returns execution counts and gas usage grouped by blockchain network. Gas totals include both workflow executions and direct executions on each network.
 
 ### Query Parameters
 
