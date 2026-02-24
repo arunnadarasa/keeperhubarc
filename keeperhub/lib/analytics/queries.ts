@@ -660,6 +660,17 @@ async function fetchWorkflowRuns(
     conditions.push(lt(workflowExecutions.startedAt, new Date(cursor)));
   }
 
+  const scopedExecutionIds = db
+    .select({ id: workflowExecutions.id })
+    .from(workflowExecutions)
+    .where(
+      and(
+        sql`${workflowExecutions.workflowId} IN (${orgWorkflowIds})`,
+        gte(workflowExecutions.startedAt, rangeStart),
+        lt(workflowExecutions.startedAt, rangeEnd)
+      )
+    );
+
   const logSummary = db
     .select({
       executionId: workflowExecutionLogs.executionId,
@@ -676,15 +687,9 @@ async function fetchWorkflowRuns(
       )`,
     })
     .from(workflowExecutionLogs)
-    .innerJoin(
-      workflowExecutions,
-      eq(workflowExecutionLogs.executionId, workflowExecutions.id)
-    )
     .where(
       and(
-        sql`${workflowExecutions.workflowId} IN (${orgWorkflowIds})`,
-        gte(workflowExecutions.startedAt, rangeStart),
-        lt(workflowExecutions.startedAt, rangeEnd),
+        sql`${workflowExecutionLogs.executionId} IN (${scopedExecutionIds})`,
         sql`(${logOutputField("gasUsed")} IS NOT NULL OR ${logOutputField("transactionHash")} IS NOT NULL)`
       )
     )
