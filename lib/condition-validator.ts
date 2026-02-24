@@ -409,6 +409,7 @@ const VALID_OPERATORS_UI = new Set([
   "*",
   "/",
   "%",
+  ".",
 ]);
 
 const BINARY_OPERATORS_UI = new Set([
@@ -491,7 +492,9 @@ function tokenizeExpression(
 
     // Single character operators
     if (
-      ["!", ">", "<", "(", ")", "+", "-", "*", "/", "%"].includes(expression[i])
+      ["!", ">", "<", "(", ")", "+", "-", "*", "/", "%", "."].includes(
+        expression[i]
+      )
     ) {
       tokens.push({
         type: "operator",
