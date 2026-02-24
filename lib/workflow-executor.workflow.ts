@@ -1283,17 +1283,19 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
         if (nodeHandles) {
           const handleId = conditionValue === true ? "true" : "false";
           const handleTargets = nodeHandles.get(handleId) ?? [];
-          for (const next of handleTargets) {
-            await executeBodyNode(
-              next,
-              bodyVisited,
-              scopedOutputs,
-              bodyResults,
-              bodyEdgesBySource,
-              collectNodeId,
-              iterationMeta,
-              bodyHandleMap
-            );
+          if (handleTargets.length > 0) {
+            for (const next of handleTargets) {
+              await executeBodyNode(
+                next,
+                bodyVisited,
+                scopedOutputs,
+                bodyResults,
+                bodyEdgesBySource,
+                collectNodeId,
+                iterationMeta,
+                bodyHandleMap
+              );
+            }
           }
         } else if (conditionValue !== true) {
           // Legacy fallback: gate behavior
@@ -1303,8 +1305,19 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       }
 
       // start custom keeperhub code //
-      // Continue to downstream body nodes (skip if condition already routed via handles)
-      if (actionType !== "Condition" || !bodyHandleMap?.has(nodeId)) {
+      // Continue to downstream body nodes.
+      // Skip only when condition routed via handles AND the chosen handle had targets.
+      const conditionRoutedViaHandles =
+        actionType === "Condition" &&
+        bodyHandleMap?.has(nodeId) &&
+        (bodyHandleMap
+          .get(nodeId)
+          ?.get(
+            (result.data as { condition?: boolean })?.condition === true
+              ? "true"
+              : "false"
+          )?.length ?? 0) > 0;
+      if (!conditionRoutedViaHandles) {
         const nextNodes = bodyEdgesBySource.get(nodeId) ?? [];
         for (const next of nextNodes) {
           await executeBodyNode(
