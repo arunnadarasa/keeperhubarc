@@ -6,6 +6,7 @@ export default {
   safe: "Safe",
   "safe-wallet": "Safe Wallet",
   ajna: "Ajna",
+  pendle: "Pendle",
   sky: "Sky",
   discord: "Discord",
   telegram: "Telegram",
