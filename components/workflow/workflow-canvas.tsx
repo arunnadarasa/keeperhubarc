@@ -381,6 +381,13 @@ export function WorkflowCanvas() {
               (e) =>
                 e.source === connection.source && e.sourceHandle === "true"
             );
+            const hasFalseEdge = currentEdges.some(
+              (e) =>
+                e.source === connection.source && e.sourceHandle === "false"
+            );
+            if (hasTrueEdge && hasFalseEdge) {
+              return currentEdges;
+            }
             sourceHandle = hasTrueEdge ? "false" : "true";
           }
         }
