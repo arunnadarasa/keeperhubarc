@@ -79,7 +79,10 @@ type TestUserConfig = {
   name: string;
   orgSlug: string;
   orgName: string;
+  password?: string;
 };
+
+const ANALYTICS_PASSWORD = "TestAnalytics123!";
 
 const PERSISTENT_USERS: TestUserConfig[] = [
   {
@@ -105,6 +108,13 @@ const PERSISTENT_USERS: TestUserConfig[] = [
     name: "E2E Bystander",
     orgSlug: "e2e-test-bystander-org",
     orgName: "E2E Bystander Organization",
+  },
+  {
+    email: "test-analytics@techops.services",
+    name: "E2E Analytics",
+    orgSlug: "e2e-test-analytics-org",
+    orgName: "E2E Analytics Organization",
+    password: ANALYTICS_PASSWORD,
   },
 ];
 
@@ -209,7 +219,11 @@ export async function seedPersistentTestUsers(): Promise<void> {
 
     for (const config of PERSISTENT_USERS) {
       const userId = await ensureUser(sql, config.email, config.name);
-      await ensureCredentialAccount(sql, userId, TEST_PASSWORD);
+      await ensureCredentialAccount(
+        sql,
+        userId,
+        config.password ?? TEST_PASSWORD
+      );
       const orgId = await ensureOrganization(
         sql,
         config.orgSlug,
@@ -223,6 +237,370 @@ export async function seedPersistentTestUsers(): Promise<void> {
     const inviter = results[1];
     const member = results[2];
     await ensureMembership(sql, member.userId, inviter.orgId, "member");
+  } finally {
+    await sql.end();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Analytics seed data
+// ---------------------------------------------------------------------------
+
+const ANALYTICS_EMAIL = "test-analytics@techops.services";
+const ANALYTICS_SEED_PREFIX = "[Analytics Seed]";
+const ANALYTICS_NETWORKS = ["ethereum", "base", "polygon", "sepolia"] as const;
+
+function randomInt(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randomChoice<T>(arr: readonly T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function randomHex(length: number): string {
+  const chars = "0123456789abcdef";
+  let result = "";
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+function hoursAgo(hours: number): Date {
+  return new Date(Date.now() - hours * 60 * 60 * 1000);
+}
+
+function randomDateBetween(start: Date, end: Date): Date {
+  return new Date(
+    start.getTime() + Math.random() * (end.getTime() - start.getTime())
+  );
+}
+
+function realisticGasWei(network: string): string {
+  const gasUnits = randomInt(21_000, 350_000);
+  const gasPriceGwei: Record<string, [number, number]> = {
+    ethereum: [15, 80],
+    base: [0.01, 0.1],
+    polygon: [30, 200],
+    sepolia: [1, 10],
+  };
+  const [lo, hi] = gasPriceGwei[network] ?? [10, 50];
+  const priceGwei = lo + Math.random() * (hi - lo);
+  const priceWei = BigInt(Math.round(priceGwei * 1e9));
+  return (BigInt(gasUnits) * priceWei).toString();
+}
+
+type Db = ReturnType<typeof postgres>;
+
+const CHAIN_MAP: Record<string, string> = {
+  ethereum: "1",
+  base: "8453",
+  polygon: "137",
+  sepolia: "11155111",
+};
+
+const STEP_NODE_TYPES = [
+  "web3:read-contract",
+  "web3:write-contract",
+  "condition",
+  "http-request",
+] as const;
+
+function resolveStepStatus(
+  execStatus: string,
+  stepIndex: number,
+  stepCount: number
+): string {
+  if (execStatus === "error" && stepIndex === stepCount - 1) {
+    return "error";
+  }
+  if (execStatus === "running" && stepIndex === stepCount - 1) {
+    return "running";
+  }
+  if (execStatus === "pending" && stepIndex > 1) {
+    return "pending";
+  }
+  return "success";
+}
+
+function buildStepInput(nodeType: string, chainId: string): string | null {
+  if (nodeType !== "web3:write-contract") {
+    return null;
+  }
+  return JSON.stringify({
+    network: chainId,
+    contractAddress: `0x${randomHex(40)}`,
+    actionType: "web3/write-contract",
+  });
+}
+
+function buildStepOutput(nodeType: string, stepStatus: string): string | null {
+  if (nodeType !== "web3:write-contract" || stepStatus !== "success") {
+    return null;
+  }
+  return JSON.stringify({
+    success: true,
+    transactionHash: `0x${randomHex(64)}`,
+    gasUsed: String(randomInt(21_000, 350_000)),
+  });
+}
+
+async function seedStepLogs(
+  sql: Db,
+  execId: string,
+  execStatus: string,
+  startedAt: Date
+): Promise<void> {
+  let currentTime = startedAt.getTime();
+  const stepCount = randomInt(3, 5);
+
+  for (let s = 0; s < stepCount; s++) {
+    const nodeType = s === 0 ? "trigger" : randomChoice(STEP_NODE_TYPES);
+    const stepDuration = randomInt(50, 1500);
+    const stepStartedAt = new Date(currentTime);
+    const stepStatus = resolveStepStatus(execStatus, s, stepCount);
+    const isTerminal = stepStatus === "pending" || stepStatus === "running";
+    const network =
+      nodeType === "web3:write-contract"
+        ? randomChoice(ANALYTICS_NETWORKS)
+        : null;
+    const chainId = CHAIN_MAP[network ?? "sepolia"] ?? "11155111";
+
+    await sql.unsafe(
+      `INSERT INTO workflow_execution_logs (
+        id, execution_id, node_id, node_name, node_type, status,
+        started_at, completed_at, duration, error, input, output
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb)`,
+      [
+        generateId(),
+        execId,
+        `node-${s + 1}`,
+        `Step ${s + 1}`,
+        nodeType,
+        stepStatus,
+        stepStartedAt,
+        isTerminal ? null : new Date(currentTime + stepDuration),
+        isTerminal ? null : String(stepDuration),
+        stepStatus === "error" ? "Contract call reverted" : null,
+        buildStepInput(nodeType, chainId),
+        buildStepOutput(nodeType, stepStatus),
+      ]
+    );
+    currentTime += stepDuration + randomInt(10, 100);
+  }
+}
+
+async function seedWorkflowExecutions(
+  sql: Db,
+  userId: string,
+  workflowIds: string[],
+  sevenDaysAgo: Date,
+  now: Date
+): Promise<void> {
+  for (let i = 0; i < 30; i++) {
+    const execId = generateId();
+    const workflowId = randomChoice(workflowIds);
+    const startedAt = randomDateBetween(sevenDaysAgo, now);
+    const roll = Math.random();
+    let status: string;
+    let completedAt: Date | null = null;
+    let duration: string | null = null;
+    const totalSteps = String(randomInt(3, 5));
+
+    if (roll < 0.7) {
+      status = "success";
+      const ms = randomInt(500, 5000);
+      duration = String(ms);
+      completedAt = new Date(startedAt.getTime() + ms);
+    } else if (roll < 0.9) {
+      status = "error";
+      const ms = randomInt(200, 3000);
+      duration = String(ms);
+      completedAt = new Date(startedAt.getTime() + ms);
+    } else {
+      status = Math.random() < 0.5 ? "running" : "pending";
+    }
+
+    let completedSteps: string;
+    if (status === "success") {
+      completedSteps = totalSteps;
+    } else if (status === "error") {
+      completedSteps = String(randomInt(1, Number(totalSteps) - 1));
+    } else {
+      completedSteps = String(randomInt(0, 2));
+    }
+
+    await sql.unsafe(
+      `INSERT INTO workflow_executions (
+        id, workflow_id, user_id, status, error, started_at, completed_at,
+        duration, total_steps, completed_steps
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        execId,
+        workflowId,
+        userId,
+        status,
+        status === "error" ? "Step execution failed: timeout exceeded" : null,
+        startedAt,
+        completedAt,
+        duration,
+        totalSteps,
+        completedSteps,
+      ]
+    );
+
+    await seedStepLogs(sql, execId, status, startedAt);
+  }
+}
+
+async function seedDirectExecutions(
+  sql: Db,
+  orgId: string,
+  sevenDaysAgo: Date,
+  now: Date
+): Promise<void> {
+  const directTypes = [
+    "transfer",
+    "contract-call",
+    "check-and-execute",
+  ] as const;
+  const fakeApiKeyId = generateId();
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+
+  for (let i = 0; i < 40; i++) {
+    const network = randomChoice(ANALYTICS_NETWORKS);
+    const createdAt =
+      i < 8
+        ? randomDateBetween(todayStart, now)
+        : randomDateBetween(sevenDaysAgo, now);
+    const roll = Math.random();
+    let status: string;
+    let completedAt: Date | null = null;
+    let gasUsedWei: string | null = null;
+
+    if (roll < 0.75) {
+      status = "completed";
+      completedAt = new Date(createdAt.getTime() + randomInt(1000, 8000));
+      gasUsedWei = realisticGasWei(network);
+    } else if (roll < 0.95) {
+      status = "failed";
+      completedAt = new Date(createdAt.getTime() + randomInt(500, 3000));
+    } else {
+      status = "pending";
+    }
+
+    await sql.unsafe(
+      `INSERT INTO direct_executions (
+        id, organization_id, api_key_id, type, status,
+        transaction_hash, network, error, gas_used_wei, created_at, completed_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [
+        generateId(),
+        orgId,
+        fakeApiKeyId,
+        randomChoice(directTypes),
+        status,
+        status === "pending" ? null : `0x${randomHex(64)}`,
+        network,
+        status === "failed" ? "Transaction reverted: insufficient funds" : null,
+        gasUsedWei,
+        createdAt,
+        completedAt,
+      ]
+    );
+  }
+}
+
+export async function seedAnalyticsData(): Promise<void> {
+  const sql = getDbConnection();
+  try {
+    const userResult = await sql`
+      SELECT id FROM users WHERE email = ${ANALYTICS_EMAIL} LIMIT 1
+    `;
+    if (userResult.length === 0) {
+      return;
+    }
+    const userId = userResult[0].id as string;
+
+    const orgResult = await sql`
+      SELECT organization_id FROM member WHERE user_id = ${userId} LIMIT 1
+    `;
+    if (orgResult.length === 0) {
+      return;
+    }
+    const orgId = orgResult[0].organization_id as string;
+
+    const existing = await sql`
+      SELECT id FROM workflows
+      WHERE organization_id = ${orgId} AND name LIKE ${`${ANALYTICS_SEED_PREFIX}%`}
+      LIMIT 1
+    `;
+    if (existing.length > 0) {
+      return;
+    }
+
+    const now = new Date();
+    const sevenDaysAgo = hoursAgo(7 * 24);
+
+    // Create seed workflows
+    const workflowNames = [
+      `${ANALYTICS_SEED_PREFIX} USDC Monitor`,
+      `${ANALYTICS_SEED_PREFIX} ETH Price Alert`,
+      `${ANALYTICS_SEED_PREFIX} LP Rebalancer`,
+    ];
+    const workflowIds: string[] = [];
+    const nodes = JSON.stringify([
+      { id: "trigger-1", type: "trigger", position: { x: 0, y: 0 }, data: {} },
+      {
+        id: "action-1",
+        type: "web3:read-contract",
+        position: { x: 0, y: 100 },
+        data: {},
+      },
+    ]);
+    const edges = JSON.stringify([
+      { id: "e1", source: "trigger-1", target: "action-1" },
+    ]);
+
+    for (const name of workflowNames) {
+      const id = generateId();
+      await sql.unsafe(
+        `INSERT INTO workflows (
+          id, name, description, user_id, organization_id, is_anonymous,
+          nodes, edges, visibility, enabled, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, false, $6::jsonb, $7::jsonb, 'private', true, $8, $9)`,
+        [
+          id,
+          name,
+          "Seeded for analytics testing",
+          userId,
+          orgId,
+          nodes,
+          edges,
+          now,
+          now,
+        ]
+      );
+      workflowIds.push(id);
+    }
+
+    await seedWorkflowExecutions(sql, userId, workflowIds, sevenDaysAgo, now);
+    await seedDirectExecutions(sql, orgId, sevenDaysAgo, now);
+
+    // Create spend cap
+    const capExists = await sql`
+      SELECT id FROM organization_spend_caps WHERE organization_id = ${orgId} LIMIT 1
+    `;
+    if (capExists.length === 0) {
+      await sql.unsafe(
+        `INSERT INTO organization_spend_caps (
+          id, organization_id, daily_cap_wei, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5)`,
+        [generateId(), orgId, (BigInt(5) * BigInt(1e16)).toString(), now, now]
+      );
+    }
   } finally {
     await sql.end();
   }
@@ -284,6 +662,8 @@ export async function cleanupPersistentTestUsers(): Promise<void> {
     await sql`DELETE FROM user_rpc_preferences WHERE user_id IN ${sql(userIds)}`;
 
     if (orgIds.length > 0) {
+      await sql`DELETE FROM direct_executions WHERE organization_id IN ${sql(orgIds)}`;
+      await sql`DELETE FROM organization_spend_caps WHERE organization_id IN ${sql(orgIds)}`;
       await sql`DELETE FROM address_book_entry WHERE organization_id IN ${sql(orgIds)}`;
       await sql`DELETE FROM organization_api_keys WHERE organization_id IN ${sql(orgIds)}`;
       await sql`DELETE FROM organization_tokens WHERE organization_id IN ${sql(orgIds)}`;
@@ -320,6 +700,7 @@ export async function cleanupPersistentTestUsers(): Promise<void> {
     await sql`
       DELETE FROM verifications
       WHERE identifier LIKE 'email-verification-otp-pr-test-%'
+         OR identifier LIKE 'email-verification-otp-test-analytics%'
     `;
   } finally {
     await sql.end();
