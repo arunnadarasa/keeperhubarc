@@ -78,6 +78,11 @@ const FOR_EACH_SOURCE_HANDLES: SourceHandleConfig[] = [
   { id: "done", label: "done", topPercent: 30 },
   { id: "loop", label: "loop", topPercent: 70 },
 ];
+
+const CONDITION_SOURCE_HANDLES: SourceHandleConfig[] = [
+  { id: "true", label: "true", topPercent: 30 },
+  { id: "false", label: "false", topPercent: 70 },
+];
 // end keeperhub code //
 
 // System action labels (non-plugin actions)
@@ -365,9 +370,12 @@ export const ActionNode = memo(({ data, selected, id }: ActionNodeProps) => {
 
   // start custom keeperhub code //
   const isForEach = actionType === "For Each";
+  const isCondition = actionType === "Condition";
   const handles = isForEach
     ? { target: true, source: false, sourceHandles: FOR_EACH_SOURCE_HANDLES }
-    : { target: true, source: true };
+    : isCondition
+      ? { target: true, source: false, sourceHandles: CONDITION_SOURCE_HANDLES }
+      : { target: true, source: true };
   // end keeperhub code //
 
   return (

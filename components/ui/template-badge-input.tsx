@@ -579,6 +579,98 @@ export function TemplateBadgeInput({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && showAutocomplete) {
       e.preventDefault();
+      return;
+    }
+
+    // Handle Backspace/Delete for badge removal
+    if (e.key === "Backspace" || e.key === "Delete") {
+      const selection = window.getSelection();
+      if (!selection || !contentRef.current) return;
+
+      // Case 1: Range selection containing a badge
+      if (!selection.isCollapsed) {
+        const range = selection.getRangeAt(0);
+        const fragment = range.cloneContents();
+        const hasBadge = fragment.querySelector?.("[data-template]");
+        if (hasBadge) {
+          e.preventDefault();
+          range.deleteContents();
+          handleInput();
+          return;
+        }
+      }
+
+      // Case 2: Collapsed cursor — find nearest badge
+      const range = selection.getRangeAt(0);
+      const { startContainer, startOffset } = range;
+      let badgeToRemove: HTMLElement | null = null;
+
+      // Walk up from cursor to check if we're inside a badge
+      let ancestor: Node | null = startContainer;
+      while (ancestor && ancestor !== contentRef.current) {
+        if (
+          ancestor instanceof HTMLElement &&
+          ancestor.getAttribute("data-template")
+        ) {
+          badgeToRemove = ancestor;
+          break;
+        }
+        ancestor = ancestor.parentNode;
+      }
+
+      if (!badgeToRemove && startContainer === contentRef.current) {
+        // Cursor at container level — check child at offset-1 and offset
+        const children = contentRef.current.childNodes;
+        if (e.key === "Backspace" && startOffset > 0) {
+          const prev = children[startOffset - 1] as HTMLElement | null;
+          if (prev?.getAttribute?.("data-template")) {
+            badgeToRemove = prev;
+          }
+        }
+        if (!badgeToRemove && startOffset < children.length) {
+          const next = children[startOffset] as HTMLElement | null;
+          if (next?.getAttribute?.("data-template")) {
+            badgeToRemove = next;
+          }
+        }
+      } else if (!badgeToRemove && startContainer.nodeType === Node.TEXT_NODE) {
+        // Cursor in a text node — check adjacent siblings
+        if (e.key === "Backspace" && startOffset === 0) {
+          const prev = startContainer.previousSibling as HTMLElement | null;
+          if (prev?.getAttribute?.("data-template")) {
+            badgeToRemove = prev;
+          }
+        }
+        if (
+          !badgeToRemove &&
+          e.key === "Delete" &&
+          startOffset === (startContainer.textContent?.length ?? 0)
+        ) {
+          const next = startContainer.nextSibling as HTMLElement | null;
+          if (next?.getAttribute?.("data-template")) {
+            badgeToRemove = next;
+          }
+        }
+        // Empty text node — check both sides regardless of key
+        if (
+          !badgeToRemove &&
+          (startContainer.textContent?.length ?? 0) === 0
+        ) {
+          const prev = startContainer.previousSibling as HTMLElement | null;
+          const next = startContainer.nextSibling as HTMLElement | null;
+          if (prev?.getAttribute?.("data-template")) {
+            badgeToRemove = prev;
+          } else if (next?.getAttribute?.("data-template")) {
+            badgeToRemove = next;
+          }
+        }
+      }
+
+      if (badgeToRemove) {
+        e.preventDefault();
+        badgeToRemove.remove();
+        handleInput();
+      }
     }
   };
   // end keeperhub code //

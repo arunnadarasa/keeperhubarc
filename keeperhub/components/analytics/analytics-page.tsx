@@ -4,7 +4,8 @@ import { useAtomValue } from "jotai";
 import { BarChart3, LogIn } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { analyticsSummaryAtom } from "@/keeperhub/lib/atoms/analytics";
 import { useSession } from "@/lib/auth-client";
@@ -57,6 +58,15 @@ export function AnalyticsPage(): ReactNode {
   const { data: session } = useSession();
   const { loading, error, refetch } = useAnalytics();
   const summary = useAtomValue(analyticsSummaryAtom);
+  const prevErrorRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const isAuthError = error === "AUTH_REQUIRED" || error === "ORG_REQUIRED";
+    if (error && !isAuthError && error !== prevErrorRef.current) {
+      toast.error(error);
+    }
+    prevErrorRef.current = error;
+  }, [error]);
 
   useEffect(() => {
     if (
@@ -94,12 +104,6 @@ export function AnalyticsPage(): ReactNode {
       <div className="transition-[margin-left] duration-200 ease-out md:ml-[var(--nav-sidebar-width,60px)]">
         <div className="flex flex-col gap-6 p-6 pt-20">
           <AnalyticsHeader onRefetch={refetch} />
-
-          {error ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
-              {error}
-            </div>
-          ) : null}
 
           <KpiCards />
           <TimeSeriesChart />

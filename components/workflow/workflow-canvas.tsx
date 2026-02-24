@@ -237,7 +237,7 @@ export function WorkflowCanvas() {
   );
 
   // start custom keeperhub code //
-  // Auto-assign sourceHandle on For Each edges that lack one.
+  // Auto-assign sourceHandle on For Each and Condition edges that lack one.
   // Runs once when edges load and whenever nodes change type.
   // Uses functional setEdges to avoid overwriting concurrent edge additions.
   useEffect(() => {
@@ -246,27 +246,69 @@ export function WorkflowCanvas() {
         .filter((n) => getActionType(n) === "For Each")
         .map((n) => n.id)
     );
+    const conditionNodeIds = new Set(
+      nodes
+        .filter((n) => getActionType(n) === "Condition")
+        .map((n) => n.id)
+    );
 
-    if (forEachNodeIds.size === 0) {
+    if (forEachNodeIds.size === 0 && conditionNodeIds.size === 0) {
       return;
     }
 
     setEdges((currentEdges) => {
       let changed = false;
+
+      // Track which handles are already assigned per condition node
+      const conditionHandleUsage = new Map<string, Set<string>>();
+      for (const edge of currentEdges) {
+        if (
+          conditionNodeIds.has(edge.source) &&
+          (edge.sourceHandle === "true" || edge.sourceHandle === "false")
+        ) {
+          if (!conditionHandleUsage.has(edge.source)) {
+            conditionHandleUsage.set(edge.source, new Set());
+          }
+          conditionHandleUsage.get(edge.source)!.add(edge.sourceHandle);
+        }
+      }
+
       const updated = currentEdges.map((edge) => {
-        if (!forEachNodeIds.has(edge.source)) {
-          return edge;
+        // For Each auto-assign
+        if (forEachNodeIds.has(edge.source)) {
+          if (edge.sourceHandle === "done" || edge.sourceHandle === "loop") {
+            return edge;
+          }
+          const targetNode = nodes.find((n) => n.id === edge.target);
+          const handle =
+            targetNode && getActionType(targetNode) === "Collect"
+              ? "done"
+              : "loop";
+          changed = true;
+          return { ...edge, sourceHandle: handle };
         }
-        if (edge.sourceHandle === "done" || edge.sourceHandle === "loop") {
-          return edge;
+
+        // Condition auto-assign
+        if (conditionNodeIds.has(edge.source)) {
+          if (edge.sourceHandle === "true" || edge.sourceHandle === "false") {
+            if (edge.type !== "animated") {
+              changed = true;
+              return { ...edge, type: "animated" as const };
+            }
+            return edge;
+          }
+          const usedHandles = conditionHandleUsage.get(edge.source);
+          const handle =
+            !usedHandles || !usedHandles.has("true") ? "true" : "false";
+          if (!conditionHandleUsage.has(edge.source)) {
+            conditionHandleUsage.set(edge.source, new Set());
+          }
+          conditionHandleUsage.get(edge.source)!.add(handle);
+          changed = true;
+          return { ...edge, sourceHandle: handle, type: "animated" as const };
         }
-        const targetNode = nodes.find((n) => n.id === edge.target);
-        const handle =
-          targetNode && getActionType(targetNode) === "Collect"
-            ? "done"
-            : "loop";
-        changed = true;
-        return { ...edge, sourceHandle: handle };
+
+        return edge;
       });
       return changed ? updated : currentEdges;
     });
@@ -318,27 +360,47 @@ export function WorkflowCanvas() {
   const onConnect: OnConnect = useCallback(
     (connection: XYFlowConnection) => {
       // start custom keeperhub code //
-      // Auto-assign sourceHandle for For Each connections when not already set
-      let { sourceHandle } = connection;
-      if (!sourceHandle) {
-        const sourceNode = nodes.find((n) => n.id === connection.source);
-        if (sourceNode && getActionType(sourceNode) === "For Each") {
-          const targetNode = nodes.find((n) => n.id === connection.target);
-          sourceHandle =
-            targetNode && getActionType(targetNode) === "Collect"
-              ? "done"
-              : "loop";
-        }
-      }
-      // end keeperhub code //
+      // Auto-assign sourceHandle for For Each and Condition connections.
+      // Uses functional updater to read current edges and avoid stale closures.
+      setEdges((currentEdges) => {
+        let { sourceHandle } = connection;
+        if (!sourceHandle) {
+          const sourceNode = nodes.find((n) => n.id === connection.source);
+          const sourceActionType = sourceNode
+            ? getActionType(sourceNode)
+            : undefined;
 
-      const newEdge = {
-        id: nanoid(),
-        ...connection,
-        sourceHandle,
-        type: "animated",
-      };
-      setEdges((currentEdges) => [...currentEdges, newEdge]);
+          if (sourceActionType === "For Each") {
+            const targetNode = nodes.find((n) => n.id === connection.target);
+            sourceHandle =
+              targetNode && getActionType(targetNode) === "Collect"
+                ? "done"
+                : "loop";
+          } else if (sourceActionType === "Condition") {
+            const hasTrueEdge = currentEdges.some(
+              (e) =>
+                e.source === connection.source && e.sourceHandle === "true"
+            );
+            const hasFalseEdge = currentEdges.some(
+              (e) =>
+                e.source === connection.source && e.sourceHandle === "false"
+            );
+            if (hasTrueEdge && hasFalseEdge) {
+              return currentEdges;
+            }
+            sourceHandle = hasTrueEdge ? "false" : "true";
+          }
+        }
+        // end keeperhub code //
+
+        const newEdge = {
+          id: nanoid(),
+          ...connection,
+          sourceHandle,
+          type: "animated",
+        };
+        return [...currentEdges, newEdge];
+      });
       setHasUnsavedChanges(true);
       // Trigger immediate autosave when nodes are connected
       triggerAutosave({ immediate: true });
@@ -576,6 +638,7 @@ export function WorkflowCanvas() {
         className="bg-background"
         connectionLineComponent={Connection}
         connectionMode={ConnectionMode.Strict}
+        defaultEdgeOptions={{ type: "animated" }}
         edges={edges}
         edgeTypes={edgeTypes}
         elementsSelectable={!isGenerating}

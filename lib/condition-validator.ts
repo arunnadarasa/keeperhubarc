@@ -358,7 +358,13 @@ export function preValidateConditionExpression(
     "prototype",
   ];
 
-  const lowerExpression = expression.toLowerCase();
+  // start custom keeperhub code //
+  // Strip template variables before keyword check — node IDs like @process
+  // are safe and should not trigger false positives
+  const expressionWithoutTemplates = expression.replace(/\{\{@[^}]+\}\}/g, "");
+  // end keeperhub code //
+
+  const lowerExpression = expressionWithoutTemplates.toLowerCase();
   for (const keyword of dangerousKeywords) {
     if (lowerExpression.includes(keyword.toLowerCase())) {
       return {
@@ -403,6 +409,7 @@ const VALID_OPERATORS_UI = new Set([
   "*",
   "/",
   "%",
+  ".",
 ]);
 
 const BINARY_OPERATORS_UI = new Set([
@@ -485,7 +492,9 @@ function tokenizeExpression(
 
     // Single character operators
     if (
-      ["!", ">", "<", "(", ")", "+", "-", "*", "/", "%"].includes(expression[i])
+      ["!", ">", "<", "(", ")", "+", "-", "*", "/", "%", "."].includes(
+        expression[i]
+      )
     ) {
       tokens.push({
         type: "operator",
