@@ -676,8 +676,17 @@ async function fetchWorkflowRuns(
       )`,
     })
     .from(workflowExecutionLogs)
+    .innerJoin(
+      workflowExecutions,
+      eq(workflowExecutionLogs.executionId, workflowExecutions.id)
+    )
     .where(
-      sql`(${logOutputField("gasUsed")} IS NOT NULL OR ${logOutputField("transactionHash")} IS NOT NULL)`
+      and(
+        sql`${workflowExecutions.workflowId} IN (${orgWorkflowIds})`,
+        gte(workflowExecutions.startedAt, rangeStart),
+        lt(workflowExecutions.startedAt, rangeEnd),
+        sql`(${logOutputField("gasUsed")} IS NOT NULL OR ${logOutputField("transactionHash")} IS NOT NULL)`
+      )
     )
     .groupBy(workflowExecutionLogs.executionId)
     .as("log_summary");
