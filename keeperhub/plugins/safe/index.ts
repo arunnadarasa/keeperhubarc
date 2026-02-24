@@ -65,32 +65,31 @@ if (!safeProtocol) {
     '[safe plugin] "safe" integration not found in registry. Ensure keeperhub/protocols is imported before keeperhub/plugins/safe.'
   );
 }
-{
-  safeProtocol.actions.push(getPendingTransactionsAction);
-  safeProtocol.requiresCredentials = true;
-  safeProtocol.formFields = [
-    {
-      id: "apiKey",
-      label: "API Key",
-      type: "password",
-      placeholder: "Your Safe Transaction Service API key",
-      configKey: "apiKey",
-      envVar: "apiKey",
-      helpText:
-        "JWT API key from the Safe developer portal. Required for accessing the Transaction Service.",
-      helpLink: {
-        text: "Get an API key",
-        url: "https://developer.safe.global/",
-      },
+
+safeProtocol.actions.push(getPendingTransactionsAction);
+safeProtocol.requiresCredentials = true;
+safeProtocol.formFields = [
+  {
+    id: "apiKey",
+    label: "API Key",
+    type: "password",
+    placeholder: "Your Safe Transaction Service API key",
+    configKey: "apiKey",
+    envVar: "apiKey",
+    helpText:
+      "JWT API key from the Safe developer portal. Required for accessing the Transaction Service.",
+    helpLink: {
+      text: "Get an API key",
+      url: "https://developer.safe.global/",
     },
-  ];
-  safeProtocol.testConfig = {
-    getTestFunction: async () => {
-      const { testSafe } = await import("./test");
-      return testSafe;
-    },
-  };
-}
+  },
+];
+safeProtocol.testConfig = {
+  getTestFunction: async () => {
+    const { testSafe } = await import("./test");
+    return testSafe;
+  },
+};
 
 // Export the enriched protocol integration for use by other modules.
 // No separate registerIntegration call -- the protocol-registered "safe"
