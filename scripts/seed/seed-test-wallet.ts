@@ -47,8 +47,8 @@ const TEST_PASSWORD = "TestPassword123!";
 
 // Hardcoded wallet data from pre-provisioned Para wallet
 // Same wallet used by keeper-app (KeeperHub Staging partner)
-const TEST_WALLET_ID = "d932b702-0436-438f-ae97-2975f35bcf1c";
-const TEST_WALLET_ADDRESS = "0x673e3ff5342422b8a2ddc90f78afac9d7e37dbb1";
+const TEST_WALLET_ID = "3b1acc96-170f-4148-800b-7bca3e2ee6ad";
+const TEST_WALLET_ADDRESS = "0x4f1089424dcf25b1290631df483a436b320e51a1";
 
 type Db = ReturnType<typeof drizzle>;
 
