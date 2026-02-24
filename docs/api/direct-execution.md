@@ -209,6 +209,7 @@ Check the status of a direct execution.
   "type": "transfer",
   "transactionHash": "0x...",
   "transactionLink": "https://etherscan.io/tx/0x...",
+  "gasUsedWei": "21000000000000",
   "result": {...},
   "error": null,
   "createdAt": "2024-01-01T00:00:00Z",
