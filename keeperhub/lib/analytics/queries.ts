@@ -311,17 +311,6 @@ function logOutputField(field: string): ReturnType<typeof sql> {
 }
 
 /**
- * Same as logOutputField but for raw SQL subqueries referencing the table alias "l".
- */
-function logOutputFieldRaw(field: string): string {
-  return `CASE
-    WHEN jsonb_typeof(l.output) = 'string'
-    THEN (l.output #>> '{}')::jsonb->>'${field}'
-    ELSE l.output->>'${field}'
-  END`;
-}
-
-/**
  * Build SQL to extract a field from workflow_execution_logs input JSONB.
  * Same double-encoding handling as output.
  */
@@ -330,17 +319,6 @@ function logInputField(field: string): ReturnType<typeof sql> {
     WHEN jsonb_typeof(${workflowExecutionLogs.input}) = 'string'
     THEN (${workflowExecutionLogs.input} #>> '{}')::jsonb->>${sql.raw(`'${field}'`)}
     ELSE ${workflowExecutionLogs.input}->>${sql.raw(`'${field}'`)}
-  END`;
-}
-
-/**
- * Same as logInputField but for raw SQL subqueries referencing the table alias "l".
- */
-function logInputFieldRaw(field: string): string {
-  return `CASE
-    WHEN jsonb_typeof(l.input) = 'string'
-    THEN (l.input #>> '{}')::jsonb->>'${field}'
-    ELSE l.input->>'${field}'
   END`;
 }
 
@@ -682,6 +660,28 @@ async function fetchWorkflowRuns(
     conditions.push(lt(workflowExecutions.startedAt, new Date(cursor)));
   }
 
+  const logSummary = db
+    .select({
+      executionId: workflowExecutionLogs.executionId,
+      gasUsedWei: sql<string>`COALESCE(SUM(CAST(${logOutputField("gasUsed")} AS NUMERIC)), 0)::text`,
+      network: sql<string | null>`MIN(
+        CASE WHEN ${logOutputField("gasUsed")} IS NOT NULL
+        THEN ${logInputField("network")}
+        END
+      )`,
+      transactionHash: sql<string | null>`MIN(
+        CASE WHEN ${logOutputField("transactionHash")} IS NOT NULL
+        THEN ${logOutputField("transactionHash")}
+        END
+      )`,
+    })
+    .from(workflowExecutionLogs)
+    .where(
+      sql`(${logOutputField("gasUsed")} IS NOT NULL OR ${logOutputField("transactionHash")} IS NOT NULL)`
+    )
+    .groupBy(workflowExecutionLogs.executionId)
+    .as("log_summary");
+
   const result = await db
     .select({
       id: workflowExecutions.id,
@@ -693,29 +693,13 @@ async function fetchWorkflowRuns(
       workflowName: workflows.name,
       totalSteps: workflowExecutions.totalSteps,
       completedSteps: workflowExecutions.completedSteps,
-      gasUsedWei: sql<string | null>`(
-        SELECT COALESCE(SUM(CAST(${sql.raw(logOutputFieldRaw("gasUsed"))} AS NUMERIC)), 0)::text
-        FROM workflow_execution_logs l
-        WHERE l.execution_id = ${workflowExecutions.id}
-          AND ${sql.raw(logOutputFieldRaw("gasUsed"))} IS NOT NULL
-      )`,
-      network: sql<string | null>`(
-        SELECT ${sql.raw(logInputFieldRaw("network"))}
-        FROM workflow_execution_logs l
-        WHERE l.execution_id = ${workflowExecutions.id}
-          AND ${sql.raw(logOutputFieldRaw("gasUsed"))} IS NOT NULL
-        LIMIT 1
-      )`,
-      transactionHash: sql<string | null>`(
-        SELECT ${sql.raw(logOutputFieldRaw("transactionHash"))}
-        FROM workflow_execution_logs l
-        WHERE l.execution_id = ${workflowExecutions.id}
-          AND ${sql.raw(logOutputFieldRaw("transactionHash"))} IS NOT NULL
-        LIMIT 1
-      )`,
+      gasUsedWei: logSummary.gasUsedWei,
+      network: logSummary.network,
+      transactionHash: logSummary.transactionHash,
     })
     .from(workflowExecutions)
     .leftJoin(workflows, eq(workflowExecutions.workflowId, workflows.id))
+    .leftJoin(logSummary, eq(workflowExecutions.id, logSummary.executionId))
     .where(and(...conditions))
     .orderBy(desc(workflowExecutions.startedAt))
     .limit(limit);
