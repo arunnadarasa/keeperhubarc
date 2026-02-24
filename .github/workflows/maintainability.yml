@@ -124,7 +124,7 @@ jobs:
           failed=0
           for dockerfile in $(find . -name "Dockerfile" -not -path "./node_modules/*" -not -path "./.git/*"); do
             echo "=== $dockerfile ==="
-            if ! docker run --rm -i hadolint/hadolint hadolint --failure-threshold warning - < "$dockerfile"; then
+            if ! docker run --rm -i -v "$PWD/.hadolint.yaml:/.config/hadolint.yaml" hadolint/hadolint hadolint --failure-threshold warning - < "$dockerfile"; then
               failed=1
             fi
           done
