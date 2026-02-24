@@ -110,14 +110,16 @@ describe("Safe Wallet Protocol Definition", () => {
   });
 
   it("all event slugs are valid kebab-case", () => {
-    for (const event of safeWalletDef.events!) {
+    const events = safeWalletDef.events ?? [];
+    for (const event of events) {
       expect(event.slug).toMatch(KEBAB_CASE_REGEX);
     }
   });
 
   it("every event references an existing contract", () => {
     const contractKeys = new Set(Object.keys(safeWalletDef.contracts));
-    for (const event of safeWalletDef.events!) {
+    const events = safeWalletDef.events ?? [];
+    for (const event of events) {
       expect(
         contractKeys.has(event.contract),
         `event "${event.slug}" references unknown contract "${event.contract}"`
@@ -126,13 +128,15 @@ describe("Safe Wallet Protocol Definition", () => {
   });
 
   it("has no duplicate event slugs", () => {
-    const slugs = safeWalletDef.events!.map((e) => e.slug);
+    const slugs = (safeWalletDef.events ?? []).map((e) => e.slug);
     const uniqueSlugs = new Set(slugs);
     expect(slugs.length).toBe(uniqueSlugs.size);
   });
 
   it("buildEventAbiFragment produces valid JSON with correct structure", () => {
-    const event = safeWalletDef.events![0];
+    const events = safeWalletDef.events ?? [];
+    const event = events[0];
+    expect(event).toBeDefined();
     const fragment = buildEventAbiFragment(event);
     const parsed = JSON.parse(fragment);
 
