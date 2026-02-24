@@ -52,7 +52,7 @@ function RuleRow({
 
   return (
     <div className="flex items-center gap-2">
-      <div className="min-w-0 flex-1 [&_[contenteditable]]:max-h-9 [&_[contenteditable]]:overflow-hidden [&_[contenteditable]]:whitespace-nowrap">
+      <div className="min-w-0 flex-1 [&_[contenteditable]]:max-h-9 [&_[contenteditable]]:overflow-x-auto [&_[contenteditable]]:whitespace-nowrap [&_[contenteditable]]:[scrollbar-width:none]">
         <TemplateBadgeInput
           disabled={disabled}
           onChange={(value) => onChange({ ...rule, leftOperand: value })}
@@ -81,7 +81,7 @@ function RuleRow({
       </Select>
 
       {!unary && (
-        <div className="min-w-0 flex-1 [&_[contenteditable]]:max-h-9 [&_[contenteditable]]:overflow-hidden [&_[contenteditable]]:whitespace-nowrap">
+        <div className="min-w-0 flex-1 [&_[contenteditable]]:max-h-9 [&_[contenteditable]]:overflow-x-auto [&_[contenteditable]]:whitespace-nowrap [&_[contenteditable]]:[scrollbar-width:none]">
           <TemplateBadgeInput
             disabled={disabled}
             onChange={(value) => onChange({ ...rule, rightOperand: value })}
@@ -146,7 +146,7 @@ function GroupBuilder({
 
   const logicToggle = (
     <div className="flex items-center gap-2 py-1">
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 [&_[contenteditable]]:max-h-9 [&_[contenteditable]]:overflow-x-auto [&_[contenteditable]]:whitespace-nowrap [&_[contenteditable]]:[scrollbar-width:none]">
         <div className="h-px w-full bg-border" />
       </div>
       <Select
@@ -164,7 +164,7 @@ function GroupBuilder({
           <SelectItem value="OR">OR</SelectItem>
         </SelectContent>
       </Select>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 [&_[contenteditable]]:max-h-9 [&_[contenteditable]]:overflow-x-auto [&_[contenteditable]]:whitespace-nowrap [&_[contenteditable]]:[scrollbar-width:none]">
         <div className="h-px w-full bg-border" />
       </div>
       <div className="size-6 shrink-0" />
