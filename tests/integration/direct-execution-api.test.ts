@@ -662,7 +662,7 @@ describe("Direct Execution API", () => {
           network: "ethereum",
           status: "completed",
           transactionHash: "0xabc",
-          gasUsedWei: "21000",
+          gasUsedWei: "441000000000000",
           input: {},
           output: { transactionLink: "https://etherscan.io/tx/0xabc" },
           error: null,

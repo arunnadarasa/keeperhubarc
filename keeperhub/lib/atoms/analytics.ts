@@ -19,7 +19,7 @@ export const analyticsTimeSeriesAtom = atom<TimeSeriesBucket[]>([]);
 export const analyticsNetworksAtom = atom<NetworkBreakdown[]>([]);
 export const analyticsRunsAtom = atom<RunsResponse | null>(null);
 
-export const analyticsLoadingAtom = atom(false);
+export const analyticsLoadingAtom = atom<boolean>(true);
 export const analyticsErrorAtom = atom<string | null>(null);
 
 export const analyticsStatusFilterAtom = atom<NormalizedStatus | undefined>(

@@ -323,7 +323,7 @@ async function createStepLogs(
         ? JSON.stringify({
             success: true,
             transactionHash: `0x${randomHex(64)}`,
-            gasUsed: String(randomInt(21000, 350000)),
+            gasUsed: realisticGasWei(network ?? "ethereum"),
           })
         : null;
 

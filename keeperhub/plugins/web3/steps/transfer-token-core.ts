@@ -403,6 +403,9 @@ export async function transferTokenCore(
       // Mark transaction as confirmed
       await nonceManager.confirmTransaction(tx.hash);
 
+      // Compute gas cost in wei: gasUnits * effectiveGasPrice
+      const gasCostWei = (receipt.gasUsed * receipt.gasPrice).toString();
+
       // Fetch explorer config for transaction link
       const explorerConfig = await db.query.explorerConfigs.findFirst({
         where: eq(explorerConfigs.chainId, chainId),
@@ -415,7 +418,7 @@ export async function transferTokenCore(
         success: true,
         transactionHash: receipt.hash,
         transactionLink,
-        gasUsed: receipt.gasUsed.toString(),
+        gasUsed: gasCostWei,
         amount,
         symbol,
         recipient: recipientAddress,
