@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildEventAbiFragment,
   getProtocol,
   registerProtocol,
 } from "@/keeperhub/lib/protocol-registry";
@@ -65,16 +66,16 @@ describe("Safe Wallet Protocol Definition", () => {
     }
   });
 
-  it("has exactly 5 actions", () => {
-    expect(safeWalletDef.actions).toHaveLength(5);
+  it("has exactly 6 actions", () => {
+    expect(safeWalletDef.actions).toHaveLength(6);
   });
 
-  it("has 5 read actions and 0 write actions", () => {
+  it("has 6 read actions and 0 write actions", () => {
     const readActions = safeWalletDef.actions.filter((a) => a.type === "read");
     const writeActions = safeWalletDef.actions.filter(
       (a) => a.type === "write"
     );
-    expect(readActions).toHaveLength(5);
+    expect(readActions).toHaveLength(6);
     expect(writeActions).toHaveLength(0);
   });
 
@@ -101,5 +102,44 @@ describe("Safe Wallet Protocol Definition", () => {
     expect(retrieved).toBeDefined();
     expect(retrieved?.slug).toBe("safe-wallet");
     expect(retrieved?.name).toBe("Safe");
+  });
+
+  it("has 12 events", () => {
+    expect(safeWalletDef.events).toBeDefined();
+    expect(safeWalletDef.events).toHaveLength(12);
+  });
+
+  it("all event slugs are valid kebab-case", () => {
+    for (const event of safeWalletDef.events!) {
+      expect(event.slug).toMatch(KEBAB_CASE_REGEX);
+    }
+  });
+
+  it("every event references an existing contract", () => {
+    const contractKeys = new Set(Object.keys(safeWalletDef.contracts));
+    for (const event of safeWalletDef.events!) {
+      expect(
+        contractKeys.has(event.contract),
+        `event "${event.slug}" references unknown contract "${event.contract}"`
+      ).toBe(true);
+    }
+  });
+
+  it("has no duplicate event slugs", () => {
+    const slugs = safeWalletDef.events!.map((e) => e.slug);
+    const uniqueSlugs = new Set(slugs);
+    expect(slugs.length).toBe(uniqueSlugs.size);
+  });
+
+  it("buildEventAbiFragment produces valid JSON with correct structure", () => {
+    const event = safeWalletDef.events![0];
+    const fragment = buildEventAbiFragment(event);
+    const parsed = JSON.parse(fragment);
+
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].type).toBe("event");
+    expect(parsed[0].name).toBe(event.eventName);
+    expect(parsed[0].inputs).toHaveLength(event.inputs.length);
   });
 });
