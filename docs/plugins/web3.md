@@ -393,7 +393,7 @@ Execute state-changing functions on smart contracts using your Para wallet. Requ
 
 **Inputs:** Network, Contract Address, ABI (auto-fetched), Function, Function Arguments, Gas Limit Multiplier (optional, in Advanced section)
 
-**Outputs:** `success`, `transactionHash`, `result`, `error`
+**Outputs:** `success`, `transactionHash`, `transactionLink`, `gasUsed`, `result`, `error`
 
 **When to use:** Execute DeFi operations (harvest, compound, rebalance), respond to on-chain events, automate protocol maintenance.
 
@@ -407,7 +407,7 @@ Send ETH, MATIC, or other native tokens from your Para wallet to a recipient add
 
 **Inputs:** Network, Amount (ETH), Recipient Address, Gas Limit Multiplier (optional, in Advanced section)
 
-**Outputs:** `success`, `transactionHash`, `error`
+**Outputs:** `success`, `transactionHash`, `transactionLink`, `gasUsed`, `error`
 
 **When to use:** Refill bot wallets, distribute funds, automate payroll.
 
@@ -421,7 +421,7 @@ Send ERC20 tokens from your Para wallet to a recipient address.
 
 **Inputs:** Network, Token, Amount, Recipient Address, Gas Limit Multiplier (optional, in Advanced section)
 
-**Outputs:** `success`, `transactionHash`, `transactionLink`, `amount`, `symbol`, `recipient`, `error`
+**Outputs:** `success`, `transactionHash`, `transactionLink`, `gasUsed`, `amount`, `symbol`, `recipient`, `error`
 
 **When to use:** Distribute tokens, move funds between wallets, automate token transfers based on conditions.
 

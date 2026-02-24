@@ -322,10 +322,14 @@ export async function writeContractCore(
       // Mark transaction as confirmed
       await nonceManager.confirmTransaction(tx.hash);
 
+      // Compute gas cost in wei: gasUnits * effectiveGasPrice
+      const gasCostWei = (receipt.gasUsed * receipt.gasPrice).toString();
+
       console.log("[Write Contract] Transaction confirmed:", {
         hash: receipt.hash,
         gasUsed: receipt.gasUsed.toString(),
         effectiveGasPrice: `${ethers.formatUnits(receipt.gasPrice, "gwei")} gwei`,
+        gasCostWei,
       });
 
       // Fetch explorer config for transaction link
@@ -340,7 +344,7 @@ export async function writeContractCore(
         success: true,
         transactionHash: receipt.hash,
         transactionLink,
-        gasUsed: receipt.gasUsed.toString(),
+        gasUsed: gasCostWei,
         result: undefined,
       };
     } catch (error) {

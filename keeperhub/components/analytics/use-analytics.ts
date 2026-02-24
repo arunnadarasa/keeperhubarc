@@ -40,30 +40,41 @@ function buildQuery(params: Record<string, string | undefined>): string {
   return new URLSearchParams(entries).toString();
 }
 
-function validateResponses(
-  responses: [Response, Response, Response, Response]
-): void {
-  const authError = responses.find((r) => r.status === 401 || r.status === 403);
-  if (authError) {
-    throw new Error(
-      authError.status === 401 ? "AUTH_REQUIRED" : "ORG_REQUIRED"
-    );
-  }
-
-  const labels = ["Summary", "Time series", "Networks", "Runs"] as const;
-  for (const [i, res] of responses.entries()) {
-    if (!res.ok) {
-      throw new Error(`${labels[i]} fetch failed: ${res.status}`);
-    }
-  }
-}
-
-function isAuthError(message: string): boolean {
-  return message === "AUTH_REQUIRED" || message === "ORG_REQUIRED";
-}
-
 function toErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Failed to fetch analytics";
+}
+
+type FetchContext = {
+  aborted: boolean;
+  onAbort: (message: string) => void;
+  onError: (message: string) => void;
+};
+
+async function processSection<T>(
+  promise: Promise<Response>,
+  label: string,
+  ctx: FetchContext,
+  onSuccess: (data: T) => void
+): Promise<void> {
+  if (ctx.aborted) {
+    return;
+  }
+  const res = await promise;
+  if (ctx.aborted) {
+    return;
+  }
+  if (res.status === 401 || res.status === 403) {
+    const message = res.status === 401 ? "AUTH_REQUIRED" : "ORG_REQUIRED";
+    ctx.onAbort(message);
+    return;
+  }
+  if (!res.ok) {
+    throw new Error(`${label} fetch failed: ${res.status}`);
+  }
+  const data = (await res.json()) as T;
+  if (!ctx.aborted) {
+    onSuccess(data);
+  }
 }
 
 export function useAnalytics(): UseAnalyticsReturn {
@@ -82,8 +93,13 @@ export function useAnalytics(): UseAnalyticsReturn {
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchData = useCallback(async (): Promise<void> => {
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setError(null);
 
@@ -94,47 +110,100 @@ export function useAnalytics(): UseAnalyticsReturn {
       source: sourceFilter,
     });
 
-    try {
-      const [summaryRes, timeSeriesRes, networksRes, runsRes] =
-        await Promise.all([
-          fetch(`/api/analytics/summary?${baseQuery}`),
-          fetch(`/api/analytics/time-series?${baseQuery}`),
-          fetch(`/api/analytics/networks?${baseQuery}`),
-          fetch(`/api/analytics/runs?${runsQuery}`),
-        ]);
+    const { signal } = controller;
 
-      validateResponses([summaryRes, timeSeriesRes, networksRes, runsRes]);
+    // Fire all fetches in parallel
+    const summaryPromise = fetch(`/api/analytics/summary?${baseQuery}`, {
+      signal,
+    });
+    const timeSeriesPromise = fetch(`/api/analytics/time-series?${baseQuery}`, {
+      signal,
+    });
+    const networksPromise = fetch(`/api/analytics/networks?${baseQuery}`, {
+      signal,
+    });
+    const runsPromise = fetch(`/api/analytics/runs?${runsQuery}`, { signal });
 
-      const [summary, timeSeriesData, networksData, runs] = (await Promise.all([
-        summaryRes.json(),
-        timeSeriesRes.json(),
-        networksRes.json(),
-        runsRes.json(),
-      ])) as [
-        AnalyticsSummary,
-        { buckets: TimeSeriesBucket[] },
-        { networks: NetworkBreakdown[] },
-        RunsResponse,
-      ];
+    let pendingCount = 4;
+    const ctx: FetchContext = {
+      aborted: false,
+      onAbort: (message: string): void => {
+        ctx.aborted = true;
+        setError(message);
+        setLoading(false);
+        clearInterval(pollIntervalRef.current ?? undefined);
+        pollIntervalRef.current = null;
+        eventSourceRef.current?.close();
+        eventSourceRef.current = null;
+      },
+      onError: (message: string): void => {
+        if (!ctx.aborted) {
+          setError(message);
+        }
+      },
+    };
 
-      setSummary(summary);
-      setTimeSeries(timeSeriesData.buckets);
-      setNetworks(networksData.networks);
-      setRuns(runs);
-      setLastUpdated(new Date());
-    } catch (err: unknown) {
-      const message = toErrorMessage(err);
-      setError(message);
-      if (!isAuthError(message)) {
-        return;
+    const onSectionDone = (): void => {
+      pendingCount -= 1;
+      if (pendingCount === 0) {
+        setLoading(false);
       }
-      clearInterval(pollIntervalRef.current ?? undefined);
-      pollIntervalRef.current = null;
-      eventSourceRef.current?.close();
-      eventSourceRef.current = null;
-    } finally {
-      setLoading(false);
-    }
+    };
+
+    const wrapSection = async (task: Promise<void>): Promise<void> => {
+      try {
+        await task;
+      } catch (err: unknown) {
+        if (signal.aborted) {
+          return;
+        }
+        ctx.onError(toErrorMessage(err));
+      } finally {
+        if (!signal.aborted) {
+          onSectionDone();
+        }
+      }
+    };
+
+    // Process each fetch independently so atoms update as data arrives
+    await Promise.all([
+      wrapSection(
+        processSection<AnalyticsSummary>(
+          summaryPromise,
+          "Summary",
+          ctx,
+          (data) => {
+            setSummary(data);
+            setLastUpdated(new Date());
+          }
+        )
+      ),
+      wrapSection(
+        processSection<{ buckets: TimeSeriesBucket[] }>(
+          timeSeriesPromise,
+          "Time series",
+          ctx,
+          (data) => {
+            setTimeSeries(data.buckets);
+          }
+        )
+      ),
+      wrapSection(
+        processSection<{ networks: NetworkBreakdown[] }>(
+          networksPromise,
+          "Networks",
+          ctx,
+          (data) => {
+            setNetworks(data.networks);
+          }
+        )
+      ),
+      wrapSection(
+        processSection<RunsResponse>(runsPromise, "Runs", ctx, (data) => {
+          setRuns(data);
+        })
+      ),
+    ]);
   }, [
     range,
     statusFilter,
@@ -219,6 +288,11 @@ export function useAnalytics(): UseAnalyticsReturn {
     fetchData().catch(() => {
       /* initial fetch errors handled in fetchData */
     });
+
+    return (): void => {
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
+    };
   }, [fetchData]);
 
   // Manage SSE / polling based on live state
