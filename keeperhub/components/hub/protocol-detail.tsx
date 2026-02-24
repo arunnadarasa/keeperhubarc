@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ExternalLink,
   Eye,
+  Headphones,
 } from "lucide-react";
 import { nanoid } from "nanoid";
 import Image from "next/image";
@@ -29,9 +30,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { getChainName, getExplorerUrl } from "@/keeperhub/lib/chain-utils";
-import type {
-  ProtocolAction,
-  ProtocolDefinition,
+import {
+  buildEventAbiFragment,
+  type ProtocolAction,
+  type ProtocolDefinition,
+  type ProtocolEvent,
 } from "@/keeperhub/lib/protocol-registry";
 import { api, type SavedWorkflow } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
@@ -88,6 +91,9 @@ export function ProtocolDetail({
   const router = useRouter();
   const { data: session } = useSession();
   const [creatingActionSlug, setCreatingActionSlug] = useState<string | null>(
+    null
+  );
+  const [creatingEventSlug, setCreatingEventSlug] = useState<string | null>(
     null
   );
   const [featuredWorkflows, setFeaturedWorkflows] = useState<SavedWorkflow[]>(
@@ -247,6 +253,57 @@ export function ProtocolDetail({
     } catch {
       toast.error("Failed to create workflow");
       setCreatingActionSlug(null);
+    }
+  }
+
+  async function handleListenToEvent(
+    protocolDef: ProtocolDefinition,
+    event: ProtocolEvent
+  ): Promise<void> {
+    setCreatingEventSlug(event.slug);
+
+    try {
+      if (!session) {
+        await authClient.signIn.anonymous();
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      const triggerId = nanoid();
+
+      const nodes = [
+        {
+          id: triggerId,
+          type: "trigger" as const,
+          position: { x: 0, y: 0 },
+          data: {
+            label: `${protocolDef.name}: ${event.label}`,
+            description: event.description,
+            type: "trigger" as const,
+            config: {
+              triggerType: "Event",
+              eventName: event.eventName,
+              contractABI: buildEventAbiFragment(event),
+              _eventProtocolSlug: protocolDef.slug,
+              _eventSlug: event.slug,
+              _eventProtocolIconPath: protocolDef.icon ?? "",
+            },
+            status: "idle" as const,
+          },
+        },
+      ];
+
+      const newWorkflow = await api.workflow.create({
+        name: "Untitled Workflow",
+        description: "",
+        nodes,
+        edges: [],
+      });
+
+      sessionStorage.setItem("animate-sidebar", "true");
+      router.push(`/workflows/${newWorkflow.id}`);
+    } catch {
+      toast.error("Failed to create workflow");
+      setCreatingEventSlug(null);
     }
   }
 
@@ -486,6 +543,65 @@ export function ProtocolDetail({
           );
         })}
       </div>
+
+      {protocol.events && protocol.events.length > 0 && (
+        <>
+          <div className="my-6 border-t border-border/30" />
+
+          <h3 className="mb-4 font-bold text-lg">
+            Events ({protocol.events.length})
+          </h3>
+
+          <div>
+            {protocol.events.map((event, index) => {
+              const isLast = index === (protocol.events?.length ?? 0) - 1;
+
+              return (
+                <div
+                  className={`flex items-center justify-between px-4 py-4 transition-colors hover:bg-muted/50 ${isLast ? "" : "border-b border-border/30"}`}
+                  key={event.slug}
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm">
+                        {event.label}
+                      </span>
+                      <span className="rounded-full bg-blue-500/10 px-2 py-0.5 font-medium text-blue-400 text-[10px] uppercase tracking-wider">
+                        EVENT
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-muted-foreground text-xs">
+                      {event.description}
+                    </p>
+                    <p className="mt-1 text-muted-foreground text-xs">
+                      {event.eventName}(
+                      {event.inputs
+                        .map(
+                          (inp) =>
+                            `${inp.type}${inp.indexed ? " indexed" : ""} ${inp.name}`
+                        )
+                        .join(", ")}
+                      )
+                    </p>
+                  </div>
+                  <Button
+                    className="ml-4 shrink-0"
+                    disabled={creatingEventSlug === event.slug}
+                    onClick={() => handleListenToEvent(protocol, event)}
+                    size="sm"
+                    variant="outline"
+                  >
+                    <Headphones className="mr-1.5 size-3.5" />
+                    {creatingEventSlug === event.slug
+                      ? "Creating..."
+                      : "Listen to Event"}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }

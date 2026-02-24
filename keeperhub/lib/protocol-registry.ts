@@ -34,6 +34,21 @@ export type ProtocolActionOutput = {
   decimals?: number;
 };
 
+export type ProtocolEventInput = {
+  name: string;
+  type: string;
+  indexed: boolean;
+};
+
+export type ProtocolEvent = {
+  slug: string;
+  label: string;
+  description: string;
+  eventName: string;
+  contract: string;
+  inputs: ProtocolEventInput[];
+};
+
 export type ProtocolAction = {
   slug: string;
   label: string;
@@ -53,6 +68,7 @@ export type ProtocolDefinition = {
   icon?: string;
   contracts: Record<string, ProtocolContract>;
   actions: ProtocolAction[];
+  events?: ProtocolEvent[];
 };
 
 function validateSlug(slug: string, context: string): void {
@@ -91,6 +107,32 @@ function validateContractRefs(
   }
 }
 
+function validateEventContractRefs(
+  events: ProtocolEvent[],
+  contracts: Record<string, ProtocolContract>
+): void {
+  for (const event of events) {
+    if (!(event.contract in contracts)) {
+      throw new Error(
+        `Event "${event.slug}" references unknown contract "${event.contract}". Available contracts: ${Object.keys(contracts).join(", ")}`
+      );
+    }
+  }
+}
+
+export function buildEventAbiFragment(event: ProtocolEvent): string {
+  const fragment = {
+    type: "event" as const,
+    name: event.eventName,
+    inputs: event.inputs.map((inp) => ({
+      name: inp.name,
+      type: inp.type,
+      indexed: inp.indexed,
+    })),
+  };
+  return JSON.stringify([fragment]);
+}
+
 export function defineProtocol(def: ProtocolDefinition): ProtocolDefinition {
   if (Object.keys(def.contracts).length === 0) {
     throw new Error(`Protocol "${def.slug}" must define at least one contract`);
@@ -108,6 +150,13 @@ export function defineProtocol(def: ProtocolDefinition): ProtocolDefinition {
 
   validateAddresses(def.contracts);
   validateContractRefs(def.actions, def.contracts);
+
+  if (def.events && def.events.length > 0) {
+    for (const event of def.events) {
+      validateSlug(event.slug, `event of protocol "${def.slug}"`);
+    }
+    validateEventContractRefs(def.events, def.contracts);
+  }
 
   return def;
 }
