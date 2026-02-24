@@ -1,7 +1,6 @@
-import type { BrowserContext, Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 import postgres from "postgres";
-import { signUpAndVerify } from "./auth";
 
 function getDbConnection(): ReturnType<typeof postgres> {
   const databaseUrl = process.env.DATABASE_URL;
@@ -119,50 +118,4 @@ export async function sendInvite(
   await expect(successToast).toBeVisible({ timeout: 5000 });
 
   return getInvitationIdFromDb(inviteeEmail);
-}
-
-/**
- * Create inviter, send invite, then sign up invitee who accepts the invite.
- * Returns with the invitee logged in and belonging to 2 orgs.
- */
-export async function setupUserInTwoOrgs(
-  page: Page,
-  context: BrowserContext
-): Promise<{ inviteeEmail: string }> {
-  await signUpAndVerify(page);
-
-  const inviteeEmail = `test+${Date.now()}@techops.services`;
-  const invitationId = await sendInvite(page, inviteeEmail);
-  await context.clearCookies();
-
-  await signUpAndVerify(page, { email: inviteeEmail });
-
-  await gotoAcceptInvite(page, invitationId);
-  await expect(
-    page.locator('button:has-text("Accept Invitation")')
-  ).toBeVisible({ timeout: 15_000 });
-  await page.locator('button:has-text("Accept Invitation")').click();
-
-  const welcomeToast = page
-    .locator("[data-sonner-toast]")
-    .filter({ hasText: "Welcome to" });
-  const notOnAcceptPage = page.waitForURL(
-    (url) => !url.pathname.includes("accept-invite"),
-    { timeout: 15_000 }
-  );
-  await Promise.race([
-    welcomeToast.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {
-      /* intentional noop */
-    }),
-    notOnAcceptPage.catch(() => {
-      /* intentional noop */
-    }),
-  ]);
-
-  await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.locator('button[role="combobox"]')).toBeVisible({
-    timeout: 15_000,
-  });
-
-  return { inviteeEmail };
 }
