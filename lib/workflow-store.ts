@@ -555,8 +555,8 @@ export const loadWorkflowAtom = atom(null, async (get, set) => {
             logs: logsByNodeId,
           });
         })
-        .catch(() => {
-          // Non-blocking: autocomplete falls back to static fields
+        .catch((error: unknown) => {
+          console.debug("[loadWorkflow] Pre-fetch execution logs failed:", error);
         });
       // end keeperhub code //
     }
