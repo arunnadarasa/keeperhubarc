@@ -73,20 +73,6 @@ export function AnalyticsPage(): ReactNode {
     return <AuthGate error={error} />;
   }
 
-  // Show a neutral loading state until the first fetch completes,
-  // so the analytics skeleton doesn't flash before an auth error.
-  if (summary === null && !error) {
-    return (
-      <div className="pointer-events-auto fixed inset-0 overflow-y-auto bg-sidebar">
-        <div className="transition-[margin-left] duration-200 ease-out md:ml-[var(--nav-sidebar-width,60px)]">
-          <div className="flex min-h-[60vh] items-center justify-center">
-            <div className="size-6 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const hasNoData =
     summary !== null && summary.totalRuns === 0 && summary.activeRuns === 0;
 

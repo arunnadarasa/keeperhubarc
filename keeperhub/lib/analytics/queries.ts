@@ -586,6 +586,7 @@ export async function getNetworkBreakdown(
 
 /**
  * Fetch unified runs with cursor-based pagination.
+ * Runs fetch + count in parallel to avoid sequential blocking.
  */
 export async function getUnifiedRuns(
   organizationId: string,
@@ -611,29 +612,30 @@ export async function getUnifiedRuns(
   const rangeEnd = customEnd ? new Date(customEnd) : new Date();
   const pageLimit = Math.min(limit, 100);
 
-  const workflowRuns =
+  // Fire run fetches and count queries in parallel
+  const [workflowRuns, directRuns, total] = await Promise.all([
     source === "direct"
-      ? []
-      : await fetchWorkflowRuns(
+      ? ([] as UnifiedRun[])
+      : fetchWorkflowRuns(
           organizationId,
           rangeStart,
           rangeEnd,
           status,
           cursor,
           pageLimit + 1
-        );
-
-  const directRuns =
+        ),
     source === "workflow"
-      ? []
-      : await fetchDirectRuns(
+      ? ([] as UnifiedRun[])
+      : fetchDirectRuns(
           organizationId,
           rangeStart,
           rangeEnd,
           status,
           cursor,
           pageLimit + 1
-        );
+        ),
+    getUnifiedRunsTotal(organizationId, rangeStart, rangeEnd, status, source),
+  ]);
 
   const allRuns = [...workflowRuns, ...directRuns].sort(
     (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
@@ -642,14 +644,6 @@ export async function getUnifiedRuns(
   const hasMore = allRuns.length > pageLimit;
   const pagedRuns = allRuns.slice(0, pageLimit);
   const nextCursor = hasMore ? (pagedRuns.at(-1)?.startedAt ?? null) : null;
-
-  const total = await getUnifiedRunsTotal(
-    organizationId,
-    rangeStart,
-    rangeEnd,
-    status,
-    source
-  );
 
   return { runs: pagedRuns, nextCursor, total };
 }
@@ -871,20 +865,15 @@ async function getUnifiedRunsTotal(
   status: NormalizedStatus | undefined,
   source: RunSource | undefined
 ): Promise<number> {
-  const workflowTotal =
+  // Run both count queries in parallel
+  const [workflowTotal, directTotal] = await Promise.all([
     source === "direct"
       ? 0
-      : await getWorkflowRunsTotal(
-          organizationId,
-          rangeStart,
-          rangeEnd,
-          status
-        );
-
-  const directTotal =
+      : getWorkflowRunsTotal(organizationId, rangeStart, rangeEnd, status),
     source === "workflow"
       ? 0
-      : await getDirectRunsTotal(organizationId, rangeStart, rangeEnd, status);
+      : getDirectRunsTotal(organizationId, rangeStart, rangeEnd, status),
+  ]);
 
   return workflowTotal + directTotal;
 }
