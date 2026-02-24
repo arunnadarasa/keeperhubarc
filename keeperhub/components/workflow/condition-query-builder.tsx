@@ -83,7 +83,7 @@ function RuleRow({
           }
           value={rule.operator}
         >
-          <SelectTrigger className="h-9 shrink-0 text-xs">
+          <SelectTrigger className="h-9 w-[160px] shrink-0 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
