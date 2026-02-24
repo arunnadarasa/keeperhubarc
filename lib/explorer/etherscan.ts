@@ -1,8 +1,8 @@
 /**
- * Etherscan API v2 ABI fetcher
+ * Etherscan API v2 integration
  *
- * Works for Ethereum, Base, Arbitrum, and other Etherscan-supported chains
- * with a single API key.
+ * Provides ABI fetching, source code metadata, and transaction listing
+ * for Ethereum, Base, Arbitrum, and other Etherscan-supported chains.
  */
 
 type EtherscanResponse = {
@@ -165,6 +165,147 @@ export async function fetchEtherscanSourceCode(
       error: error instanceof Error ? error.message : "Unknown error",
     };
   }
+}
+
+export type EtherscanTransaction = {
+  hash: string;
+  from: string;
+  to: string;
+  value: string;
+  input: string;
+  blockNumber: string;
+  timeStamp: string;
+  isError: string;
+  functionName: string;
+};
+
+type EtherscanTxListResponse = {
+  status: string;
+  message: string;
+  result: EtherscanTransaction[] | string;
+};
+
+const ETHERSCAN_TX_PAGE_SIZE = 10_000;
+const MAX_PAGES = 5;
+
+type TxPageResult =
+  | { done: false; transactions: EtherscanTransaction[] }
+  | { done: true; transactions: EtherscanTransaction[] }
+  | { error: string };
+
+function buildTxListParams(
+  apiUrl: string,
+  chainId: number,
+  contractAddress: string,
+  startBlock: number,
+  endBlock: number,
+  page: number,
+  apiKey?: string
+): string {
+  const params = new URLSearchParams({
+    chainid: chainId.toString(),
+    module: "account",
+    action: "txlist",
+    address: contractAddress,
+    startblock: startBlock.toString(),
+    endblock: endBlock.toString(),
+    page: page.toString(),
+    offset: ETHERSCAN_TX_PAGE_SIZE.toString(),
+    sort: "asc",
+  });
+
+  if (apiKey) {
+    params.set("apikey", apiKey);
+  }
+
+  return `${apiUrl}?${params}`;
+}
+
+function parseTxListResponse(data: EtherscanTxListResponse): TxPageResult {
+  if (data.status !== "1") {
+    const isEmptyResult =
+      typeof data.result === "string" &&
+      data.result.toLowerCase().includes("no transactions found");
+    if (isEmptyResult) {
+      return { done: true, transactions: [] };
+    }
+    const errorMessage = parseEtherscanError(
+      typeof data.result === "string" ? data.result : data.message
+    );
+    return { error: errorMessage };
+  }
+
+  if (!Array.isArray(data.result)) {
+    return { done: true, transactions: [] };
+  }
+
+  const hasMore = data.result.length >= ETHERSCAN_TX_PAGE_SIZE;
+  return { done: !hasMore, transactions: data.result };
+}
+
+/**
+ * Fetch transaction list for a contract address from Etherscan API v2
+ *
+ * Uses the `account` module `txlist` action to get normal transactions.
+ * Paginates automatically (max 10,000 per page, up to MAX_PAGES pages).
+ *
+ * @param apiUrl - Base API URL (e.g., "https://api.etherscan.io/v2/api")
+ * @param chainId - Chain ID for the request
+ * @param contractAddress - Contract address to list transactions for
+ * @param startBlock - Start block number
+ * @param endBlock - End block number
+ * @param apiKey - Optional Etherscan API key (recommended for rate limits)
+ */
+export async function fetchEtherscanTransactions(
+  apiUrl: string,
+  chainId: number,
+  contractAddress: string,
+  startBlock: number,
+  endBlock: number,
+  apiKey?: string
+): Promise<
+  | { success: true; transactions: EtherscanTransaction[] }
+  | { success: false; error: string }
+> {
+  const allTransactions: EtherscanTransaction[] = [];
+
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const url = buildTxListParams(
+      apiUrl,
+      chainId,
+      contractAddress,
+      startBlock,
+      endBlock,
+      page,
+      apiKey
+    );
+
+    try {
+      const response = await fetch(url);
+      const data: EtherscanTxListResponse = await response.json();
+      const result = parseTxListResponse(data);
+
+      if ("error" in result) {
+        return { success: false, error: result.error };
+      }
+
+      allTransactions.push(...result.transactions);
+
+      if (result.done) {
+        break;
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown error fetching transactions",
+      };
+    }
+  }
+
+  return { success: true, transactions: allTransactions };
 }
 
 /**
