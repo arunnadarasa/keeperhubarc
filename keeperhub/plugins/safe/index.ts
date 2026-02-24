@@ -60,7 +60,12 @@ const getPendingTransactionsAction = {
 // so both on-chain reads and off-chain API actions appear under one "Safe" entry.
 // Also attach credential fields so the connection management UI can create Safe API keys.
 const safeProtocol = getIntegration("safe" as IntegrationType);
-if (safeProtocol) {
+if (!safeProtocol) {
+  throw new Error(
+    '[safe plugin] "safe" integration not found in registry. Ensure keeperhub/protocols is imported before keeperhub/plugins/safe.'
+  );
+}
+{
   safeProtocol.actions.push(getPendingTransactionsAction);
   safeProtocol.requiresCredentials = true;
   safeProtocol.formFields = [
