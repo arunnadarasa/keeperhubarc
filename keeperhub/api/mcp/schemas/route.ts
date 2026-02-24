@@ -549,8 +549,8 @@ export async function GET(request: Request) {
         source: "string - Source node ID",
         target: "string - Target node ID",
         sourceHandle:
-          "string (optional) - Only for edges from Condition nodes: set to 'true' or 'false' to control branch routing. Omit for all other node types.",
-        note: "Do NOT use targetHandle. sourceHandle is only needed for Condition node edges.",
+          "string (optional) - For Condition node edges: 'true' or 'false'. For For Each node edges: 'loop' or 'done'. Omit for all other node types.",
+        note: "Do NOT use targetHandle. sourceHandle is only needed for Condition and For Each node edges.",
       },
     },
 
