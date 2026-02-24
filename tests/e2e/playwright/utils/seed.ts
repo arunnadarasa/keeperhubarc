@@ -1,13 +1,6 @@
 import { randomBytes, scrypt } from "node:crypto";
-import postgres from "postgres";
-
-function getDbConnection(): ReturnType<typeof postgres> {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    throw new Error("DATABASE_URL environment variable is required");
-  }
-  return postgres(databaseUrl, { max: 1 });
-}
+import type postgres from "postgres";
+import { getDbConnection } from "./connection";
 
 // ---------------------------------------------------------------------------
 // Password hashing (scrypt, compatible with Better Auth / @noble/hashes/scrypt)
