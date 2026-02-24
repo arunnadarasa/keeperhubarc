@@ -41,6 +41,7 @@ import {
   getStepImporter,
   type StepImporter,
 } from "./step-registry";
+import { LEGACY_ACTION_MAPPINGS } from "@/plugins/legacy-mappings";
 import type { StepContext } from "./steps/step-handler";
 import { triggerStep } from "./steps/trigger";
 import { deserializeEventTriggerData, getErrorMessageAsync } from "./utils";
@@ -367,7 +368,16 @@ async function executeActionStep(input: {
   }
 
   // Look up plugin action from the generated step registry
-  const stepImporter = getStepImporter(actionType);
+  let stepImporter = getStepImporter(actionType);
+
+  // Fallback: check legacy action mappings (e.g. "safe/get-pending-transactions" -> "safe-wallet/get-pending-transactions")
+  if (!stepImporter) {
+    const mapped = LEGACY_ACTION_MAPPINGS[actionType];
+    if (mapped) {
+      stepImporter = getStepImporter(mapped);
+    }
+  }
+
   if (stepImporter) {
     const module = await stepImporter.importer();
     const stepFunction = module[stepImporter.stepFunction];
