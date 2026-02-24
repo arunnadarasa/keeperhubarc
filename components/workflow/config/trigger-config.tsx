@@ -1,6 +1,8 @@
 "use client";
 
 import { Box, Boxes, Clock, Copy, Play, Webhook } from "lucide-react";
+import Image from "next/image";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { CodeEditor } from "@/components/ui/code-editor";
@@ -14,6 +16,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TimezoneSelect } from "@/components/ui/timezone-select";
+import { buildEventAbiFragment } from "@/keeperhub/lib/protocol-registry";
+import type {
+  ProtocolDefinition,
+  ProtocolEvent,
+} from "@/keeperhub/lib/protocol-registry";
 import type { ActionConfigField } from "@/plugins";
 import { ActionConfigRenderer } from "./action-config-renderer";
 import { SchemaBuilder, type SchemaField } from "./schema-builder";
@@ -212,53 +219,13 @@ export function TriggerConfig({
 
       {/* start custom keeperhub code // */}
       {/* Event fields */}
-      {config?.triggerType === "Event" &&
-        (() => {
-          const eventFields: ActionConfigField[] = [
-            {
-              key: "network",
-              label: "Network",
-              type: "chain-select",
-              chainTypeFilter: "evm",
-              placeholder: "Select network",
-              required: true,
-            },
-            {
-              key: "contractAddress",
-              label: "Contract Address",
-              type: "template-input",
-              placeholder: "0x... or {{NodeName.contractAddress}}",
-              example: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
-              required: true,
-            },
-            {
-              key: "contractABI",
-              label: "Contract ABI",
-              type: "abi-with-auto-fetch",
-              contractAddressField: "contractAddress",
-              networkField: "network",
-              rows: 6,
-              required: true,
-            },
-            {
-              key: "eventName",
-              label: "Event Name",
-              type: "abi-event-select",
-              abiField: "contractABI",
-              placeholder: "Select an event",
-              required: true,
-            },
-          ];
-
-          return (
-            <ActionConfigRenderer
-              config={config}
-              disabled={disabled}
-              fields={eventFields}
-              onUpdateConfig={handleConfigValue}
-            />
-          );
-        })()}
+      {config?.triggerType === "Event" && (
+        <EventTriggerFields
+          config={config}
+          disabled={disabled}
+          onUpdateConfig={handleConfigValue}
+        />
+      )}
       {/* Block fields */}
       {config?.triggerType === "Block" &&
         (() => {
@@ -315,3 +282,253 @@ export function TriggerConfig({
     </>
   );
 }
+
+// start custom keeperhub code //
+const CUSTOM_PROTOCOL_VALUE = "__custom__";
+
+type EventTriggerFieldsProps = {
+  config: Record<string, unknown>;
+  disabled: boolean;
+  onUpdateConfig: (key: string, value: unknown) => void;
+};
+
+function EventTriggerFields({
+  config,
+  disabled,
+  onUpdateConfig,
+}: EventTriggerFieldsProps): React.ReactElement {
+  const [protocols, setProtocols] = useState<ProtocolDefinition[]>([]);
+
+  useEffect(() => {
+    fetch("/api/protocols")
+      .then((res) => res.json())
+      .then((data: ProtocolDefinition[]) => {
+        setProtocols(data.filter((p) => p.events && p.events.length > 0));
+      })
+      .catch(() => {
+        // Silently ignore -- custom mode still works
+      });
+  }, []);
+
+  const selectedProtocolSlug =
+    (config._eventProtocolSlug as string) || CUSTOM_PROTOCOL_VALUE;
+  const selectedProtocol = protocols.find(
+    (p) => p.slug === selectedProtocolSlug
+  );
+
+  function handleProtocolChange(slug: string): void {
+    if (slug === CUSTOM_PROTOCOL_VALUE) {
+      onUpdateConfig("_eventProtocolSlug", "");
+      onUpdateConfig("_eventSlug", "");
+      onUpdateConfig("_eventProtocolIconPath", "");
+      onUpdateConfig("contractABI", "");
+      onUpdateConfig("eventName", "");
+      return;
+    }
+
+    const protocol = protocols.find((p) => p.slug === slug);
+    if (!protocol) {
+      return;
+    }
+
+    onUpdateConfig("_eventProtocolSlug", slug);
+    onUpdateConfig("_eventProtocolIconPath", protocol.icon ?? "");
+    onUpdateConfig("_eventSlug", "");
+    onUpdateConfig("contractABI", "");
+    onUpdateConfig("eventName", "");
+  }
+
+  function handleEventChange(eventSlug: string): void {
+    if (!selectedProtocol?.events) {
+      return;
+    }
+    const event = selectedProtocol.events.find((e) => e.slug === eventSlug);
+    if (!event) {
+      return;
+    }
+
+    onUpdateConfig("_eventSlug", event.slug);
+    onUpdateConfig("eventName", event.eventName);
+    onUpdateConfig("contractABI", buildEventAbiFragment(event));
+  }
+
+  if (selectedProtocol) {
+    const contract = selectedProtocol.contracts[
+      selectedProtocol.events?.[0]?.contract ?? ""
+    ];
+
+    const protocolFields: ActionConfigField[] = [
+      {
+        key: "network",
+        label: "Network",
+        type: "chain-select",
+        chainTypeFilter: "evm",
+        placeholder: "Select network",
+        required: true,
+      },
+    ];
+
+    if (contract?.userSpecifiedAddress) {
+      protocolFields.push({
+        key: "contractAddress",
+        label: `${contract.label} Address`,
+        type: "template-input",
+        placeholder: "0x...",
+        required: true,
+      });
+    }
+
+    return (
+      <>
+        <ProtocolSelector
+          config={config}
+          disabled={disabled}
+          onChange={handleProtocolChange}
+          protocols={protocols}
+        />
+        <ActionConfigRenderer
+          config={config}
+          disabled={disabled}
+          fields={protocolFields}
+          onUpdateConfig={onUpdateConfig}
+        />
+        <div className="space-y-2">
+          <Label className="ml-1">
+            Event <span className="text-red-500">*</span>
+          </Label>
+          <Select
+            disabled={disabled}
+            onValueChange={handleEventChange}
+            value={(config._eventSlug as string) || ""}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select an event" />
+            </SelectTrigger>
+            <SelectContent>
+              {selectedProtocol.events?.map((event) => (
+                <SelectItem key={event.slug} value={event.slug}>
+                  <div className="flex flex-col">
+                    <span>{event.label}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {event.eventName}(
+                      {event.inputs
+                        .map(
+                          (inp) =>
+                            `${inp.type}${inp.indexed ? " indexed" : ""} ${inp.name}`
+                        )
+                        .join(", ")}
+                      )
+                    </span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </>
+    );
+  }
+
+  const customFields: ActionConfigField[] = [
+    {
+      key: "network",
+      label: "Network",
+      type: "chain-select",
+      chainTypeFilter: "evm",
+      placeholder: "Select network",
+      required: true,
+    },
+    {
+      key: "contractAddress",
+      label: "Contract Address",
+      type: "template-input",
+      placeholder: "0x... or {{NodeName.contractAddress}}",
+      example: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+      required: true,
+    },
+    {
+      key: "contractABI",
+      label: "Contract ABI",
+      type: "abi-with-auto-fetch",
+      contractAddressField: "contractAddress",
+      networkField: "network",
+      rows: 6,
+      required: true,
+    },
+    {
+      key: "eventName",
+      label: "Event Name",
+      type: "abi-event-select",
+      abiField: "contractABI",
+      placeholder: "Select an event",
+      required: true,
+    },
+  ];
+
+  return (
+    <>
+      {protocols.length > 0 && (
+        <ProtocolSelector
+          config={config}
+          disabled={disabled}
+          onChange={handleProtocolChange}
+          protocols={protocols}
+        />
+      )}
+      <ActionConfigRenderer
+        config={config}
+        disabled={disabled}
+        fields={customFields}
+        onUpdateConfig={onUpdateConfig}
+      />
+    </>
+  );
+}
+
+function ProtocolSelector({
+  protocols,
+  config,
+  disabled,
+  onChange,
+}: {
+  protocols: ProtocolDefinition[];
+  config: Record<string, unknown>;
+  disabled: boolean;
+  onChange: (slug: string) => void;
+}): React.ReactElement {
+  const value =
+    (config._eventProtocolSlug as string) || CUSTOM_PROTOCOL_VALUE;
+
+  return (
+    <div className="space-y-2">
+      <Label className="ml-1">Protocol</Label>
+      <Select disabled={disabled} onValueChange={onChange} value={value}>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Select protocol" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={CUSTOM_PROTOCOL_VALUE}>
+            Custom (paste ABI)
+          </SelectItem>
+          {protocols.map((protocol) => (
+            <SelectItem key={protocol.slug} value={protocol.slug}>
+              <div className="flex items-center gap-2">
+                {protocol.icon && (
+                  <Image
+                    alt={protocol.name}
+                    className="rounded"
+                    height={16}
+                    src={protocol.icon}
+                    width={16}
+                  />
+                )}
+                {protocol.name}
+              </div>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+// end keeperhub code //
