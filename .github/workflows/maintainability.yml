@@ -5,8 +5,42 @@ on:
     branches: [staging]
 
 jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      compose: ${{ steps.filter.outputs.compose }}
+      makefile: ${{ steps.filter.outputs.makefile }}
+      shell: ${{ steps.filter.outputs.shell }}
+      workflows: ${{ steps.filter.outputs.workflows }}
+      dockerfiles: ${{ steps.filter.outputs.dockerfiles }}
+      plugins: ${{ steps.filter.outputs.plugins }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            compose:
+              - 'docker-compose*.yml'
+            makefile:
+              - 'Makefile'
+            shell:
+              - '**/*.sh'
+            workflows:
+              - '.github/workflows/**'
+            dockerfiles:
+              - '**/Dockerfile*'
+              - '.hadolint.yaml'
+            plugins:
+              - 'keeperhub/plugins/**'
+              - 'plugins/**'
+
   compose-validation:
     name: Docker Compose Validation
+    needs: changes
+    if: needs.changes.outputs.compose == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -19,6 +53,8 @@ jobs:
 
   makefile-dry-run:
     name: Makefile Dry Run
+    needs: changes
+    if: needs.changes.outputs.makefile == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -77,6 +113,8 @@ jobs:
 
   shellcheck:
     name: Shell Script Lint
+    needs: changes
+    if: needs.changes.outputs.shell == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -93,6 +131,8 @@ jobs:
 
   actionlint:
     name: GitHub Actions Lint
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -115,6 +155,8 @@ jobs:
 
   hadolint:
     name: Dockerfile Lint
+    needs: changes
+    if: needs.changes.outputs.dockerfiles == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -209,6 +251,8 @@ jobs:
 
   compose-consistency:
     name: Cross-Compose Consistency
+    needs: changes
+    if: needs.changes.outputs.compose == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -240,6 +284,8 @@ jobs:
 
   plugin-integrity:
     name: Plugin Discovery Integrity
+    needs: changes
+    if: needs.changes.outputs.plugins == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
