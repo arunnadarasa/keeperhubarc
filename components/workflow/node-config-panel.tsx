@@ -562,15 +562,18 @@ export const PanelInner = () => {
 
       // start custom keeperhub code //
       // When action type is selected, persist defaultValues from configFields
-      // into config so that showWhen conditions and validation work immediately
+      // into config so that showWhen conditions and validation work immediately.
+      // For _protocolMeta: always overwrite with the new action's value since
+      // stale metadata causes the wrong contract function to be called at runtime.
       if (key === "actionType" && typeof value === "string") {
         const selectedAction = findActionById(value);
         if (selectedAction?.configFields) {
           for (const field of flattenConfigFields(selectedAction.configFields)) {
-            if (
-              field.defaultValue !== undefined &&
-              !(field.key in newConfig)
-            ) {
+            if (field.defaultValue === undefined) {
+              continue;
+            }
+            const forceUpdate = field.key === "_protocolMeta";
+            if (forceUpdate || !(field.key in newConfig)) {
               newConfig = { ...newConfig, [field.key]: field.defaultValue };
             }
           }
