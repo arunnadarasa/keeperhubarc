@@ -419,6 +419,10 @@ KeeperHub - Blockchain Workflow Automation
 
   if (success) {
     console.log(`[Email] Invitation sent to ${inviteeEmail}`);
+  } else if (isTestEnv) {
+    console.warn(
+      `[Email] Failed to send invitation to ${inviteeEmail} — invitation is stored in DB`
+    );
   } else {
     logUserError(
       ErrorCategory.EXTERNAL_SERVICE,

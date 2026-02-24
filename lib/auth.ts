@@ -234,14 +234,20 @@ const plugins = [
         link: inviteLink,
       });
 
-      // Send the invitation email
-      await sendInvitationEmail({
-        inviteeEmail: data.email,
-        inviterName: data.inviter.user.name || "A team member",
-        organizationName: data.organization.name,
-        role: data.role || "member",
-        inviteLink,
-      });
+      try {
+        await sendInvitationEmail({
+          inviteeEmail: data.email,
+          inviterName: data.inviter.user.name || "A team member",
+          organizationName: data.organization.name,
+          role: data.role || "member",
+          inviteLink,
+        });
+      } catch (error) {
+        console.warn(
+          `[Invitation] Email delivery failed for ${data.email}, invitation is still valid`,
+          error
+        );
+      }
     },
 
     // Invitation settings
