@@ -393,11 +393,13 @@ Execute state-changing functions on smart contracts using your Para wallet. Requ
 
 **Inputs:** Network, Contract Address, ABI (auto-fetched), Function, Function Arguments, Gas Limit Multiplier (optional, in Advanced section)
 
-**Outputs:** `success`, `transactionHash`, `transactionLink`, `gasUsed`, `result`, `error`
+**Outputs:** `success`, `transactionHash`, `transactionLink`, `gasUsed` (total gas cost in wei), `result`, `error`
 
 **When to use:** Execute DeFi operations (harvest, compound, rebalance), respond to on-chain events, automate protocol maintenance.
 
 **Gas Configuration:** Optionally set a custom Gas Limit Multiplier in the Advanced section to override the chain default. See [Gas Management](/wallet-management/gas) for details.
+
+**Note:** The `gasUsed` output represents the total transaction cost in wei (gas units × effective gas price), not just the number of gas units consumed.
 
 ---
 
@@ -407,11 +409,13 @@ Send ETH, MATIC, or other native tokens from your Para wallet to a recipient add
 
 **Inputs:** Network, Amount (ETH), Recipient Address, Gas Limit Multiplier (optional, in Advanced section)
 
-**Outputs:** `success`, `transactionHash`, `transactionLink`, `gasUsed`, `error`
+**Outputs:** `success`, `transactionHash`, `transactionLink`, `gasUsed` (total gas cost in wei), `error`
 
 **When to use:** Refill bot wallets, distribute funds, automate payroll.
 
 **Gas Configuration:** Optionally set a custom Gas Limit Multiplier in the Advanced section to override the chain default. See [Gas Management](/wallet-management/gas) for details.
+
+**Note:** The `gasUsed` output represents the total transaction cost in wei (gas units × effective gas price), not just the number of gas units consumed.
 
 ---
 
@@ -421,11 +425,13 @@ Send ERC20 tokens from your Para wallet to a recipient address.
 
 **Inputs:** Network, Token, Amount, Recipient Address, Gas Limit Multiplier (optional, in Advanced section)
 
-**Outputs:** `success`, `transactionHash`, `transactionLink`, `gasUsed`, `amount`, `symbol`, `recipient`, `error`
+**Outputs:** `success`, `transactionHash`, `transactionLink`, `gasUsed` (total gas cost in wei), `amount`, `symbol`, `recipient`, `error`
 
 **When to use:** Distribute tokens, move funds between wallets, automate token transfers based on conditions.
 
 **Gas Configuration:** Optionally set a custom Gas Limit Multiplier in the Advanced section to override the chain default. See [Gas Management](/wallet-management/gas) for details.
+
+**Note:** The `gasUsed` output represents the total transaction cost in wei (gas units × effective gas price), not just the number of gas units consumed.
 
 ---
 
