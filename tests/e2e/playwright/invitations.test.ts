@@ -1,29 +1,32 @@
-import type { BrowserContext, Page } from "@playwright/test";
-import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { getOtpFromDb, signIn, signUp, signUpAndVerify } from "./utils/auth";
+import {
+  PERSISTENT_BYSTANDER_EMAIL,
+  PERSISTENT_INVITER_EMAIL,
+  PERSISTENT_MEMBER_EMAIL,
+  PERSISTENT_TEST_PASSWORD,
+} from "./utils/db";
 import {
   gotoAcceptInvite,
   openInviteForm,
   sendInvite,
-  setupUserInTwoOrgs,
 } from "./utils/invitations";
 
 const ACCEPT_INVITE_URL_REGEX = /\/accept-invite/;
+
+async function signInAsInviter(page: Page): Promise<void> {
+  await signIn(page, PERSISTENT_INVITER_EMAIL, PERSISTENT_TEST_PASSWORD);
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.locator('button[role="combobox"]')).toBeVisible({
+    timeout: 15_000,
+  });
+}
 
 test.describe.configure({ mode: "serial" });
 
 test.describe("Organization Invitations", () => {
   test.describe("Sending Invites", () => {
-    let inviter: { email: string; password: string };
-
-    async function signInAsInviter(page: Page): Promise<void> {
-      if (inviter) {
-        await signIn(page, inviter.email, inviter.password);
-      } else {
-        inviter = await signUpAndVerify(page);
-      }
-    }
-
     test.beforeEach(async ({ context }) => {
       await context.clearCookies();
     });
@@ -123,7 +126,7 @@ test.describe("Organization Invitations", () => {
 
       await dialog
         .locator('input[placeholder="colleague@example.com"]')
-        .fill(inviter.email);
+        .fill(PERSISTENT_INVITER_EMAIL);
       await dialog.locator('button:has-text("Invite")').click();
 
       await expect(
@@ -143,7 +146,7 @@ test.describe("Organization Invitations", () => {
       page,
       context,
     }) => {
-      await signUpAndVerify(page);
+      await signInAsInviter(page);
 
       const inviteeEmail = `test+${Date.now()}@techops.services`;
       const invitationId = await sendInvite(page, inviteeEmail);
@@ -201,7 +204,7 @@ test.describe("Organization Invitations", () => {
       await signUpAndVerify(page, { email: inviteeEmail });
       await context.clearCookies();
 
-      await signUpAndVerify(page);
+      await signInAsInviter(page);
       const invitationId = await sendInvite(page, inviteeEmail);
       await context.clearCookies();
 
@@ -239,7 +242,7 @@ test.describe("Organization Invitations", () => {
       page,
       context,
     }) => {
-      await signUpAndVerify(page);
+      await signInAsInviter(page);
       const inviteeEmail = `test+${Date.now()}@techops.services`;
       const invitationId = await sendInvite(page, inviteeEmail);
       await context.clearCookies();
@@ -280,12 +283,13 @@ test.describe("Organization Invitations", () => {
       page,
       context,
     }) => {
-      await signUpAndVerify(page);
+      await signInAsInviter(page);
       const inviteeEmail = `test+${Date.now()}@techops.services`;
       const invitationId = await sendInvite(page, inviteeEmail);
       await context.clearCookies();
 
-      await signUpAndVerify(page);
+      // Sign in as persistent bystander (wrong user)
+      await signIn(page, PERSISTENT_BYSTANDER_EMAIL, PERSISTENT_TEST_PASSWORD);
 
       await gotoAcceptInvite(page, invitationId);
 
@@ -306,28 +310,17 @@ test.describe("Organization Invitations", () => {
   });
 
   test.describe("Organization Membership", () => {
-    let twoOrgUser: { inviteeEmail: string } | undefined;
-
-    async function ensureTwoOrgUser(
-      page: Page,
-      context: BrowserContext
-    ): Promise<void> {
-      if (twoOrgUser) {
-        await signIn(page, twoOrgUser.inviteeEmail, "TestPassword123!");
-      } else {
-        twoOrgUser = await setupUserInTwoOrgs(page, context);
-      }
-    }
-
     test.beforeEach(async ({ context }) => {
       await context.clearCookies();
     });
 
-    test("ORG-1: user can switch between multiple orgs", async ({
-      page,
-      context,
-    }) => {
-      await ensureTwoOrgUser(page, context);
+    test("ORG-1: user can switch between multiple orgs", async ({ page }) => {
+      // Persistent member is already in 2 orgs (own + inviter's) from seed
+      await signIn(page, PERSISTENT_MEMBER_EMAIL, PERSISTENT_TEST_PASSWORD);
+      await page.goto("/", { waitUntil: "domcontentloaded" });
+      await expect(page.locator('button[role="combobox"]')).toBeVisible({
+        timeout: 15_000,
+      });
 
       const orgSwitcher = page.locator('button[role="combobox"]');
       const currentOrgName = await orgSwitcher.innerText();
@@ -336,7 +329,7 @@ test.describe("Organization Invitations", () => {
       const popover = page.locator('[role="listbox"]');
       await expect(popover).toBeVisible({ timeout: 5000 });
       const orgItems = popover.locator('[role="option"]');
-      await expect(orgItems).toHaveCount(3);
+      await expect(orgItems).toHaveCount(3); // 2 orgs + "Manage Organizations"
 
       const activeItem = orgItems.filter({ hasText: currentOrgName.trim() });
       await expect(activeItem.locator("svg.opacity-100")).toBeVisible();
@@ -357,11 +350,13 @@ test.describe("Organization Invitations", () => {
       page,
       context,
     }) => {
-      await signUpAndVerify(page);
+      // Persistent inviter sends invite to ephemeral user
+      await signInAsInviter(page);
       const inviteeEmail = `test+${Date.now()}@techops.services`;
       const invitationId = await sendInvite(page, inviteeEmail);
       await context.clearCookies();
 
+      // Ephemeral invitee signs up (gets their own org)
       await signUpAndVerify(page, { email: inviteeEmail });
 
       await gotoAcceptInvite(page, invitationId);
@@ -399,8 +394,13 @@ test.describe("Organization Invitations", () => {
       await expect(orgItems).toHaveCount(3);
     });
 
-    test("ORG-3: user can leave an org", async ({ page, context }) => {
-      await ensureTwoOrgUser(page, context);
+    test("ORG-3: user can leave an org", async ({ page }) => {
+      // Persistent member is in 2 orgs from seed
+      await signIn(page, PERSISTENT_MEMBER_EMAIL, PERSISTENT_TEST_PASSWORD);
+      await page.goto("/", { waitUntil: "domcontentloaded" });
+      await expect(page.locator('button[role="combobox"]')).toBeVisible({
+        timeout: 15_000,
+      });
 
       const orgSwitcher = page.locator('button[role="combobox"]');
       await orgSwitcher.click();

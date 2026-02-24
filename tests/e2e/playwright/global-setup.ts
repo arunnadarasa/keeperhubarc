@@ -1,6 +1,10 @@
 import dotenv from "dotenv";
 import { expand } from "dotenv-expand";
 import { cleanupTestUsers } from "./utils/cleanup";
+import {
+  cleanupPersistentTestUsers,
+  seedPersistentTestUsers,
+} from "./utils/seed";
 
 const DEFAULT_DB_URL =
   "postgresql://postgres:postgres@localhost:5433/keeperhub";
@@ -8,7 +12,6 @@ const DEFAULT_DB_URL =
 async function globalSetup(): Promise<void> {
   expand(dotenv.config());
 
-  // Ensure DATABASE_URL is available (mirrors playwright.config.ts logic)
   const envDbUrl = process.env.DATABASE_URL;
   if (!envDbUrl || envDbUrl.includes("${")) {
     process.env.DATABASE_URL = DEFAULT_DB_URL;
@@ -16,6 +19,10 @@ async function globalSetup(): Promise<void> {
 
   // Clean up leftover test data from previous runs
   await cleanupTestUsers();
+  await cleanupPersistentTestUsers();
+
+  // Seed persistent test users for invitation tests
+  await seedPersistentTestUsers();
 }
 
 export default globalSetup;

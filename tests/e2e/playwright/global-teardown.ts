@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import { expand } from "dotenv-expand";
 import { cleanupTestUsers } from "./utils/cleanup";
+import { cleanupPersistentTestUsers } from "./utils/seed";
 
 const DEFAULT_DB_URL =
   "postgresql://postgres:postgres@localhost:5433/keeperhub";
@@ -14,6 +15,7 @@ async function globalTeardown(): Promise<void> {
   }
 
   await cleanupTestUsers();
+  await cleanupPersistentTestUsers();
 }
 
 export default globalTeardown;

@@ -24,3 +24,7 @@ export {
 } from "../../../utils/db";
 
 export const PERSISTENT_TEST_PASSWORD = "TestPassword123!";
+
+export const PERSISTENT_INVITER_EMAIL = "pr-test-inviter@techops.services";
+export const PERSISTENT_MEMBER_EMAIL = "pr-test-member@techops.services";
+export const PERSISTENT_BYSTANDER_EMAIL = "pr-test-bystander@techops.services";

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 // Run tests serially to avoid session state conflicts
 test.describe.configure({ mode: "serial" });

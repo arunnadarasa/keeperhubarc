@@ -66,6 +66,24 @@ export default defineConfig({
       },
       dependencies: ["setup"],
     },
+    {
+      name: "chromium-inviter",
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "tests/e2e/playwright/.auth/inviter.json",
+      },
+      dependencies: ["setup"],
+      testMatch: [],
+    },
+    {
+      name: "chromium-bystander",
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "tests/e2e/playwright/.auth/bystander.json",
+      },
+      dependencies: ["setup"],
+      testMatch: [],
+    },
   ],
   // Only start local dev server when not running against deployed environment
   webServer: isDeployedEnv

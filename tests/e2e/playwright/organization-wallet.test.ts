@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { signUpAndVerify as signUpAndVerifyBase } from "./utils";
 
 // Regex patterns (moved to top level for performance)
