@@ -117,5 +117,40 @@ export default defineProtocol({
         },
       ],
     },
+    {
+      slug: "get-modules-paginated",
+      label: "Get Modules Paginated",
+      description:
+        "Get a paginated list of enabled modules on the Safe multisig",
+      type: "read",
+      contract: "safe",
+      function: "getModulesPaginated",
+      inputs: [
+        {
+          name: "start",
+          type: "address",
+          label: "Start Address",
+          default: "0x0000000000000000000000000000000000000001",
+        },
+        {
+          name: "pageSize",
+          type: "uint256",
+          label: "Page Size",
+          default: "10",
+        },
+      ],
+      outputs: [
+        {
+          name: "array",
+          type: "address[]",
+          label: "Module Addresses",
+        },
+        {
+          name: "next",
+          type: "address",
+          label: "Next Pagination Address",
+        },
+      ],
+    },
   ],
 });
