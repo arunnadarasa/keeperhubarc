@@ -152,7 +152,7 @@ function normalizeBlockscoutTx(
   return {
     hash: tx.hash,
     from: tx.from.hash,
-    to: tx.to.hash,
+    to: tx.to?.hash ?? "",
     value: tx.value,
     input: tx.raw_input,
     blockNumber: tx.block,

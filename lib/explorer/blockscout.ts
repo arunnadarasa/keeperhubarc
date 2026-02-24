@@ -59,7 +59,7 @@ export async function fetchBlockscoutAbi(
 export type BlockscoutTransaction = {
   hash: string;
   from: { hash: string };
-  to: { hash: string };
+  to: { hash: string } | null;
   value: string;
   raw_input: string;
   block: number;
