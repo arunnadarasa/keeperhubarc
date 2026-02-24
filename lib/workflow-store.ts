@@ -14,7 +14,7 @@ export enum WorkflowTriggerEnum {
   EVENT = "Event", // keeperhub custom field //
   BLOCK = "Block", // keeperhub custom field //
 }
-// end custom keeperhub code //
+// end keeperhub code //
 
 export type WorkflowTriggerType = `${WorkflowTriggerEnum}`;
 
@@ -515,7 +515,7 @@ export const resetWorkflowStateForOrgSwitchAtom = atom(null, (_get, set) => {
   set(historyAtom, []);
   set(futureAtom, []);
 });
-// end custom keeperhub code //
+// end keeperhub code //
 
 // Load workflow from database
 export const loadWorkflowAtom = atom(null, async (_get, set) => {

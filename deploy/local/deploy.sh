@@ -13,7 +13,6 @@ DRY_RUN=false
 SKIP_BUILD=false
 SKIP_RESOURCE_CHECK=false
 MIN_MEMORY_GB=4
-MIN_CPU_CORES=2
 
 # Track timing
 SCRIPT_START_TIME=$(date +%s)
@@ -93,8 +92,10 @@ check_resources() {
     local warnings=0
 
     # Check available memory
-    local total_mem_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-    local avail_mem_kb=$(grep MemAvailable /proc/meminfo | awk '{print $2}')
+    local total_mem_kb
+    total_mem_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+    local avail_mem_kb
+    avail_mem_kb=$(grep MemAvailable /proc/meminfo | awk '{print $2}')
     local total_mem_gb=$((total_mem_kb / 1024 / 1024))
     local avail_mem_gb=$((avail_mem_kb / 1024 / 1024))
 
@@ -152,7 +153,8 @@ format_duration() {
 
 # Function to show timing summary
 show_timing_summary() {
-    local end_time=$(date +%s)
+    local end_time
+    end_time=$(date +%s)
     local total_duration=$((end_time - SCRIPT_START_TIME))
 
     echo ""

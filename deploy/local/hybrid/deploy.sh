@@ -79,14 +79,14 @@ build_and_load_images() {
     cd "$PROJECT_ROOT"
 
     # Use minikube's Docker daemon to build directly (faster than build + load)
-    eval $(minikube docker-env)
+    eval "$(minikube docker-env)"
 
     # Build executor image from submodule (schedule-executor: polls SQS, calls API)
     log_info "Building keeperhub-executor:latest in minikube..."
     docker build --target executor -t keeperhub-executor:latest ./keeperhub-scheduler
 
     # Reset to host Docker daemon
-    eval $(minikube docker-env -u)
+    eval "$(minikube docker-env -u)"
 
     log_info "Images built directly in minikube (no load needed)"
 }
@@ -95,7 +95,8 @@ generate_manifest() {
     # Generate or use existing encryption key
     # For local development, we use a deterministic key; in production, this would be securely managed
     local ENCRYPTION_KEY="${INTEGRATION_ENCRYPTION_KEY:-$(openssl rand -hex 32 2>/dev/null || echo '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef')}"
-    local ENCRYPTION_KEY_BASE64=$(echo -n "$ENCRYPTION_KEY" | base64 -w0)
+    local ENCRYPTION_KEY_BASE64
+    ENCRYPTION_KEY_BASE64=$(echo -n "$ENCRYPTION_KEY" | base64 -w0)
 
     # Source .env for consistency with docker-compose (picks up POSTGRES_DB, etc.)
     if [ -f "$PROJECT_ROOT/.env" ]; then

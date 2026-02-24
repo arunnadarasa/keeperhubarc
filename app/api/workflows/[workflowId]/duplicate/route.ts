@@ -12,7 +12,7 @@ import { generateId } from "@/lib/utils/id";
 // start custom keeperhub code //
 import { remapTemplateRefsInString } from "@/lib/utils/template";
 
-// end custom keeperhub code //
+// end keeperhub code //
 
 // Node type for type-safe node manipulation
 type WorkflowNodeLike = {
@@ -84,7 +84,7 @@ function duplicateNodes(
     return newNode;
   });
 }
-// end custom keeperhub code //
+// end keeperhub code //
 
 // Edge type for type-safe edge manipulation
 type WorkflowEdgeLike = {
@@ -166,7 +166,7 @@ export async function POST(
       idMap.set(n.id, nanoid());
     }
     const newNodes = duplicateNodes(oldNodes, idMap);
-    // end custom keeperhub code //
+    // end keeperhub code //
     const newEdges = updateEdgeReferences(
       sourceWorkflow.edges as WorkflowEdgeLike[],
       oldNodes,

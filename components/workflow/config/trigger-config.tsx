@@ -102,7 +102,7 @@ export function TriggerConfig({
                 Block
               </div>
             </SelectItem>
-            {/* end custom keeperhub code // */}
+            {/* end keeperhub code // */}
           </SelectContent>
         </Select>
       </div>
@@ -311,7 +311,7 @@ export function TriggerConfig({
             </>
           );
         })()}
-      {/* end custom keeperhub code // */}
+      {/* end keeperhub code // */}
     </>
   );
 }

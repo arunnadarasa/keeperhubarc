@@ -189,6 +189,7 @@ export function EditConnectionOverlay({
     }
   };
 
+  // start custom keeperhub code //
   const runConnectionTest = (): Promise<{
     status: "success" | "error";
     message: string;

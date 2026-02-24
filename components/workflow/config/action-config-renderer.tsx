@@ -563,12 +563,12 @@ function renderField(
       <FieldRenderer
         // start custom keeperhub code //
         config={config}
-        // end custom keeperhub code //
+        // end keeperhub code //
         disabled={disabled}
         field={field}
         // start custom keeperhub code //
         nodeId={nodeId}
-        // end custom keeperhub code //
+        // end keeperhub code //
         onChange={(val: unknown) => onUpdateConfig(field.key, val)}
         value={value}
       />
