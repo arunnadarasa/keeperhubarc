@@ -10,8 +10,8 @@ This command has deep knowledge of the KeeperHub plugin architecture and creates
 </objective>
 
 <context>
-Existing keeperhub plugins: !`ls /Users/skp/Dev/TechOps\ Services/keeperhub/keeperhub/plugins/`
-Available integration types: !`cat /Users/skp/Dev/TechOps\ Services/keeperhub/lib/types/integration.ts`
+Existing keeperhub plugins: !`ls keeperhub/plugins/`
+Available integration types: @lib/types/integration.ts
 Current plugin index: @keeperhub/plugins/index.ts
 Plugin registry: @plugins/registry.ts
 CLAUDE.md rules: @CLAUDE.md
