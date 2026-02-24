@@ -1,6 +1,7 @@
 import type { Edge, EdgeChange, Node, NodeChange } from "@xyflow/react";
 import { applyEdgeChanges, applyNodeChanges } from "@xyflow/react";
 import { atom } from "jotai";
+import { buildExecutionLogsMap } from "@/keeperhub/lib/template-helpers";
 import { api } from "./api-client";
 
 // start custom keeperhub code //
@@ -518,7 +519,7 @@ export const resetWorkflowStateForOrgSwitchAtom = atom(null, (_get, set) => {
 // end custom keeperhub code //
 
 // Load workflow from database
-export const loadWorkflowAtom = atom(null, async (_get, set) => {
+export const loadWorkflowAtom = atom(null, async (get, set) => {
   try {
     set(isLoadingAtom, true);
     const workflow = await api.workflow.getCurrent();
@@ -526,6 +527,41 @@ export const loadWorkflowAtom = atom(null, async (_get, set) => {
     set(edgesAtom, workflow.edges);
     if (workflow.id) {
       set(currentWorkflowIdAtom, workflow.id);
+
+      // start custom keeperhub code //
+      // Pre-fetch last execution logs so template autocomplete has runtime
+      // output data available immediately instead of lazy-fetching on first @.
+      // Guard: only apply if the workflow hasn't changed by the time data arrives.
+      const workflowId = workflow.id;
+      api.workflow
+        .getExecutions(workflowId)
+        .then((executions) => {
+          const latest = executions[0];
+          if (!latest?.id) {
+            return;
+          }
+          return api.workflow.getExecutionLogs(latest.id);
+        })
+        .then((logsResponse) => {
+          if (!logsResponse) {
+            return;
+          }
+          if (get(currentWorkflowIdAtom) !== workflowId) {
+            return;
+          }
+          const logsByNodeId = buildExecutionLogsMap(logsResponse.logs);
+          set(lastExecutionLogsAtom, {
+            workflowId,
+            logs: logsByNodeId,
+          });
+        })
+        .catch((error: unknown) => {
+          console.debug(
+            "[loadWorkflow] Pre-fetch execution logs failed:",
+            error
+          );
+        });
+      // end keeperhub code //
     }
   } catch (error) {
     console.error("Failed to load workflow:", error);

@@ -2,12 +2,11 @@
 
 import { useAtomValue, useSetAtom } from "jotai";
 import { HelpCircle, Plus, Settings } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ConfigureConnectionOverlay } from "@/components/overlays/add-connection-overlay";
 import { AiGatewayConsentOverlay } from "@/components/overlays/ai-gateway-consent-overlay";
 import { useOverlay } from "@/components/overlays/overlay-provider";
 import { Button } from "@/components/ui/button";
-import { CodeEditor } from "@/components/ui/code-editor";
 import { Input } from "@/components/ui/input";
 import { IntegrationIcon } from "@/components/ui/integration-icon";
 import { IntegrationSelector } from "@/components/ui/integration-selector";
@@ -28,8 +27,16 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { SqlTemplateEditor } from "@/keeperhub/components/ui/sql-template-editor";
+import { TemplateCodeEditor } from "@/keeperhub/components/ui/template-code-editor";
 // start keeperhub
 import { actionRequiresCredentials } from "@/keeperhub/lib/integration-helpers";
+import { ConditionQueryBuilder } from "@/keeperhub/components/workflow/condition-query-builder";
+import type { ConditionGroup } from "@/keeperhub/lib/condition-builder-types";
+import {
+  createEmptyGroup,
+  expressionToConditionGroup,
+  visualConditionToExpression,
+} from "@/keeperhub/lib/condition-builder-utils";
 // end keeperhub
 import { aiGatewayStatusAtom } from "@/lib/ai-gateway/state";
 import { validateConditionExpressionUI } from "@/lib/condition-validator";
@@ -60,9 +67,15 @@ import {
 import { ActionConfigRenderer } from "./action-config-renderer";
 import { SchemaBuilder, type SchemaField } from "./schema-builder";
 
+// start custom keeperhub code //
+type ConfigValue = string | Record<string, unknown> | undefined;
+// end keeperhub code //
+
 type ActionConfigProps = {
   config: Record<string, unknown>;
-  onUpdateConfig: (key: string, value: string) => void;
+  // start custom keeperhub code //
+  onUpdateConfig: (key: string, value: ConfigValue) => void;
+  // end keeperhub code //
   disabled: boolean;
   isOwner?: boolean;
   // start custom keeperhub code //
@@ -156,46 +169,31 @@ function HttpRequestFields({
           value={(config?.endpoint as string) || ""}
         />
       </div>
+      {/* start custom keeperhub code */}
       <div className="space-y-2">
         <Label htmlFor="httpHeaders">Headers (JSON)</Label>
-        <div className="overflow-hidden rounded-md border">
-          <CodeEditor
-            defaultLanguage="json"
-            height="100px"
-            onChange={(value) => onUpdateConfig("httpHeaders", value || "{}")}
-            options={{
-              minimap: { enabled: false },
-              lineNumbers: "off",
-              scrollBeyondLastLine: false,
-              fontSize: 12,
-              readOnly: disabled,
-              wordWrap: "off",
-            }}
-            value={(config?.httpHeaders as string) || "{}"}
-          />
-        </div>
+        <TemplateCodeEditor
+          disabled={disabled}
+          height="100px"
+          language="json"
+          onChange={(value) => onUpdateConfig("httpHeaders", value || "{}")}
+          value={(config?.httpHeaders as string) || "{}"}
+        />
       </div>
       <div className="space-y-2">
         <Label htmlFor="httpBody">Body (JSON)</Label>
         <div
-          className={`overflow-hidden rounded-md border ${config?.httpMethod === "GET" ? "opacity-50" : ""}`}
+          className={config?.httpMethod === "GET" ? "opacity-50" : ""}
         >
-          <CodeEditor
-            defaultLanguage="json"
+          <TemplateCodeEditor
+            disabled={config?.httpMethod === "GET" || disabled}
             height="120px"
+            language="json"
             onChange={(value) => onUpdateConfig("httpBody", value || "{}")}
-            options={{
-              minimap: { enabled: false },
-              lineNumbers: "off",
-              scrollBeyondLastLine: false,
-              fontSize: 12,
-              readOnly: config?.httpMethod === "GET" || disabled,
-              domReadOnly: config?.httpMethod === "GET" || disabled,
-              wordWrap: "off",
-            }}
             value={(config?.httpBody as string) || "{}"}
           />
         </div>
+      {/* end keeperhub code */}
         {config?.httpMethod === "GET" && (
           <p className="text-muted-foreground text-xs">
             Body is disabled for GET requests
@@ -206,62 +204,164 @@ function HttpRequestFields({
   );
 }
 
-// Condition fields component
+// start custom keeperhub code //
+// Condition fields component with visual builder + expression mode toggle
 function ConditionFields({
   config,
   onUpdateConfig,
   disabled,
 }: {
   config: Record<string, unknown>;
-  onUpdateConfig: (key: string, value: string) => void;
+  onUpdateConfig: (key: string, value: ConfigValue) => void;
   disabled: boolean;
 }) {
-  // start custom keeperhub code
-  const [validationError, setValidationError] = useState<string | null>(null);
   const conditionValue = (config?.condition as string) || "";
+  const existingConditionConfig = config?.conditionConfig as
+    | { group: ConditionGroup }
+    | undefined;
 
-  // Debounced validation - validate after user stops typing
+  // Parse expression into visual form (memoized, computed once).
+  // Also derives the initial mode to avoid parsing the expression twice.
+  // Re-parses when the stored visual group's expression doesn't match the
+  // actual condition expression (e.g. after operator support was extended).
+  const { parsedGroup, initialMode } = useMemo(() => {
+    if (!conditionValue) {
+      return { parsedGroup: null, initialMode: "visual" as const };
+    }
+    if (existingConditionConfig) {
+      const storedExpression = visualConditionToExpression(
+        existingConditionConfig.group
+      );
+      if (storedExpression === conditionValue) {
+        return { parsedGroup: null, initialMode: "visual" as const };
+      }
+    }
+    const parsed = expressionToConditionGroup(conditionValue);
+    return {
+      parsedGroup: parsed,
+      initialMode: parsed !== null ? ("visual" as const) : ("expression" as const),
+    };
+  }, [conditionValue, existingConditionConfig]);
+
+  // Persist the parsed group to config so it's saved with the workflow.
+  // Track identity via conditionValue to reset when switching between nodes.
+  const persistedForExpression = useRef<string | null>(null);
   useEffect(() => {
-    if (!conditionValue.trim()) {
+    if (parsedGroup && persistedForExpression.current !== conditionValue) {
+      onUpdateConfig("conditionConfig", { group: parsedGroup });
+      persistedForExpression.current = conditionValue;
+    }
+  }, [parsedGroup, conditionValue, onUpdateConfig]);
+
+  const [mode, setMode] = useState<"visual" | "expression">(initialMode);
+
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  // Debounced validation for expression mode
+  useEffect(() => {
+    if (mode !== "expression" || !conditionValue.trim()) {
       setValidationError(null);
       return;
     }
 
     const timeoutId = setTimeout(() => {
       const result = validateConditionExpressionUI(conditionValue);
-      if (result.valid) {
-        setValidationError(null);
-      } else {
-        setValidationError(result.error);
-      }
-    }, 400); // 400ms debounce delay
+      setValidationError(result.valid ? null : result.error);
+    }, 400);
 
     return () => clearTimeout(timeoutId);
-  }, [conditionValue]);
-  // end keeperhub code
+  }, [conditionValue, mode]);
+
+  const handleVisualChange = (group: ConditionGroup): void => {
+    const expression = visualConditionToExpression(group);
+    onUpdateConfig("conditionConfig", { group });
+    onUpdateConfig("condition", expression);
+  };
+
+  const handleModeSwitch = (newMode: "visual" | "expression"): void => {
+    if (newMode === "expression" && existingConditionConfig) {
+      // Clear visual config so the raw expression takes precedence on reload
+      onUpdateConfig("conditionConfig", undefined);
+    }
+    setMode(newMode);
+  };
+
+  const emptyGroup = useMemo(() => createEmptyGroup(), []);
+  const currentGroup =
+    existingConditionConfig?.group ?? parsedGroup ?? emptyGroup;
 
   return (
-    <div className="space-y-2">
-      <Label htmlFor="condition">Condition Expression</Label>
-      <TemplateBadgeInput
-        disabled={disabled}
-        id="condition"
-        onChange={(value) => onUpdateConfig("condition", value)}
-        placeholder="e.g., 5 > 3, status === 200, {{PreviousNode.value}} > 100"
-        value={conditionValue}
-      />
-      {/* start custom keeperhub code */}
-      {validationError && (
-        <p className="text-xs text-yellow-600">{validationError}</p>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Label>Condition</Label>
+        <div className="flex gap-1 rounded-md border p-0.5">
+          <button
+            className={`rounded px-2 py-0.5 text-xs transition-colors ${
+              mode === "visual"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            disabled={disabled}
+            onClick={() => handleModeSwitch("visual")}
+            type="button"
+          >
+            Visual
+          </button>
+          <button
+            className={`rounded px-2 py-0.5 text-xs transition-colors ${
+              mode === "expression"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            disabled={disabled}
+            onClick={() => handleModeSwitch("expression")}
+            type="button"
+          >
+            Expression
+          </button>
+        </div>
+      </div>
+
+      {mode === "visual" ? (
+        <div className="space-y-3">
+          <ConditionQueryBuilder
+            disabled={disabled}
+            group={currentGroup}
+            onChange={handleVisualChange}
+          />
+          {conditionValue.trim() && (
+            <div className="space-y-1">
+              <Label className="text-muted-foreground text-xs">
+                Generated expression
+              </Label>
+              <pre className="bg-muted rounded-md p-2 text-xs break-all whitespace-pre-wrap">
+                {conditionValue}
+              </pre>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <TemplateBadgeInput
+            disabled={disabled}
+            id="condition"
+            onChange={(value) => onUpdateConfig("condition", value)}
+            placeholder="e.g., 5 > 3, status === 200, {{PreviousNode.value}} > 100"
+            value={conditionValue}
+          />
+          {validationError && (
+            <p className="text-xs text-yellow-600">{validationError}</p>
+          )}
+          <p className="text-muted-foreground text-xs">
+            Enter a JavaScript expression that evaluates to true or false. Use @
+            to reference previous node outputs.
+          </p>
+        </div>
       )}
-      {/* end keeperhub code */}
-      <p className="text-muted-foreground text-xs">
-        Enter a JavaScript expression that evaluates to true or false. You can
-        use @ to reference previous node outputs.
-      </p>
     </div>
   );
 }
+// end keeperhub code //
 
 // start custom keeperhub code //
 
@@ -490,7 +590,9 @@ function SystemActionFields({
 }: {
   actionType: string;
   config: Record<string, unknown>;
-  onUpdateConfig: (key: string, value: string) => void;
+  // start custom keeperhub code //
+  onUpdateConfig: (key: string, value: ConfigValue) => void;
+  // end keeperhub code //
   disabled: boolean;
 }) {
   switch (actionType) {

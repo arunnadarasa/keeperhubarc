@@ -1,3 +1,6 @@
+// start custom keeperhub code //
+import { buildEdgesBySourceHandle } from "@/keeperhub/lib/edge-handle-utils";
+// end keeperhub code //
 import { findActionById, flattenConfigFields } from "@/plugins";
 import {
   analyzeNodeUsage,
@@ -49,6 +52,9 @@ export function generateWorkflowCode(
   // Build a map of node connections
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const edgesBySource = new Map<string, string[]>();
+  // start custom keeperhub code //
+  const edgesBySourceHandle = buildEdgesBySourceHandle(edges);
+  // end keeperhub code //
   for (const edge of edges) {
     const targets = edgesBySource.get(edge.source) || [];
     targets.push(edge.target);
@@ -838,6 +844,34 @@ export function generateWorkflowCode(
     return lines;
   }
 
+  // start custom keeperhub code //
+  /** Resolve true/false targets for a condition node, using handle edges with positional fallback. */
+  function resolveConditionTargets(nodeId: string): {
+    trueTargets: string[];
+    falseTargets: string[];
+  } {
+    const handleMap = edgesBySourceHandle.get(nodeId);
+    const trueHandleTargets = handleMap?.get("true") ?? [];
+    const falseHandleTargets = handleMap?.get("false") ?? [];
+    const hasHandleEdges =
+      trueHandleTargets.length > 0 || falseHandleTargets.length > 0;
+
+    if (hasHandleEdges) {
+      return {
+        trueTargets: trueHandleTargets,
+        falseTargets: falseHandleTargets,
+      };
+    }
+
+    // Legacy fallback: first edge is true branch, second is false
+    const nextNodes = edgesBySource.get(nodeId) ?? [];
+    return {
+      trueTargets: nextNodes.slice(0, 1),
+      falseTargets: nextNodes.slice(1, 2),
+    };
+  }
+  // end keeperhub code //
+
   function generateConditionNodeCode(
     node: WorkflowNode,
     nodeId: string,
@@ -850,15 +884,15 @@ export function generateWorkflowCode(
     }
 
     const condition = node.data.config?.condition as string;
-    const nextNodes = edgesBySource.get(nodeId) || [];
 
-    if (nextNodes.length > 0) {
-      const trueNode = nextNodes[0];
-      const falseNode = nextNodes[1];
+    // start custom keeperhub code //
+    const {
+      trueTargets: effectiveTrueTargets,
+      falseTargets: effectiveFalseTargets,
+    } = resolveConditionTargets(nodeId);
+    // end keeperhub code //
 
-      // Convert template references in condition to JavaScript expressions (not template literal syntax)
-      // KEEP-1284: Collect validation error when condition is empty/unconfigured.
-      // Conditions must have an explicit expression to be valid.
+    if (effectiveTrueTargets.length > 0 || effectiveFalseTargets.length > 0) {
       let convertedCondition: string;
       if (condition) {
         convertedCondition = convertConditionToJS(condition);
@@ -869,15 +903,17 @@ export function generateWorkflowCode(
       }
 
       lines.push(`${indent}if (${convertedCondition}) {`);
-      if (trueNode) {
-        const trueNodeCode = generateNodeCode(trueNode, `${indent}  `);
-        lines.push(...trueNodeCode);
+      if (effectiveTrueTargets.length > 0) {
+        lines.push(
+          ...generateParallelNodeCode(effectiveTrueTargets, `${indent}  `)
+        );
       }
 
-      if (falseNode) {
+      if (effectiveFalseTargets.length > 0) {
         lines.push(`${indent}} else {`);
-        const falseNodeCode = generateNodeCode(falseNode, `${indent}  `);
-        lines.push(...falseNodeCode);
+        lines.push(
+          ...generateParallelNodeCode(effectiveFalseTargets, `${indent}  `)
+        );
       }
 
       lines.push(`${indent}}`);
@@ -971,11 +1007,15 @@ export function generateWorkflowCode(
   ): string[] {
     const lines: string[] = [`${indent}// Condition: ${node.data.label}`];
     const condition = node.data.config?.condition as string;
-    const nextNodes = edgesBySource.get(nodeId) || [];
 
-    if (nextNodes.length > 0) {
-      // KEEP-1284: Collect validation error when condition is empty/unconfigured.
-      // Conditions must have an explicit expression to be valid.
+    // start custom keeperhub code //
+    const {
+      trueTargets: effectiveTrueTargets,
+      falseTargets: effectiveFalseTargets,
+    } = resolveConditionTargets(nodeId);
+    // end keeperhub code //
+
+    if (effectiveTrueTargets.length > 0 || effectiveFalseTargets.length > 0) {
       let convertedCondition: string;
       if (condition) {
         convertedCondition = convertConditionToJS(condition);
@@ -986,16 +1026,18 @@ export function generateWorkflowCode(
       }
 
       lines.push(`${indent}if (${convertedCondition}) {`);
-      if (nextNodes[0]) {
+      for (const targetId of effectiveTrueTargets) {
         lines.push(
-          ...generateBranchCode(nextNodes[0], `${indent}  `, branchVisited)
+          ...generateBranchCode(targetId, `${indent}  `, branchVisited)
         );
       }
-      if (nextNodes[1]) {
+      if (effectiveFalseTargets.length > 0) {
         lines.push(`${indent}} else {`);
-        lines.push(
-          ...generateBranchCode(nextNodes[1], `${indent}  `, branchVisited)
-        );
+        for (const targetId of effectiveFalseTargets) {
+          lines.push(
+            ...generateBranchCode(targetId, `${indent}  `, branchVisited)
+          );
+        }
       }
       lines.push(`${indent}}`);
     }

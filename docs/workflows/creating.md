@@ -84,10 +84,45 @@ For trigger nodes, you'll also configure:
 
 ### Condition Configuration
 
-For condition nodes:
-- **Input Value**: The value to evaluate (from previous node output)
-- **Operator**: Comparison operator (equals, greater than, less than, etc.)
-- **Threshold**: The value to compare against
+Condition nodes evaluate expressions and branch the workflow into **true** and **false** paths. Use the **Visual** builder for point-and-click rule creation, or switch to **Expression** mode to write raw JavaScript expressions.
+
+#### Visual Builder
+
+Each rule has a left operand, an operator, and (for binary operators) a right operand. Operands accept literal values or template references like `{{@nodeId:Label.field}}`.
+
+Combine multiple rules with **AND** / **OR** logic toggles, and nest groups for complex conditions.
+
+#### Operators
+
+| Operator | Label | Type | Description |
+| -------- | ----- | ---- | ----------- |
+| `==` | soft equals | Comparison | Loose equality (type coercion) |
+| `===` | equals | Comparison | Strict equality (no type coercion) |
+| `!=` | soft not equals | Comparison | Loose inequality |
+| `!==` | not equals | Comparison | Strict inequality |
+| `>` | greater than | Comparison | Numeric greater than |
+| `>=` | greater than or equal | Comparison | Numeric greater than or equal |
+| `<` | less than | Comparison | Numeric less than |
+| `<=` | less than or equal | Comparison | Numeric less than or equal |
+| `contains` | contains | String | Left operand contains right operand |
+| `startsWith` | starts with | String | Left operand starts with right operand |
+| `endsWith` | ends with | String | Left operand ends with right operand |
+| `matchesRegex` | matches regex | Pattern | Left operand matches regex pattern in right operand |
+| `isEmpty` | is empty | Existence | Value is null, undefined, or empty string |
+| `isNotEmpty` | is not empty | Existence | Value is not null, undefined, or empty string |
+| `exists` | exists | Existence | Value is not null and not undefined |
+| `doesNotExist` | does not exist | Existence | Value is null or undefined |
+
+**When to use soft vs strict equality:** Use `==` (soft equals) when comparing values that may differ in type, such as a string `"0"` against a number `0`. Use `===` (equals) when you need exact type matching. Most blockchain data arrives as strings, so soft equality is the default for new conditions.
+
+#### Dual Output Paths
+
+Condition nodes have two output handles:
+
+- **true** -- downstream nodes connected here execute when the condition passes
+- **false** -- downstream nodes connected here execute when the condition fails
+
+Connect different branches to each handle to create if/else logic in a single node.
 
 ## Managing Connections
 
