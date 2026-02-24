@@ -116,12 +116,14 @@ export async function getAnalyticsSummary(
     activeWorkflows,
     activeDirects,
     previousPeriod,
+    workflowGasWei,
   ] = await Promise.all([
     getWorkflowCounts(organizationId, rangeStart, rangeEnd),
     getDirectCounts(organizationId, rangeStart, rangeEnd),
     getActiveWorkflowCount(organizationId),
     getActiveDirectCount(organizationId),
     getPreviousPeriodSummary(organizationId, range, customStart, customEnd),
+    getWorkflowGasTotal(organizationId, rangeStart, rangeEnd),
   ]);
 
   const totalRuns = workflowStats.total + directStats.total;
@@ -134,7 +136,7 @@ export async function getAnalyticsSummary(
     workflowStats.durationCount + directStats.durationCount
   );
 
-  const totalGasWei = directStats.totalGasWei;
+  const totalGasWei = addBigIntStrings(directStats.totalGasWei, workflowGasWei);
 
   return {
     totalRuns,
@@ -263,9 +265,10 @@ async function getPreviousPeriodSummary(
 ): Promise<AnalyticsSummary["previousPeriod"]> {
   const { start, end } = getPreviousPeriodStart(range, customStart, customEnd);
 
-  const [workflowStats, directStats] = await Promise.all([
+  const [workflowStats, directStats, workflowGasWei] = await Promise.all([
     getWorkflowCounts(organizationId, start, end),
     getDirectCounts(organizationId, start, end),
+    getWorkflowGasTotal(organizationId, start, end),
   ]);
 
   return {
@@ -276,7 +279,7 @@ async function getPreviousPeriodSummary(
       workflowStats.durationSum + directStats.durationSum,
       workflowStats.durationCount + directStats.durationCount
     ),
-    totalGasWei: directStats.totalGasWei,
+    totalGasWei: addBigIntStrings(directStats.totalGasWei, workflowGasWei),
   };
 }
 
@@ -285,6 +288,87 @@ function computeAvgDuration(sum: number, durationCount: number): number | null {
     return null;
   }
   return Math.round(sum / durationCount);
+}
+
+function addBigIntStrings(a: string, b: string): string {
+  return (BigInt(a || "0") + BigInt(b || "0")).toString();
+}
+
+/**
+ * Build SQL to extract a field from workflow_execution_logs output JSONB.
+ *
+ * The output column is double-encoded: Drizzle stores a JSON string inside JSONB
+ * (jsonb_typeof = 'string') rather than a JSONB object. To extract a nested key
+ * we first unwrap the string with `#>> '{}'`, re-parse as jsonb, then extract.
+ * Falls back to direct `->>` for any rows where output is already an object.
+ */
+function logOutputField(field: string): ReturnType<typeof sql> {
+  return sql`CASE
+    WHEN jsonb_typeof(${workflowExecutionLogs.output}) = 'string'
+    THEN (${workflowExecutionLogs.output} #>> '{}')::jsonb->>${sql.raw(`'${field}'`)}
+    ELSE ${workflowExecutionLogs.output}->>${sql.raw(`'${field}'`)}
+  END`;
+}
+
+/**
+ * Same as logOutputField but for raw SQL subqueries referencing the table alias "l".
+ */
+function logOutputFieldRaw(field: string): string {
+  return `CASE
+    WHEN jsonb_typeof(l.output) = 'string'
+    THEN (l.output #>> '{}')::jsonb->>'${field}'
+    ELSE l.output->>'${field}'
+  END`;
+}
+
+/**
+ * Build SQL to extract a field from workflow_execution_logs input JSONB.
+ * Same double-encoding handling as output.
+ */
+function logInputField(field: string): ReturnType<typeof sql> {
+  return sql`CASE
+    WHEN jsonb_typeof(${workflowExecutionLogs.input}) = 'string'
+    THEN (${workflowExecutionLogs.input} #>> '{}')::jsonb->>${sql.raw(`'${field}'`)}
+    ELSE ${workflowExecutionLogs.input}->>${sql.raw(`'${field}'`)}
+  END`;
+}
+
+/**
+ * Same as logInputField but for raw SQL subqueries referencing the table alias "l".
+ */
+function logInputFieldRaw(field: string): string {
+  return `CASE
+    WHEN jsonb_typeof(l.input) = 'string'
+    THEN (l.input #>> '{}')::jsonb->>'${field}'
+    ELSE l.input->>'${field}'
+  END`;
+}
+
+async function getWorkflowGasTotal(
+  organizationId: string,
+  rangeStart: Date,
+  rangeEnd: Date
+): Promise<string> {
+  const result = await db
+    .select({
+      totalGas: sql<string>`COALESCE(SUM(CAST(${logOutputField("gasUsed")} AS NUMERIC)), 0)::text`,
+    })
+    .from(workflowExecutionLogs)
+    .innerJoin(
+      workflowExecutions,
+      eq(workflowExecutionLogs.executionId, workflowExecutions.id)
+    )
+    .innerJoin(workflows, eq(workflowExecutions.workflowId, workflows.id))
+    .where(
+      and(
+        eq(workflows.organizationId, organizationId),
+        gte(workflowExecutionLogs.startedAt, rangeStart),
+        lt(workflowExecutionLogs.startedAt, rangeEnd),
+        sql`${logOutputField("gasUsed")} IS NOT NULL`
+      )
+    );
+
+  return result[0]?.totalGas ?? "0";
 }
 
 /**
@@ -408,32 +492,96 @@ export async function getNetworkBreakdown(
   const rangeStart = getTimeRangeStart(range, customStart);
   const rangeEnd = customEnd ? new Date(customEnd) : new Date();
 
-  const result = await db
-    .select({
-      network: directExecutions.network,
-      totalGasWei: sql<string>`COALESCE(SUM(CAST(${directExecutions.gasUsedWei} AS NUMERIC)), 0)::text`,
-      executionCount: count(),
-      successCount: sql<number>`SUM(CASE WHEN ${directExecutions.status} = 'completed' THEN 1 ELSE 0 END)`,
-      errorCount: sql<number>`SUM(CASE WHEN ${directExecutions.status} = 'failed' THEN 1 ELSE 0 END)`,
-    })
-    .from(directExecutions)
-    .where(
-      and(
-        eq(directExecutions.organizationId, organizationId),
-        gte(directExecutions.createdAt, rangeStart),
-        lt(directExecutions.createdAt, rangeEnd)
+  const [directResult, workflowResult] = await Promise.all([
+    db
+      .select({
+        network: directExecutions.network,
+        totalGasWei: sql<string>`COALESCE(SUM(CAST(${directExecutions.gasUsedWei} AS NUMERIC)), 0)::text`,
+        executionCount: count(),
+        successCount: sql<number>`SUM(CASE WHEN ${directExecutions.status} = 'completed' THEN 1 ELSE 0 END)`,
+        errorCount: sql<number>`SUM(CASE WHEN ${directExecutions.status} = 'failed' THEN 1 ELSE 0 END)`,
+      })
+      .from(directExecutions)
+      .where(
+        and(
+          eq(directExecutions.organizationId, organizationId),
+          gte(directExecutions.createdAt, rangeStart),
+          lt(directExecutions.createdAt, rangeEnd)
+        )
       )
-    )
-    .groupBy(directExecutions.network)
-    .orderBy(sql`SUM(CAST(${directExecutions.gasUsedWei} AS NUMERIC)) DESC`);
+      .groupBy(directExecutions.network),
+    db
+      .select({
+        network: sql<string>`${logInputField("network")}`,
+        totalGasWei: sql<string>`COALESCE(SUM(CAST(${logOutputField("gasUsed")} AS NUMERIC)), 0)::text`,
+        executionCount: count(),
+        successCount: sql<number>`SUM(CASE WHEN ${workflowExecutionLogs.status} = 'success' THEN 1 ELSE 0 END)`,
+        errorCount: sql<number>`SUM(CASE WHEN ${workflowExecutionLogs.status} = 'error' THEN 1 ELSE 0 END)`,
+      })
+      .from(workflowExecutionLogs)
+      .innerJoin(
+        workflowExecutions,
+        eq(workflowExecutionLogs.executionId, workflowExecutions.id)
+      )
+      .innerJoin(workflows, eq(workflowExecutions.workflowId, workflows.id))
+      .where(
+        and(
+          eq(workflows.organizationId, organizationId),
+          gte(workflowExecutionLogs.startedAt, rangeStart),
+          lt(workflowExecutionLogs.startedAt, rangeEnd),
+          sql`${logOutputField("gasUsed")} IS NOT NULL`
+        )
+      )
+      .groupBy(sql`${logInputField("network")}`),
+  ]);
 
-  return result.map((row) => ({
-    network: row.network,
-    totalGasWei: row.totalGasWei,
-    executionCount: Number(row.executionCount),
-    successCount: Number(row.successCount),
-    errorCount: Number(row.errorCount),
-  }));
+  const networkMap = new Map<string, NetworkBreakdown>();
+
+  for (const row of directResult) {
+    networkMap.set(row.network, {
+      network: row.network,
+      totalGasWei: row.totalGasWei,
+      executionCount: Number(row.executionCount),
+      successCount: Number(row.successCount),
+      errorCount: Number(row.errorCount),
+    });
+  }
+
+  for (const row of workflowResult) {
+    const { network } = row;
+    if (!network) {
+      continue;
+    }
+    const existing = networkMap.get(network);
+    if (existing) {
+      existing.totalGasWei = addBigIntStrings(
+        existing.totalGasWei,
+        row.totalGasWei
+      );
+      existing.executionCount += Number(row.executionCount);
+      existing.successCount += Number(row.successCount);
+      existing.errorCount += Number(row.errorCount);
+    } else {
+      networkMap.set(network, {
+        network,
+        totalGasWei: row.totalGasWei,
+        executionCount: Number(row.executionCount),
+        successCount: Number(row.successCount),
+        errorCount: Number(row.errorCount),
+      });
+    }
+  }
+
+  return [...networkMap.values()].sort((a, b) => {
+    const diff = BigInt(b.totalGasWei) - BigInt(a.totalGasWei);
+    if (diff > BigInt(0)) {
+      return 1;
+    }
+    if (diff < BigInt(0)) {
+      return -1;
+    }
+    return 0;
+  });
 }
 
 /**
@@ -551,6 +699,26 @@ async function fetchWorkflowRuns(
       workflowName: workflows.name,
       totalSteps: workflowExecutions.totalSteps,
       completedSteps: workflowExecutions.completedSteps,
+      gasUsedWei: sql<string | null>`(
+        SELECT COALESCE(SUM(CAST(${sql.raw(logOutputFieldRaw("gasUsed"))} AS NUMERIC)), 0)::text
+        FROM workflow_execution_logs l
+        WHERE l.execution_id = ${workflowExecutions.id}
+          AND ${sql.raw(logOutputFieldRaw("gasUsed"))} IS NOT NULL
+      )`,
+      network: sql<string | null>`(
+        SELECT ${sql.raw(logInputFieldRaw("network"))}
+        FROM workflow_execution_logs l
+        WHERE l.execution_id = ${workflowExecutions.id}
+          AND ${sql.raw(logOutputFieldRaw("gasUsed"))} IS NOT NULL
+        LIMIT 1
+      )`,
+      transactionHash: sql<string | null>`(
+        SELECT ${sql.raw(logOutputFieldRaw("transactionHash"))}
+        FROM workflow_execution_logs l
+        WHERE l.execution_id = ${workflowExecutions.id}
+          AND ${sql.raw(logOutputFieldRaw("transactionHash"))} IS NOT NULL
+        LIMIT 1
+      )`,
     })
     .from(workflowExecutions)
     .leftJoin(workflows, eq(workflowExecutions.workflowId, workflows.id))
@@ -568,9 +736,10 @@ async function fetchWorkflowRuns(
     workflowId: row.workflowId,
     workflowName: row.workflowName ?? "(Deleted)",
     directType: null,
-    network: null,
-    transactionHash: null,
-    gasUsedWei: null,
+    network: row.network ?? null,
+    transactionHash: row.transactionHash ?? null,
+    gasUsedWei:
+      row.gasUsedWei && row.gasUsedWei !== "0" ? row.gasUsedWei : null,
     totalSteps: row.totalSteps ? Number(row.totalSteps) : null,
     completedSteps: row.completedSteps ? Number(row.completedSteps) : null,
   }));
@@ -780,29 +949,52 @@ export async function getSpendCapData(organizationId: string): Promise<{
   const todayStart = new Date();
   todayStart.setUTCHours(0, 0, 0, 0);
 
-  const [capResult, usageResult] = await Promise.all([
-    db
-      .select({ dailyCapWei: organizationSpendCaps.dailyCapWei })
-      .from(organizationSpendCaps)
-      .where(eq(organizationSpendCaps.organizationId, organizationId))
-      .limit(1),
-    db
-      .select({
-        totalWei: sql<string>`COALESCE(SUM(CAST(${directExecutions.gasUsedWei} AS NUMERIC)), 0)::text`,
-      })
-      .from(directExecutions)
-      .where(
-        and(
-          eq(directExecutions.organizationId, organizationId),
-          eq(directExecutions.status, "completed"),
-          gte(directExecutions.createdAt, todayStart)
+  const [capResult, directUsageResult, workflowUsageResult] = await Promise.all(
+    [
+      db
+        .select({ dailyCapWei: organizationSpendCaps.dailyCapWei })
+        .from(organizationSpendCaps)
+        .where(eq(organizationSpendCaps.organizationId, organizationId))
+        .limit(1),
+      db
+        .select({
+          totalWei: sql<string>`COALESCE(SUM(CAST(${directExecutions.gasUsedWei} AS NUMERIC)), 0)::text`,
+        })
+        .from(directExecutions)
+        .where(
+          and(
+            eq(directExecutions.organizationId, organizationId),
+            eq(directExecutions.status, "completed"),
+            gte(directExecutions.createdAt, todayStart)
+          )
+        ),
+      db
+        .select({
+          totalWei: sql<string>`COALESCE(SUM(CAST(${logOutputField("gasUsed")} AS NUMERIC)), 0)::text`,
+        })
+        .from(workflowExecutionLogs)
+        .innerJoin(
+          workflowExecutions,
+          eq(workflowExecutionLogs.executionId, workflowExecutions.id)
         )
-      ),
-  ]);
+        .innerJoin(workflows, eq(workflowExecutions.workflowId, workflows.id))
+        .where(
+          and(
+            eq(workflows.organizationId, organizationId),
+            eq(workflowExecutionLogs.status, "success"),
+            gte(workflowExecutionLogs.startedAt, todayStart),
+            sql`${logOutputField("gasUsed")} IS NOT NULL`
+          )
+        ),
+    ]
+  );
 
   return {
     dailyCapWei: capResult[0]?.dailyCapWei ?? null,
-    dailyUsedWei: usageResult[0]?.totalWei ?? "0",
+    dailyUsedWei: addBigIntStrings(
+      directUsageResult[0]?.totalWei ?? "0",
+      workflowUsageResult[0]?.totalWei ?? "0"
+    ),
   };
 }
 

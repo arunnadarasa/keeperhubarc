@@ -305,11 +305,33 @@ async function createStepLogs(
     const errorMsg =
       stepStatus === "error" ? "Contract call reverted" : null;
 
+    const isWeb3Write = nodeType === "web3:write-contract";
+    const network = isWeb3Write ? randomChoice(NETWORKS) : null;
+
+    const inputData = isWeb3Write
+      ? JSON.stringify({
+          network: network === "ethereum" ? "1" : network === "base" ? "8453" : network === "polygon" ? "137" : "11155111",
+          contractAddress: `0x${randomHex(40)}`,
+          actionType: "web3/write-contract",
+          abiFunction: "transfer",
+          functionArgs: "[]",
+        })
+      : null;
+
+    const outputData =
+      isWeb3Write && stepStatus === "success"
+        ? JSON.stringify({
+            success: true,
+            transactionHash: `0x${randomHex(64)}`,
+            gasUsed: String(randomInt(21000, 350000)),
+          })
+        : null;
+
     await sql.unsafe(
       `INSERT INTO workflow_execution_logs (
         id, execution_id, node_id, node_name, node_type, status,
-        started_at, completed_at, duration, error
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        started_at, completed_at, duration, error, input, output
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb)`,
       [
         logId,
         executionId,
@@ -321,6 +343,8 @@ async function createStepLogs(
         completedAt,
         durationStr,
         errorMsg,
+        inputData,
+        outputData,
       ]
     );
 
