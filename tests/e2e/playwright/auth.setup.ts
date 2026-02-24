@@ -1,24 +1,43 @@
 import { expect, test as setup } from "@playwright/test";
 import { signIn } from "./utils/auth";
 import {
+  PERSISTENT_BYSTANDER_EMAIL,
+  PERSISTENT_INVITER_EMAIL,
   PERSISTENT_TEST_PASSWORD,
   PERSISTENT_TEST_USER_EMAIL,
 } from "./utils/db";
 
-const authFile = "tests/e2e/playwright/.auth/user.json";
+const authDir = "tests/e2e/playwright/.auth";
 
 setup("authenticate as persistent test user", async ({ page }) => {
   await signIn(page, PERSISTENT_TEST_USER_EMAIL, PERSISTENT_TEST_PASSWORD);
-
-  // After sign-in, the server-side session hook auto-sets the active org.
-  // The client needs to re-fetch the session to pick up the active org.
-  // Wait briefly for the hook to complete, then reload.
+  // Wait for server-side session hook to set the active org before reloading
   await page.waitForTimeout(2000);
   await page.goto("/", { waitUntil: "networkidle" });
+  await expect(page.locator('button[role="combobox"]')).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.context().storageState({ path: `${authDir}/user.json` });
+});
 
-  // Wait for org switcher (confirms org context is loaded in session)
-  const orgSwitcher = page.locator('button[role="combobox"]');
-  await expect(orgSwitcher).toBeVisible({ timeout: 15_000 });
+setup("authenticate as inviter", async ({ page }) => {
+  await signIn(page, PERSISTENT_INVITER_EMAIL, PERSISTENT_TEST_PASSWORD);
+  // Wait for server-side session hook to set the active org before reloading
+  await page.waitForTimeout(2000);
+  await page.goto("/", { waitUntil: "networkidle" });
+  await expect(page.locator('button[role="combobox"]')).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.context().storageState({ path: `${authDir}/inviter.json` });
+});
 
-  await page.context().storageState({ path: authFile });
+setup("authenticate as bystander", async ({ page }) => {
+  await signIn(page, PERSISTENT_BYSTANDER_EMAIL, PERSISTENT_TEST_PASSWORD);
+  // Wait for server-side session hook to set the active org before reloading
+  await page.waitForTimeout(2000);
+  await page.goto("/", { waitUntil: "networkidle" });
+  await expect(page.locator('button[role="combobox"]')).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.context().storageState({ path: `${authDir}/bystander.json` });
 });

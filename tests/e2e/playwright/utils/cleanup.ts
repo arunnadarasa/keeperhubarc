@@ -1,4 +1,4 @@
-import postgres from "postgres";
+import { getDbConnection } from "./connection";
 
 const TEST_EMAIL_PATTERN = "test+%@techops.services";
 const TEST_VERIFICATION_PATTERN = "%test+%@techops.services%";
@@ -7,14 +7,6 @@ const TEST_VERIFICATION_PATTERN = "%test+%@techops.services%";
 const PROTECTED_EMAIL = "pr-test-do-not-delete@techops.services";
 
 const PARA_API_BASE = "https://api.getpara.com";
-
-function getDbConnection(): ReturnType<typeof postgres> {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    throw new Error("DATABASE_URL environment variable is required");
-  }
-  return postgres(databaseUrl, { max: 1 });
-}
 
 type ParaPortalConfig = {
   orgId: string;
