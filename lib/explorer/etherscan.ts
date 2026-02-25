@@ -187,6 +187,7 @@ type EtherscanTxListResponse = {
 
 const ETHERSCAN_TX_PAGE_SIZE = 10_000;
 const MAX_PAGES = 5;
+const ETHERSCAN_PAGE_DELAY_MS = 220;
 
 type TxPageResult =
   | { done: false; transactions: EtherscanTransaction[] }
@@ -270,6 +271,12 @@ export async function fetchEtherscanTransactions(
   const allTransactions: EtherscanTransaction[] = [];
 
   for (let page = 1; page <= MAX_PAGES; page++) {
+    if (page > 1) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, ETHERSCAN_PAGE_DELAY_MS)
+      );
+    }
+
     const url = buildTxListParams(
       apiUrl,
       chainId,

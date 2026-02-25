@@ -75,6 +75,7 @@ type BlockscoutTxListResponse = {
 
 const BLOCKSCOUT_TX_PAGE_SIZE = 50;
 const MAX_TX_RESULTS = 50_000;
+const BLOCKSCOUT_PAGE_DELAY_MS = 100;
 const API_V1_SUFFIX_PATTERN = /\/api\/?$/;
 
 type BlockscoutCursor = { block_number: number; index: number };
@@ -111,6 +112,64 @@ function shouldStopPaginating(
 }
 
 /**
+ * Check if all items on the current page are above the endBlock.
+ * If so, the page contains only irrelevant future transactions and
+ * we should continue paginating without collecting any items, rather
+ * than stopping early.
+ */
+function isPageEntirelyAboveEndBlock(
+  items: BlockscoutTransaction[],
+  endBlock: number
+): boolean {
+  if (items.length === 0) {
+    return false;
+  }
+  const lowestBlockOnPage = items.at(-1)?.block ?? 0;
+  return lowestBlockOnPage > endBlock;
+}
+
+function collectInRangeTransactions(
+  items: BlockscoutTransaction[],
+  startBlock: number,
+  endBlock: number,
+  out: BlockscoutTransaction[]
+): void {
+  if (isPageEntirelyAboveEndBlock(items, endBlock)) {
+    return;
+  }
+  for (const tx of items) {
+    if (tx.block >= startBlock && tx.block <= endBlock) {
+      out.push(tx);
+    }
+  }
+}
+
+type BlockscoutTxResult =
+  | { success: true; transactions: BlockscoutTransaction[] }
+  | { success: false; error: string };
+
+async function fetchPage(
+  baseUrl: string,
+  contractAddress: string,
+  cursor: BlockscoutCursor | null
+): Promise<
+  { ok: true; data: BlockscoutTxListResponse } | { ok: false; error: string }
+> {
+  const url = buildBlockscoutTxUrl(baseUrl, contractAddress, cursor);
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      error: `Blockscout API returned status ${response.status}`,
+    };
+  }
+
+  const data: BlockscoutTxListResponse = await response.json();
+  return { ok: true, data };
+}
+
+/**
  * Fetch transaction list for a contract address from Blockscout API v2
  *
  * Uses the `/addresses/:address/transactions` endpoint.
@@ -126,40 +185,39 @@ export async function fetchBlockscoutTransactions(
   contractAddress: string,
   startBlock: number,
   endBlock: number
-): Promise<
-  | { success: true; transactions: BlockscoutTransaction[] }
-  | { success: false; error: string }
-> {
+): Promise<BlockscoutTxResult> {
   const allTransactions: BlockscoutTransaction[] = [];
   let cursor: BlockscoutCursor | null = null;
 
   try {
     const baseUrl = apiUrl.replace(API_V1_SUFFIX_PATTERN, "/api/v2");
 
+    let isFirstPage = true;
     for (;;) {
-      const url = buildBlockscoutTxUrl(baseUrl, contractAddress, cursor);
-      const response = await fetch(url);
+      if (!isFirstPage) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, BLOCKSCOUT_PAGE_DELAY_MS)
+        );
+      }
+      isFirstPage = false;
 
-      if (!response.ok) {
-        return {
-          success: false,
-          error: `Blockscout API returned status ${response.status}`,
-        };
+      const page = await fetchPage(baseUrl, contractAddress, cursor);
+      if (!page.ok) {
+        return { success: false, error: page.error };
       }
 
-      const data: BlockscoutTxListResponse = await response.json();
+      collectInRangeTransactions(
+        page.data.items,
+        startBlock,
+        endBlock,
+        allTransactions
+      );
 
-      for (const tx of data.items) {
-        if (tx.block >= startBlock && tx.block <= endBlock) {
-          allTransactions.push(tx);
-        }
-      }
-
-      if (shouldStopPaginating(data, allTransactions.length, startBlock)) {
+      if (shouldStopPaginating(page.data, allTransactions.length, startBlock)) {
         break;
       }
 
-      cursor = data.next_page_params;
+      cursor = page.data.next_page_params;
     }
   } catch (error) {
     return {
