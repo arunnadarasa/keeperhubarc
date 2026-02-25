@@ -782,7 +782,6 @@ const web3Plugin: IntegrationPlugin = {
           label: "Contract ABI",
           type: "abi-with-auto-fetch",
           contractAddressField: "contractAddress",
-          contractInteractionType: "write",
           networkField: "network",
           rows: 6,
           required: true,
