@@ -14,7 +14,7 @@ import { getChainIdFromNetwork, resolveRpcConfig } from "@/lib/rpc";
 import { getErrorMessage } from "@/lib/utils";
 
 const DEFAULT_BLOCK_LOOKBACK = 6500;
-const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY ?? "";
+const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY;
 
 type AbiEntry = { type: string; name: string };
 
@@ -86,6 +86,19 @@ function parseAbi(
 
   if (!Array.isArray(parsedAbi)) {
     return { success: false, error: "ABI must be a JSON array" };
+  }
+
+  const hasValidEntries = parsedAbi.every(
+    (entry) =>
+      typeof entry === "object" &&
+      entry !== null &&
+      typeof entry.type === "string"
+  );
+  if (!hasValidEntries) {
+    return {
+      success: false,
+      error: "Invalid ABI: each entry must be an object with a 'type' field",
+    };
   }
 
   return { success: true, parsed: parsedAbi as AbiEntry[] };
@@ -268,7 +281,11 @@ function matchesArgFilter(
 }
 
 function toStringArray(arr: unknown[]): string[] {
-  return arr.map((v) => (typeof v === "string" ? v : String(v ?? "")));
+  const result: string[] = [];
+  for (const v of arr) {
+    result.push(typeof v === "string" ? v : String(v ?? ""));
+  }
+  return result;
 }
 
 function parseFunctionArgsFilter(
@@ -311,14 +328,16 @@ function filterAndDecodeTransactions(
   getTxLink: (hash: string) => string
 ): { matched: DecodedTransaction[]; totalFiltered: number } {
   const lowerContractAddress = contractAddress.toLowerCase();
-  const toContractTxs = transactions.filter(
-    (tx) => tx.to.toLowerCase() === lowerContractAddress
-  );
-
   const linkBuilder: TxLinkBuilder = { getTransactionUrl: getTxLink };
   const matched: DecodedTransaction[] = [];
+  let toContractCount = 0;
 
-  for (const tx of toContractTxs) {
+  for (const tx of transactions) {
+    if (tx.to.toLowerCase() !== lowerContractAddress) {
+      continue;
+    }
+    toContractCount++;
+
     const decoded = decodeTransaction(tx, iface, linkBuilder);
     if (!decoded) {
       continue;
@@ -338,7 +357,7 @@ function filterAndDecodeTransactions(
     matched.push(decoded);
   }
 
-  return { matched, totalFiltered: toContractTxs.length };
+  return { matched, totalFiltered: toContractCount };
 }
 
 type ValidatedInput = {
@@ -452,7 +471,7 @@ export async function queryTransactionsCore(
     chainId,
     range.fromBlock,
     range.toBlock,
-    ETHERSCAN_API_KEY || undefined
+    ETHERSCAN_API_KEY
   );
 
   if (!txResult.success) {

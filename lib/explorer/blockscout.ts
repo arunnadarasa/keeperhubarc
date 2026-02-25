@@ -192,14 +192,14 @@ export async function fetchBlockscoutTransactions(
   try {
     const baseUrl = apiUrl.replace(API_V1_SUFFIX_PATTERN, "/api/v2");
 
-    let isFirstPage = true;
+    let pageCount = 0;
     for (;;) {
-      if (!isFirstPage) {
+      if (pageCount > 0) {
         await new Promise((resolve) =>
           setTimeout(resolve, BLOCKSCOUT_PAGE_DELAY_MS)
         );
       }
-      isFirstPage = false;
+      pageCount++;
 
       const page = await fetchPage(baseUrl, contractAddress, cursor);
       if (!page.ok) {

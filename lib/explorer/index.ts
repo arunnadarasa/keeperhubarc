@@ -152,6 +152,8 @@ function normalizeBlockscoutTx(
   return {
     hash: tx.hash,
     from: tx.from.hash,
+    // Contract creation txs have null `to`; normalized to "" so they
+    // are filtered out by filterAndDecodeTransactions (address mismatch).
     to: tx.to?.hash ?? "",
     value: tx.value,
     input: tx.raw_input,
