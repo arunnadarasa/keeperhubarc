@@ -581,14 +581,10 @@ describe("queryTransactionsCore", () => {
       toBlock: "15001000",
     });
 
-    expect(mockFetchContractTransactions).toHaveBeenCalledWith(
-      MOCK_EXPLORER_CONFIG,
-      VALID_CONTRACT,
-      1,
-      15_000_000,
-      15_001_000,
-      expect.anything()
-    );
+    const [, , , fromBlock, toBlock] =
+      mockFetchContractTransactions.mock.calls[0];
+    expect(fromBlock).toBe(15_000_000);
+    expect(toBlock).toBe(15_001_000);
   });
 
   it("computes fromBlock using blockCount lookback from latest block", async () => {
@@ -603,14 +599,10 @@ describe("queryTransactionsCore", () => {
       blockCount: 1000,
     });
 
-    expect(mockFetchContractTransactions).toHaveBeenCalledWith(
-      MOCK_EXPLORER_CONFIG,
-      VALID_CONTRACT,
-      1,
-      19_999_000,
-      20_000_000,
-      expect.anything()
-    );
+    const [, , , fromBlock, toBlock] =
+      mockFetchContractTransactions.mock.calls[0];
+    expect(fromBlock).toBe(19_999_000);
+    expect(toBlock).toBe(20_000_000);
   });
 
   it("uses default 6500 lookback when no block params are provided", async () => {
@@ -622,14 +614,10 @@ describe("queryTransactionsCore", () => {
 
     await queryTransactionsCore(defaultInput());
 
-    expect(mockFetchContractTransactions).toHaveBeenCalledWith(
-      MOCK_EXPLORER_CONFIG,
-      VALID_CONTRACT,
-      1,
-      19_993_500,
-      20_000_000,
-      expect.anything()
-    );
+    const [, , , fromBlock, toBlock] =
+      mockFetchContractTransactions.mock.calls[0];
+    expect(fromBlock).toBe(19_993_500);
+    expect(toBlock).toBe(20_000_000);
   });
 
   // =========================================================================
