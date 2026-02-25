@@ -115,6 +115,28 @@ Combine multiple rules with **AND** / **OR** logic toggles, and nest groups for 
 
 **When to use soft vs strict equality:** Use `==` (soft equals) when comparing values that may differ in type, such as a string `"0"` against a number `0`. Use `===` (equals) when you need exact type matching. Most blockchain data arrives as strings, so soft equality is the default for new conditions.
 
+#### Expression Mode
+
+Expression mode allows you to write raw JavaScript condition expressions for advanced logic. In addition to the comparison and logical operators in the Visual Builder, you can use arithmetic operators for calculations:
+
+| Operator | Description |
+| -------- | ----------- |
+| `+` | Addition |
+| `-` | Subtraction |
+| `*` | Multiplication |
+| `/` | Division |
+| `%` | Modulo (remainder) |
+| `**` | Exponentiation (power) |
+
+**Example expressions:**
+
+- `{{@CheckBalance:Balance.value}} * 2 > 100` - Check if double the balance exceeds 100
+- `{{@GetPrice:Price.usd}} ** 2 >= 10000` - Check if price squared is at least 10,000
+- `({{@GetAmount:Amount.wei}} / 1000000000000000000) >= 0.5` - Convert wei to ETH and check threshold
+- `{{@GetRewards:Rewards.amount}} % 10 === 0` - Check if rewards are divisible by 10
+
+Expression mode also supports JavaScript methods, array indexing, and property access for complex logic.
+
 #### Dual Output Paths
 
 Condition nodes have two output handles:
