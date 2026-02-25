@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
 import {
+  currentWorkflowIdAtom,
   currentWorkflowNameAtom,
   edgesAtom,
   hasSidebarBeenShownAtom,
@@ -63,10 +64,9 @@ function createDefaultNodes() {
 const Home = () => {
   const router = useRouter();
   const { data: session } = useSession();
-  const nodes = useAtomValue(nodesAtom);
-  const edges = useAtomValue(edgesAtom);
   const setNodes = useSetAtom(nodesAtom);
   const setEdges = useSetAtom(edgesAtom);
+  const setCurrentWorkflowId = useSetAtom(currentWorkflowIdAtom);
   const setCurrentWorkflowName = useSetAtom(currentWorkflowNameAtom);
   const setHasSidebarBeenShown = useSetAtom(hasSidebarBeenShownAtom);
   const setIsTransitioningFromHomepage = useSetAtom(
@@ -94,12 +94,45 @@ const Home = () => {
   }, [session]);
 
   // start custom keeperhub code //
-  // Handler to add initial nodes (replaces the "add" placeholder)
-  const handleAddNode = useCallback(() => {
+  // Handler to add initial nodes and create the workflow.
+  // Creation is done here (not in a useEffect watching nodes) to avoid a race
+  // condition where stale nodes from a previously-open workflow would be picked
+  // up by the effect before the init effect's setNodes([placeholder]) is applied.
+  const handleAddNode = useCallback(async () => {
+    if (hasCreatedWorkflowRef.current) {
+      return;
+    }
+    hasCreatedWorkflowRef.current = true;
+
     const { nodes: defaultNodes, edges: defaultEdges } = createDefaultNodes();
     setNodes(defaultNodes);
     setEdges(defaultEdges);
-  }, [setNodes, setEdges]);
+
+    try {
+      await ensureSession();
+
+      const newWorkflow = await api.workflow.create({
+        name: "Untitled Workflow",
+        description: "",
+        nodes: defaultNodes,
+        edges: defaultEdges,
+      });
+
+      sessionStorage.setItem("animate-sidebar", "true");
+      setIsTransitioningFromHomepage(true);
+      router.replace(`/workflows/${newWorkflow.id}`);
+    } catch (error) {
+      console.error("Failed to create workflow:", error);
+      toast.error("Failed to create workflow");
+      hasCreatedWorkflowRef.current = false;
+    }
+  }, [
+    setNodes,
+    setEdges,
+    ensureSession,
+    router,
+    setIsTransitioningFromHomepage,
+  ]);
   // end keeperhub code //
 
   // Initialize with a temporary "add" node on mount
@@ -118,48 +151,16 @@ const Home = () => {
     };
     setNodes([addNodePlaceholder]);
     setEdges([]);
+    setCurrentWorkflowId(null);
     setCurrentWorkflowName("New Workflow");
     hasCreatedWorkflowRef.current = false;
-  }, [setNodes, setEdges, setCurrentWorkflowName, handleAddNode]);
-
-  // Create workflow when first real node is added
-  useEffect(() => {
-    const createWorkflowAndRedirect = async () => {
-      // Filter out the placeholder "add" node
-      const realNodes = nodes.filter((node) => node.type !== "add");
-
-      // Only create when we have at least one real node and haven't created a workflow yet
-      if (realNodes.length === 0 || hasCreatedWorkflowRef.current) {
-        return;
-      }
-      hasCreatedWorkflowRef.current = true;
-
-      try {
-        await ensureSession();
-
-        // Create workflow with all real nodes
-        const newWorkflow = await api.workflow.create({
-          name: "Untitled Workflow",
-          description: "",
-          nodes: realNodes,
-          edges,
-        });
-
-        // Set flags to indicate we're coming from homepage (for sidebar animation)
-        sessionStorage.setItem("animate-sidebar", "true");
-        setIsTransitioningFromHomepage(true);
-
-        // Redirect to the workflow page
-        console.log("[Homepage] Navigating to workflow page");
-        router.replace(`/workflows/${newWorkflow.id}`);
-      } catch (error) {
-        console.error("Failed to create workflow:", error);
-        toast.error("Failed to create workflow");
-      }
-    };
-
-    createWorkflowAndRedirect();
-  }, [nodes, edges, router, ensureSession, setIsTransitioningFromHomepage]);
+  }, [
+    setNodes,
+    setEdges,
+    setCurrentWorkflowId,
+    setCurrentWorkflowName,
+    handleAddNode,
+  ]);
 
   // Canvas and toolbar are rendered by PersistentCanvas in the layout
   return null;
