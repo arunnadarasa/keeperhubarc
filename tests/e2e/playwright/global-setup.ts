@@ -3,6 +3,7 @@ import { expand } from "dotenv-expand";
 import { cleanupTestUsers } from "./utils/cleanup";
 import {
   cleanupPersistentTestUsers,
+  seedAnalyticsData,
   seedPersistentTestUsers,
 } from "./utils/seed";
 
@@ -21,8 +22,9 @@ async function globalSetup(): Promise<void> {
   await cleanupTestUsers();
   await cleanupPersistentTestUsers();
 
-  // Seed persistent test users for invitation tests
+  // Seed persistent test users for invitation and analytics tests
   await seedPersistentTestUsers();
+  await seedAnalyticsData();
 }
 
 export default globalSetup;

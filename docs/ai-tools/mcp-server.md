@@ -181,9 +181,40 @@ A typical workflow creation flow:
 
 Trigger nodes use `type: "trigger"` with a `triggerType` in the config (`Manual`, `Schedule`, `Webhook`, `Event`).
 
+### Edge Structure
+
+Edges connect nodes and define execution flow:
+
+```json
+{
+  "id": "edge-1",
+  "source": "trigger-1",
+  "target": "check-balance"
+}
+```
+
+For **Condition nodes** and **For Each nodes**, edges require a `sourceHandle` field:
+
+```json
+{
+  "id": "edge-2",
+  "source": "condition-1",
+  "target": "send-alert",
+  "sourceHandle": "true"
+}
+```
+
+| Source Node Type | sourceHandle Values |
+|------------------|---------------------|
+| Condition | `"true"` or `"false"` |
+| For Each | `"loop"` or `"done"` |
+| Other nodes | Omit field |
+
 ### Condition Nodes
 
-Conditions act as gates, not branches. A condition evaluates to true or false -- if false, execution stops at that node. For if/else logic, use two condition nodes with opposite expressions.
+Condition nodes have dual output paths with `true` and `false` source handles. Connect downstream nodes to the appropriate handle to create if/else logic in a single Condition node.
+
+Conditions support these operators: `==` (soft equals), `===` (equals), `!=` (soft not equals), `!==` (not equals), `>`, `>=`, `<`, `<=`, `contains`, `startsWith`, `endsWith`, `matchesRegex`, `isEmpty`, `isNotEmpty`, `exists`, `doesNotExist`.
 
 Conditions reference previous node outputs using template syntax: `{{@nodeId:Label.field}}`.
 
