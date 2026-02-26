@@ -1,0 +1,94 @@
+"use client";
+
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
+import type {
+  BillingInterval,
+  PlanName,
+  TierKey,
+} from "@/keeperhub/lib/billing/plans";
+import { BillingHistory } from "./billing-history";
+import { BillingStatus } from "./billing-status";
+import { PricingTable } from "./pricing-table";
+
+type SubscriptionResponse = {
+  subscription: {
+    plan: string;
+    tier: string | null;
+    interval: string | null;
+  };
+};
+
+export function BillingPage(): React.ReactElement {
+  const searchParams = useSearchParams();
+  const [currentPlan, setCurrentPlan] = useState<PlanName>("free");
+  const [currentTier, setCurrentTier] = useState<TierKey | null>(null);
+  const [currentInterval, setCurrentInterval] =
+    useState<BillingInterval | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const checkout = searchParams.get("checkout");
+    if (checkout === "success") {
+      toast.success("Subscription activated successfully!");
+    } else if (checkout === "canceled") {
+      toast.info("Checkout was canceled.");
+    }
+  }, [searchParams]);
+
+  const fetchPlan = useCallback(async (): Promise<void> => {
+    try {
+      const response = await fetch("/api/billing/subscription");
+      if (response.ok) {
+        const data = (await response.json()) as SubscriptionResponse;
+        setCurrentPlan((data.subscription.plan ?? "free") as PlanName);
+        setCurrentTier((data.subscription.tier ?? null) as TierKey | null);
+        setCurrentInterval(
+          (data.subscription.interval ?? null) as BillingInterval | null
+        );
+      }
+    } catch {
+      // Will default to free
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPlan().catch(() => undefined);
+  }, [fetchPlan]);
+
+  async function handlePlanUpdated(): Promise<void> {
+    await fetchPlan();
+    setRefreshKey((k) => k + 1);
+  }
+
+  return (
+    <div className="pointer-events-auto fixed inset-0 overflow-y-auto bg-sidebar">
+      <div className="transition-[margin-left] duration-200 ease-out md:ml-[var(--nav-sidebar-width,60px)]">
+        <div className="container mx-auto max-w-7xl space-y-8 px-4 py-8 pt-20">
+          <div>
+            <h1 className="text-2xl font-bold">Billing</h1>
+            <p className="text-muted-foreground mt-1">
+              Manage your subscription and billing details.
+            </p>
+          </div>
+
+          <BillingStatus key={`status-${String(refreshKey)}`} />
+
+          <BillingHistory key={`history-${String(refreshKey)}`} />
+
+          <div className="border-t border-border/50 pt-8">
+            <h2 className="text-xl font-semibold mb-4">Plans</h2>
+            <PricingTable
+              currentInterval={currentInterval}
+              currentPlan={currentPlan}
+              currentTier={currentTier}
+              key={`${currentPlan}-${currentTier ?? "none"}-${currentInterval ?? "none"}-${String(refreshKey)}`}
+              onPlanUpdated={handlePlanUpdated}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
