@@ -12,6 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import {
   BILLING_API,
@@ -253,6 +254,34 @@ function FeatureChangeRow({
   );
 }
 
+function ProrationTotal({
+  amountDue,
+  currency,
+}: {
+  amountDue: number;
+  currency: string;
+}): React.ReactElement {
+  if (amountDue <= 0) {
+    return (
+      <div className="mt-2 pt-2 border-t border-border/50 flex items-center justify-between">
+        <span className="text-sm font-medium">Total due now</span>
+        <span className="text-sm font-semibold text-muted-foreground">
+          No charge
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 pt-2 border-t border-border/50 flex items-center justify-between">
+      <span className="text-sm font-medium">Total due now</span>
+      <span className="text-sm font-semibold text-foreground">
+        {formatCurrency(amountDue, currency)}
+      </span>
+    </div>
+  );
+}
+
 function ProrationSection({
   proration,
 }: {
@@ -261,7 +290,9 @@ function ProrationSection({
   return (
     <div className="rounded-md border border-border/50 bg-sidebar p-3">
       <p className="text-xs font-medium text-muted-foreground mb-2">
-        Due today (prorated)
+        {proration.amountDue < 0
+          ? "Proration breakdown"
+          : "Due today (prorated)"}
       </p>
       <div className="space-y-1">
         {proration.lineItems.map((item) => (
@@ -286,12 +317,10 @@ function ProrationSection({
           </div>
         ))}
       </div>
-      <div className="mt-2 pt-2 border-t border-border/50 flex items-center justify-between">
-        <span className="text-sm font-medium">Total due now</span>
-        <span className="text-sm font-semibold text-foreground">
-          {formatCurrency(proration.amountDue, proration.currency)}
-        </span>
-      </div>
+      <ProrationTotal
+        amountDue={proration.amountDue}
+        currency={proration.currency}
+      />
     </div>
   );
 }
@@ -302,12 +331,14 @@ function useProrationPreview(
   currentPlanName: PlanName,
   newTier: TierKey | null,
   interval: string
-): { proration: ProrationData | null } {
+): { proration: ProrationData | null; loading: boolean } {
   const [proration, setProration] = useState<ProrationData | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setProration(null);
+      setLoading(false);
       return;
     }
 
@@ -315,6 +346,7 @@ function useProrationPreview(
       return;
     }
 
+    setLoading(true);
     const controller = new AbortController();
 
     fetch(BILLING_API.PREVIEW_PRORATION, {
@@ -338,6 +370,11 @@ function useProrationPreview(
         if (error instanceof DOMException && error.name === "AbortError") {
           return;
         }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       });
 
     return () => {
@@ -345,7 +382,7 @@ function useProrationPreview(
     };
   }, [open, newPlanName, currentPlanName, newTier, interval]);
 
-  return { proration };
+  return { proration, loading };
 }
 
 export function ConfirmPlanChangeDialog({
@@ -363,7 +400,7 @@ export function ConfirmPlanChangeDialog({
   onConfirm,
 }: ConfirmPlanChangeDialogProps): React.ReactElement {
   const [loading, setLoading] = useState(false);
-  const { proration } = useProrationPreview(
+  const { proration, loading: prorationLoading } = useProrationPreview(
     open,
     newPlanName,
     currentPlanName,
@@ -448,9 +485,24 @@ export function ConfirmPlanChangeDialog({
                 </span>
               </p>
 
-              {proration !== null && proration.lineItems.length > 0 && (
-                <ProrationSection proration={proration} />
-              )}
+              {currentPlanName !== "free" &&
+                newPlanName !== "free" &&
+                prorationLoading && (
+                  <div className="rounded-md border border-border/50 bg-sidebar p-3 space-y-2">
+                    <Skeleton className="h-3 w-36" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-full" />
+                    <div className="pt-2 border-t border-border/50">
+                      <Skeleton className="h-4 w-28" />
+                    </div>
+                  </div>
+                )}
+
+              {!prorationLoading &&
+                proration !== null &&
+                proration.lineItems.length > 0 && (
+                  <ProrationSection proration={proration} />
+                )}
 
               {changes.length > 0 && (
                 <div className="rounded-md border border-border/50 bg-sidebar p-3">
