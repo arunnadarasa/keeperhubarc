@@ -5,6 +5,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  CreditCard,
   Globe,
   List,
   Loader2,
@@ -19,6 +20,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useActiveMember } from "@/keeperhub/lib/hooks/use-organization";
 import { registerSidebarRefetch } from "@/keeperhub/lib/refetch-sidebar";
 import type { Project, SavedWorkflow, Tag } from "@/lib/api-client";
 import { api } from "@/lib/api-client";
@@ -346,11 +348,18 @@ const NAV_ITEMS = [
     label: "Analytics",
     href: "/analytics" as string | null,
   },
+  {
+    id: "billing",
+    icon: CreditCard,
+    label: "Billing",
+    href: "/billing" as string | null,
+  },
 ];
 
 export function NavigationSidebar(): React.ReactNode {
   const isMobile = useIsMobile();
   const { data: session } = useSession();
+  const { isOwner } = useActiveMember();
   const router = useRouter();
   const pathname = usePathname();
   const params = useParams();
@@ -414,6 +423,7 @@ export function NavigationSidebar(): React.ReactNode {
     typeof params.workflowId === "string" ? params.workflowId : undefined;
   const isHubPage = pathname === "/hub";
   const isAnalyticsPage = pathname === "/analytics";
+  const isBillingPage = pathname === "/billing";
 
   const expanded = navState.state.sidebar;
   const setExpanded = navState.setSidebar;
@@ -525,7 +535,7 @@ export function NavigationSidebar(): React.ReactNode {
 
   function isActive(id: string): boolean {
     if (id === "new") {
-      return !(workflowId || isHubPage || isAnalyticsPage);
+      return !(workflowId || isHubPage || isAnalyticsPage || isBillingPage);
     }
     if (id === "workflows") {
       return navState.state.panels.projects !== "closed";
@@ -535,6 +545,9 @@ export function NavigationSidebar(): React.ReactNode {
     }
     if (id === "analytics") {
       return isAnalyticsPage;
+    }
+    if (id === "billing") {
+      return isBillingPage;
     }
     return false;
   }
@@ -652,9 +665,15 @@ export function NavigationSidebar(): React.ReactNode {
     );
   }
 
-  const navItems = NAV_ITEMS.filter(
-    (item) => item.id !== "analytics" || session
-  );
+  const navItems = NAV_ITEMS.filter((item) => {
+    if (item.id === "analytics") {
+      return Boolean(session);
+    }
+    if (item.id === "billing") {
+      return isOwner;
+    }
+    return true;
+  });
 
   return (
     <>
