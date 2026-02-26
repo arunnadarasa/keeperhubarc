@@ -1,10 +1,10 @@
 import "server-only";
 
+import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { explorerConfigs } from "@/lib/db/schema";
 import { getAddressUrl, getTransactionUrl } from "@/lib/explorer";
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
-import { eq } from "drizzle-orm";
 
 /**
  * Enrich trigger data with block explorer links for transaction hashes
