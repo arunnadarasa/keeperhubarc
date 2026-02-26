@@ -21,6 +21,7 @@ import {
   analyticsSummaryAtom,
   analyticsTimeSeriesAtom,
 } from "@/keeperhub/lib/atoms/analytics";
+import { useOrganization } from "@/keeperhub/lib/hooks/use-organization";
 
 const POLL_INTERVAL_MS = 10_000;
 
@@ -78,6 +79,8 @@ async function processSection<T>(
 }
 
 export function useAnalytics(): UseAnalyticsReturn {
+  const { organization } = useOrganization();
+  const orgId = organization?.id;
   const range = useAtomValue(analyticsRangeAtom);
   const statusFilter = useAtomValue(analyticsStatusFilterAtom);
   const sourceFilter = useAtomValue(analyticsSourceFilterAtom);
@@ -294,6 +297,18 @@ export function useAnalytics(): UseAnalyticsReturn {
       abortControllerRef.current = null;
     };
   }, [fetchData]);
+
+  // Re-fetch when org switches
+  const prevOrgIdRef = useRef(orgId);
+  useEffect(() => {
+    if (prevOrgIdRef.current === orgId) {
+      return;
+    }
+    prevOrgIdRef.current = orgId;
+    fetchData().catch(() => {
+      /* org-switch refetch errors handled in fetchData */
+    });
+  }, [orgId, fetchData]);
 
   // Manage SSE / polling based on live state
   useEffect(() => {
