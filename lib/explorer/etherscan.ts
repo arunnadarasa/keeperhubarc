@@ -223,6 +223,9 @@ function buildTxListParams(
 }
 
 function isEmptyTxListResult(data: EtherscanTxListResponse): boolean {
+  if (Array.isArray(data.result) && data.result.length === 0) {
+    return true;
+  }
   if (typeof data.result !== "string") {
     return false;
   }
