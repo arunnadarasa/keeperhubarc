@@ -324,11 +324,15 @@ export const workflowExecutionLogs = pgTable("workflow_execution_logs", {
 // KeeperHub: Para Wallets, Organization API Keys, and Organization Tokens (imported from KeeperHub schema extensions)
 // Note: Using relative path instead of @/ alias for drizzle-kit compatibility
 export {
+  type BillingEvent,
+  billingEvents,
   type DirectExecution,
   directExecutions,
+  type NewBillingEvent,
   type NewDirectExecution,
   type NewOrganizationApiKey,
   type NewOrganizationSpendCap,
+  type NewOrganizationSubscription,
   type NewOrganizationToken,
   type NewParaWallet,
   type NewPublicTag,
@@ -336,9 +340,11 @@ export {
   type NewWorkflowPublicTag,
   type OrganizationApiKey,
   type OrganizationSpendCap,
+  type OrganizationSubscription,
   type OrganizationToken,
   organizationApiKeys,
   organizationSpendCaps,
+  organizationSubscriptions,
   organizationTokens,
   type ParaWallet,
   type PendingTransaction,

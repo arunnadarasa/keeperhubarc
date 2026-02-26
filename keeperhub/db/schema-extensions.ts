@@ -359,3 +359,69 @@ export const organizationSpendCaps = pgTable("organization_spend_caps", {
 // Type exports for Organization Spend Caps table
 export type OrganizationSpendCap = typeof organizationSpendCaps.$inferSelect;
 export type NewOrganizationSpendCap = typeof organizationSpendCaps.$inferInsert;
+
+/**
+ * Organization Subscriptions table
+ *
+ * Stores billing subscription state for each organization.
+ * One subscription per organization (enforced by unique constraint on organizationId).
+ * Free tier orgs have a row with plan="free" and no provider IDs until they upgrade.
+ *
+ * Status lifecycle: active -> past_due -> canceled/unpaid
+ * The cancelAtPeriodEnd flag indicates the user has scheduled cancellation.
+ */
+export const organizationSubscriptions = pgTable(
+  "organization_subscriptions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => generateId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .unique()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    providerCustomerId: text("provider_customer_id").unique(),
+    providerSubscriptionId: text("provider_subscription_id"),
+    providerPriceId: text("provider_price_id"),
+    plan: text("plan").notNull().default("free"), // free | pro | business | enterprise
+    tier: text("tier"), // e.g. "25k", "50k", "100k", "250k", "500k", "1m"
+    status: text("status").notNull().default("active"), // active | past_due | canceled | unpaid | trialing | paused
+    currentPeriodStart: timestamp("current_period_start"),
+    currentPeriodEnd: timestamp("current_period_end"),
+    cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+    billingAlert: text("billing_alert"), // "payment_action_required" | "payment_failed" | "overdue" | null
+    billingAlertUrl: text("billing_alert_url"), // hosted invoice URL for action-required
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [index("idx_org_subscriptions_org").on(table.organizationId)]
+);
+
+// Type exports for Organization Subscriptions table
+export type OrganizationSubscription =
+  typeof organizationSubscriptions.$inferSelect;
+export type NewOrganizationSubscription =
+  typeof organizationSubscriptions.$inferInsert;
+
+/**
+ * Billing Events table
+ *
+ * Idempotency log for billing provider webhook events.
+ * Each event is stored with its provider event ID (unique) to prevent double-processing.
+ * The processed flag tracks whether the event handler completed successfully.
+ */
+export const billingEvents = pgTable("billing_events", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => generateId()),
+  providerEventId: text("provider_event_id").notNull().unique(),
+  type: text("type").notNull(),
+  // biome-ignore lint/suspicious/noExplicitAny: JSONB type - webhook event data structure varies by event type
+  data: jsonb("data").$type<any>(),
+  processed: boolean("processed").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Type exports for Billing Events table
+export type BillingEvent = typeof billingEvents.$inferSelect;
+export type NewBillingEvent = typeof billingEvents.$inferInsert;
