@@ -72,7 +72,7 @@ function getRenewalMessage(
   if (cancelAtPeriodEnd) {
     return {
       text: `Your plan ends on ${formattedDate}. You will not be charged again.`,
-      className: "text-yellow-500",
+      className: "text-muted-foreground",
     };
   }
 
