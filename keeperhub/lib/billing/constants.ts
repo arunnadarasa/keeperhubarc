@@ -30,4 +30,5 @@ export const SUPPORT_RANK: Record<string, number> = {
   "dedicated-1h": 3,
 };
 
-export const CONTACT_EMAIL = "sales@keeperhub.io";
+export const CONTACT_EMAIL =
+  process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? "sales@keeperhub.io";
