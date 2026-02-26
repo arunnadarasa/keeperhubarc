@@ -14,6 +14,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Spinner } from "@/components/ui/spinner";
 import {
+  BILLING_API,
+  SUPPORT_LABELS,
+  SUPPORT_RANK,
+} from "@/keeperhub/lib/billing/constants";
+import {
   PLANS,
   type PlanLimits,
   type PlanName,
@@ -55,20 +60,6 @@ type ConfirmPlanChangeDialogProps = {
   newTier: TierKey | null;
   newExecutions: number;
   onConfirm: () => Promise<void>;
-};
-
-const SUPPORT_LABELS: Record<string, string> = {
-  community: "Community",
-  "email-48h": "Email (48h)",
-  "dedicated-12h": "Dedicated (12h)",
-  "dedicated-1h": "Dedicated (1h)",
-};
-
-const SUPPORT_RANK: Record<string, number> = {
-  community: 0,
-  "email-48h": 1,
-  "dedicated-12h": 2,
-  "dedicated-1h": 3,
 };
 
 function formatExecutions(count: number): string {
@@ -326,7 +317,7 @@ function useProrationPreview(
 
     const controller = new AbortController();
 
-    fetch("/api/billing/preview-proration", {
+    fetch(BILLING_API.PREVIEW_PRORATION, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

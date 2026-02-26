@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BILLING_ALERTS, BILLING_API } from "@/keeperhub/lib/billing/constants";
 import {
   PLANS,
   type PlanName,
@@ -110,7 +111,7 @@ function BillingAlertBanner({
   onManageBilling: () => void;
   portalLoading: boolean;
 }): React.ReactElement | null {
-  if (alert === "payment_action_required") {
+  if (alert === BILLING_ALERTS.PAYMENT_ACTION_REQUIRED) {
     return (
       <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-600 dark:text-yellow-400">
         <p className="font-medium">Action required to complete your payment.</p>
@@ -128,7 +129,7 @@ function BillingAlertBanner({
     );
   }
 
-  if (alert === "overdue") {
+  if (alert === BILLING_ALERTS.OVERDUE) {
     return (
       <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
         <p className="font-medium">
@@ -147,7 +148,7 @@ function BillingAlertBanner({
     );
   }
 
-  if (alert === "payment_failed") {
+  if (alert === BILLING_ALERTS.PAYMENT_FAILED) {
     return (
       <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
         <p className="font-medium">
@@ -177,7 +178,7 @@ export function BillingStatus(): React.ReactElement {
   useEffect(() => {
     async function fetchSubscription(): Promise<void> {
       try {
-        const response = await fetch("/api/billing/subscription");
+        const response = await fetch(BILLING_API.SUBSCRIPTION);
         if (response.ok) {
           const result = (await response.json()) as SubscriptionData;
           setData(result);
@@ -194,7 +195,7 @@ export function BillingStatus(): React.ReactElement {
   async function handleManageBilling(): Promise<void> {
     setPortalLoading(true);
     try {
-      const response = await fetch("/api/billing/portal", {
+      const response = await fetch(BILLING_API.PORTAL, {
         method: "POST",
       });
       const result = (await response.json()) as {

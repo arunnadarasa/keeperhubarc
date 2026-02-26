@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { BILLING_API } from "@/keeperhub/lib/billing/constants";
 import type {
   BillingInterval,
   PlanName,
@@ -39,7 +40,7 @@ export function BillingPage(): React.ReactElement {
 
   const fetchPlan = useCallback(async (): Promise<void> => {
     try {
-      const response = await fetch("/api/billing/subscription");
+      const response = await fetch(BILLING_API.SUBSCRIPTION);
       if (response.ok) {
         const data = (await response.json()) as SubscriptionResponse;
         setCurrentPlan((data.subscription.plan ?? "free") as PlanName);

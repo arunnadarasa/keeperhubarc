@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { organizationSubscriptions } from "@/lib/db/schema";
+import { BILLING_ALERTS } from "./constants";
 import { resolvePriceId } from "./plans";
 import type { BillingProvider, BillingWebhookEvent } from "./provider";
 
@@ -334,7 +335,7 @@ async function handleInvoicePaymentFailed(
     .update(organizationSubscriptions)
     .set({
       status: "past_due",
-      billingAlert: "payment_failed",
+      billingAlert: BILLING_ALERTS.PAYMENT_FAILED,
       billingAlertUrl: invoiceUrl ?? null,
       updatedAt: new Date(),
     })
@@ -361,7 +362,7 @@ async function handleInvoiceOverdue(
   await db
     .update(organizationSubscriptions)
     .set({
-      billingAlert: "overdue",
+      billingAlert: BILLING_ALERTS.OVERDUE,
       billingAlertUrl: invoiceUrl ?? null,
       updatedAt: new Date(),
     })
@@ -395,7 +396,7 @@ async function handleInvoicePaymentActionRequired(
   await db
     .update(organizationSubscriptions)
     .set({
-      billingAlert: "payment_action_required",
+      billingAlert: BILLING_ALERTS.PAYMENT_ACTION_REQUIRED,
       billingAlertUrl: invoiceUrl ?? null,
       updatedAt: new Date(),
     })

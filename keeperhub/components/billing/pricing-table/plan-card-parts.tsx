@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardFooter } from "@/components/ui/card";
+import { SUPPORT_LABELS } from "@/keeperhub/lib/billing/constants";
 import type {
   BillingInterval,
   PLANS,
@@ -80,13 +81,6 @@ export function PlanCardFeatures({
       ? "1 year"
       : `${plan.features.logRetentionDays} days`;
 
-  const supportMap: Record<string, string> = {
-    community: "Community",
-    "email-48h": "Email (48h)",
-    "dedicated-12h": "Dedicated (12h)",
-    "dedicated-1h": "Dedicated (1h)",
-  };
-
   return (
     <div className="space-y-0.5 border-t border-border/50 pt-3">
       {executionsDisplay && (
@@ -116,7 +110,7 @@ export function PlanCardFeatures({
       <FeatureRow label="Logs" value={logRetention} />
       <FeatureRow
         label="Support"
-        value={supportMap[plan.features.supportLevel] ?? "Community"}
+        value={SUPPORT_LABELS[plan.features.supportLevel] ?? "Community"}
       />
       {plan.features.sla && (
         <FeatureRow label="SLA" value={plan.features.sla} />

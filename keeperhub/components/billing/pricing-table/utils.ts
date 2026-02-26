@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { BILLING_API } from "@/keeperhub/lib/billing/constants";
 import {
   type BillingInterval,
   PLANS,
@@ -80,7 +81,7 @@ export async function startCheckout(
   tier: TierKey | null,
   interval: BillingInterval
 ): Promise<boolean> {
-  const response = await fetch("/api/billing/checkout", {
+  const response = await fetch(BILLING_API.CHECKOUT, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ plan, tier, interval }),
@@ -148,7 +149,7 @@ export async function cancelSubscription(): Promise<{
   success: boolean;
   periodEnd?: string | null;
 }> {
-  const response = await fetch("/api/billing/cancel", {
+  const response = await fetch(BILLING_API.CANCEL, {
     method: "POST",
   });
   const data = (await response.json()) as {

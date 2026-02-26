@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CONTACT_EMAIL } from "@/keeperhub/lib/billing/constants";
 import type {
   BillingInterval,
   PLANS,
@@ -118,7 +119,7 @@ export function PlanCard({
   function handleSubscribe(): void {
     if (planName === "enterprise") {
       window.open(
-        "mailto:sales@keeperhub.io?subject=Enterprise%20Plan",
+        `mailto:${CONTACT_EMAIL}?subject=Enterprise%20Plan`,
         "_blank",
         "noopener"
       );

@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { PAID_PLANS, VALID_INTERVALS } from "@/keeperhub/lib/billing/constants";
 import {
   getPriceId,
   type PlanName,
@@ -14,9 +15,6 @@ type PreviewRequestBody = {
   tier?: string | null;
   interval?: string;
 };
-
-const VALID_PLANS = new Set<string>(["pro", "business", "enterprise"]);
-const VALID_INTERVALS = new Set<string>(["monthly", "yearly"]);
 
 export async function POST(request: Request): Promise<NextResponse> {
   try {
@@ -39,7 +37,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const body = (await request.json()) as PreviewRequestBody;
     const { plan, tier, interval } = body;
 
-    if (!(plan && VALID_PLANS.has(plan))) {
+    if (!(plan && PAID_PLANS.has(plan))) {
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
     }
 

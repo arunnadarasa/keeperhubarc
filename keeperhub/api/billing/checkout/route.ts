@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { PAID_PLANS, VALID_INTERVALS } from "@/keeperhub/lib/billing/constants";
 import {
   getPriceId,
   type PlanName,
@@ -20,9 +21,6 @@ type CheckoutRequestBody = {
   tier?: string | null;
   interval?: string;
 };
-
-const VALID_PLANS = new Set<string>(["pro", "business", "enterprise"]);
-const VALID_INTERVALS = new Set<string>(["monthly", "yearly"]);
 
 async function ensureProviderCustomer(
   provider: BillingProvider,
@@ -98,7 +96,7 @@ async function validateCheckoutRequest(
   const body = (await request.json()) as CheckoutRequestBody;
   const { plan, tier, interval } = body;
 
-  if (!(plan && VALID_PLANS.has(plan))) {
+  if (!(plan && PAID_PLANS.has(plan))) {
     return NextResponse.json(
       { error: "Invalid plan. Must be one of: pro, business, enterprise" },
       { status: 400 }

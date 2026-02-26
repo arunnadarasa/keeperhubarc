@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { BILLING_API } from "@/keeperhub/lib/billing/constants";
 import type { InvoiceItem } from "@/keeperhub/lib/billing/provider";
 
 type InvoiceResponse = {
@@ -85,7 +86,7 @@ export function BillingHistory(): React.ReactElement {
         params.set("startingAfter", startingAfter);
       }
 
-      const response = await fetch(`/api/billing/invoices?${params}`);
+      const response = await fetch(`${BILLING_API.INVOICES}?${params}`);
       if (!response.ok) {
         return;
       }
