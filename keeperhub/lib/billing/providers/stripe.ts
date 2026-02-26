@@ -1,0 +1,437 @@
+import type Stripe from "stripe";
+import { stripe } from "@/keeperhub/lib/stripe";
+import type {
+  BillingProvider,
+  BillingWebhookEvent,
+  CreateCheckoutParams,
+  CreateCustomerParams,
+  InvoiceItem,
+  ListInvoicesParams,
+  ListInvoicesResult,
+  ProrationPreview,
+  SubscriptionDetails,
+} from "../provider";
+
+const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+
+const EVENT_TYPE_MAP: Record<string, BillingWebhookEvent["type"] | undefined> =
+  {
+    "checkout.session.completed": "checkout.completed",
+    "customer.subscription.updated": "subscription.updated",
+    "customer.subscription.deleted": "subscription.deleted",
+    "invoice.paid": "invoice.paid",
+    "invoice.payment_failed": "invoice.payment_failed",
+    "invoice.overdue": "invoice.overdue",
+    "invoice.payment_action_required": "invoice.payment_action_required",
+  };
+
+function getSubscriptionPeriod(subscription: Stripe.Subscription): {
+  start: Date;
+  end: Date | null;
+} {
+  const start = new Date(subscription.start_date * 1000);
+  const end = subscription.cancel_at
+    ? new Date(subscription.cancel_at * 1000)
+    : null;
+  return { start, end };
+}
+
+function getSubscriptionIdFromInvoice(
+  invoice: Stripe.Invoice
+): string | undefined {
+  const parent = invoice.parent;
+  if (
+    parent !== null &&
+    parent !== undefined &&
+    "subscription_details" in parent &&
+    parent.subscription_details !== null &&
+    parent.subscription_details !== undefined
+  ) {
+    const details = parent.subscription_details as {
+      subscription?: string;
+    };
+    return details.subscription ?? undefined;
+  }
+  return undefined;
+}
+
+function normalizeCheckoutEvent(
+  event: Stripe.Event,
+  session: Stripe.Checkout.Session
+): BillingWebhookEvent {
+  const subscriptionId =
+    typeof session.subscription === "string"
+      ? session.subscription
+      : session.subscription?.id;
+
+  return {
+    type: "checkout.completed",
+    providerEventId: event.id,
+    data: {
+      organizationId: session.metadata?.organizationId ?? undefined,
+      providerSubscriptionId: subscriptionId ?? undefined,
+    },
+  };
+}
+
+function normalizeSubscriptionEvent(
+  event: Stripe.Event,
+  subscription: Stripe.Subscription,
+  type: "subscription.updated" | "subscription.deleted"
+): BillingWebhookEvent {
+  const priceId = subscription.items.data[0]?.price.id;
+  const period = getSubscriptionPeriod(subscription);
+
+  return {
+    type,
+    providerEventId: event.id,
+    data: {
+      providerSubscriptionId: subscription.id,
+      status: subscription.status,
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      periodStart: period.start,
+      periodEnd: period.end,
+      priceId,
+    },
+  };
+}
+
+function normalizeInvoiceEvent(
+  event: Stripe.Event,
+  invoice: Stripe.Invoice,
+  type: BillingWebhookEvent["type"]
+): BillingWebhookEvent {
+  return {
+    type,
+    providerEventId: event.id,
+    data: {
+      providerSubscriptionId: getSubscriptionIdFromInvoice(invoice),
+      invoiceUrl: invoice.hosted_invoice_url ?? undefined,
+    },
+  };
+}
+
+// Strip Stripe's verbose line item formatting:
+// "1 × Plan Name (at $49.00 / month)" → "Plan Name"
+const QUANTITY_PREFIX_RE = /^\d+\s*[x×]\s*/i;
+const PRICE_SUFFIX_RE = /\s*\(at\s+\$[\d,.]+\s*\/\s*\w+\)\s*$/;
+
+function isProrationLine(line: Stripe.InvoiceLineItem): boolean {
+  return (
+    line.parent?.subscription_item_details?.proration ??
+    line.parent?.invoice_item_details?.proration ??
+    false
+  );
+}
+
+function summarizeInvoiceLines(lines: Stripe.InvoiceLineItem[]): string {
+  if (lines.length === 0) {
+    return "Subscription";
+  }
+
+  const hasProration = lines.some(isProrationLine);
+
+  const planLine =
+    lines.find((line) => !isProrationLine(line) && line.amount > 0) ??
+    lines.at(-1);
+
+  const rawDesc = planLine?.description ?? "Subscription";
+  const cleaned = rawDesc
+    .replace(QUANTITY_PREFIX_RE, "")
+    .replace(PRICE_SUFFIX_RE, "")
+    .trim();
+
+  if (hasProration) {
+    return `Plan change: ${cleaned}`;
+  }
+
+  return cleaned;
+}
+
+function mapStripeInvoice(inv: Stripe.Invoice): InvoiceItem {
+  const description = summarizeInvoiceLines(inv.lines.data);
+
+  const createdMs = inv.created * 1000;
+  let periodStartMs = createdMs;
+  let periodEndMs = createdMs;
+  for (const line of inv.lines.data) {
+    if (line.period.start) {
+      const startMs = line.period.start * 1000;
+      if (startMs < periodStartMs) {
+        periodStartMs = startMs;
+      }
+    }
+    if (line.period.end) {
+      const endMs = line.period.end * 1000;
+      if (endMs > periodEndMs) {
+        periodEndMs = endMs;
+      }
+    }
+  }
+
+  return {
+    id: inv.id,
+    date: new Date(createdMs),
+    amount: inv.amount_paid,
+    currency: inv.currency,
+    status: (inv.status ?? "draft") as InvoiceItem["status"],
+    description,
+    periodStart: new Date(periodStartMs),
+    periodEnd: new Date(periodEndMs),
+    invoiceUrl: inv.hosted_invoice_url ?? null,
+    pdfUrl: inv.invoice_pdf ?? null,
+  };
+}
+
+export class StripeBillingProvider implements BillingProvider {
+  readonly name = "stripe";
+
+  async createCustomer(
+    params: CreateCustomerParams
+  ): Promise<{ customerId: string }> {
+    const customer = await stripe.customers.create({
+      email: params.email,
+      metadata: {
+        organizationId: params.organizationId,
+        userId: params.userId,
+      },
+    });
+    return { customerId: customer.id };
+  }
+
+  async createCheckoutSession(
+    params: CreateCheckoutParams
+  ): Promise<{ url: string }> {
+    const session = await stripe.checkout.sessions.create({
+      customer: params.customerId,
+      mode: "subscription",
+      line_items: [{ price: params.priceId, quantity: 1 }],
+      success_url: params.successUrl,
+      cancel_url: params.cancelUrl,
+      metadata: {
+        organizationId: params.organizationId,
+      },
+    });
+
+    if (!session.url) {
+      throw new Error("Stripe checkout session did not return a URL");
+    }
+
+    return { url: session.url };
+  }
+
+  async createPortalSession(
+    customerId: string,
+    returnUrl: string
+  ): Promise<{ url: string }> {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: returnUrl,
+    });
+    return { url: session.url };
+  }
+
+  // biome-ignore lint/suspicious/useAwait: must be async to satisfy BillingProvider interface contract
+  async verifyWebhook(
+    body: string,
+    signature: string
+  ): Promise<BillingWebhookEvent> {
+    if (!WEBHOOK_SECRET) {
+      throw new Error("STRIPE_WEBHOOK_SECRET not configured");
+    }
+
+    const event = stripe.webhooks.constructEvent(
+      body,
+      signature,
+      WEBHOOK_SECRET
+    );
+
+    const normalizedType = EVENT_TYPE_MAP[event.type];
+    if (!normalizedType) {
+      throw new UnknownEventTypeError(event.type, event.id);
+    }
+
+    switch (event.type) {
+      case "checkout.session.completed":
+        return normalizeCheckoutEvent(event, event.data.object);
+
+      case "customer.subscription.updated":
+        return normalizeSubscriptionEvent(
+          event,
+          event.data.object,
+          "subscription.updated"
+        );
+
+      case "customer.subscription.deleted":
+        return normalizeSubscriptionEvent(
+          event,
+          event.data.object,
+          "subscription.deleted"
+        );
+
+      case "invoice.paid":
+      case "invoice.payment_failed":
+      case "invoice.overdue":
+      case "invoice.payment_action_required":
+        return normalizeInvoiceEvent(event, event.data.object, normalizedType);
+
+      default:
+        throw new UnknownEventTypeError(event.type, event.id);
+    }
+  }
+
+  async listInvoices(params: ListInvoicesParams): Promise<ListInvoicesResult> {
+    const listParams: Stripe.InvoiceListParams = {
+      customer: params.customerId,
+      limit: params.limit,
+      status: "paid",
+    };
+
+    if (params.startingAfter) {
+      listParams.starting_after = params.startingAfter;
+    }
+
+    const list = await stripe.invoices.list(listParams);
+
+    const invoices: InvoiceItem[] = list.data.map(mapStripeInvoice);
+
+    return { invoices, hasMore: list.has_more };
+  }
+
+  async updateSubscription(
+    subscriptionId: string,
+    newPriceId: string
+  ): Promise<{ subscriptionId: string }> {
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const currentItemId = subscription.items.data[0]?.id;
+    const oldPriceId = subscription.items.data[0]?.price.id;
+
+    if (!currentItemId) {
+      throw new Error("No subscription item found to update");
+    }
+
+    const currentInterval =
+      subscription.items.data[0]?.price.recurring?.interval;
+    const newPrice = await stripe.prices.retrieve(newPriceId);
+    const intervalChanging = currentInterval !== newPrice.recurring?.interval;
+
+    console.log(
+      `[Stripe] Updating subscription ${subscriptionId}: price ${oldPriceId} -> ${newPriceId} intervalChange=${String(intervalChanging)}`
+    );
+
+    const updated = await stripe.subscriptions.update(subscriptionId, {
+      items: [{ id: currentItemId, price: newPriceId }],
+      proration_behavior: "always_invoice",
+      payment_behavior: "error_if_incomplete",
+      cancel_at_period_end: false,
+      ...(intervalChanging && { billing_cycle_anchor: "now" as const }),
+    });
+
+    console.log(
+      `[Stripe] Subscription ${updated.id} updated: old_price=${oldPriceId} new_price=${newPriceId}`
+    );
+
+    return { subscriptionId: updated.id };
+  }
+
+  async cancelSubscription(
+    subscriptionId: string
+  ): Promise<{ cancelAtPeriodEnd: boolean; periodEnd: Date | null }> {
+    const updated = await stripe.subscriptions.update(subscriptionId, {
+      cancel_at_period_end: true,
+    });
+    const currentPeriodEnd = updated.items.data[0]?.current_period_end;
+    const periodEnd = currentPeriodEnd
+      ? new Date(currentPeriodEnd * 1000)
+      : null;
+    return {
+      cancelAtPeriodEnd: updated.cancel_at_period_end,
+      periodEnd,
+    };
+  }
+
+  async getSubscriptionDetails(
+    subscriptionId: string
+  ): Promise<SubscriptionDetails> {
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const priceId = subscription.items.data[0]?.price.id;
+    const period = getSubscriptionPeriod(subscription);
+
+    return {
+      priceId,
+      status: subscription.status,
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      periodStart: period.start,
+      periodEnd: period.end,
+    };
+  }
+
+  async previewProration(
+    subscriptionId: string,
+    newPriceId: string
+  ): Promise<ProrationPreview> {
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const currentItemId = subscription.items.data[0]?.id;
+
+    if (!currentItemId) {
+      throw new Error("No subscription item found to preview");
+    }
+
+    const currentInterval =
+      subscription.items.data[0]?.price.recurring?.interval;
+    const newPrice = await stripe.prices.retrieve(newPriceId);
+    const intervalChanging = currentInterval !== newPrice.recurring?.interval;
+
+    const preview = await stripe.invoices.createPreview({
+      subscription: subscriptionId,
+      subscription_details: {
+        items: [{ id: currentItemId, price: newPriceId }],
+        proration_behavior: "always_invoice",
+        // When intervals differ, billing_cycle_anchor resets to "now" during
+        // the actual update, so omit proration_date to let Stripe calculate
+        // from the anchor reset. For same-interval changes, pin to now.
+        ...(!intervalChanging && {
+          proration_date: Math.floor(Date.now() / 1000),
+        }),
+      },
+    });
+
+    const period = preview.period_end
+      ? new Date(preview.period_end * 1000)
+      : null;
+
+    const lineItems: ProrationPreview["lineItems"] = [];
+    let prorationTotal = 0;
+    for (const line of preview.lines.data) {
+      const isProration =
+        line.parent?.subscription_item_details?.proration ??
+        line.parent?.invoice_item_details?.proration ??
+        false;
+      lineItems.push({
+        description: line.description ?? "",
+        amount: line.amount,
+        proration: isProration,
+      });
+      prorationTotal += line.amount;
+    }
+
+    return {
+      amountDue: prorationTotal,
+      currency: preview.currency,
+      periodEnd: period,
+      lineItems,
+    };
+  }
+}
+
+export class UnknownEventTypeError extends Error {
+  readonly eventType: string;
+  readonly eventId: string;
+
+  constructor(eventType: string, eventId: string) {
+    super(`Unhandled webhook event type: ${eventType}`);
+    this.name = "UnknownEventTypeError";
+    this.eventType = eventType;
+    this.eventId = eventId;
+  }
+}
