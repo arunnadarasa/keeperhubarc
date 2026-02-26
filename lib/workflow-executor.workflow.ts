@@ -46,6 +46,11 @@ import type { StepContext } from "./steps/step-handler";
 import { triggerStep } from "./steps/trigger";
 import { deserializeEventTriggerData, getErrorMessageAsync } from "./utils";
 import type { WorkflowEdge, WorkflowNode } from "./workflow-store";
+import { db } from "@/lib/db";
+import { explorerConfigs } from "@/lib/db/schema";
+import { getAddressUrl, getTransactionUrl } from "@/lib/explorer";
+import { getChainIdFromNetwork } from "@/lib/rpc";
+import { eq } from "drizzle-orm";
 
 // end keeperhub code //
 
@@ -1661,6 +1666,36 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
               ...triggerData,
               ...deserialized,
             };
+
+            // Enrich event data with explorer links so the execution log UI
+            // can render clickable transaction/address links
+            if (config.network) {
+              try {
+                const chainId = getChainIdFromNetwork(
+                  config.network as string | number
+                );
+                const explorerConfig =
+                  await db.query.explorerConfigs.findFirst({
+                    where: eq(explorerConfigs.chainId, chainId),
+                  });
+                if (explorerConfig) {
+                  if (typeof triggerData.transactionHash === "string") {
+                    triggerData.transactionLink = getTransactionUrl(
+                      explorerConfig,
+                      triggerData.transactionHash
+                    );
+                  }
+                  if (typeof triggerData.address === "string") {
+                    triggerData.addressLink = getAddressUrl(
+                      explorerConfig,
+                      triggerData.address
+                    );
+                  }
+                }
+              } catch {
+                // Non-critical: skip explorer links if lookup fails
+              }
+            }
           } else {
             // For other trigger types, use as-is
             triggerData = { ...triggerData, ...triggerInput };
