@@ -674,17 +674,20 @@ async function fetchWorkflowRuns(
   const logSummary = db
     .select({
       executionId: workflowExecutionLogs.executionId,
-      gasUsedWei: sql<string>`COALESCE(SUM(CAST(${logOutputField("gasUsed")} AS NUMERIC)), 0)::text`,
+      gasUsedWei:
+        sql<string>`COALESCE(SUM(CAST(${logOutputField("gasUsed")} AS NUMERIC)), 0)::text`.as(
+          "gasUsedWei"
+        ),
       network: sql<string | null>`MIN(
         CASE WHEN ${logOutputField("gasUsed")} IS NOT NULL
         THEN ${logInputField("network")}
         END
-      )`,
+      )`.as("network"),
       transactionHash: sql<string | null>`MIN(
         CASE WHEN ${logOutputField("transactionHash")} IS NOT NULL
         THEN ${logOutputField("transactionHash")}
         END
-      )`,
+      )`.as("transactionHash"),
     })
     .from(workflowExecutionLogs)
     .where(

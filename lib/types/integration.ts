@@ -26,7 +26,6 @@ export type IntegrationType =
   | "protocol"
   | "resend"
   | "safe"
-  | "safe-wallet"
   | "sendgrid"
   | "sky"
   | "slack"

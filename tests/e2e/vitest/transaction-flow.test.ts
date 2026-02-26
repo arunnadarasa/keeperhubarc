@@ -645,7 +645,7 @@ describe.skipIf(shouldSkip)("Transaction Flow with Real RPC", () => {
  * pnpm test:e2e tests/e2e/transaction-flow.test.ts
  */
 const TEST_ORG_SLUG = "e2e-test-org";
-const skipRealTx = shouldSkip || !process.env.PARA_API_KEY;
+const skipRealTx = shouldSkip || !process.env.PARA_API_KEY || !!process.env.CI;
 
 describe.skipIf(skipRealTx)("Real Transaction Tests (Sepolia)", () => {
   let client: ReturnType<typeof postgres>;

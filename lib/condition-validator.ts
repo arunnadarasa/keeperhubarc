@@ -8,6 +8,7 @@
  * - Template variables: {{@nodeId:Label.field}} (replaced with safe __v0, __v1, etc.)
  * - Comparison operators: ===, !==, ==, !=, >, <, >=, <=
  * - Logical operators: &&, ||, !
+ * - Arithmetic operators: +, -, *, /, %, **
  * - Grouping: ( )
  * - Literals: strings ('...', "..."), numbers, true, false, null, undefined
  * - Property access on variables: __v0.property, __v0[0], __v0["key"]
@@ -94,7 +95,8 @@ const VARIABLE_TOKEN_PATTERN = /^__v\d+/;
 const STRING_TOKEN_PATTERN = /^['"]/;
 const NUMBER_TOKEN_PATTERN = /^\d/;
 const LITERAL_TOKEN_PATTERN = /^(true|false|null|undefined)$/;
-const OPERATOR_TOKEN_PATTERN = /^(===|!==|==|!=|>=|<=|>|<|&&|\|\||!|\(|\))$/;
+const OPERATOR_TOKEN_PATTERN =
+  /^(===|!==|==|!=|>=|<=|>|<|&&|\|\||\*\*|!|\(|\))$/;
 const IDENTIFIER_TOKEN_PATTERN = /^[a-zA-Z_]\w*$/;
 
 // start custom keeperhub code
@@ -106,10 +108,10 @@ const STRING_LITERAL_PATTERN = /^(['"])(?:(?<!\\)\\.|(?!\1).)*\1/;
 const NUMBER_PATTERN = /^\d+(\.\d+)?/;
 const IDENTIFIER_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*/;
 const OPERATOR_BEFORE_PATTERN =
-  /(===|!==|==|!=|>=|<=|>|<|&&|\|\||\+|-|\*|\/|%|!)$/;
+  /(===|!==|==|!=|>=|<=|>|<|&&|\|\||\*\*|\+|-|\*|\/|%|!)$/;
 const OPERATOR_AFTER_PATTERN =
-  /^(===|!==|==|!=|>=|<=|>|<|&&|\|\||\+|-|\*|\/|%|!)/;
-const OPERATOR_PATTERN = /(===|!==|==|!=|>=|<=|>|<|&&|\|\||\+|-|\*|\/|%)/g;
+  /^(===|!==|==|!=|>=|<=|>|<|&&|\|\||\*\*|\+|-|\*|\/|%|!)/;
+const OPERATOR_PATTERN = /(===|!==|==|!=|>=|<=|>|<|&&|\|\||\*\*|\+|-|\*|\/|%)/g;
 const OPERATOR_CHAR_PATTERN = /[=!<>&|+\-*/%]/;
 const WHITESPACE_TEST_PATTERN = /\s/;
 // end keeperhub code
@@ -404,11 +406,13 @@ const VALID_OPERATORS_UI = new Set([
   "&&",
   "||",
   "!",
+  "**",
   "+",
   "-",
   "*",
   "/",
   "%",
+  ".",
 ]);
 
 const BINARY_OPERATORS_UI = new Set([
@@ -422,6 +426,7 @@ const BINARY_OPERATORS_UI = new Set([
   "<",
   "&&",
   "||",
+  "**",
   "+",
   "-",
   "*",
@@ -471,7 +476,17 @@ function tokenizeExpression(
     }
 
     // Multi-character operators (check longest first)
-    const multiCharOps = ["===", "!==", "==", "!=", ">=", "<=", "&&", "||"];
+    const multiCharOps = [
+      "===",
+      "!==",
+      "==",
+      "!=",
+      ">=",
+      "<=",
+      "&&",
+      "||",
+      "**",
+    ];
     let matched = false;
     for (const op of multiCharOps) {
       if (expression.slice(i).startsWith(op)) {
@@ -491,7 +506,9 @@ function tokenizeExpression(
 
     // Single character operators
     if (
-      ["!", ">", "<", "(", ")", "+", "-", "*", "/", "%"].includes(expression[i])
+      ["!", ">", "<", "(", ")", "+", "-", "*", "/", "%", "."].includes(
+        expression[i]
+      )
     ) {
       tokens.push({
         type: "operator",

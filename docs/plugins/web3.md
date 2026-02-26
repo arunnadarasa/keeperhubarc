@@ -20,6 +20,7 @@ Interact with EVM-compatible blockchain networks. Read-only actions work without
 | Transfer Native Token | Web3 | Wallet | Send ETH/MATIC/etc. to a recipient |
 | Transfer ERC20 Token | Web3 | Wallet | Send ERC20 tokens to a recipient |
 | Query Contract Events | Web3 | No | Query historical smart contract events across a block range |
+| Query Transaction History | Web3 | No | Query historical transactions by function call with optional argument filtering |
 | Decode Calldata | Security | No | Decode raw calldata into human-readable function calls |
 | Assess Transaction Risk | Security | No | AI-powered risk scoring with built-in DeFi rules |
 
@@ -383,6 +384,65 @@ Schedule (every hour)
 Schedule (daily)
   -> Query Contract Events: Governor contract, event "VoteCast", Block Lookback 7200
   -> SendGrid: "{{QueryEvents.eventCount}} votes cast today"
+```
+
+---
+
+## Query Transaction History
+
+Query historical transactions sent to a contract address, filtered by function call and optionally by argument values. Uses block explorer APIs (Etherscan/Blockscout) to find transactions, then decodes their calldata using the provided ABI. Useful when the target contract does not emit events for certain function calls.
+
+**Inputs:**
+
+| Input | Required | Description |
+|-------|----------|-------------|
+| Network | Yes | EVM chain to query |
+| Contract Address | Yes | Target contract address |
+| ABI | Yes | Contract ABI (auto-fetched from block explorer) |
+| Function | Yes | Function name to filter by (selected from ABI) |
+| Function Arguments | No | Argument values to match. Empty args act as wildcards -- leave all empty to return all calls to the selected function |
+| Block Lookback | No | Number of blocks to scan back from To Block (default: 6500). Ignored if From Block is set |
+| From Block | No | Explicit start block (overrides Block Lookback) |
+| To Block | No | End block number (default: latest) |
+
+**Outputs:** `success`, `transactions` (array of decoded transaction objects), `fromBlock`, `toBlock`, `totalFetched`, `matchCount`, `contractAddressLink`, `error`
+
+Each transaction in the `transactions` array contains:
+- `hash` -- transaction hash
+- `from` -- sender address
+- `to` -- contract address
+- `value` -- ETH value sent
+- `blockNumber` -- block number
+- `timestamp` -- block timestamp
+- `functionName` -- decoded function name
+- `functionSignature` -- full function signature
+- `args` -- decoded named arguments as key-value pairs
+- `transactionLink` -- block explorer link
+
+**How it works:**
+
+1. Resolves the block range from inputs (either explicit From/To or lookback from latest)
+2. Fetches all transactions to the contract via block explorer API (Etherscan `txlist` or Blockscout equivalent)
+3. Decodes each transaction's calldata using the provided ABI
+4. Filters to only transactions calling the selected function
+5. If argument values are provided, matches decoded args against filter values (case-insensitive, empty = wildcard)
+
+**When to use:** Query on-chain activity for contracts that don't emit events for certain operations, audit historical function calls, monitor specific contract interactions over a block range.
+
+**Example workflow -- Monitor specific function calls:**
+```
+Schedule (every hour)
+  -> Query Transaction History: contract 0xVault, function "deposit", Block Lookback 300
+  -> Condition: matchCount > 0
+  -> Discord: "{{QueryTx.matchCount}} deposits in the last hour"
+```
+
+**Example workflow -- Filter by argument value:**
+```
+Schedule (every 15 min)
+  -> Query Transaction History: contract 0xEngine, function "lock", args: ["", "0xSpecificUrn"]
+  -> Condition: matchCount > 0
+  -> SendGrid: "{{QueryTx.matchCount}} lock() calls to urn 0xSpecificUrn"
 ```
 
 ---

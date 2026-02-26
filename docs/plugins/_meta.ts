@@ -4,7 +4,6 @@ export default {
   code: "Code",
   math: "Math",
   safe: "Safe",
-  "safe-wallet": "Safe Wallet",
   ajna: "Ajna",
   pendle: "Pendle",
   sky: "Sky",

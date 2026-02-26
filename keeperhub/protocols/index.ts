@@ -19,7 +19,7 @@ import { registerIntegration } from "@/plugins/registry";
 
 import ajnaDef from "./ajna";
 import pendleDef from "./pendle";
-import safeWalletDef from "./safe-wallet";
+import safeDef from "./safe";
 import skyDef from "./sky";
 import wethDef from "./weth";
 
@@ -27,8 +27,8 @@ registerProtocol(ajnaDef);
 registerIntegration(protocolToPlugin(ajnaDef));
 registerProtocol(pendleDef);
 registerIntegration(protocolToPlugin(pendleDef));
-registerProtocol(safeWalletDef);
-registerIntegration(protocolToPlugin(safeWalletDef));
+registerProtocol(safeDef);
+registerIntegration(protocolToPlugin(safeDef));
 registerProtocol(skyDef);
 registerIntegration(protocolToPlugin(skyDef));
 registerProtocol(wethDef);

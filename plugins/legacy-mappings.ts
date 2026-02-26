@@ -31,6 +31,16 @@ export const LEGACY_ACTION_MAPPINGS: Record<string, string> = {
   "Create Chat": "v0/create-chat",
   "Send Message": "v0/send-message",
 
+  // Safe: backward compatibility for workflows created before the safe-wallet
+  // protocol was renamed to safe.
+  "safe-wallet/get-owners": "safe/get-owners",
+  "safe-wallet/get-threshold": "safe/get-threshold",
+  "safe-wallet/is-owner": "safe/is-owner",
+  "safe-wallet/get-nonce": "safe/get-nonce",
+  "safe-wallet/is-module-enabled": "safe/is-module-enabled",
+  "safe-wallet/get-modules-paginated": "safe/get-modules-paginated",
+  "safe-wallet/get-pending-transactions": "safe/get-pending-transactions",
+
   // Web3
   "Check Balance": "web3/check-balance",
   "Transfer Funds": "web3/transfer-funds",
