@@ -30,9 +30,8 @@ function getSubscriptionPeriod(subscription: Stripe.Subscription): {
   end: Date | null;
 } {
   const start = new Date(subscription.start_date * 1000);
-  const end = subscription.cancel_at
-    ? new Date(subscription.cancel_at * 1000)
-    : null;
+  const currentPeriodEnd = subscription.items.data[0]?.current_period_end;
+  const end = currentPeriodEnd ? new Date(currentPeriodEnd * 1000) : null;
   return { start, end };
 }
 
@@ -82,13 +81,16 @@ function normalizeSubscriptionEvent(
   const priceId = subscription.items.data[0]?.price.id;
   const period = getSubscriptionPeriod(subscription);
 
+  const cancelAtPeriodEnd =
+    subscription.cancel_at_period_end || subscription.cancel_at !== null;
+
   return {
     type,
     providerEventId: event.id,
     data: {
       providerSubscriptionId: subscription.id,
       status: subscription.status,
-      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      cancelAtPeriodEnd,
       periodStart: period.start,
       periodEnd: period.end,
       priceId,
