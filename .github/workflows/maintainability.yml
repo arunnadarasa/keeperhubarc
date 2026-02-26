@@ -187,7 +187,9 @@ jobs:
                 .|./) continue ;;
                 *\**) continue ;;
               esac
-              if [ ! -e "$dir/$src" ]; then
+              # Check relative to Dockerfile dir first, then repo root
+              # (Dockerfiles may be built with a parent directory as context)
+              if [ ! -e "$dir/$src" ] && [ ! -e "./$src" ]; then
                 echo "::error file=$dockerfile::COPY/ADD source does not exist: $src"
                 failed=1
               fi
