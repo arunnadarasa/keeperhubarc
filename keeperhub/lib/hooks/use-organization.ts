@@ -1,7 +1,7 @@
 "use client";
 
 import { getDefaultStore } from "jotai";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { registerOrganizationRefetch } from "@/keeperhub/lib/refetch-organizations";
 import { refetchSidebar } from "@/keeperhub/lib/refetch-sidebar";
@@ -17,6 +17,7 @@ export function useOrganization() {
     refetch,
   } = authClient.useActiveOrganization();
   const router = useRouter();
+  const pathname = usePathname();
 
   // Register this hook's refetch callback so it can be triggered externally
   useEffect(
@@ -33,6 +34,15 @@ export function useOrganization() {
     // Reset workflow state only after org switch succeeds (safe in hook context)
     getDefaultStore().set(resetWorkflowStateForOrgSwitchAtom);
     refetchSidebar();
+
+    const isWorkflowPage =
+      pathname === "/" || pathname.startsWith("/workflows");
+
+    if (!isWorkflowPage) {
+      router.refresh();
+      return;
+    }
+
     try {
       const list = await api.workflow.getAll();
       // Sort by createdAt descending to get the most recent workflow
