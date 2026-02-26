@@ -9,6 +9,7 @@ import type {
   PlanName,
   TierKey,
 } from "@/keeperhub/lib/billing/plans";
+import { useOrganization } from "@/keeperhub/lib/hooks/use-organization";
 import { BillingHistory } from "./billing-history";
 import { BillingStatus } from "./billing-status";
 import { PricingTable } from "./pricing-table";
@@ -23,6 +24,8 @@ type SubscriptionResponse = {
 
 export function BillingPage(): React.ReactElement {
   const searchParams = useSearchParams();
+  const { organization } = useOrganization();
+  const orgId = organization?.id;
   const [currentPlan, setCurrentPlan] = useState<PlanName>("free");
   const [currentTier, setCurrentTier] = useState<TierKey | null>(null);
   const [currentInterval, setCurrentInterval] =
@@ -54,9 +57,14 @@ export function BillingPage(): React.ReactElement {
     }
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: orgId intentionally triggers re-fetch on org switch
   useEffect(() => {
+    setCurrentPlan("free");
+    setCurrentTier(null);
+    setCurrentInterval(null);
+    setRefreshKey((k) => k + 1);
     fetchPlan().catch(() => undefined);
-  }, [fetchPlan]);
+  }, [fetchPlan, orgId]);
 
   async function handlePlanUpdated(): Promise<void> {
     await fetchPlan();
