@@ -234,20 +234,6 @@ export function BillingStatus(): React.ReactElement {
             <Skeleton className="h-5 w-16 rounded-full" />
           </div>
           <Skeleton className="h-4 w-72" />
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-5 w-24" />
-            </div>
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-5 w-16" />
-            </div>
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-5 w-16" />
-            </div>
-          </div>
         </CardContent>
       </Card>
     );
