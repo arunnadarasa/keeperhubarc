@@ -222,12 +222,20 @@ function buildTxListParams(
   return `${apiUrl}?${params}`;
 }
 
+function isEmptyTxListResult(data: EtherscanTxListResponse): boolean {
+  if (typeof data.result !== "string") {
+    return false;
+  }
+  const lower = data.result.toLowerCase();
+  return (
+    lower.includes("no transactions found") ||
+    lower.includes("no records found")
+  );
+}
+
 function parseTxListResponse(data: EtherscanTxListResponse): TxPageResult {
   if (data.status !== "1") {
-    const isEmptyResult =
-      typeof data.result === "string" &&
-      data.result.toLowerCase().includes("no transactions found");
-    if (isEmptyResult) {
+    if (isEmptyTxListResult(data)) {
       return { done: true, transactions: [] };
     }
     const errorMessage = parseEtherscanError(
