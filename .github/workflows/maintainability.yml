@@ -162,15 +162,10 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Lint Dockerfiles
-        run: |
-          failed=0
-          for dockerfile in $(find . -name "Dockerfile" -not -path "./node_modules/*" -not -path "./.git/*"); do
-            echo "=== $dockerfile ==="
-            if ! docker run --rm -i -v "$PWD/.hadolint.yaml:/.config/hadolint.yaml" hadolint/hadolint hadolint --failure-threshold warning - < "$dockerfile"; then
-              failed=1
-            fi
-          done
-          exit $failed
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          recursive: true
+          failure-threshold: warning
 
   dockerfile-sources:
     name: Dockerfile COPY Validation
@@ -184,21 +179,19 @@ jobs:
           for dockerfile in $(find . -name "Dockerfile" -not -path "./node_modules/*" -not -path "./.git/*"); do
             dir=$(dirname "$dockerfile")
             echo "=== $dockerfile (context: $dir) ==="
-            grep -E "^(COPY|ADD)" "$dockerfile" \
-              | grep -v "\-\-from=" \
-              | while read -r instruction; do
-                  # Extract source (second token, skip flags like --chown)
-                  src=$(echo "$instruction" | sed 's/^[A-Z]* //' | sed 's/--[a-z]*=[^ ]* //g' | awk '{print $1}')
-                  # Skip wildcards and current directory
-                  case "$src" in
-                    .|./) continue ;;
-                    *\**) continue ;;
-                  esac
-                  if [ ! -e "$dir/$src" ]; then
-                    echo "::error file=$dockerfile::COPY/ADD source does not exist: $src"
-                    failed=1
-                  fi
-                done
+            while read -r instruction; do
+              # Extract source (second token, skip flags like --chown)
+              src=$(echo "$instruction" | sed 's/^[A-Z]* //' | sed 's/--[a-z]*=[^ ]* //g' | awk '{print $1}')
+              # Skip wildcards and current directory
+              case "$src" in
+                .|./) continue ;;
+                *\**) continue ;;
+              esac
+              if [ ! -e "$dir/$src" ]; then
+                echo "::error file=$dockerfile::COPY/ADD source does not exist: $src"
+                failed=1
+              fi
+            done < <(grep -E "^(COPY|ADD)" "$dockerfile" | grep -v "\-\-from=")
           done
           exit $failed
 
@@ -216,9 +209,8 @@ jobs:
           # Extract vars used in code (excluding node_modules, .next, test files)
           grep -rhoP 'process\.env\.([A-Z_][A-Z0-9_]*)' \
             --include="*.ts" --include="*.tsx" --include="*.js" --include="*.mjs" \
+            --exclude-dir=node_modules --exclude-dir=.next \
             . 2>/dev/null \
-            | grep -v node_modules \
-            | grep -v .next \
             | sed 's/process\.env\.//' \
             | sort -u > /tmp/env-used
 
