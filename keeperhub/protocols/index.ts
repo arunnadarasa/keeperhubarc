@@ -8,7 +8,7 @@
  * This ensures the protocol registry is populated when the Next.js
  * server starts (via the plugin import chain).
  *
- * Registered protocols: ajna, safe, sky, weth
+ * Registered protocols: ajna, pendle, safe-wallet, sky, weth
  */
 
 import {
@@ -18,12 +18,15 @@ import {
 import { registerIntegration } from "@/plugins/registry";
 
 import ajnaDef from "./ajna";
+import pendleDef from "./pendle";
 import safeDef from "./safe";
 import skyDef from "./sky";
 import wethDef from "./weth";
 
 registerProtocol(ajnaDef);
 registerIntegration(protocolToPlugin(ajnaDef));
+registerProtocol(pendleDef);
+registerIntegration(protocolToPlugin(pendleDef));
 registerProtocol(safeDef);
 registerIntegration(protocolToPlugin(safeDef));
 registerProtocol(skyDef);

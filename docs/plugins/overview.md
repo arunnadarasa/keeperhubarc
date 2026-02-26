@@ -16,6 +16,7 @@ Plugins provide the actions available in your workflows. Each plugin adds one or
 | [Math](/plugins/math) | Math | Aggregation operations (sum, count, average, median, min, max, product) | None |
 | [Safe](/plugins/safe) | Protocol | Safe multisig owners, threshold, nonce, module status, pending transactions | API key (for pending txs) |
 | [Ajna](/plugins/ajna) | Protocol | Liquidation keeper operations, vault rebalancing, buffer management | Wallet (for writes) |
+| [Pendle](/plugins/pendle) | Protocol | Yield tokenization, market data, PT/YT/SY balances, mint/redeem | Wallet (for writes) |
 | [Sky](/plugins/sky) | Protocol | USDS savings, token balances, approvals, DAI/MKR converters | Wallet (for writes) |
 | [Discord](/plugins/discord) | Notifications | Send messages to channels | Webhook URL |
 | [Telegram](/plugins/telegram) | Notifications | Send messages to chats | Bot token |
