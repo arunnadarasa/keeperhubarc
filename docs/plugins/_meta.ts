@@ -5,6 +5,7 @@ export default {
   math: "Math",
   safe: "Safe",
   ajna: "Ajna",
+  pendle: "Pendle",
   sky: "Sky",
   discord: "Discord",
   telegram: "Telegram",
