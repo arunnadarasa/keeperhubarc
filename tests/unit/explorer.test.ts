@@ -7,8 +7,16 @@ import {
   getContractUrl,
   getTransactionUrl,
 } from "@/lib/explorer";
-import { fetchBlockscoutAbi } from "@/lib/explorer/blockscout";
-import { fetchEtherscanAbi } from "@/lib/explorer/etherscan";
+import {
+  type BlockscoutTransaction,
+  fetchBlockscoutAbi,
+  fetchBlockscoutTransactions,
+} from "@/lib/explorer/blockscout";
+import {
+  type EtherscanTransaction,
+  fetchEtherscanAbi,
+  fetchEtherscanTransactions,
+} from "@/lib/explorer/etherscan";
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -572,6 +580,648 @@ describe("explorer", () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe("Failed to fetch ABI from Blockscout");
+    });
+  });
+
+  describe("fetchEtherscanTransactions", () => {
+    const apiUrl = "https://api.etherscan.io/v2/api";
+    const chainId = 1;
+    const contractAddress = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
+    const startBlock = 100;
+    const endBlock = 999_999;
+
+    function createEtherscanTxResponse(
+      transactions: Partial<EtherscanTransaction>[],
+      status = "1"
+    ): {
+      status: string;
+      message: string;
+      result: EtherscanTransaction[];
+    } {
+      return {
+        status,
+        message: status === "1" ? "OK" : "NOTOK",
+        result: transactions.map((tx) => ({
+          hash: tx.hash ?? "0xtx1",
+          from: tx.from ?? "0xsender",
+          to: tx.to ?? "0xcontract",
+          value: tx.value ?? "0",
+          input: tx.input ?? "0x",
+          blockNumber: tx.blockNumber ?? "100",
+          timeStamp: tx.timeStamp ?? "1700000000",
+          isError: tx.isError ?? "0",
+          functionName: tx.functionName ?? "transfer(address,uint256)",
+        })),
+      };
+    }
+
+    function mockFetchJsonResponse(data: unknown): {
+      ok: boolean;
+      json: () => Promise<unknown>;
+    } {
+      return { ok: true, json: async () => data };
+    }
+
+    it("should return transactions for a single page of results", async () => {
+      const txs = [
+        { hash: "0xaaa", blockNumber: "200" },
+        { hash: "0xbbb", blockNumber: "300" },
+      ];
+      mockFetch.mockResolvedValueOnce(
+        mockFetchJsonResponse(createEtherscanTxResponse(txs))
+      );
+
+      const result = await fetchEtherscanTransactions(
+        apiUrl,
+        chainId,
+        contractAddress,
+        startBlock,
+        endBlock
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.transactions).toHaveLength(2);
+        expect(result.transactions[0].hash).toBe("0xaaa");
+        expect(result.transactions[1].hash).toBe("0xbbb");
+      }
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("should paginate when first page returns 10,000 results", async () => {
+      vi.useFakeTimers();
+
+      const fullPage = Array.from({ length: 10_000 }, (_, i) => ({
+        hash: `0xfull${i}`,
+        blockNumber: String(startBlock + i),
+      }));
+      const secondPage = [
+        { hash: "0xlast1", blockNumber: "20000" },
+        { hash: "0xlast2", blockNumber: "20001" },
+      ];
+
+      mockFetch.mockResolvedValueOnce(
+        mockFetchJsonResponse(createEtherscanTxResponse(fullPage))
+      );
+      mockFetch.mockResolvedValueOnce(
+        mockFetchJsonResponse(createEtherscanTxResponse(secondPage))
+      );
+
+      const resultPromise = fetchEtherscanTransactions(
+        apiUrl,
+        chainId,
+        contractAddress,
+        startBlock,
+        endBlock
+      );
+
+      // Advance past the delay between pages
+      await vi.advanceTimersByTimeAsync(250);
+
+      const result = await resultPromise;
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.transactions).toHaveLength(10_002);
+        expect(result.transactions[10_000].hash).toBe("0xlast1");
+      }
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      // Verify the second call has page=2
+      const secondCallUrl = mockFetch.mock.calls[1][0] as string;
+      expect(secondCallUrl).toContain("page=2");
+
+      vi.useRealTimers();
+    });
+
+    it("should return empty array for 'no transactions found' message", async () => {
+      mockFetch.mockResolvedValueOnce(
+        mockFetchJsonResponse({
+          status: "0",
+          message: "No transactions found",
+          result: "No transactions found",
+        })
+      );
+
+      const result = await fetchEtherscanTransactions(
+        apiUrl,
+        chainId,
+        contractAddress,
+        startBlock,
+        endBlock
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.transactions).toEqual([]);
+      }
+    });
+
+    it("should propagate API error message on failure", async () => {
+      mockFetch.mockResolvedValueOnce(
+        mockFetchJsonResponse({
+          status: "0",
+          message: "NOTOK",
+          result: "Rate limit exceeded",
+        })
+      );
+
+      const result = await fetchEtherscanTransactions(
+        apiUrl,
+        chainId,
+        contractAddress,
+        startBlock,
+        endBlock
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe(
+          "Rate limit exceeded. Please try again later."
+        );
+      }
+    });
+
+    it("should stop at MAX_PAGES (5) even if results keep coming", async () => {
+      vi.useFakeTimers();
+
+      const fullPage = Array.from({ length: 10_000 }, (_, i) => ({
+        hash: `0xpage${i}`,
+        blockNumber: String(startBlock + i),
+      }));
+
+      // Mock 5 full pages -- each triggers "more pages" but the 5th should be the cap
+      for (let p = 0; p < 5; p++) {
+        mockFetch.mockResolvedValueOnce(
+          mockFetchJsonResponse(createEtherscanTxResponse(fullPage))
+        );
+      }
+
+      const resultPromise = fetchEtherscanTransactions(
+        apiUrl,
+        chainId,
+        contractAddress,
+        startBlock,
+        endBlock
+      );
+
+      // Advance past all delays (4 delays between 5 pages)
+      for (let d = 0; d < 4; d++) {
+        await vi.advanceTimersByTimeAsync(250);
+      }
+
+      const result = await resultPromise;
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.transactions).toHaveLength(50_000);
+      }
+      // Should not attempt a 6th page
+      expect(mockFetch).toHaveBeenCalledTimes(5);
+
+      vi.useRealTimers();
+    });
+
+    it("should delay between pages using setTimeout", async () => {
+      vi.useFakeTimers();
+      const setTimeoutSpy = vi.spyOn(global, "setTimeout");
+
+      const fullPage = Array.from({ length: 10_000 }, (_, i) => ({
+        hash: `0xdelay${i}`,
+        blockNumber: String(startBlock + i),
+      }));
+      const lastPage = [{ hash: "0xfinal", blockNumber: "50000" }];
+
+      mockFetch.mockResolvedValueOnce(
+        mockFetchJsonResponse(createEtherscanTxResponse(fullPage))
+      );
+      mockFetch.mockResolvedValueOnce(
+        mockFetchJsonResponse(createEtherscanTxResponse(lastPage))
+      );
+
+      const resultPromise = fetchEtherscanTransactions(
+        apiUrl,
+        chainId,
+        contractAddress,
+        startBlock,
+        endBlock
+      );
+
+      await vi.advanceTimersByTimeAsync(250);
+
+      const result = await resultPromise;
+
+      expect(result.success).toBe(true);
+      // Verify setTimeout was called with the expected delay (220ms)
+      const delayCall = setTimeoutSpy.mock.calls.find(([, ms]) => ms === 220);
+      expect(delayCall).toBeDefined();
+
+      setTimeoutSpy.mockRestore();
+      vi.useRealTimers();
+    });
+
+    it("should propagate network errors", async () => {
+      mockFetch.mockRejectedValueOnce(new Error("Network timeout"));
+
+      const result = await fetchEtherscanTransactions(
+        apiUrl,
+        chainId,
+        contractAddress,
+        startBlock,
+        endBlock
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe("Network timeout");
+      }
+    });
+
+    it("should include correct URL parameters", async () => {
+      mockFetch.mockResolvedValueOnce(
+        mockFetchJsonResponse(createEtherscanTxResponse([{ hash: "0xparams" }]))
+      );
+
+      await fetchEtherscanTransactions(
+        apiUrl,
+        chainId,
+        contractAddress,
+        startBlock,
+        endBlock,
+        "my-key"
+      );
+
+      const calledUrl = mockFetch.mock.calls[0][0] as string;
+      expect(calledUrl).toContain("chainid=1");
+      expect(calledUrl).toContain("module=account");
+      expect(calledUrl).toContain("action=txlist");
+      expect(calledUrl).toContain(`address=${contractAddress}`);
+      expect(calledUrl).toContain(`startblock=${startBlock}`);
+      expect(calledUrl).toContain(`endblock=${endBlock}`);
+      expect(calledUrl).toContain("page=1");
+      expect(calledUrl).toContain("offset=10000");
+      expect(calledUrl).toContain("sort=asc");
+      expect(calledUrl).toContain("apikey=my-key");
+    });
+  });
+
+  describe("fetchBlockscoutTransactions", () => {
+    const apiUrl = "https://explorer.testnet.tempo.xyz/api";
+    const contractAddress = "0x1234567890123456789012345678901234567890";
+    const startBlock = 100;
+    const endBlock = 500;
+
+    function createBlockscoutTxResponse(
+      items: Partial<BlockscoutTransaction>[],
+      nextPageParams: { block_number: number; index: number } | null = null
+    ): {
+      items: BlockscoutTransaction[];
+      next_page_params: { block_number: number; index: number } | null;
+    } {
+      return {
+        items: items.map((tx) => ({
+          hash: tx.hash ?? "0xtx1",
+          from: tx.from ?? { hash: "0xsender" },
+          to: tx.to === undefined ? { hash: "0xcontract" } : tx.to,
+          value: tx.value ?? "0",
+          raw_input: tx.raw_input ?? "0x",
+          block: tx.block ?? 100,
+          timestamp: tx.timestamp ?? "2024-01-01T00:00:00Z",
+          status: tx.status ?? "ok",
+          method: tx.method ?? "transfer",
+        })),
+        next_page_params: nextPageParams,
+      };
+    }
+
+    function mockFetchOkResponse(data: unknown): {
+      ok: boolean;
+      status: number;
+      json: () => Promise<unknown>;
+    } {
+      return { ok: true, status: 200, json: async () => data };
+    }
+
+    it("should return transactions for a single page within block range", async () => {
+      const txs = [
+        { hash: "0xaaa", block: 200 },
+        { hash: "0xbbb", block: 300 },
+      ];
+      mockFetch.mockResolvedValueOnce(
+        mockFetchOkResponse(createBlockscoutTxResponse(txs))
+      );
+
+      const result = await fetchBlockscoutTransactions(
+        apiUrl,
+        contractAddress,
+        startBlock,
+        endBlock
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.transactions).toHaveLength(2);
+        expect(result.transactions[0].hash).toBe("0xaaa");
+        expect(result.transactions[1].hash).toBe("0xbbb");
+      }
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("should paginate using cursor-based pagination", async () => {
+      vi.useFakeTimers();
+
+      const firstPageItems = Array.from({ length: 50 }, (_, i) => ({
+        hash: `0xfirst${i}`,
+        block: 400 - i,
+      }));
+      const secondPageItems = [
+        { hash: "0xsecond1", block: 200 },
+        { hash: "0xsecond2", block: 150 },
+      ];
+
+      mockFetch.mockResolvedValueOnce(
+        mockFetchOkResponse(
+          createBlockscoutTxResponse(firstPageItems, {
+            block_number: 350,
+            index: 1,
+          })
+        )
+      );
+      mockFetch.mockResolvedValueOnce(
+        mockFetchOkResponse(createBlockscoutTxResponse(secondPageItems))
+      );
+
+      const resultPromise = fetchBlockscoutTransactions(
+        apiUrl,
+        contractAddress,
+        startBlock,
+        endBlock
+      );
+
+      await vi.advanceTimersByTimeAsync(150);
+
+      const result = await resultPromise;
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.transactions).toHaveLength(52);
+      }
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      // Verify cursor params in the second call
+      const secondCallUrl = mockFetch.mock.calls[1][0] as string;
+      expect(secondCallUrl).toContain("block_number=350");
+      expect(secondCallUrl).toContain("index=1");
+
+      vi.useRealTimers();
+    });
+
+    it("should filter out transactions outside startBlock/endBlock range", async () => {
+      const txs = [
+        { hash: "0xinrange", block: 200 },
+        { hash: "0xbelowstart", block: 50 },
+        { hash: "0xaboveend", block: 600 },
+        { hash: "0xatstart", block: 100 },
+        { hash: "0xatend", block: 500 },
+      ];
+      mockFetch.mockResolvedValueOnce(
+        mockFetchOkResponse(createBlockscoutTxResponse(txs))
+      );
+
+      const result = await fetchBlockscoutTransactions(
+        apiUrl,
+        contractAddress,
+        startBlock,
+        endBlock
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.transactions).toHaveLength(3);
+        const hashes = result.transactions.map((tx) => tx.hash);
+        expect(hashes).toContain("0xinrange");
+        expect(hashes).toContain("0xatstart");
+        expect(hashes).toContain("0xatend");
+        expect(hashes).not.toContain("0xbelowstart");
+        expect(hashes).not.toContain("0xaboveend");
+      }
+    });
+
+    it("should stop paginating when last block < startBlock", async () => {
+      vi.useFakeTimers();
+
+      // First page: 50 items, last block is below startBlock
+      const firstPageItems = Array.from({ length: 50 }, (_, i) => ({
+        hash: `0xitem${i}`,
+        block: 200 - i * 4,
+      }));
+      // The last item on this page has block = 200 - 49*4 = 4, which is < startBlock (100)
+
+      mockFetch.mockResolvedValueOnce(
+        mockFetchOkResponse(
+          createBlockscoutTxResponse(firstPageItems, {
+            block_number: 4,
+            index: 0,
+          })
+        )
+      );
+
+      const resultPromise = fetchBlockscoutTransactions(
+        apiUrl,
+        contractAddress,
+        startBlock,
+        endBlock
+      );
+
+      await vi.advanceTimersByTimeAsync(150);
+
+      const result = await resultPromise;
+
+      expect(result.success).toBe(true);
+      // Should NOT make a second request since the last block (4) < startBlock (100)
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      if (result.success) {
+        // Only items within the range should be collected
+        for (const tx of result.transactions) {
+          expect(tx.block).toBeGreaterThanOrEqual(startBlock);
+          expect(tx.block).toBeLessThanOrEqual(endBlock);
+        }
+      }
+
+      vi.useRealTimers();
+    });
+
+    it("should return error for non-200 API response", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => ({}),
+      });
+
+      const result = await fetchBlockscoutTransactions(
+        apiUrl,
+        contractAddress,
+        startBlock,
+        endBlock
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe("Blockscout API returned status 500");
+      }
+    });
+
+    it("should handle null 'to' field in BlockscoutTransaction", async () => {
+      const txs = [{ hash: "0xnullto", block: 200, to: null }];
+      mockFetch.mockResolvedValueOnce(
+        mockFetchOkResponse(createBlockscoutTxResponse(txs))
+      );
+
+      const result = await fetchBlockscoutTransactions(
+        apiUrl,
+        contractAddress,
+        startBlock,
+        endBlock
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.transactions).toHaveLength(1);
+        expect(result.transactions[0].to).toBeNull();
+        expect(result.transactions[0].hash).toBe("0xnullto");
+      }
+    });
+
+    it("should skip pages entirely above endBlock without collecting items", async () => {
+      vi.useFakeTimers();
+
+      // First page: all items have block > endBlock (500)
+      const abovePage = Array.from({ length: 50 }, (_, i) => ({
+        hash: `0xabove${i}`,
+        block: 1000 - i,
+      }));
+      // Lowest block on page is 1000 - 49 = 951, which is > endBlock (500)
+
+      // Second page: items within the range
+      const inRangePage = [
+        { hash: "0xinrange1", block: 400 },
+        { hash: "0xinrange2", block: 300 },
+      ];
+
+      mockFetch.mockResolvedValueOnce(
+        mockFetchOkResponse(
+          createBlockscoutTxResponse(abovePage, {
+            block_number: 951,
+            index: 0,
+          })
+        )
+      );
+      mockFetch.mockResolvedValueOnce(
+        mockFetchOkResponse(createBlockscoutTxResponse(inRangePage))
+      );
+
+      const resultPromise = fetchBlockscoutTransactions(
+        apiUrl,
+        contractAddress,
+        startBlock,
+        endBlock
+      );
+
+      await vi.advanceTimersByTimeAsync(150);
+
+      const result = await resultPromise;
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        // None of the above-range items should be collected
+        expect(result.transactions).toHaveLength(2);
+        expect(result.transactions[0].hash).toBe("0xinrange1");
+        expect(result.transactions[1].hash).toBe("0xinrange2");
+      }
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+
+    it("should delay between pagination requests using setTimeout", async () => {
+      vi.useFakeTimers();
+      const setTimeoutSpy = vi.spyOn(global, "setTimeout");
+
+      const firstPageItems = Array.from({ length: 50 }, (_, i) => ({
+        hash: `0xdelay${i}`,
+        block: 400 - i,
+      }));
+      const secondPageItems = [{ hash: "0xfinal", block: 200 }];
+
+      mockFetch.mockResolvedValueOnce(
+        mockFetchOkResponse(
+          createBlockscoutTxResponse(firstPageItems, {
+            block_number: 350,
+            index: 1,
+          })
+        )
+      );
+      mockFetch.mockResolvedValueOnce(
+        mockFetchOkResponse(createBlockscoutTxResponse(secondPageItems))
+      );
+
+      const resultPromise = fetchBlockscoutTransactions(
+        apiUrl,
+        contractAddress,
+        startBlock,
+        endBlock
+      );
+
+      await vi.advanceTimersByTimeAsync(150);
+
+      const result = await resultPromise;
+
+      expect(result.success).toBe(true);
+      // Verify setTimeout was called with the expected delay (100ms)
+      const delayCall = setTimeoutSpy.mock.calls.find(([, ms]) => ms === 100);
+      expect(delayCall).toBeDefined();
+
+      setTimeoutSpy.mockRestore();
+      vi.useRealTimers();
+    });
+
+    it("should replace /api suffix with /api/v2 in the URL", async () => {
+      mockFetch.mockResolvedValueOnce(
+        mockFetchOkResponse(
+          createBlockscoutTxResponse([{ hash: "0xurl", block: 200 }])
+        )
+      );
+
+      await fetchBlockscoutTransactions(
+        apiUrl,
+        contractAddress,
+        startBlock,
+        endBlock
+      );
+
+      const calledUrl = mockFetch.mock.calls[0][0] as string;
+      expect(calledUrl).toContain(
+        "https://explorer.testnet.tempo.xyz/api/v2/addresses/"
+      );
+      expect(calledUrl).toContain(contractAddress);
+      expect(calledUrl).toContain("filter=to");
+    });
+
+    it("should propagate network errors", async () => {
+      mockFetch.mockRejectedValueOnce(new Error("Connection refused"));
+
+      const result = await fetchBlockscoutTransactions(
+        apiUrl,
+        contractAddress,
+        startBlock,
+        endBlock
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe("Connection refused");
+      }
     });
   });
 });
