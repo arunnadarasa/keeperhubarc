@@ -69,6 +69,8 @@ export type SubscriptionDetails = {
 
 export type ProrationPreview = {
   amountDue: number;
+  subtotal: number;
+  appliedBalance: number;
   currency: string;
   periodEnd: Date | null;
   lineItems: {

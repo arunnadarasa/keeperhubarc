@@ -44,6 +44,8 @@ type ProrationLineItem = {
 
 type ProrationData = {
   amountDue: number;
+  subtotal: number;
+  appliedBalance: number;
   currency: string;
   lineItems: ProrationLineItem[];
 };
@@ -290,9 +292,7 @@ function ProrationSection({
   return (
     <div className="rounded-md border border-border/50 bg-sidebar p-3">
       <p className="text-xs font-medium text-muted-foreground mb-2">
-        {proration.amountDue < 0
-          ? "Proration breakdown"
-          : "Due today (prorated)"}
+        Proration breakdown
       </p>
       <div className="space-y-1">
         {proration.lineItems.map((item) => (
@@ -316,6 +316,20 @@ function ProrationSection({
             </span>
           </div>
         ))}
+        {proration.appliedBalance < 0 && (
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground truncate mr-2">
+              Account credit applied
+            </span>
+            <span className="font-medium shrink-0 text-keeperhub-green-dark">
+              -
+              {formatCurrency(
+                Math.abs(proration.appliedBalance),
+                proration.currency
+              )}
+            </span>
+          </div>
+        )}
       </div>
       <ProrationTotal
         amountDue={proration.amountDue}

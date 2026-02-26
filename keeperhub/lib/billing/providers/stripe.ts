@@ -403,7 +403,6 @@ export class StripeBillingProvider implements BillingProvider {
       : null;
 
     const lineItems: ProrationPreview["lineItems"] = [];
-    let prorationTotal = 0;
     for (const line of preview.lines.data) {
       const isProration =
         line.parent?.subscription_item_details?.proration ??
@@ -414,11 +413,16 @@ export class StripeBillingProvider implements BillingProvider {
         amount: line.amount,
         proration: isProration,
       });
-      prorationTotal += line.amount;
     }
 
+    const subtotal = preview.subtotal ?? 0;
+    const amountDue = preview.amount_due ?? 0;
+    const appliedBalance = amountDue - subtotal;
+
     return {
-      amountDue: prorationTotal,
+      amountDue,
+      subtotal,
+      appliedBalance,
       currency: preview.currency,
       periodEnd: period,
       lineItems,
