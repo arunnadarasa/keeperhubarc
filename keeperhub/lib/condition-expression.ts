@@ -14,6 +14,7 @@ import type {
 } from "./condition-builder-types";
 import { isConditionGroup } from "./condition-builder-types";
 
+// Keep in sync with OPERATOR_METADATA in condition-builder-utils.ts (unary: true entries)
 const UNARY_OPERATORS: ReadonlySet<ConditionOperator> = new Set([
   "isEmpty",
   "isNotEmpty",

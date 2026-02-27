@@ -236,7 +236,7 @@ export function evaluateConditionExpression(
     }
 
     try {
-      const evalContext: Record<string, unknown> = {};
+      let evalContext: Record<string, unknown> = {};
       const resolvedValues: Record<string, unknown> = {};
       let transformedExpression = conditionExpression;
       const templatePattern = /\{\{@([^:]+):([^}]+)\}\}/g;
@@ -276,7 +276,7 @@ export function evaluateConditionExpression(
           evalContext
         );
         transformedExpression = converted.expression;
-        Object.assign(evalContext, converted.evalContext);
+        evalContext = converted.evalContext;
       }
       // end keeperhub code //
 
