@@ -14,6 +14,15 @@ import type {
 
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
+function getStripe(): Stripe {
+  if (!stripe) {
+    throw new Error(
+      "Stripe SDK not initialized. Set STRIPE_SECRET_KEY to enable billing."
+    );
+  }
+  return stripe;
+}
+
 const EVENT_TYPE_MAP: Record<string, BillingWebhookEvent["type"] | undefined> =
   {
     "checkout.session.completed": "checkout.completed",
@@ -191,7 +200,7 @@ export class StripeBillingProvider implements BillingProvider {
   async createCustomer(
     params: CreateCustomerParams
   ): Promise<{ customerId: string }> {
-    const customer = await stripe.customers.create({
+    const customer = await getStripe().customers.create({
       email: params.email,
       metadata: {
         organizationId: params.organizationId,
@@ -204,7 +213,7 @@ export class StripeBillingProvider implements BillingProvider {
   async createCheckoutSession(
     params: CreateCheckoutParams
   ): Promise<{ url: string }> {
-    const session = await stripe.checkout.sessions.create({
+    const session = await getStripe().checkout.sessions.create({
       customer: params.customerId,
       mode: "subscription",
       line_items: [{ price: params.priceId, quantity: 1 }],
@@ -226,7 +235,7 @@ export class StripeBillingProvider implements BillingProvider {
     customerId: string,
     returnUrl: string
   ): Promise<{ url: string }> {
-    const session = await stripe.billingPortal.sessions.create({
+    const session = await getStripe().billingPortal.sessions.create({
       customer: customerId,
       return_url: returnUrl,
     });
@@ -242,7 +251,7 @@ export class StripeBillingProvider implements BillingProvider {
       throw new Error("STRIPE_WEBHOOK_SECRET not configured");
     }
 
-    const event = stripe.webhooks.constructEvent(
+    const event = getStripe().webhooks.constructEvent(
       body,
       signature,
       WEBHOOK_SECRET
@@ -293,7 +302,7 @@ export class StripeBillingProvider implements BillingProvider {
       listParams.starting_after = params.startingAfter;
     }
 
-    const list = await stripe.invoices.list(listParams);
+    const list = await getStripe().invoices.list(listParams);
 
     const invoices: InvoiceItem[] = list.data.map(mapStripeInvoice);
 
@@ -304,9 +313,9 @@ export class StripeBillingProvider implements BillingProvider {
     subscriptionId: string,
     newPriceId: string
   ): Promise<{ subscriptionId: string }> {
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const s = getStripe();
+    const subscription = await s.subscriptions.retrieve(subscriptionId);
     const currentItemId = subscription.items.data[0]?.id;
-    const oldPriceId = subscription.items.data[0]?.price.id;
 
     if (!currentItemId) {
       throw new Error("No subscription item found to update");
@@ -314,14 +323,10 @@ export class StripeBillingProvider implements BillingProvider {
 
     const currentInterval =
       subscription.items.data[0]?.price.recurring?.interval;
-    const newPrice = await stripe.prices.retrieve(newPriceId);
+    const newPrice = await s.prices.retrieve(newPriceId);
     const intervalChanging = currentInterval !== newPrice.recurring?.interval;
 
-    console.log(
-      `[Stripe] Updating subscription ${subscriptionId}: price ${oldPriceId} -> ${newPriceId} intervalChange=${String(intervalChanging)}`
-    );
-
-    const updated = await stripe.subscriptions.update(subscriptionId, {
+    const updated = await s.subscriptions.update(subscriptionId, {
       items: [{ id: currentItemId, price: newPriceId }],
       proration_behavior: "always_invoice",
       payment_behavior: "error_if_incomplete",
@@ -329,17 +334,13 @@ export class StripeBillingProvider implements BillingProvider {
       ...(intervalChanging && { billing_cycle_anchor: "now" as const }),
     });
 
-    console.log(
-      `[Stripe] Subscription ${updated.id} updated: old_price=${oldPriceId} new_price=${newPriceId}`
-    );
-
     return { subscriptionId: updated.id };
   }
 
   async cancelSubscription(
     subscriptionId: string
   ): Promise<{ cancelAtPeriodEnd: boolean; periodEnd: Date | null }> {
-    const updated = await stripe.subscriptions.update(subscriptionId, {
+    const updated = await getStripe().subscriptions.update(subscriptionId, {
       cancel_at_period_end: true,
     });
     const currentPeriodEnd = updated.items.data[0]?.current_period_end;
@@ -355,7 +356,8 @@ export class StripeBillingProvider implements BillingProvider {
   async getSubscriptionDetails(
     subscriptionId: string
   ): Promise<SubscriptionDetails> {
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const subscription =
+      await getStripe().subscriptions.retrieve(subscriptionId);
     const priceId = subscription.items.data[0]?.price.id;
     const period = getSubscriptionPeriod(subscription);
 
@@ -372,7 +374,8 @@ export class StripeBillingProvider implements BillingProvider {
     subscriptionId: string,
     newPriceId: string
   ): Promise<ProrationPreview> {
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const s = getStripe();
+    const subscription = await s.subscriptions.retrieve(subscriptionId);
     const currentItemId = subscription.items.data[0]?.id;
 
     if (!currentItemId) {
@@ -381,10 +384,10 @@ export class StripeBillingProvider implements BillingProvider {
 
     const currentInterval =
       subscription.items.data[0]?.price.recurring?.interval;
-    const newPrice = await stripe.prices.retrieve(newPriceId);
+    const newPrice = await s.prices.retrieve(newPriceId);
     const intervalChanging = currentInterval !== newPrice.recurring?.interval;
 
-    const preview = await stripe.invoices.createPreview({
+    const preview = await s.invoices.createPreview({
       subscription: subscriptionId,
       subscription_details: {
         items: [{ id: currentItemId, price: newPriceId }],

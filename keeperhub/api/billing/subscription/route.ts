@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
 import {
   getPlanLimits,
   type PlanName,
@@ -10,6 +11,10 @@ import { getOrgSubscription } from "@/keeperhub/lib/billing/plans-server";
 import { auth } from "@/lib/auth";
 
 export async function GET(): Promise<NextResponse> {
+  if (!isBillingEnabled()) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   try {
     const session = await auth.api.getSession({
       headers: await headers(),

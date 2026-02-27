@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { PAID_PLANS, VALID_INTERVALS } from "@/keeperhub/lib/billing/constants";
+import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
 import {
   getPriceId,
   type PlanName,
@@ -17,6 +18,10 @@ type PreviewRequestBody = {
 };
 
 export async function POST(request: Request): Promise<NextResponse> {
+  if (!isBillingEnabled()) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   try {
     const session = await auth.api.getSession({
       headers: await headers(),

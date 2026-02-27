@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
 import { getOrgSubscription } from "@/keeperhub/lib/billing/plans-server";
 import { getBillingProvider } from "@/keeperhub/lib/billing/providers";
 import { auth } from "@/lib/auth";
@@ -8,6 +9,10 @@ import { db } from "@/lib/db";
 import { organizationSubscriptions } from "@/lib/db/schema";
 
 export async function POST(): Promise<NextResponse> {
+  if (!isBillingEnabled()) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   try {
     const session = await auth.api.getSession({
       headers: await headers(),

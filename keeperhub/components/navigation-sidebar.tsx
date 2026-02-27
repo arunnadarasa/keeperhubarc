@@ -20,6 +20,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
 import { useActiveMember } from "@/keeperhub/lib/hooks/use-organization";
 import { registerSidebarRefetch } from "@/keeperhub/lib/refetch-sidebar";
 import type { Project, SavedWorkflow, Tag } from "@/lib/api-client";
@@ -670,7 +671,7 @@ export function NavigationSidebar(): React.ReactNode {
       return Boolean(session);
     }
     if (item.id === "billing") {
-      return isOwner;
+      return isOwner && isBillingEnabled();
     }
     return true;
   });
