@@ -29,6 +29,8 @@ The first entry shows your trigger node:
 - Trigger configuration used
 - Output data passed to the next node
 
+**Event Triggers**: When a workflow is triggered by a blockchain event, the trigger output automatically includes block explorer links for transaction hashes and addresses. These appear as `transactionLink` and `addressLink` fields in the OUTPUT section, allowing you to click directly to the block explorer for verification.
+
 ### Action Logs
 
 Each action node shows:
