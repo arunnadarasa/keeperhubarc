@@ -134,6 +134,9 @@ export function isCurrentPlan(
   if (currentPlan !== planName) {
     return false;
   }
+  if (planName === "free") {
+    return true;
+  }
   if (currentTier === undefined || currentInterval === undefined) {
     return false;
   }

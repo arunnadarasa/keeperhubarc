@@ -1,5 +1,3 @@
-"use client";
-
 import { notFound } from "next/navigation";
 import { BillingPage } from "@/keeperhub/components/billing/billing-page";
 import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";

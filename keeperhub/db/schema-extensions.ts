@@ -394,7 +394,12 @@ export const organizationSubscriptions = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (table) => [index("idx_org_subscriptions_org").on(table.organizationId)]
+  (table) => [
+    index("idx_org_subscriptions_org").on(table.organizationId),
+    index("idx_org_subscriptions_provider_sub").on(
+      table.providerSubscriptionId
+    ),
+  ]
 );
 
 // Type exports for Organization Subscriptions table

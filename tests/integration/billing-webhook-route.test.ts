@@ -2,19 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const mockSelectLimit = vi.fn().mockResolvedValue([]);
-const mockInsertValues = vi.fn().mockReturnValue({ returning: vi.fn() });
+const mockOnConflictDoNothing = vi.fn();
+const mockReturning = vi.fn();
+const mockInsertValues = vi.fn();
 const mockUpdateSet = vi.fn().mockReturnValue({ where: vi.fn() });
 
 vi.mock("@/lib/db", () => ({
   db: {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: mockSelectLimit,
-        })),
-      })),
-    })),
     insert: vi.fn(() => ({
       values: mockInsertValues,
     })),
@@ -60,10 +54,26 @@ function makeWebhookRequest(
   });
 }
 
+function mockClaimSuccess(): void {
+  mockReturning.mockResolvedValue([{ id: "billing_evt_1" }]);
+  mockOnConflictDoNothing.mockReturnValue({ returning: mockReturning });
+  mockInsertValues.mockReturnValue({
+    onConflictDoNothing: mockOnConflictDoNothing,
+  });
+}
+
+function mockClaimAlreadyProcessed(): void {
+  mockReturning.mockResolvedValue([]);
+  mockOnConflictDoNothing.mockReturnValue({ returning: mockReturning });
+  mockInsertValues.mockReturnValue({
+    onConflictDoNothing: mockOnConflictDoNothing,
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.NEXT_PUBLIC_BILLING_ENABLED = "true";
-  mockSelectLimit.mockResolvedValue([]);
+  mockClaimSuccess();
 });
 
 describe("POST /api/billing/webhooks/stripe", () => {
@@ -99,13 +109,14 @@ describe("POST /api/billing/webhooks/stripe", () => {
       providerEventId: "evt_1",
       data: { providerSubscriptionId: "sub_1" },
     });
-    mockSelectLimit.mockResolvedValue([{ id: "existing_1" }]);
+    mockClaimAlreadyProcessed();
 
     const response = await POST(makeWebhookRequest("{}"));
     const json = await response.json();
 
     expect(response.status).toBe(200);
     expect(json.received).toBe(true);
+    expect(mockUpdateSet).not.toHaveBeenCalled();
   });
 
   it("returns 200 for unknown event types", async () => {

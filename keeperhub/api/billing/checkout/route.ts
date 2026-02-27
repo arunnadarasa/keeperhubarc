@@ -1,5 +1,4 @@
 import { eq } from "drizzle-orm";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { PAID_PLANS, VALID_INTERVALS } from "@/keeperhub/lib/billing/constants";
@@ -13,7 +12,7 @@ import {
 import { getOrgSubscription } from "@/keeperhub/lib/billing/plans-server";
 import type { BillingProvider } from "@/keeperhub/lib/billing/provider";
 import { getBillingProvider } from "@/keeperhub/lib/billing/providers";
-import { auth } from "@/lib/auth";
+import { requireOrgOwner } from "@/keeperhub/lib/billing/require-org-owner";
 import { db } from "@/lib/db";
 import { organizationSubscriptions } from "@/lib/db/schema";
 
@@ -67,32 +66,11 @@ type ValidatedCheckout = {
 async function validateCheckoutRequest(
   request: Request
 ): Promise<NextResponse | ValidatedCheckout> {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const authResult = await requireOrgOwner();
+  if ("error" in authResult) {
+    return authResult.error;
   }
-
-  const activeOrgId = session.session.activeOrganizationId;
-  if (!activeOrgId) {
-    return NextResponse.json(
-      { error: "No active organization" },
-      { status: 400 }
-    );
-  }
-
-  const activeMember = await auth.api.getActiveMember({
-    headers: await headers(),
-  });
-
-  if (!activeMember || activeMember.role !== "owner") {
-    return NextResponse.json(
-      { error: "Only organization owners can manage billing" },
-      { status: 403 }
-    );
-  }
+  const { orgId: activeOrgId, email, userId } = authResult;
 
   const body = (await request.json()) as CheckoutRequestBody;
   const { plan, tier, interval } = body;
@@ -126,8 +104,8 @@ async function validateCheckoutRequest(
 
   return {
     activeOrgId,
-    email: session.user.email,
-    userId: session.user.id,
+    email,
+    userId,
     priceId,
   };
 }
@@ -189,6 +167,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       sub.status !== "canceled" &&
       sub.plan !== "free"
     ) {
+      if (sub.providerPriceId === priceId) {
+        return NextResponse.json(
+          { error: "You are already on this plan" },
+          { status: 400 }
+        );
+      }
+
       return await handleExistingSubscription(
         provider,
         existingSubId,

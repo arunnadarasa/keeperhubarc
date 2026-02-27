@@ -1,10 +1,9 @@
 import { eq } from "drizzle-orm";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
 import { getOrgSubscription } from "@/keeperhub/lib/billing/plans-server";
 import { getBillingProvider } from "@/keeperhub/lib/billing/providers";
-import { auth } from "@/lib/auth";
+import { requireOrgOwner } from "@/keeperhub/lib/billing/require-org-owner";
 import { db } from "@/lib/db";
 import { organizationSubscriptions } from "@/lib/db/schema";
 
@@ -14,32 +13,11 @@ export async function POST(): Promise<NextResponse> {
   }
 
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireOrgOwner();
+    if ("error" in authResult) {
+      return authResult.error;
     }
-
-    const activeOrgId = session.session.activeOrganizationId;
-    if (!activeOrgId) {
-      return NextResponse.json(
-        { error: "No active organization" },
-        { status: 400 }
-      );
-    }
-
-    const activeMember = await auth.api.getActiveMember({
-      headers: await headers(),
-    });
-
-    if (!activeMember || activeMember.role !== "owner") {
-      return NextResponse.json(
-        { error: "Only organization owners can manage billing" },
-        { status: 403 }
-      );
-    }
+    const { orgId: activeOrgId } = authResult;
 
     const sub = await getOrgSubscription(activeOrgId);
 

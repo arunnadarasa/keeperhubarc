@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { PAID_PLANS, VALID_INTERVALS } from "@/keeperhub/lib/billing/constants";
 import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
@@ -9,51 +8,13 @@ import {
 } from "@/keeperhub/lib/billing/plans";
 import { getOrgSubscription } from "@/keeperhub/lib/billing/plans-server";
 import { getBillingProvider } from "@/keeperhub/lib/billing/providers";
-import { auth } from "@/lib/auth";
+import { requireOrgOwner } from "@/keeperhub/lib/billing/require-org-owner";
 
 type PreviewRequestBody = {
   plan?: string;
   tier?: string | null;
   interval?: string;
 };
-
-async function requireOrgOwner(): Promise<
-  { orgId: string } | { error: NextResponse }
-> {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user) {
-    return {
-      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-    };
-  }
-
-  const activeOrgId = session.session.activeOrganizationId;
-  if (!activeOrgId) {
-    return {
-      error: NextResponse.json(
-        { error: "No active organization" },
-        { status: 400 }
-      ),
-    };
-  }
-
-  const activeMember = await auth.api.getActiveMember({
-    headers: await headers(),
-  });
-  if (!activeMember || activeMember.role !== "owner") {
-    return {
-      error: NextResponse.json(
-        { error: "Only organization owners can manage billing" },
-        { status: 403 }
-      ),
-    };
-  }
-
-  return { orgId: activeOrgId };
-}
 
 export async function POST(request: Request): Promise<NextResponse> {
   if (!isBillingEnabled()) {

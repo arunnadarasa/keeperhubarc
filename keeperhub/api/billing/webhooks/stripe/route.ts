@@ -1,4 +1,3 @@
-import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
 import { handleBillingEvent } from "@/keeperhub/lib/billing/handle-billing-event";
@@ -8,26 +7,30 @@ import { UnknownEventTypeError } from "@/keeperhub/lib/billing/providers/stripe"
 import { db } from "@/lib/db";
 import { billingEvents } from "@/lib/db/schema";
 
-async function isEventProcessed(providerEventId: string): Promise<boolean> {
-  const existing = await db
-    .select({ id: billingEvents.id })
-    .from(billingEvents)
-    .where(eq(billingEvents.providerEventId, providerEventId))
-    .limit(1);
-  return existing.length > 0;
-}
-
-async function recordEvent(
+async function claimEvent(
   providerEventId: string,
   type: string,
   data: unknown
-): Promise<void> {
-  await db.insert(billingEvents).values({
-    providerEventId,
-    type,
-    data,
-    processed: true,
-  });
+): Promise<boolean> {
+  const inserted = await db
+    .insert(billingEvents)
+    .values({
+      providerEventId,
+      type,
+      data,
+      processed: false,
+    })
+    .onConflictDoNothing({ target: billingEvents.providerEventId })
+    .returning({ id: billingEvents.id });
+  return inserted.length > 0;
+}
+
+async function markProcessed(providerEventId: string): Promise<void> {
+  const { eq } = await import("drizzle-orm");
+  await db
+    .update(billingEvents)
+    .set({ processed: true })
+    .where(eq(billingEvents.providerEventId, providerEventId));
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -66,13 +69,17 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
     }
 
-    const alreadyProcessed = await isEventProcessed(event.providerEventId);
-    if (alreadyProcessed) {
+    const claimed = await claimEvent(
+      event.providerEventId,
+      event.type,
+      event.data
+    );
+    if (!claimed) {
       return NextResponse.json({ received: true });
     }
 
     await handleBillingEvent(event, provider);
-    await recordEvent(event.providerEventId, event.type, event.data);
+    await markProcessed(event.providerEventId);
 
     return NextResponse.json({ received: true });
   } catch (error) {
