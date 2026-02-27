@@ -17,27 +17,55 @@ type PreviewRequestBody = {
   interval?: string;
 };
 
+async function requireOrgOwner(): Promise<
+  { orgId: string } | { error: NextResponse }
+> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session?.user) {
+    return {
+      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
+  }
+
+  const activeOrgId = session.session.activeOrganizationId;
+  if (!activeOrgId) {
+    return {
+      error: NextResponse.json(
+        { error: "No active organization" },
+        { status: 400 }
+      ),
+    };
+  }
+
+  const activeMember = await auth.api.getActiveMember({
+    headers: await headers(),
+  });
+  if (!activeMember || activeMember.role !== "owner") {
+    return {
+      error: NextResponse.json(
+        { error: "Only organization owners can manage billing" },
+        { status: 403 }
+      ),
+    };
+  }
+
+  return { orgId: activeOrgId };
+}
+
 export async function POST(request: Request): Promise<NextResponse> {
   if (!isBillingEnabled()) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireOrgOwner();
+    if ("error" in authResult) {
+      return authResult.error;
     }
-
-    const activeOrgId = session.session.activeOrganizationId;
-    if (!activeOrgId) {
-      return NextResponse.json(
-        { error: "No active organization" },
-        { status: 400 }
-      );
-    }
+    const { orgId: activeOrgId } = authResult;
 
     const body = (await request.json()) as PreviewRequestBody;
     const { plan, tier, interval } = body;

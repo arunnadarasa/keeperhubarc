@@ -36,8 +36,10 @@ export function BillingPage(): React.ReactElement {
     const checkout = searchParams.get("checkout");
     if (checkout === "success") {
       toast.success("Subscription activated successfully!");
+      window.history.replaceState({}, "", window.location.pathname);
     } else if (checkout === "canceled") {
       toast.info("Checkout was canceled.");
+      window.history.replaceState({}, "", window.location.pathname);
     }
   }, [searchParams]);
 
@@ -52,8 +54,8 @@ export function BillingPage(): React.ReactElement {
           (data.subscription.interval ?? null) as BillingInterval | null
         );
       }
-    } catch {
-      // Will default to free
+    } catch (error) {
+      console.error("[Billing] Failed to fetch plan:", error);
     }
   }, []);
 

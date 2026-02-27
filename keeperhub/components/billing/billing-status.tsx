@@ -183,8 +183,8 @@ export function BillingStatus(): React.ReactElement {
           const result = (await response.json()) as SubscriptionData;
           setData(result);
         }
-      } catch {
-        // Silently fail - will show loading state
+      } catch (error) {
+        console.error("[Billing] Failed to fetch subscription:", error);
       } finally {
         setLoading(false);
       }

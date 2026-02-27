@@ -77,8 +77,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ received: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    console.error("[Billing Webhook] Handler failed:", message);
     return NextResponse.json(
-      { error: `Webhook handler failed: ${message}` },
+      { error: "Webhook processing failed" },
       { status: 500 }
     );
   }

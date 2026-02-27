@@ -113,6 +113,27 @@ describe("handleBillingEvent", () => {
       expect(provider.getSubscriptionDetails).not.toHaveBeenCalled();
       expect(db.update).not.toHaveBeenCalled();
     });
+
+    it("returns early when priceId cannot be resolved", async () => {
+      const provider = createMockProvider({
+        getSubscriptionDetails: vi.fn().mockResolvedValue({
+          priceId: "price_unknown_xyz",
+          status: "active",
+          cancelAtPeriodEnd: false,
+          periodStart: new Date("2025-01-01"),
+          periodEnd: new Date("2025-02-01"),
+        }),
+      });
+      const event = makeEvent("checkout.completed", {
+        organizationId: "org_1",
+        providerSubscriptionId: "sub_1",
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(provider.getSubscriptionDetails).toHaveBeenCalledWith("sub_1");
+      expect(db.update).not.toHaveBeenCalled();
+    });
   });
 
   describe("subscription.updated", () => {
@@ -263,6 +284,36 @@ describe("handleBillingEvent", () => {
           providerPriceId: null,
         })
       );
+    });
+
+    it("uses event periodEnd over DB periodEnd", async () => {
+      const pastDbDate = new Date(Date.now() - 86_400_000);
+      const futureEventDate = new Date(Date.now() + 86_400_000 * 30);
+      mockSelectReturning([
+        {
+          providerSubscriptionId: "sub_1",
+          currentPeriodEnd: pastDbDate,
+          plan: "pro",
+        },
+      ]);
+
+      const provider = createMockProvider();
+      const event = makeEvent("subscription.deleted", {
+        providerSubscriptionId: "sub_1",
+        periodEnd: futureEventDate,
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(db.update).toHaveBeenCalled();
+      expect(mockSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "canceled",
+          cancelAtPeriodEnd: false,
+        })
+      );
+      const setArg = mockSet.mock.calls[0][0] as Record<string, unknown>;
+      expect(setArg.plan).toBeUndefined();
     });
 
     it("skips when providerSubscriptionId is missing", async () => {

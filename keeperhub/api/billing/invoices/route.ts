@@ -27,6 +27,16 @@ export async function GET(request: Request): Promise<NextResponse> {
       );
     }
 
+    const activeMember = await auth.api.getActiveMember({
+      headers: await headers(),
+    });
+    if (!activeMember || activeMember.role !== "owner") {
+      return NextResponse.json(
+        { error: "Only organization owners can manage billing" },
+        { status: 403 }
+      );
+    }
+
     const sub = await getOrgSubscription(activeOrgId);
     if (!sub?.providerCustomerId) {
       return NextResponse.json({ invoices: [], hasMore: false });

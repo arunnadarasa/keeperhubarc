@@ -88,6 +88,7 @@ export function BillingHistory(): React.ReactElement {
 
       const response = await fetch(`${BILLING_API.INVOICES}?${params}`);
       if (!response.ok) {
+        console.error("[Billing] Failed to fetch invoices:", response.status);
         return;
       }
 

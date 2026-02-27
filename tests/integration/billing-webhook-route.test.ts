@@ -132,6 +132,24 @@ describe("POST /api/billing/webhooks/stripe", () => {
     expect(json.error).toContain("Invalid signature");
   });
 
+  it("returns generic error message on handler failure", async () => {
+    mockVerifyWebhook.mockResolvedValue({
+      type: "invoice.paid",
+      providerEventId: "evt_fail",
+      data: { providerSubscriptionId: "sub_1" },
+    });
+    mockUpdateSet.mockImplementation(() => {
+      throw new Error("DB connection lost");
+    });
+
+    const response = await POST(makeWebhookRequest("{}"));
+
+    expect(response.status).toBe(500);
+    const json = await response.json();
+    expect(json.error).toBe("Webhook processing failed");
+    expect(json.error).not.toContain("DB connection lost");
+  });
+
   it("returns 404 when billing is disabled", async () => {
     process.env.NEXT_PUBLIC_BILLING_ENABLED = "false";
 

@@ -134,15 +134,10 @@ export function isCurrentPlan(
   if (currentPlan !== planName) {
     return false;
   }
-  const tierMatches =
-    currentTier === undefined ||
-    currentTier === null ||
-    currentTier === selectedTier;
-  const intervalMatches =
-    currentInterval === undefined ||
-    currentInterval === null ||
-    currentInterval === interval;
-  return tierMatches && intervalMatches;
+  if (currentTier === undefined || currentInterval === undefined) {
+    return false;
+  }
+  return currentTier === selectedTier && currentInterval === interval;
 }
 
 export async function cancelSubscription(): Promise<{

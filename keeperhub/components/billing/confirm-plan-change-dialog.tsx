@@ -295,10 +295,10 @@ function ProrationSection({
         Proration breakdown
       </p>
       <div className="space-y-1">
-        {proration.lineItems.map((item) => (
+        {proration.lineItems.map((item, index) => (
           <div
             className="flex items-center justify-between text-xs"
-            key={item.description}
+            key={`proration-${String(index)}`}
           >
             <span className="text-muted-foreground truncate mr-2">
               {item.description}
@@ -485,7 +485,7 @@ export function ConfirmPlanChangeDialog({
               </div>
               <p className="text-sm">
                 <span className="font-semibold text-foreground">
-                  ${price}/{interval === "yearly" ? "mo" : "mo"}
+                  ${price}/mo
                 </span>
                 {interval === "yearly" && (
                   <span className="text-muted-foreground">

@@ -105,8 +105,15 @@ async function handleCheckoutCompleted(
   }
 
   const resolved = resolvePriceId(details.priceId);
-  const plan = resolved?.plan ?? "pro";
-  const tier = resolved?.tier ?? null;
+  if (!resolved) {
+    console.error(
+      LOG_PREFIX,
+      "Unknown priceId, cannot resolve plan:",
+      details.priceId
+    );
+    return;
+  }
+  const { plan, tier } = resolved;
   console.log(
     LOG_PREFIX,
     "Resolved plan:",
@@ -117,7 +124,7 @@ async function handleCheckoutCompleted(
     details.priceId
   );
 
-  await db
+  const result = await db
     .update(organizationSubscriptions)
     .set({
       providerSubscriptionId,
@@ -131,6 +138,14 @@ async function handleCheckoutCompleted(
       updatedAt: new Date(),
     })
     .where(eq(organizationSubscriptions.organizationId, organizationId));
+
+  if (Array.isArray(result) && result.length === 0) {
+    console.warn(
+      LOG_PREFIX,
+      "checkout.completed - no subscription row found for org:",
+      organizationId
+    );
+  }
 
   console.log(LOG_PREFIX, "Updated subscription for org:", organizationId);
 }
@@ -225,7 +240,8 @@ async function handleSubscriptionDeleted(
   }
 
   const current = await findSubscriptionByProviderId(providerSubscriptionId);
-  const periodEnd = current?.currentPeriodEnd;
+  const periodEnd =
+    data.periodEnd instanceof Date ? data.periodEnd : current?.currentPeriodEnd;
   const now = new Date();
 
   // If the billing period hasn't ended yet (cancel at period end),
