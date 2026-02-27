@@ -231,6 +231,9 @@ env:
     name: feedback-api-key
     parameter_name: /eks/maker-staging/keeperhub-feedback/feedback-api-key
   # Billing (Stripe)
+  NEXT_PUBLIC_BILLING_ENABLED:
+    type: kv
+    value: "true"
   STRIPE_SECRET_KEY:
     type: parameterStore
     name: stripe-secret-key

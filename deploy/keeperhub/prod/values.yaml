@@ -217,6 +217,9 @@ env:
     name: sentry-auth-token
     parameter_name: /eks/maker-prod/keeperhub/sentry-auth-token
   # Billing (Stripe)
+  NEXT_PUBLIC_BILLING_ENABLED:
+    type: kv
+    value: "false"
   STRIPE_SECRET_KEY:
     type: parameterStore
     name: stripe-secret-key
