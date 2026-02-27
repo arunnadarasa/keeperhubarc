@@ -130,3 +130,4 @@ tailwindcss-*.log
 # Claude Code cached output
 .claude/lint-output.txt
 .claude/typecheck-output.txt
+.claude/worktrees/

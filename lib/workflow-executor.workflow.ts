@@ -46,7 +46,6 @@ import type { StepContext } from "./steps/step-handler";
 import { triggerStep } from "./steps/trigger";
 import { deserializeEventTriggerData, getErrorMessageAsync } from "./utils";
 import type { WorkflowEdge, WorkflowNode } from "./workflow-store";
-
 // end keeperhub code //
 
 // System actions that don't have plugins - maps to module import functions
@@ -1661,6 +1660,23 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
               ...triggerData,
               ...deserialized,
             };
+
+            // Enrich event data with explorer links so the execution log UI
+            // can render clickable transaction/address links.
+            // Uses a step function to keep db/schema out of the workflow bundle.
+            if (config.network) {
+              try {
+                const { enrichExplorerLinks } = await import(
+                  "@/keeperhub/lib/steps/enrich-explorer-links"
+                );
+                await enrichExplorerLinks(
+                  triggerData,
+                  config.network as string | number
+                );
+              } catch {
+                // Non-critical: skip explorer links if lookup fails
+              }
+            }
           } else {
             // For other trigger types, use as-is
             triggerData = { ...triggerData, ...triggerInput };
