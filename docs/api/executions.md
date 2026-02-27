@@ -97,6 +97,12 @@ Returns detailed logs for each node in the execution.
 }
 ```
 
+**Event Trigger Outputs**: When a workflow is triggered by a blockchain event, the trigger node's `output` object automatically includes block explorer links:
+- `transactionLink` - Direct link to the transaction in the block explorer (when the event contains a transaction hash)
+- `addressLink` - Direct link to the address in the block explorer (when the event contains an address)
+
+These links are generated using the network's configured block explorer and are available in addition to the standard event data fields.
+
 ## Delete Executions
 
 ```http
