@@ -1,0 +1,167 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
+vi.mock("next/headers", () => ({
+  headers: vi.fn().mockResolvedValue(new Headers()),
+}));
+
+const mockGetSession = vi.fn();
+const mockGetActiveMember = vi.fn();
+
+vi.mock("@/lib/auth", () => ({
+  auth: {
+    api: {
+      getSession: (...args: unknown[]) => mockGetSession(...args),
+      getActiveMember: (...args: unknown[]) => mockGetActiveMember(...args),
+    },
+  },
+}));
+
+const mockUpdateSet = vi.fn().mockReturnValue({ where: vi.fn() });
+const mockInsertValues = vi.fn().mockReturnValue({ returning: vi.fn() });
+
+vi.mock("@/lib/db", () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn().mockResolvedValue([]),
+        })),
+      })),
+    })),
+    update: vi.fn(() => ({
+      set: mockUpdateSet,
+    })),
+    insert: vi.fn(() => ({
+      values: mockInsertValues,
+    })),
+  },
+}));
+
+vi.mock("@/lib/db/schema", () => ({
+  organizationSubscriptions: { organizationId: "organizationId" },
+}));
+
+const mockCreateCheckoutSession = vi.fn();
+const mockCreateCustomer = vi.fn();
+const mockUpdateSubscription = vi.fn();
+const mockGetSubscriptionDetails = vi.fn();
+
+vi.mock("@/keeperhub/lib/billing/providers", () => ({
+  getBillingProvider: () => ({
+    createCheckoutSession: mockCreateCheckoutSession,
+    createCustomer: mockCreateCustomer,
+    updateSubscription: mockUpdateSubscription,
+    getSubscriptionDetails: mockGetSubscriptionDetails,
+  }),
+}));
+
+import { POST } from "@/keeperhub/api/billing/checkout/route";
+
+function makeRequest(body: Record<string, unknown>): Request {
+  return new Request("http://localhost:3000/api/billing/checkout", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+function mockSession(overrides: Record<string, unknown> = {}): void {
+  mockGetSession.mockResolvedValue({
+    user: { id: "usr_1", email: "user@test.com" },
+    session: { activeOrganizationId: "org_1" },
+    ...overrides,
+  });
+  mockGetActiveMember.mockResolvedValue({ role: "owner" });
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  process.env.NEXT_PUBLIC_BILLING_ENABLED = "true";
+});
+
+describe("POST /api/billing/checkout", () => {
+  it("returns checkout URL for new subscription", async () => {
+    mockSession();
+    mockCreateCustomer.mockResolvedValue({ customerId: "cus_123" });
+    mockCreateCheckoutSession.mockResolvedValue({
+      url: "https://checkout.stripe.com/session_1",
+    });
+
+    const response = await POST(
+      makeRequest({ plan: "pro", tier: "25k", interval: "monthly" })
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json.url).toBe("https://checkout.stripe.com/session_1");
+  });
+
+  it("returns 401 without auth", async () => {
+    mockGetSession.mockResolvedValue(null);
+
+    const response = await POST(
+      makeRequest({ plan: "pro", tier: "25k", interval: "monthly" })
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  it("returns 400 without active org", async () => {
+    mockGetSession.mockResolvedValue({
+      user: { id: "usr_1", email: "user@test.com" },
+      session: { activeOrganizationId: null },
+    });
+
+    const response = await POST(
+      makeRequest({ plan: "pro", tier: "25k", interval: "monthly" })
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("returns 403 for non-owner role", async () => {
+    mockGetSession.mockResolvedValue({
+      user: { id: "usr_1", email: "user@test.com" },
+      session: { activeOrganizationId: "org_1" },
+    });
+    mockGetActiveMember.mockResolvedValue({ role: "member" });
+
+    const response = await POST(
+      makeRequest({ plan: "pro", tier: "25k", interval: "monthly" })
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  it("returns 400 for invalid plan", async () => {
+    mockSession();
+
+    const response = await POST(
+      makeRequest({ plan: "invalid", tier: "25k", interval: "monthly" })
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("returns 400 for invalid interval", async () => {
+    mockSession();
+
+    const response = await POST(
+      makeRequest({ plan: "pro", tier: "25k", interval: "weekly" })
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("returns 404 when billing is disabled", async () => {
+    process.env.NEXT_PUBLIC_BILLING_ENABLED = "false";
+
+    const response = await POST(
+      makeRequest({ plan: "pro", tier: "25k", interval: "monthly" })
+    );
+
+    expect(response.status).toBe(404);
+  });
+});

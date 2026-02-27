@@ -1,0 +1,583 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/keeperhub/lib/stripe", () => ({
+  stripe: {
+    customers: { create: vi.fn() },
+    checkout: { sessions: { create: vi.fn() } },
+    billingPortal: { sessions: { create: vi.fn() } },
+    webhooks: { constructEvent: vi.fn() },
+    invoices: { list: vi.fn(), createPreview: vi.fn() },
+    subscriptions: { retrieve: vi.fn(), update: vi.fn() },
+    prices: { retrieve: vi.fn() },
+  },
+}));
+
+import {
+  StripeBillingProvider,
+  UnknownEventTypeError,
+} from "@/keeperhub/lib/billing/providers/stripe";
+import { stripe } from "@/keeperhub/lib/stripe";
+
+// biome-ignore lint/style/noNonNullAssertion: stripe is mocked above and always defined in tests
+const s = stripe!;
+const provider = new StripeBillingProvider();
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe("StripeBillingProvider", () => {
+  describe("createCustomer", () => {
+    it("passes correct params to stripe.customers.create", async () => {
+      vi.mocked(s.customers.create).mockResolvedValue({
+        id: "cus_123",
+      } as Awaited<ReturnType<typeof s.customers.create>>);
+
+      const result = await provider.createCustomer({
+        email: "user@test.com",
+        organizationId: "org_1",
+        userId: "usr_1",
+      });
+
+      expect(s.customers.create).toHaveBeenCalledWith({
+        email: "user@test.com",
+        metadata: { organizationId: "org_1", userId: "usr_1" },
+      });
+      expect(result).toEqual({ customerId: "cus_123" });
+    });
+  });
+
+  describe("createCheckoutSession", () => {
+    it("builds session with correct line_items and metadata", async () => {
+      vi.mocked(s.checkout.sessions.create).mockResolvedValue({
+        url: "https://checkout.stripe.com/session_1",
+      } as Awaited<ReturnType<typeof s.checkout.sessions.create>>);
+
+      const result = await provider.createCheckoutSession({
+        customerId: "cus_123",
+        priceId: "price_pro_25k",
+        organizationId: "org_1",
+        successUrl: "http://localhost/billing?checkout=success",
+        cancelUrl: "http://localhost/billing?checkout=canceled",
+      });
+
+      expect(s.checkout.sessions.create).toHaveBeenCalledWith({
+        customer: "cus_123",
+        mode: "subscription",
+        line_items: [{ price: "price_pro_25k", quantity: 1 }],
+        success_url: "http://localhost/billing?checkout=success",
+        cancel_url: "http://localhost/billing?checkout=canceled",
+        metadata: { organizationId: "org_1" },
+      });
+      expect(result).toEqual({
+        url: "https://checkout.stripe.com/session_1",
+      });
+    });
+
+    it("throws when session URL is null", async () => {
+      vi.mocked(s.checkout.sessions.create).mockResolvedValue({
+        url: null,
+      } as Awaited<ReturnType<typeof s.checkout.sessions.create>>);
+
+      await expect(
+        provider.createCheckoutSession({
+          customerId: "cus_123",
+          priceId: "price_pro_25k",
+          organizationId: "org_1",
+          successUrl: "http://localhost/success",
+          cancelUrl: "http://localhost/cancel",
+        })
+      ).rejects.toThrow("Stripe checkout session did not return a URL");
+    });
+  });
+
+  describe("createPortalSession", () => {
+    it("creates portal session with return URL", async () => {
+      vi.mocked(s.billingPortal.sessions.create).mockResolvedValue({
+        url: "https://billing.stripe.com/portal",
+      } as Awaited<ReturnType<typeof s.billingPortal.sessions.create>>);
+
+      const result = await provider.createPortalSession(
+        "cus_123",
+        "http://localhost/billing"
+      );
+
+      expect(s.billingPortal.sessions.create).toHaveBeenCalledWith({
+        customer: "cus_123",
+        return_url: "http://localhost/billing",
+      });
+      expect(result).toEqual({ url: "https://billing.stripe.com/portal" });
+    });
+  });
+
+  describe("verifyWebhook", () => {
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    it("normalizes checkout.session.completed event", async () => {
+      vi.mocked(s.webhooks.constructEvent).mockReturnValue({
+        id: "evt_1",
+        type: "checkout.session.completed",
+        data: {
+          object: {
+            subscription: "sub_1",
+            metadata: { organizationId: "org_1" },
+          },
+        },
+      } as unknown as ReturnType<typeof s.webhooks.constructEvent>);
+
+      const result = await provider.verifyWebhook("body", "sig");
+
+      expect(s.webhooks.constructEvent).toHaveBeenCalledWith(
+        "body",
+        "sig",
+        webhookSecret
+      );
+      expect(result.type).toBe("checkout.completed");
+      expect(result.data.providerSubscriptionId).toBe("sub_1");
+      expect(result.data.organizationId).toBe("org_1");
+    });
+
+    it("normalizes customer.subscription.updated event", async () => {
+      vi.mocked(s.webhooks.constructEvent).mockReturnValue({
+        id: "evt_2",
+        type: "customer.subscription.updated",
+        data: {
+          object: {
+            id: "sub_1",
+            status: "active",
+            cancel_at_period_end: false,
+            cancel_at: null,
+            start_date: 1_704_067_200,
+            items: {
+              data: [
+                {
+                  price: { id: "price_pro" },
+                  current_period_end: 1_706_745_600,
+                },
+              ],
+            },
+          },
+        },
+      } as unknown as ReturnType<typeof s.webhooks.constructEvent>);
+
+      const result = await provider.verifyWebhook("body", "sig");
+
+      expect(result.type).toBe("subscription.updated");
+      expect(result.data.providerSubscriptionId).toBe("sub_1");
+      expect(result.data.status).toBe("active");
+      expect(result.data.priceId).toBe("price_pro");
+    });
+
+    it("normalizes invoice.paid event", async () => {
+      vi.mocked(s.webhooks.constructEvent).mockReturnValue({
+        id: "evt_3",
+        type: "invoice.paid",
+        data: {
+          object: {
+            parent: {
+              subscription_details: { subscription: "sub_1" },
+            },
+            hosted_invoice_url: "https://invoice.stripe.com/i/123",
+          },
+        },
+      } as unknown as ReturnType<typeof s.webhooks.constructEvent>);
+
+      const result = await provider.verifyWebhook("body", "sig");
+
+      expect(result.type).toBe("invoice.paid");
+      expect(result.data.providerSubscriptionId).toBe("sub_1");
+      expect(result.data.invoiceUrl).toBe("https://invoice.stripe.com/i/123");
+    });
+
+    it("normalizes invoice.payment_failed event", async () => {
+      vi.mocked(s.webhooks.constructEvent).mockReturnValue({
+        id: "evt_4",
+        type: "invoice.payment_failed",
+        data: {
+          object: {
+            parent: {
+              subscription_details: { subscription: "sub_1" },
+            },
+            hosted_invoice_url: "https://invoice.stripe.com/i/456",
+          },
+        },
+      } as unknown as ReturnType<typeof s.webhooks.constructEvent>);
+
+      const result = await provider.verifyWebhook("body", "sig");
+
+      expect(result.type).toBe("invoice.payment_failed");
+    });
+
+    it("normalizes invoice.overdue event", async () => {
+      vi.mocked(s.webhooks.constructEvent).mockReturnValue({
+        id: "evt_5",
+        type: "invoice.overdue",
+        data: {
+          object: {
+            parent: null,
+            hosted_invoice_url: null,
+          },
+        },
+      } as unknown as ReturnType<typeof s.webhooks.constructEvent>);
+
+      const result = await provider.verifyWebhook("body", "sig");
+
+      expect(result.type).toBe("invoice.overdue");
+    });
+
+    it("normalizes customer.subscription.deleted event", async () => {
+      vi.mocked(s.webhooks.constructEvent).mockReturnValue({
+        id: "evt_6",
+        type: "customer.subscription.deleted",
+        data: {
+          object: {
+            id: "sub_1",
+            status: "canceled",
+            cancel_at_period_end: false,
+            cancel_at: null,
+            start_date: 1_704_067_200,
+            items: {
+              data: [
+                {
+                  price: { id: "price_pro" },
+                  current_period_end: 1_706_745_600,
+                },
+              ],
+            },
+          },
+        },
+      } as unknown as ReturnType<typeof s.webhooks.constructEvent>);
+
+      const result = await provider.verifyWebhook("body", "sig");
+
+      expect(result.type).toBe("subscription.deleted");
+    });
+
+    it("throws UnknownEventTypeError for unhandled types", async () => {
+      vi.mocked(s.webhooks.constructEvent).mockReturnValue({
+        id: "evt_7",
+        type: "payment_intent.succeeded",
+        data: { object: {} },
+      } as unknown as ReturnType<typeof s.webhooks.constructEvent>);
+
+      await expect(provider.verifyWebhook("body", "sig")).rejects.toThrow(
+        UnknownEventTypeError
+      );
+    });
+  });
+
+  describe("cancelSubscription", () => {
+    it("sets cancel_at_period_end to true", async () => {
+      vi.mocked(s.subscriptions.update).mockResolvedValue({
+        id: "sub_1",
+        cancel_at_period_end: true,
+        items: {
+          data: [{ current_period_end: 1_706_745_600 }],
+        },
+      } as unknown as Awaited<ReturnType<typeof s.subscriptions.update>>);
+
+      const result = await provider.cancelSubscription("sub_1");
+
+      expect(s.subscriptions.update).toHaveBeenCalledWith("sub_1", {
+        cancel_at_period_end: true,
+      });
+      expect(result.cancelAtPeriodEnd).toBe(true);
+      expect(result.periodEnd).toEqual(new Date(1_706_745_600 * 1000));
+    });
+  });
+
+  describe("listInvoices", () => {
+    it("maps Stripe invoice to InvoiceItem correctly", async () => {
+      vi.mocked(s.invoices.list).mockResolvedValue({
+        data: [
+          {
+            id: "inv_1",
+            created: 1_704_067_200,
+            amount_paid: 4900,
+            currency: "usd",
+            status: "paid",
+            hosted_invoice_url: "https://invoice.stripe.com/i/1",
+            invoice_pdf: "https://invoice.stripe.com/pdf/1",
+            lines: {
+              data: [
+                {
+                  description: "1 x Pro 25k (at $49.00 / month)",
+                  amount: 4900,
+                  period: { start: 1_704_067_200, end: 1_706_745_600 },
+                  parent: {
+                    subscription_item_details: { proration: false },
+                  },
+                },
+              ],
+            },
+          },
+        ],
+        has_more: false,
+      } as unknown as Awaited<ReturnType<typeof s.invoices.list>>);
+
+      const result = await provider.listInvoices({
+        customerId: "cus_123",
+        limit: 10,
+      });
+
+      expect(result.invoices).toHaveLength(1);
+      expect(result.hasMore).toBe(false);
+
+      const invoice = result.invoices[0];
+      expect(invoice.id).toBe("inv_1");
+      expect(invoice.amount).toBe(4900);
+      expect(invoice.currency).toBe("usd");
+      expect(invoice.status).toBe("paid");
+      expect(invoice.description).toBe("Pro 25k");
+      expect(invoice.invoiceUrl).toBe("https://invoice.stripe.com/i/1");
+      expect(invoice.pdfUrl).toBe("https://invoice.stripe.com/pdf/1");
+    });
+
+    it("passes startingAfter for pagination", async () => {
+      vi.mocked(s.invoices.list).mockResolvedValue({
+        data: [],
+        has_more: false,
+      } as unknown as Awaited<ReturnType<typeof s.invoices.list>>);
+
+      await provider.listInvoices({
+        customerId: "cus_123",
+        limit: 10,
+        startingAfter: "inv_prev",
+      });
+
+      expect(s.invoices.list).toHaveBeenCalledWith(
+        expect.objectContaining({
+          starting_after: "inv_prev",
+        })
+      );
+    });
+  });
+
+  describe("getSubscriptionDetails", () => {
+    it("retrieves and maps subscription", async () => {
+      vi.mocked(s.subscriptions.retrieve).mockResolvedValue({
+        id: "sub_1",
+        status: "active",
+        cancel_at_period_end: false,
+        start_date: 1_704_067_200,
+        items: {
+          data: [
+            {
+              price: { id: "price_pro_25k" },
+              current_period_end: 1_706_745_600,
+            },
+          ],
+        },
+      } as unknown as Awaited<ReturnType<typeof s.subscriptions.retrieve>>);
+
+      const result = await provider.getSubscriptionDetails("sub_1");
+
+      expect(result.priceId).toBe("price_pro_25k");
+      expect(result.status).toBe("active");
+      expect(result.cancelAtPeriodEnd).toBe(false);
+      expect(result.periodStart).toEqual(new Date(1_704_067_200 * 1000));
+      expect(result.periodEnd).toEqual(new Date(1_706_745_600 * 1000));
+    });
+  });
+
+  describe("updateSubscription", () => {
+    it("updates subscription with new price (same interval)", async () => {
+      vi.mocked(s.subscriptions.retrieve).mockResolvedValue({
+        id: "sub_1",
+        items: {
+          data: [
+            {
+              id: "si_1",
+              price: { id: "price_old", recurring: { interval: "month" } },
+            },
+          ],
+        },
+      } as unknown as Awaited<ReturnType<typeof s.subscriptions.retrieve>>);
+      vi.mocked(s.prices.retrieve).mockResolvedValue({
+        recurring: { interval: "month" },
+      } as Awaited<ReturnType<typeof s.prices.retrieve>>);
+      vi.mocked(s.subscriptions.update).mockResolvedValue({
+        id: "sub_1",
+      } as unknown as Awaited<ReturnType<typeof s.subscriptions.update>>);
+
+      const result = await provider.updateSubscription("sub_1", "price_new");
+
+      expect(s.subscriptions.update).toHaveBeenCalledWith("sub_1", {
+        items: [{ id: "si_1", price: "price_new" }],
+        proration_behavior: "always_invoice",
+        payment_behavior: "error_if_incomplete",
+        cancel_at_period_end: false,
+      });
+      expect(result.subscriptionId).toBe("sub_1");
+    });
+
+    it("resets billing_cycle_anchor when interval changes", async () => {
+      vi.mocked(s.subscriptions.retrieve).mockResolvedValue({
+        id: "sub_1",
+        items: {
+          data: [
+            {
+              id: "si_1",
+              price: { id: "price_old", recurring: { interval: "month" } },
+            },
+          ],
+        },
+      } as unknown as Awaited<ReturnType<typeof s.subscriptions.retrieve>>);
+      vi.mocked(s.prices.retrieve).mockResolvedValue({
+        recurring: { interval: "year" },
+      } as Awaited<ReturnType<typeof s.prices.retrieve>>);
+      vi.mocked(s.subscriptions.update).mockResolvedValue({
+        id: "sub_1",
+      } as unknown as Awaited<ReturnType<typeof s.subscriptions.update>>);
+
+      await provider.updateSubscription("sub_1", "price_new");
+
+      expect(s.subscriptions.update).toHaveBeenCalledWith(
+        "sub_1",
+        expect.objectContaining({
+          billing_cycle_anchor: "now",
+        })
+      );
+    });
+
+    it("throws when no subscription item found", async () => {
+      vi.mocked(s.subscriptions.retrieve).mockResolvedValue({
+        id: "sub_1",
+        items: { data: [] },
+      } as unknown as Awaited<ReturnType<typeof s.subscriptions.retrieve>>);
+
+      await expect(
+        provider.updateSubscription("sub_1", "price_new")
+      ).rejects.toThrow("No subscription item found to update");
+    });
+  });
+
+  describe("previewProration", () => {
+    it("returns proration preview for same-interval change", async () => {
+      vi.mocked(s.subscriptions.retrieve).mockResolvedValue({
+        id: "sub_1",
+        items: {
+          data: [
+            {
+              id: "si_1",
+              price: { id: "price_old", recurring: { interval: "month" } },
+            },
+          ],
+        },
+      } as unknown as Awaited<ReturnType<typeof s.subscriptions.retrieve>>);
+      vi.mocked(s.prices.retrieve).mockResolvedValue({
+        recurring: { interval: "month" },
+      } as Awaited<ReturnType<typeof s.prices.retrieve>>);
+      vi.mocked(s.invoices.createPreview).mockResolvedValue({
+        period_end: 1_706_745_600,
+        subtotal: 4000,
+        amount_due: 4000,
+        currency: "usd",
+        lines: {
+          data: [
+            {
+              description: "Unused time on Pro 25k",
+              amount: -2000,
+              parent: {
+                subscription_item_details: { proration: true },
+              },
+            },
+            {
+              description: "Pro 50k",
+              amount: 6000,
+              parent: {
+                subscription_item_details: { proration: false },
+              },
+            },
+          ],
+        },
+      } as unknown as Awaited<ReturnType<typeof s.invoices.createPreview>>);
+
+      const result = await provider.previewProration("sub_1", "price_new");
+
+      expect(result.amountDue).toBe(4000);
+      expect(result.subtotal).toBe(4000);
+      expect(result.currency).toBe("usd");
+      expect(result.lineItems).toHaveLength(2);
+      expect(result.lineItems[0].proration).toBe(true);
+      expect(result.lineItems[1].proration).toBe(false);
+    });
+
+    it("includes proration_date for same-interval changes", async () => {
+      vi.mocked(s.subscriptions.retrieve).mockResolvedValue({
+        id: "sub_1",
+        items: {
+          data: [
+            {
+              id: "si_1",
+              price: { id: "price_old", recurring: { interval: "month" } },
+            },
+          ],
+        },
+      } as unknown as Awaited<ReturnType<typeof s.subscriptions.retrieve>>);
+      vi.mocked(s.prices.retrieve).mockResolvedValue({
+        recurring: { interval: "month" },
+      } as Awaited<ReturnType<typeof s.prices.retrieve>>);
+      vi.mocked(s.invoices.createPreview).mockResolvedValue({
+        period_end: null,
+        subtotal: 0,
+        amount_due: 0,
+        currency: "usd",
+        lines: { data: [] },
+      } as unknown as Awaited<ReturnType<typeof s.invoices.createPreview>>);
+
+      await provider.previewProration("sub_1", "price_new");
+
+      const callArgs = vi.mocked(s.invoices.createPreview).mock.calls[0][0] as
+        | Record<string, unknown>
+        | undefined;
+      const subDetails = (callArgs as Record<string, unknown> | undefined)
+        ?.subscription_details as Record<string, unknown> | undefined;
+      expect(subDetails?.proration_date).toBeDefined();
+    });
+
+    it("omits proration_date for interval changes", async () => {
+      vi.mocked(s.subscriptions.retrieve).mockResolvedValue({
+        id: "sub_1",
+        items: {
+          data: [
+            {
+              id: "si_1",
+              price: { id: "price_old", recurring: { interval: "month" } },
+            },
+          ],
+        },
+      } as unknown as Awaited<ReturnType<typeof s.subscriptions.retrieve>>);
+      vi.mocked(s.prices.retrieve).mockResolvedValue({
+        recurring: { interval: "year" },
+      } as Awaited<ReturnType<typeof s.prices.retrieve>>);
+      vi.mocked(s.invoices.createPreview).mockResolvedValue({
+        period_end: null,
+        subtotal: 0,
+        amount_due: 0,
+        currency: "usd",
+        lines: { data: [] },
+      } as unknown as Awaited<ReturnType<typeof s.invoices.createPreview>>);
+
+      await provider.previewProration("sub_1", "price_new");
+
+      const callArgs = vi.mocked(s.invoices.createPreview).mock.calls[0][0] as
+        | Record<string, unknown>
+        | undefined;
+      const subDetails = (callArgs as Record<string, unknown> | undefined)
+        ?.subscription_details as Record<string, unknown> | undefined;
+      expect(subDetails?.proration_date).toBeUndefined();
+    });
+  });
+});
+
+describe("UnknownEventTypeError", () => {
+  it("has correct properties", () => {
+    const error = new UnknownEventTypeError("payment_intent.created", "evt_1");
+    expect(error.eventType).toBe("payment_intent.created");
+    expect(error.eventId).toBe("evt_1");
+    expect(error.name).toBe("UnknownEventTypeError");
+    expect(error.message).toContain("payment_intent.created");
+    expect(error).toBeInstanceOf(Error);
+  });
+});
