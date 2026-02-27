@@ -4,10 +4,12 @@ import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
 import {
   getPlanLimits,
   type PlanName,
-  resolvePriceId,
   type TierKey,
 } from "@/keeperhub/lib/billing/plans";
-import { getOrgSubscription } from "@/keeperhub/lib/billing/plans-server";
+import {
+  getOrgSubscription,
+  resolvePriceId,
+} from "@/keeperhub/lib/billing/plans-server";
 import { auth } from "@/lib/auth";
 
 export async function GET(): Promise<NextResponse> {

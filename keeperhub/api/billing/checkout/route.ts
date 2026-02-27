@@ -1,15 +1,14 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { PAID_PLANS, VALID_INTERVALS } from "@/keeperhub/lib/billing/constants";
 import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
+import type { PlanName, TierKey } from "@/keeperhub/lib/billing/plans";
 import {
+  getOrgSubscription,
   getPriceId,
-  type PlanName,
   resolvePriceId,
-  type TierKey,
-} from "@/keeperhub/lib/billing/plans";
-import { getOrgSubscription } from "@/keeperhub/lib/billing/plans-server";
+} from "@/keeperhub/lib/billing/plans-server";
 import type { BillingProvider } from "@/keeperhub/lib/billing/provider";
 import { getBillingProvider } from "@/keeperhub/lib/billing/providers";
 import { requireOrgOwner } from "@/keeperhub/lib/billing/require-org-owner";
@@ -39,21 +38,26 @@ async function ensureProviderCustomer(
     userId,
   });
 
-  if (existingSub) {
-    await db
-      .update(organizationSubscriptions)
-      .set({ providerCustomerId: customerId, updatedAt: new Date() })
-      .where(eq(organizationSubscriptions.organizationId, activeOrgId));
-  } else {
-    await db.insert(organizationSubscriptions).values({
+  const rows = await db
+    .insert(organizationSubscriptions)
+    .values({
       organizationId: activeOrgId,
       providerCustomerId: customerId,
       plan: "free",
       status: "active",
+    })
+    .onConflictDoUpdate({
+      target: organizationSubscriptions.organizationId,
+      set: {
+        providerCustomerId: sql`COALESCE(${organizationSubscriptions.providerCustomerId}, ${customerId})`,
+        updatedAt: new Date(),
+      },
+    })
+    .returning({
+      providerCustomerId: organizationSubscriptions.providerCustomerId,
     });
-  }
 
-  return customerId;
+  return rows[0]?.providerCustomerId ?? customerId;
 }
 
 type ValidatedCheckout = {

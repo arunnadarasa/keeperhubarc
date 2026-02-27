@@ -259,11 +259,16 @@ const plugins = [
     organizationHooks: {
       async afterCreateOrganization(data) {
         const { organization: org } = data;
-        await db.insert(organizationSubscriptions).values({
-          organizationId: org.id,
-          plan: "free",
-          status: "active",
-        });
+        await db
+          .insert(organizationSubscriptions)
+          .values({
+            organizationId: org.id,
+            plan: "free",
+            status: "active",
+          })
+          .onConflictDoNothing({
+            target: organizationSubscriptions.organizationId,
+          });
       },
 
       async afterAddMember() {

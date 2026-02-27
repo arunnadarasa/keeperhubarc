@@ -1,10 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+vi.mock("@/lib/db", () => ({ db: {} }));
+vi.mock("@/lib/db/schema", () => ({ organizationSubscriptions: {} }));
+
+import { getPlanLimits, PLANS } from "@/keeperhub/lib/billing/plans";
 import {
-  getPlanLimits,
   getPriceId,
-  PLANS,
   resolvePriceId,
-} from "@/keeperhub/lib/billing/plans";
+} from "@/keeperhub/lib/billing/plans-server";
 
 describe("getPriceId", () => {
   it("returns price ID for pro 25k monthly", () => {

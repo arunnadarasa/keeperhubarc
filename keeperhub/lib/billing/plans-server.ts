@@ -4,12 +4,69 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { organizationSubscriptions } from "@/lib/db/schema";
 import {
+  type BillingInterval,
   getPlanLimits,
   PLANS,
   type PlanLimits,
   type PlanName,
   type TierKey,
 } from "./plans";
+
+// -- Price ID mapping (server-only, env vars not available in client bundles) --
+
+const PRICE_IDS: Record<string, string | undefined> = {
+  pro_25k_monthly: process.env.STRIPE_PRICE_PRO_25K_MONTHLY,
+  pro_25k_yearly: process.env.STRIPE_PRICE_PRO_25K_YEARLY,
+  pro_50k_monthly: process.env.STRIPE_PRICE_PRO_50K_MONTHLY,
+  pro_50k_yearly: process.env.STRIPE_PRICE_PRO_50K_YEARLY,
+  pro_100k_monthly: process.env.STRIPE_PRICE_PRO_100K_MONTHLY,
+  pro_100k_yearly: process.env.STRIPE_PRICE_PRO_100K_YEARLY,
+  business_250k_monthly: process.env.STRIPE_PRICE_BUSINESS_250K_MONTHLY,
+  business_250k_yearly: process.env.STRIPE_PRICE_BUSINESS_250K_YEARLY,
+  business_500k_monthly: process.env.STRIPE_PRICE_BUSINESS_500K_MONTHLY,
+  business_500k_yearly: process.env.STRIPE_PRICE_BUSINESS_500K_YEARLY,
+  business_1m_monthly: process.env.STRIPE_PRICE_BUSINESS_1M_MONTHLY,
+  business_1m_yearly: process.env.STRIPE_PRICE_BUSINESS_1M_YEARLY,
+  enterprise_monthly: process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY,
+  enterprise_yearly: process.env.STRIPE_PRICE_ENTERPRISE_YEARLY,
+};
+
+export function getPriceId(
+  plan: PlanName,
+  tier: TierKey | null,
+  interval: BillingInterval
+): string | undefined {
+  if (plan === "enterprise") {
+    return PRICE_IDS[`enterprise_${interval}`];
+  }
+  if (tier === null) {
+    return undefined;
+  }
+  return PRICE_IDS[`${plan}_${tier}_${interval}`];
+}
+
+export function resolvePriceId(priceId: string):
+  | {
+      plan: PlanName;
+      tier: TierKey | null;
+      interval: BillingInterval | null;
+    }
+  | undefined {
+  for (const [key, value] of Object.entries(PRICE_IDS)) {
+    if (value === priceId) {
+      const parts = key.split("_");
+      const plan = parts[0] as PlanName;
+      if (plan === "enterprise") {
+        const interval = (parts[1] as BillingInterval) ?? null;
+        return { plan, tier: null, interval };
+      }
+      const tier = parts[1] as TierKey;
+      const interval = (parts[2] as BillingInterval) ?? null;
+      return { plan, tier, interval };
+    }
+  }
+  return undefined;
+}
 
 export async function getOrgSubscription(
   organizationId: string

@@ -19,7 +19,15 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 const mockUpdateSet = vi.fn().mockReturnValue({ where: vi.fn() });
-const mockInsertValues = vi.fn().mockReturnValue({ returning: vi.fn() });
+const mockReturning = vi
+  .fn()
+  .mockResolvedValue([{ providerCustomerId: "cus_123" }]);
+const mockOnConflictDoUpdate = vi
+  .fn()
+  .mockReturnValue({ returning: mockReturning });
+const mockInsertValues = vi
+  .fn()
+  .mockReturnValue({ onConflictDoUpdate: mockOnConflictDoUpdate });
 
 vi.mock("@/lib/db", () => ({
   db: {

@@ -20,9 +20,15 @@ vi.mock("@/lib/auth", () => ({
 
 const mockGetOrgSubscription = vi.fn();
 
-vi.mock("@/keeperhub/lib/billing/plans-server", () => ({
-  getOrgSubscription: (...args: unknown[]) => mockGetOrgSubscription(...args),
-}));
+vi.mock("@/keeperhub/lib/billing/plans-server", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/keeperhub/lib/billing/plans-server")
+  >("@/keeperhub/lib/billing/plans-server");
+  return {
+    ...actual,
+    getOrgSubscription: (...args: unknown[]) => mockGetOrgSubscription(...args),
+  };
+});
 
 const mockPreviewProration = vi.fn();
 

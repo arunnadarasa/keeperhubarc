@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
 import { handleBillingEvent } from "@/keeperhub/lib/billing/handle-billing-event";
 import type {
   BillingProvider,

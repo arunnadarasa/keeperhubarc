@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { organizationSubscriptions } from "@/lib/db/schema";
 import { BILLING_ALERTS } from "./constants";
-import { resolvePriceId } from "./plans";
+import { resolvePriceId } from "./plans-server";
 import type { BillingProvider, BillingWebhookEvent } from "./provider";
 
 const LOG_PREFIX = "[Billing Handler]";
