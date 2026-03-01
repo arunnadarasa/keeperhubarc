@@ -962,6 +962,162 @@ const web3Plugin: IntegrationPlugin = {
       ],
     },
     {
+      slug: "approve-token",
+      label: "Approve ERC20 Token",
+      description:
+        "Approve a spender contract to spend ERC20 tokens on behalf of your wallet (required before swaps and DeFi interactions)",
+      category: "Web3",
+      requiresCredentials: true,
+      stepFunction: "approveTokenStep",
+      stepImportPath: "approve-token",
+      outputFields: [
+        {
+          field: "success",
+          description: "Whether the approval succeeded",
+        },
+        {
+          field: "transactionHash",
+          description: "The transaction hash of the approval",
+        },
+        {
+          field: "transactionLink",
+          description: "Explorer link to view the transaction",
+        },
+        {
+          field: "gasUsed",
+          description: "Gas cost in wei",
+        },
+        {
+          field: "approvedAmount",
+          description:
+            'The approved amount (human-readable, or "unlimited" for max approval)',
+        },
+        {
+          field: "spender",
+          description: "The spender address that was approved",
+        },
+        {
+          field: "symbol",
+          description: "The token symbol (e.g., USDC)",
+        },
+        {
+          field: "error",
+          description: "Error message if the approval failed",
+        },
+      ],
+      configFields: [
+        {
+          key: "network",
+          label: "Network",
+          type: "chain-select",
+          chainTypeFilter: "evm",
+          placeholder: "Select network",
+          required: true,
+        },
+        {
+          key: "tokenConfig",
+          label: "Token",
+          type: "token-select",
+          networkField: "network",
+          required: true,
+        },
+        {
+          key: "spenderAddress",
+          label: "Spender Address",
+          type: "template-input",
+          placeholder: "0x... or {{NodeName.address}}",
+          example: "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",
+          required: true,
+        },
+        {
+          key: "amount",
+          label: "Amount",
+          type: "template-input",
+          placeholder: '100.50 or "max" for unlimited',
+          example: "max",
+          required: true,
+        },
+        {
+          type: "group",
+          label: "Advanced",
+          defaultExpanded: false,
+          fields: [
+            {
+              key: "gasLimitMultiplier",
+              label: "Gas Limit",
+              type: "gas-limit-multiplier",
+              networkField: "network",
+              actionSlug: "approve-token",
+            },
+          ],
+        },
+      ],
+    },
+    {
+      slug: "check-allowance",
+      label: "Check ERC20 Allowance",
+      description:
+        "Check the current ERC20 token spending allowance granted by an owner to a spender",
+      category: "Web3",
+      stepFunction: "checkAllowanceStep",
+      stepImportPath: "check-allowance",
+      outputFields: [
+        {
+          field: "success",
+          description: "Whether the allowance check succeeded",
+        },
+        {
+          field: "allowance",
+          description: "Current allowance in human-readable format",
+        },
+        {
+          field: "allowanceRaw",
+          description: "Current allowance in raw units (wei string)",
+        },
+        {
+          field: "symbol",
+          description: "The token symbol (e.g., USDC)",
+        },
+        {
+          field: "error",
+          description: "Error message if the check failed",
+        },
+      ],
+      configFields: [
+        {
+          key: "network",
+          label: "Network",
+          type: "chain-select",
+          chainTypeFilter: "evm",
+          placeholder: "Select network",
+          required: true,
+        },
+        {
+          key: "tokenConfig",
+          label: "Token",
+          type: "token-select",
+          networkField: "network",
+          required: true,
+        },
+        {
+          key: "ownerAddress",
+          label: "Owner Address",
+          type: "template-input",
+          placeholder: "0x... or {{NodeName.address}}",
+          example: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
+          required: true,
+        },
+        {
+          key: "spenderAddress",
+          label: "Spender Address",
+          type: "template-input",
+          placeholder: "0x... or {{NodeName.address}}",
+          example: "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",
+          required: true,
+        },
+      ],
+    },
+    {
       slug: "write-contract",
       label: "Write Contract",
       description: "Write data to a smart contract (state-changing functions)",
