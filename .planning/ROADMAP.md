@@ -67,7 +67,7 @@ See: `.planning/milestones/v1.3-ROADMAP.md` for full details.
 - [x] **Phase 15: Pipeline Commands** - /add-protocol, /add-plugin, /add-feature slash commands using the agent pipeline (completed 2026-03-01)
 - [x] **Phase 16: Safeguards** - Human review gate, 2-round iteration limit, build verification, Verifier approval gate (completed 2026-03-01)
 - [x] **Phase 17: Doc Tracking & Tech Debt Cleanup** - Fix SUMMARY frontmatter, REQUIREMENTS.md checkboxes, SAFE-ID refs, template divergence (completed 2026-03-01)
-- [ ] **Phase 18: Integration & Tech Debt Alignment** - Align SAFE-02 counter framing, fix context block asymmetry
+- [x] **Phase 18: Integration & Tech Debt Alignment** - Align SAFE-02 counter framing, fix context block asymmetry (completed 2026-03-01)
 
 ## Phase Details
 
@@ -157,4 +157,4 @@ See: `.planning/milestones/v1.3-ROADMAP.md` for full details.
 | 15. Pipeline Commands | 3/3 | Complete    | 2026-03-01 | - |
 | 16. Safeguards | 2/2 | Complete    | 2026-03-01 | - |
 | 17. Doc Tracking & Tech Debt | 2/2 | Complete    | 2026-03-01 | - |
-| 18. Integration & Tech Debt Alignment | 0/? | Pending     | -          | - |
+| 18. Integration & Tech Debt Alignment | 1/1 | Complete    | 2026-03-01 | - |
