@@ -78,6 +78,7 @@ The Orchestrator handles: determining plugin variant, decomposing subtasks, dele
 - Plugin directory exists at keeperhub/plugins/{name}/ with all required files
 - All checks pass: pnpm check, pnpm type-check, pnpm discover-plugins
 - PR created targeting staging branch with conventional commit format
-- Pipeline safeguards enforced: risk tier classified, Verifier approval obtained, build passed
-- For Tier 3 changes (if plugin touches transaction signing or credentials): pipeline halted for human review
+- Verifier agent explicitly approved before PR creation (SAFE-04 gate)
+- Pipeline safeguards enforced: risk tier classified (SAFE-01), iteration limits tracked (SAFE-02), build verified (SAFE-03)
+- For Tier 3 changes (if plugin touches transaction signing or credentials): Orchestrator halted at DECOMPOSE with classification details (SAFE-01)
 </success_criteria>

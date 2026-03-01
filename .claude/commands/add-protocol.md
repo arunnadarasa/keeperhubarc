@@ -64,5 +64,6 @@ The Orchestrator handles: gathering protocol details from user or spec file, dec
 - Protocol definition at keeperhub/protocols/{slug}.ts passes defineProtocol() validation
 - All checks pass: pnpm check, pnpm type-check, vitest unit tests
 - PR created targeting staging branch with conventional commit format
-- Pipeline safeguards enforced: Tier 1 classification confirmed, Verifier approval obtained, build passed
+- Verifier agent explicitly approved before PR creation (SAFE-04 gate)
+- Pipeline safeguards enforced: risk tier classified (SAFE-01), iteration limits tracked (SAFE-02), build verified (SAFE-03)
 </success_criteria>
