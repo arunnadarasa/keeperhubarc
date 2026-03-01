@@ -65,7 +65,7 @@ See: `.planning/milestones/v1.3-ROADMAP.md` for full details.
 - [x] **Phase 13: Foundation** - Vitest skill, scoped CLAUDE.md files, pnpm build CI check (completed 2026-03-01)
 - [x] **Phase 14: Agent Team** - 5 agent definitions (Orchestrator, Builder, Verifier, Researcher, Debugger) and Blueprint pipeline specification (completed 2026-03-01)
 - [x] **Phase 15: Pipeline Commands** - /add-protocol, /add-plugin, /add-feature slash commands using the agent pipeline (completed 2026-03-01)
-- [ ] **Phase 16: Safeguards** - Human review gate, 2-round iteration limit, build verification, Verifier approval gate
+- [x] **Phase 16: Safeguards** - Human review gate, 2-round iteration limit, build verification, Verifier approval gate (completed 2026-03-01)
 
 ## Phase Details
 
@@ -125,4 +125,4 @@ See: `.planning/milestones/v1.3-ROADMAP.md` for full details.
 | 13. Foundation | 3/3 | Complete    | 2026-03-01 | - |
 | 14. Agent Team | 2/2 | Complete    | 2026-03-01 | - |
 | 15. Pipeline Commands | 3/3 | Complete    | 2026-03-01 | - |
-| 16. Safeguards | 1/2 | In Progress|  | - |
+| 16. Safeguards | 2/2 | Complete   | 2026-03-01 | - |
