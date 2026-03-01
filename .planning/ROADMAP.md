@@ -66,7 +66,7 @@ See: `.planning/milestones/v1.3-ROADMAP.md` for full details.
 - [x] **Phase 14: Agent Team** - 5 agent definitions (Orchestrator, Builder, Verifier, Researcher, Debugger) and Blueprint pipeline specification (completed 2026-03-01)
 - [x] **Phase 15: Pipeline Commands** - /add-protocol, /add-plugin, /add-feature slash commands using the agent pipeline (completed 2026-03-01)
 - [x] **Phase 16: Safeguards** - Human review gate, 2-round iteration limit, build verification, Verifier approval gate (completed 2026-03-01)
-- [ ] **Phase 17: Doc Tracking & Tech Debt Cleanup** - Fix SUMMARY frontmatter, REQUIREMENTS.md checkboxes, SAFE-ID refs, template divergence
+- [x] **Phase 17: Doc Tracking & Tech Debt Cleanup** - Fix SUMMARY frontmatter, REQUIREMENTS.md checkboxes, SAFE-ID refs, template divergence (completed 2026-03-01)
 
 ## Phase Details
 
@@ -144,4 +144,4 @@ See: `.planning/milestones/v1.3-ROADMAP.md` for full details.
 | 14. Agent Team | 2/2 | Complete    | 2026-03-01 | - |
 | 15. Pipeline Commands | 3/3 | Complete    | 2026-03-01 | - |
 | 16. Safeguards | 2/2 | Complete    | 2026-03-01 | - |
-| 17. Doc Tracking & Tech Debt | 0/2 | Planned    | - | - |
+| 17. Doc Tracking & Tech Debt | 2/2 | Complete    | 2026-03-01 | - |
