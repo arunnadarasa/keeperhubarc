@@ -6,7 +6,7 @@
 - ✅ **v1.1 OG Image Generation** - Phase 5 (shipped 2026-02-12)
 - ✅ **v1.2 Protocol Registry** - Phases 6-9 (shipped 2026-02-20)
 - ✅ **v1.3 Direct Execution API** - Phases 10-12 (shipped 2026-02-20)
-- **v1.4 Agent Team** - Phases 13-17 (in progress)
+- **v1.4 Agent Team** - Phases 13-18 (in progress)
 
 ## Phases
 
@@ -67,6 +67,7 @@ See: `.planning/milestones/v1.3-ROADMAP.md` for full details.
 - [x] **Phase 15: Pipeline Commands** - /add-protocol, /add-plugin, /add-feature slash commands using the agent pipeline (completed 2026-03-01)
 - [x] **Phase 16: Safeguards** - Human review gate, 2-round iteration limit, build verification, Verifier approval gate (completed 2026-03-01)
 - [x] **Phase 17: Doc Tracking & Tech Debt Cleanup** - Fix SUMMARY frontmatter, REQUIREMENTS.md checkboxes, SAFE-ID refs, template divergence (completed 2026-03-01)
+- [ ] **Phase 18: Integration & Tech Debt Alignment** - Align SAFE-02 counter framing, fix context block asymmetry
 
 ## Phase Details
 
@@ -136,6 +137,17 @@ See: `.planning/milestones/v1.3-ROADMAP.md` for full details.
 - [ ] 17-02-PLAN.md -- SAFE-0X citations, DECOMPOSE template, orchestrator numbering
 **Deferred**: GitHub branch protection on staging (requires manual GitHub settings, not code)
 
+### Phase 18: Integration & Tech Debt Alignment
+**Goal**: Resolve remaining integration partial and tech debt items from the v1.4 re-audit
+**Depends on**: Phase 17
+**Requirements**: None (all 17/17 satisfied; this phase fixes internal doc consistency)
+**Gap Closure:** Closes integration gap and tech debt from v1.4 milestone audit
+**Success Criteria** (what must be TRUE):
+  1. Orchestrator step 5 and pipeline spec error_handling chain agree on Debugger invocation before SAFE-02 escalation
+  2. add-protocol.md and add-plugin.md context blocks include blueprint-pipeline.md (matching add-feature.md)
+**Plans**: TBD
+**Deferred**: GitHub branch protection on staging (requires manual GitHub UI configuration, not code)
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -145,3 +157,4 @@ See: `.planning/milestones/v1.3-ROADMAP.md` for full details.
 | 15. Pipeline Commands | 3/3 | Complete    | 2026-03-01 | - |
 | 16. Safeguards | 2/2 | Complete    | 2026-03-01 | - |
 | 17. Doc Tracking & Tech Debt | 2/2 | Complete    | 2026-03-01 | - |
+| 18. Integration & Tech Debt Alignment | 0/? | Pending     | -          | - |
