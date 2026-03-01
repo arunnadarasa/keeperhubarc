@@ -9,10 +9,10 @@ Requirements for the Agent Team milestone. Each maps to roadmap phases.
 
 ### Foundation
 
-- [ ] **FOUND-01**: Vitest unit test writing skill exists and can generate tests for KeeperHub plugin step files
-- [ ] **FOUND-02**: Scoped CLAUDE.md in keeperhub/plugins/ provides plugin-specific coding standards and patterns to agents
-- [ ] **FOUND-03**: Scoped CLAUDE.md in tests/e2e/playwright/ provides E2E test writing patterns and discovery workflow to agents
-- [ ] **FOUND-04**: pnpm build runs as a blocking CI check on PRs targeting staging
+- [x] **FOUND-01**: Vitest unit test writing skill exists and can generate tests for KeeperHub plugin step files
+- [x] **FOUND-02**: Scoped CLAUDE.md in keeperhub/plugins/ provides plugin-specific coding standards and patterns to agents
+- [x] **FOUND-03**: Scoped CLAUDE.md in tests/e2e/playwright/ provides E2E test writing patterns and discovery workflow to agents
+- [x] **FOUND-04**: pnpm build runs as a blocking CI check on PRs targeting staging
 
 ### Agent Definitions
 
@@ -25,9 +25,9 @@ Requirements for the Agent Team milestone. Each maps to roadmap phases.
 ### Pipeline
 
 - [x] **PIPE-01**: Blueprint pipeline executes deterministic stages: DECOMPOSE -> RESEARCH -> IMPLEMENT -> VERIFY -> PR
-- [ ] **PIPE-02**: /add-protocol slash command uses the agent pipeline to create protocol definitions end-to-end
-- [ ] **PIPE-03**: /add-plugin slash command (renamed from /develop-plugin) uses the agent pipeline to create plugins end-to-end
-- [ ] **PIPE-04**: /add-feature slash command uses the agent pipeline for general KeeperHub feature development
+- [x] **PIPE-02**: /add-protocol slash command uses the agent pipeline to create protocol definitions end-to-end
+- [x] **PIPE-03**: /add-plugin slash command (renamed from /develop-plugin) uses the agent pipeline to create plugins end-to-end
+- [x] **PIPE-04**: /add-feature slash command uses the agent pipeline for general KeeperHub feature development
 
 ### Safeguards
 
@@ -67,19 +67,19 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-01 | Phase 17 | Pending |
-| FOUND-02 | Phase 17 | Pending |
-| FOUND-03 | Phase 17 | Pending |
-| FOUND-04 | Phase 17 | Pending |
+| FOUND-01 | Phase 13 | Complete |
+| FOUND-02 | Phase 13 | Complete |
+| FOUND-03 | Phase 13 | Complete |
+| FOUND-04 | Phase 13 | Complete |
 | AGENT-01 | Phase 14 | Complete |
 | AGENT-02 | Phase 14 | Complete |
 | AGENT-03 | Phase 14 | Complete |
 | AGENT-04 | Phase 14 | Complete |
 | AGENT-05 | Phase 14 | Complete |
 | PIPE-01 | Phase 14 | Complete |
-| PIPE-02 | Phase 17 | Pending |
-| PIPE-03 | Phase 17 | Pending |
-| PIPE-04 | Phase 17 | Pending |
+| PIPE-02 | Phase 15 | Complete |
+| PIPE-03 | Phase 15 | Complete |
+| PIPE-04 | Phase 15 | Complete |
 | SAFE-01 | Phase 16 | Complete |
 | SAFE-02 | Phase 16 | Complete |
 | SAFE-03 | Phase 16 | Complete |
@@ -92,4 +92,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-01*
-*Last updated: 2026-03-01 after roadmap creation (phases 13-16)*
+*Last updated: 2026-03-01 after Phase 17 execution -- checked FOUND-01-04, PIPE-02-04 checkboxes and corrected traceability phases*
