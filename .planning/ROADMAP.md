@@ -6,7 +6,7 @@
 - ✅ **v1.1 OG Image Generation** - Phase 5 (shipped 2026-02-12)
 - ✅ **v1.2 Protocol Registry** - Phases 6-9 (shipped 2026-02-20)
 - ✅ **v1.3 Direct Execution API** - Phases 10-12 (shipped 2026-02-20)
-- **v1.4 Agent Team** - Phases 13-16 (in progress)
+- **v1.4 Agent Team** - Phases 13-17 (in progress)
 
 ## Phases
 
@@ -66,6 +66,7 @@ See: `.planning/milestones/v1.3-ROADMAP.md` for full details.
 - [x] **Phase 14: Agent Team** - 5 agent definitions (Orchestrator, Builder, Verifier, Researcher, Debugger) and Blueprint pipeline specification (completed 2026-03-01)
 - [x] **Phase 15: Pipeline Commands** - /add-protocol, /add-plugin, /add-feature slash commands using the agent pipeline (completed 2026-03-01)
 - [x] **Phase 16: Safeguards** - Human review gate, 2-round iteration limit, build verification, Verifier approval gate (completed 2026-03-01)
+- [ ] **Phase 17: Doc Tracking & Tech Debt Cleanup** - Fix SUMMARY frontmatter, REQUIREMENTS.md checkboxes, SAFE-ID refs, template divergence
 
 ## Phase Details
 
@@ -118,6 +119,21 @@ See: `.planning/milestones/v1.3-ROADMAP.md` for full details.
   4. No PR is created unless the Verifier agent has explicitly approved the changes in that pipeline run
 **Plans**: TBD
 
+### Phase 17: Doc Tracking & Tech Debt Cleanup
+**Goal**: All 7 partial requirements pass the 3-source audit check (VERIFICATION + SUMMARY frontmatter + REQUIREMENTS.md) and accumulated tech debt is resolved
+**Depends on**: Phase 16
+**Requirements**: FOUND-01, FOUND-02, FOUND-03, FOUND-04, PIPE-02, PIPE-03, PIPE-04
+**Gap Closure:** Closes gaps from v1.4 milestone audit
+**Success Criteria** (what must be TRUE):
+  1. SUMMARY frontmatter for plans 13-01, 13-02, 13-03 includes `requirements-completed` listing FOUND-01 through FOUND-04
+  2. SUMMARY frontmatter for plans 15-01, 15-02, 15-03 includes `requirements-completed` listing PIPE-02 through PIPE-04
+  3. REQUIREMENTS.md checkboxes checked for all 7 requirements (FOUND-01-04, PIPE-02-04)
+  4. /add-protocol and /add-plugin commands cite SAFE-0X identifiers (matching /add-feature pattern)
+  5. blueprint-pipeline.md DECOMPOSE template includes Tests Required and Test Files fields
+  6. Orchestrator step 8 numbering corrected (d, e, f sequential)
+**Plans**: TBD
+**Deferred**: GitHub branch protection on staging (requires manual GitHub settings, not code)
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -126,3 +142,4 @@ See: `.planning/milestones/v1.3-ROADMAP.md` for full details.
 | 14. Agent Team | 2/2 | Complete    | 2026-03-01 | - |
 | 15. Pipeline Commands | 3/3 | Complete    | 2026-03-01 | - |
 | 16. Safeguards | 2/2 | Complete    | 2026-03-01 | - |
+| 17. Doc Tracking & Tech Debt | 0/0 | Pending    | - | - |

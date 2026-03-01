@@ -67,19 +67,19 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-01 | Phase 13 | Pending |
-| FOUND-02 | Phase 13 | Pending |
-| FOUND-03 | Phase 13 | Pending |
-| FOUND-04 | Phase 13 | Pending |
+| FOUND-01 | Phase 17 | Pending |
+| FOUND-02 | Phase 17 | Pending |
+| FOUND-03 | Phase 17 | Pending |
+| FOUND-04 | Phase 17 | Pending |
 | AGENT-01 | Phase 14 | Complete |
 | AGENT-02 | Phase 14 | Complete |
 | AGENT-03 | Phase 14 | Complete |
 | AGENT-04 | Phase 14 | Complete |
 | AGENT-05 | Phase 14 | Complete |
 | PIPE-01 | Phase 14 | Complete |
-| PIPE-02 | Phase 15 | Pending |
-| PIPE-03 | Phase 15 | Pending |
-| PIPE-04 | Phase 15 | Pending |
+| PIPE-02 | Phase 17 | Pending |
+| PIPE-03 | Phase 17 | Pending |
+| PIPE-04 | Phase 17 | Pending |
 | SAFE-01 | Phase 16 | Complete |
 | SAFE-02 | Phase 16 | Complete |
 | SAFE-03 | Phase 16 | Complete |
