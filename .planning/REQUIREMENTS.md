@@ -31,10 +31,10 @@ Requirements for the Agent Team milestone. Each maps to roadmap phases.
 
 ### Safeguards
 
-- [ ] **SAFE-01**: Human review gate blocks PR creation for high-risk changes (schema migrations, security, Web3 transactions)
-- [ ] **SAFE-02**: 2-round iteration limit escalates to human after 2 failed CI rounds instead of retrying indefinitely
-- [ ] **SAFE-03**: Full build verification (pnpm build) runs before PR to catch "use step" bundler violations
-- [ ] **SAFE-04**: Verifier agent must approve changes before PR creation proceeds
+- [x] **SAFE-01**: Human review gate blocks PR creation for high-risk changes (schema migrations, security, Web3 transactions)
+- [x] **SAFE-02**: 2-round iteration limit escalates to human after 2 failed CI rounds instead of retrying indefinitely
+- [x] **SAFE-03**: Full build verification (pnpm build) runs before PR to catch "use step" bundler violations
+- [x] **SAFE-04**: Verifier agent must approve changes before PR creation proceeds
 
 ## Future Requirements
 
@@ -80,10 +80,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PIPE-02 | Phase 15 | Pending |
 | PIPE-03 | Phase 15 | Pending |
 | PIPE-04 | Phase 15 | Pending |
-| SAFE-01 | Phase 16 | Pending |
-| SAFE-02 | Phase 16 | Pending |
-| SAFE-03 | Phase 16 | Pending |
-| SAFE-04 | Phase 16 | Pending |
+| SAFE-01 | Phase 16 | Complete |
+| SAFE-02 | Phase 16 | Complete |
+| SAFE-03 | Phase 16 | Complete |
+| SAFE-04 | Phase 16 | Complete |
 
 **Coverage:**
 - v1.4 requirements: 17 total

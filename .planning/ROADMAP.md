@@ -125,4 +125,4 @@ See: `.planning/milestones/v1.3-ROADMAP.md` for full details.
 | 13. Foundation | 3/3 | Complete    | 2026-03-01 | - |
 | 14. Agent Team | 2/2 | Complete    | 2026-03-01 | - |
 | 15. Pipeline Commands | 3/3 | Complete    | 2026-03-01 | - |
-| 16. Safeguards | 2/2 | Complete   | 2026-03-01 | - |
+| 16. Safeguards | 2/2 | Complete    | 2026-03-01 | - |
