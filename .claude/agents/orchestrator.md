@@ -88,7 +88,7 @@ The pipeline enforces these safeguards at specific stages. Read @.claude/agents/
    - Collect Implementation Report
    - If Builder reports FAIL after 2 lint/type-check fix rounds: proceed to step 6
    - If Builder reports PASS: proceed to step 7
-   - **SAFE-02 tracking:** If Builder reports FAIL, increment the implement-fix counter. If counter reaches 2, skip Debugger and execute SAFE-02 escalation protocol. Present escalation report to user and terminate pipeline.
+   - **SAFE-02 tracking:** If Builder reports FAIL, increment the implement-fix counter. If counter reaches 2, invoke Debugger (step 6) before escalation. If Debugger also fails, execute SAFE-02 escalation protocol. Present escalation report to user and terminate pipeline.
 
 6. **DEBUGGER intervention** (delegate to Debugger, only if Builder failed):
    - Spawn Debugger agent with failure details from Builder's Implementation Report

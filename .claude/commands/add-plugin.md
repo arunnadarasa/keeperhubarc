@@ -18,6 +18,7 @@ Example credential plugin: @keeperhub/plugins/discord/index.ts
 Example system plugin: @keeperhub/plugins/web3/index.ts
 Plugin registry: @plugins/registry.ts
 Project conventions: @CLAUDE.md
+Blueprint pipeline: @.claude/agents/blueprint-pipeline.md
 Existing plugins: !`ls keeperhub/plugins/`
 </context>
 

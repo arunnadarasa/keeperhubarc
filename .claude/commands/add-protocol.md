@@ -17,6 +17,7 @@ Domain knowledge: @.claude/agents/protocol-domain.md
 Example protocol: @keeperhub/protocols/weth.ts
 Protocol registry: @keeperhub/lib/protocol-registry.ts
 Project conventions: @CLAUDE.md
+Blueprint pipeline: @.claude/agents/blueprint-pipeline.md
 Existing protocols: !`ls keeperhub/protocols/`
 </context>
 
