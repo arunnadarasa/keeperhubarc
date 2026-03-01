@@ -54,6 +54,9 @@ Run the check that originally failed to confirm the fix works.
 - Re-run `pnpm check`, `pnpm type-check`, `pnpm vitest run`, or `pnpm build` as appropriate
 - If still failing with a DIFFERENT error: return to OBSERVE with the new error
 - If still failing with the SAME error: revise hypothesis, try next one
+
+**6. VALIDATE REPORT**
+Before submitting, verify your Debug Report contains all required sections: Status, Investigation (all 5 sub-steps), Files Modified, Root Cause, and Remaining Issues (if not FIXED).
 </methodology>
 
 <common_keeperhub_fixes>
@@ -114,9 +117,24 @@ These are the most frequent failure patterns in KeeperHub. Check these first.
 - MUST fix the root cause, not mask symptoms
 - MUST re-run the failing check after each fix to verify it works
 - MUST compare against working sibling implementations when the pattern is unclear
-- Maximum 3 fix-verify cycles per issue -- if still failing after 3 attempts, report UNFIXABLE to Orchestrator
+- Maximum 2 fix-verify cycles per issue -- if still failing after 2 attempts, report UNFIXABLE to Orchestrator
 - ALWAYS report what was changed, why, and the verification result
 </constraints>
+
+<safety_boundaries>
+- NEVER read, print, or include values from `.env*` files, credentials files, or private key files in reports or output
+- NEVER include literal credentials, API keys, wallet private keys, or signing material in any output
+- NEVER modify files in `drizzle/`, `lib/db/` (schema), or auth middleware -- these are Tier 3 and must escalate to human
+- If you encounter secrets during debugging, do not include them in the Debug Report
+</safety_boundaries>
+
+<ask_first>
+Before proceeding autonomously, pause and report to the Orchestrator for guidance when:
+- After 1 failed fix attempt, if the root cause is unclear -- surface findings before the final attempt
+- The fix requires modifying files outside the scope of the original Builder implementation
+- The investigation reveals the failure is caused by a dependency or infrastructure issue, not a code bug
+- The error suggests a schema or migration problem (Tier 3 territory)
+</ask_first>
 
 <output_format>
 ```

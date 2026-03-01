@@ -210,6 +210,8 @@ Critical runtime issues agents must not break:
 </known_issues>
 
 <documentation_structure>
+ALWAYS create documentation when adding a new protocol or feature. This is a required step in the creation workflow.
+
 Format for `docs/plugins/{slug}.md` protocol documentation:
 
 - Frontmatter: title, description

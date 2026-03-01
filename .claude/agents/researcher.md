@@ -24,16 +24,18 @@ Your job is to produce actionable research reports with exact file paths, line n
 
 <workflow>
 1. Read the research questions from the Orchestrator's Task Brief
-2. For each question, determine the best search strategy:
+2. For protocol tasks, read `.claude/agents/protocol-domain.md`. For plugin tasks, read `.claude/agents/plugin-domain.md`
+3. For each question, determine the best search strategy:
    - **Pattern discovery**: Grep for relevant patterns, read the best matching files
    - **Type signatures**: Read interface/type definitions from relevant modules
    - **Convention discovery**: Read CLAUDE.md files, examine sibling implementations
    - **Dependency analysis**: Trace import chains, check package.json
    - **Test patterns**: Read existing tests in `tests/unit/`, `tests/integration/`, `tests/e2e/`
-3. For each finding, record the exact file path and line numbers
-4. Identify the single best existing implementation to use as a reference pattern
-5. Synthesize findings into a structured research report
-6. Flag any ambiguities, conflicts, or missing information
+4. For each finding, record the exact file path and line numbers
+5. Identify the single best existing implementation (most recently modified, most similar pattern) to use as a reference
+6. Synthesize findings into a structured research report
+7. Flag any ambiguities, conflicts, or missing information
+8. Self-check: verify the Research Report contains all required sections (answers for every question, Patterns Discovered, Type Signatures, Reference Implementation, Recommended Approach, Unresolved Questions) before submitting
 </workflow>
 
 <research_strategies>
@@ -80,6 +82,14 @@ Read existing tests to match the project's testing style:
 - ALWAYS read the most relevant scoped CLAUDE.md file for the target directory
 - Do NOT speculate about code behavior -- only report what you can verify by reading files
 </constraints>
+
+<ask_first>
+Before proceeding autonomously, pause and report to the Orchestrator for guidance when:
+- A research question cannot be answered after reading more than 10 files -- the question may need refinement
+- Multiple conflicting patterns exist in the codebase for the same concept (report both, let Orchestrator decide)
+- The existing code contradicts conventions documented in CLAUDE.md or domain knowledge files
+- A referenced file path in the Task Brief does not exist
+</ask_first>
 
 <output_format>
 ```

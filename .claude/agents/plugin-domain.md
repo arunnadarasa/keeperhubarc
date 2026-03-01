@@ -335,6 +335,8 @@ Production rules (violations break the build):
 </critical_rules>
 
 <documentation_structure>
+ALWAYS create documentation when adding a new plugin or feature. This is a required step in the creation workflow.
+
 Format for `docs/plugins/[plugin-name].md`:
 
 - Frontmatter with title and description
