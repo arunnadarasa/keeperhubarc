@@ -33,6 +33,27 @@ Every task entering the pipeline is classified into one of three risk tiers duri
 - If the task adds tests for existing code -> Tier 1
 - If the task creates new features or modifies existing behavior -> Tier 2
 - When uncertain, classify as Tier 2 (human review provides safety net)
+
+<tier_classification_protocol>
+The Orchestrator MUST run this classification at DECOMPOSE before any work begins:
+
+1. List all files the task will create or modify
+2. Check each file path against these Tier 3 patterns:
+   - lib/db/* or drizzle/* or **/migration* -> schema migration -> Tier 3
+   - **signing* or **private-key* or **/wallet/* -> key management -> Tier 3
+   - **/transaction* or **/transfer* (write operations, not read) -> tx submission -> Tier 3
+   - lib/auth/* or middleware/auth* or **/session* -> auth/access control -> Tier 3
+   - **/credentials* (creating new credential types, not using existing) -> credential handling -> Tier 3
+3. If ANY file matches a Tier 3 pattern: classify as Tier 3
+4. If the task creates a new plugin/protocol following existing patterns: Tier 1
+5. If the task adds tests for existing code: Tier 1
+6. Otherwise: Tier 2
+
+When classifying, the Orchestrator MUST state:
+- Which files were checked
+- Which pattern (if any) matched
+- The resulting tier
+</tier_classification_protocol>
 </risk_tiers>
 
 <stages>
@@ -307,12 +328,88 @@ All intermediate state is ephemeral -- it exists only in the agent conversation 
 **No parallel execution in v1.4:** Stages run strictly sequentially. One stage must complete before the next begins. Parallel agent execution within stages is a future enhancement.
 </state_format>
 
-<ci_gates>
-**Planned CI gates (Phase 16 will enforce these):**
-- `pnpm build` must pass before PR creation (Builder should catch this, but PR stage double-checks)
-- `pnpm check` (lint) must pass
-- `pnpm type-check` (TypeScript) must pass
-- Verifier approval required (APPROVED: true)
+<safeguards>
+These safeguards are ACTIVE and ENFORCED. Every agent MUST follow them. They are not aspirational -- they are binding pipeline rules.
 
-These gates exist in the pipeline specification now so that all agents are aware of them, even before Phase 16 adds enforcement tooling.
-</ci_gates>
+<safeguard id="SAFE-01" name="Human Review Gate">
+**Trigger:** Task classified as Tier 3 during DECOMPOSE
+**Protocol:**
+1. Orchestrator completes risk classification using <tier_classification_protocol>
+2. If Tier 3: Orchestrator HALTS the pipeline immediately
+3. Orchestrator presents to the user:
+   - Task summary
+   - Risk tier: 3
+   - Tier justification (which files matched which Tier 3 pattern)
+   - Recommendation: "This task modifies [category]. Proceed manually or approve agent execution with human review."
+4. Pipeline does NOT proceed unless the user explicitly approves in chat
+5. If user approves: pipeline continues but PR is marked as requiring human review before merge
+6. If user declines: pipeline terminates gracefully with no changes
+**Output:** HALT message to user with classification details
+</safeguard>
+
+<safeguard id="SAFE-02" name="Iteration Limit">
+**Trigger:** Any implement-verify or fix-verify cycle
+**Protocol:**
+1. Orchestrator maintains a counter for each cycle type:
+   - Builder lint/type-check fix rounds: max 2
+   - Verify-implement loops: max 2
+   - Debugger fix attempts: max 2
+   - Build fix attempts at PR stage: max 1
+2. On each iteration, Orchestrator increments the relevant counter
+3. When a counter reaches its limit:
+   a. Orchestrator STOPS retrying immediately
+   b. Orchestrator compiles an escalation report containing:
+      - Original task description
+      - Risk tier and justification
+      - All error messages from each failed attempt
+      - Files involved
+      - What was attempted and why it failed
+      - Recommended manual action
+   c. Orchestrator presents the escalation report to the user
+   d. Pipeline terminates -- no PR is created
+4. Counters reset only when starting a completely new pipeline run
+**Output:** Escalation report to user after limit reached
+</safeguard>
+
+<safeguard id="SAFE-03" name="Build Verification Gate">
+**Trigger:** Before PR creation (PR stage, step 4)
+**Protocol:**
+1. Orchestrator runs `pnpm build` as the final gate before creating a PR
+2. This is mandatory even if the Verifier already ran build during VERIFY
+3. If build PASSES: proceed with PR creation
+4. If build FAILS:
+   a. Route to Builder (or Debugger if Builder already failed) for fix attempt
+   b. Re-run build after fix
+   c. If build still fails: invoke SAFE-02 (iteration limit) -- this counts as a fix attempt
+5. Build must produce exit code 0. Any non-zero exit code is a failure.
+6. Common build failures to watch for:
+   - "use step" bundler violations (exported functions from step files)
+   - Missing imports or type errors not caught by type-check alone
+   - Runtime-only dependency resolution failures
+**Output:** Build PASS/FAIL status, included in PR description
+</safeguard>
+
+<safeguard id="SAFE-04" name="Verifier Approval Gate">
+**Trigger:** VERIFY stage completion
+**Protocol:**
+1. Verifier produces a Verification Report with `APPROVED: true` or `APPROVED: false`
+2. Orchestrator reads the APPROVED field as a boolean gate:
+   - `APPROVED: true` -> proceed to PR stage
+   - `APPROVED: false` -> route rejection to Builder for fixes, then re-verify
+3. The Orchestrator MUST NOT proceed to PR stage without `APPROVED: true`
+4. If the Verifier report is malformed (missing APPROVED field, ambiguous wording):
+   - Orchestrator re-invokes Verifier with clarification request
+   - Maximum 1 retry for malformed reports
+   - If still malformed: escalate to human
+5. The Verification Report is included in the PR description as evidence of review
+**Output:** APPROVED boolean, Verification Report text
+</safeguard>
+
+<safeguard_interaction>
+Safeguards can interact:
+- SAFE-01 fires at DECOMPOSE -> if halted, no other safeguards are relevant
+- SAFE-04 fires at VERIFY -> if rejected, SAFE-02 counter increments for the verify-implement loop
+- SAFE-02 fires when any counter reaches limit -> terminates pipeline regardless of stage
+- SAFE-03 fires at PR stage -> if build fails and fix fails, SAFE-02 terminates pipeline
+</safeguard_interaction>
+</safeguards>
