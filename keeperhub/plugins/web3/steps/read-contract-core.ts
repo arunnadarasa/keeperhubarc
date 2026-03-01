@@ -9,6 +9,7 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
+import { reshapeArgsForAbi } from "@/keeperhub/lib/abi-struct-args";
 import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
 import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
@@ -180,6 +181,7 @@ export async function readContractCore(
         // Keep empty strings if they're not at the end
         return parsedArgs.slice(index + 1).some((a) => a !== "");
       });
+      args = reshapeArgsForAbi(args, functionAbi);
       console.log("[Read Contract] Function arguments parsed:", args);
     } catch (error) {
       logUserError(

@@ -9,6 +9,7 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
+import { reshapeArgsForAbi } from "@/keeperhub/lib/abi-struct-args";
 import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
 import {
   getOrganizationWalletAddress,
@@ -134,6 +135,7 @@ export async function writeContractCore(
         // Keep empty strings if they're not at the end
         return parsedArgs.slice(index + 1).some((a) => a !== "");
       });
+      args = reshapeArgsForAbi(args, functionAbi);
     } catch (error) {
       return {
         success: false,
