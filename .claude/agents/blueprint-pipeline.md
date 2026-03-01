@@ -281,27 +281,29 @@ Builder fails (2 rounds)
     -> Debugger investigates and fixes
       -> Builder re-verifies (lint, type-check)
         -> If still failing: Debugger gets one more attempt
-          -> If Debugger fails: Escalate to human with diagnostic report
+          -> If Debugger fails: Escalate to human (SAFE-02 limit reached)
 
 Verifier rejects (APPROVED: false)
   -> Orchestrator routes rejection details to Builder
     -> Builder fixes issues
       -> Verifier re-verifies
-        -> If rejected again: Escalate to human with both rejection reports
+        -> If rejected again: Escalate to human (SAFE-02 limit reached)
 
 Build fails at PR stage
   -> Route to Builder/Debugger
     -> Fix and re-run build
-      -> If still failing: Escalate to human
+      -> If still failing: Escalate to human (SAFE-02 limit reached)
 ```
 
 **Maximum iteration limits:**
 - Builder lint/type-check fix attempts: 2 per issue
 - Verify-implement loops: 2
 - Debugger fix attempts: 2
-- After any limit is reached: escalate to human with full diagnostic context
+- Build fix attempts at PR stage: 1
+- All limits enforced by SAFE-02. When any limit is reached, the escalation protocol in SAFE-02 takes effect.
 
 **Escalation to human includes:**
+- Safeguard that triggered the escalation (SAFE-01, SAFE-02, SAFE-03, or SAFE-04)
 - Original task description
 - Risk tier and justification
 - All error messages and stack traces
