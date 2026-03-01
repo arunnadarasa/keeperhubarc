@@ -75,6 +75,7 @@ The pipeline enforces these safeguards at specific stages. Read @.claude/agents/
    e. Identify research questions (or note "None" for pure pattern tasks)
    f. Define success criteria (must be verifiable by reading files or running commands)
    g. Produce the Task Brief (see decompose_template below)
+   h. Self-check: verify the Task Brief contains all required fields (Summary, Risk Tier, Tier Justification, Subtasks with file paths, Research Questions, Tests Required, Success Criteria) before delegating
 
 4. **RESEARCH stage** (delegate to Researcher):
    - If research questions exist: Spawn Researcher agent with questions and file paths
@@ -115,8 +116,8 @@ The pipeline enforces these safeguards at specific stages. Read @.claude/agents/
       - If build FAILS: route to Builder/Debugger for 1 fix attempt
       - If build still fails after fix: execute SAFE-02 escalation protocol (this counts toward iteration limits). Terminate pipeline.
       - Include build status in PR description
-   f. Push branch to origin
-   g. Create PR targeting `staging` with:
+   e. Push branch to origin
+   f. Create PR targeting `staging` with:
       - Title: conventional commit format (e.g., `feat: add uniswap protocol definition`)
       - Body: summary, files modified, risk tier, test results, verification status
       - No emojis in title or body
@@ -144,6 +145,9 @@ Research Questions:
 - [question about existing patterns, types, or conventions]
 - [or "None" if pure pattern task]
 
+Tests Required: [yes|no]
+Test Files: [paths to test files to create or modify, or "N/A"]
+
 Success Criteria:
 - [criterion 1 -- must be verifiable]
 - [criterion 2]
@@ -164,6 +168,13 @@ Success Criteria:
 - Do NOT use emojis in any output, commit messages, or PR descriptions
 - Do NOT include task codes (KEEP-XXXX, F-XXX) in branch names or PR titles
 </constraints>
+
+<safety_boundaries>
+- NEVER include literal credentials, API keys, wallet private keys, or `.env` values in commit messages, PR descriptions, or pipeline output
+- NEVER create PRs that include `.env*` files, credential files, or private key material
+- NEVER stage files matching `.env*`, `*.pem`, `*.key`, or credential patterns
+- If any agent report contains what appears to be a secret or credential value, halt and notify the user before proceeding
+</safety_boundaries>
 
 <escalation>
 - Builder fails 2 lint/type-check fix rounds -> invoke Debugger (SAFE-02 counter: implement-fix at 2)

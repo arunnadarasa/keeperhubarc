@@ -91,6 +91,9 @@ Research Questions:
 - [question about existing patterns, types, or conventions]
 - [or "None" if pure pattern task with no unknowns]
 
+Tests Required: [yes|no]
+Test Files: [paths to test files to create or modify, or "N/A"]
+
 Success Criteria:
 - [criterion 1 -- must be verifiable by reading files or running commands]
 - [criterion 2]
@@ -137,6 +140,8 @@ Patterns Discovered:
 Type Signatures Needed:
 - [type/interface name] from [file] -- [relevant fields]
 
+Reference Implementation: [file path] -- [why this is the best example to follow]
+
 Recommended Approach: [synthesis of findings into implementation guidance]
 
 Unresolved Questions:
@@ -155,7 +160,7 @@ Unresolved Questions:
 - Research Report from RESEARCH (if produced)
 
 **Process:**
-1. Read the implementation brief and research report
+1. Read the Task Brief and research report
 2. Read relevant existing code (referenced files, sibling implementations)
 3. Read scoped CLAUDE.md files in the target directory
 4. Create or modify files according to the brief's subtask list
@@ -182,6 +187,9 @@ Discover Plugins: [RAN|SKIPPED] [result if ran]
 
 Issues (if FAIL):
 - [issue description with file:line reference]
+
+Deviations:
+- [any files created/modified outside the brief's list, with justification]
 ```
 
 **Iteration:** If lint or type-check fails, Builder fixes and re-runs (up to 2 rounds). After 2 failures on the same issue, Builder reports FAIL and the Orchestrator routes to Debugger.
@@ -226,6 +234,7 @@ Convention Compliance:
 - keeperhub/ directory: [PASS|FAIL]
 - "use step" patterns: [PASS|FAIL|N/A]
 - No emojis: [PASS|FAIL]
+- No debug artifacts: [PASS|FAIL]
 - Plugin registration: [PASS|FAIL|N/A]
 
 Issues Found:
