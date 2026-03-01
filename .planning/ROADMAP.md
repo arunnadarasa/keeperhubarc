@@ -131,7 +131,9 @@ See: `.planning/milestones/v1.3-ROADMAP.md` for full details.
   4. /add-protocol and /add-plugin commands cite SAFE-0X identifiers (matching /add-feature pattern)
   5. blueprint-pipeline.md DECOMPOSE template includes Tests Required and Test Files fields
   6. Orchestrator step 8 numbering corrected (d, e, f sequential)
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 17-01-PLAN.md -- SUMMARY frontmatter and REQUIREMENTS.md checkbox fixes
+- [ ] 17-02-PLAN.md -- SAFE-0X citations, DECOMPOSE template, orchestrator numbering
 **Deferred**: GitHub branch protection on staging (requires manual GitHub settings, not code)
 
 ## Progress
@@ -142,4 +144,4 @@ See: `.planning/milestones/v1.3-ROADMAP.md` for full details.
 | 14. Agent Team | 2/2 | Complete    | 2026-03-01 | - |
 | 15. Pipeline Commands | 3/3 | Complete    | 2026-03-01 | - |
 | 16. Safeguards | 2/2 | Complete    | 2026-03-01 | - |
-| 17. Doc Tracking & Tech Debt | 0/0 | Pending    | - | - |
+| 17. Doc Tracking & Tech Debt | 0/2 | Planned    | - | - |

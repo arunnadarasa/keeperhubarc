@@ -7,6 +7,7 @@ completed: 2026-03-01T00:00:00Z
 commits:
   - hash: c9ca2814e
     message: "feat(15-01): extract protocol domain knowledge and rewrite /add-protocol as Orchestrator wrapper"
+requirements-completed: [PIPE-02]
 ---
 
 ## Summary

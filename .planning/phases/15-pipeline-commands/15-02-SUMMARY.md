@@ -7,6 +7,7 @@ completed: 2026-03-01T00:00:00Z
 commits:
   - hash: a8460f0e5
     message: "feat(15-02): extract plugin domain knowledge and create /add-plugin command"
+requirements-completed: [PIPE-03]
 ---
 
 ## Summary

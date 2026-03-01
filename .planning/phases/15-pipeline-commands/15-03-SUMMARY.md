@@ -7,6 +7,7 @@ completed: 2026-03-01T00:00:00Z
 commits:
   - hash: eda682de4
     message: "feat(15-03): create /add-feature general-purpose pipeline command"
+requirements-completed: [PIPE-04]
 ---
 
 ## Summary
