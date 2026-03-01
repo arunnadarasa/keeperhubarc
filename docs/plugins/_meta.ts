@@ -6,6 +6,7 @@ export default {
   safe: "Safe",
   ajna: "Ajna",
   cowswap: "CoW Swap",
+  morpho: "Morpho",
   pendle: "Pendle",
   sky: "Sky",
   uniswap: "Uniswap",
