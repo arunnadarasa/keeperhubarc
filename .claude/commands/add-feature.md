@@ -12,7 +12,7 @@ Implement a KeeperHub feature using the Blueprint agent pipeline. $ARGUMENTS is 
 
 This command invokes the Orchestrator agent which runs the Blueprint pipeline: DECOMPOSE -> RESEARCH -> IMPLEMENT -> VERIFY -> PR.
 
-Important: Features touching database schemas, security code, Web3 transaction signing, or auth middleware are Tier 3 -- the Orchestrator will halt and present the task to you for human-owned execution rather than proceeding automatically.
+Important: Features touching database schemas (lib/db/, drizzle/), security code (auth middleware, session handling), Web3 transaction signing (wallet, private keys), or credential handling are Tier 3. The Orchestrator enforces SAFE-01: it halts the pipeline at DECOMPOSE, presents the risk classification with file-path evidence, and waits for your explicit approval before proceeding.
 </objective>
 
 <context>
@@ -77,5 +77,7 @@ The Orchestrator handles: risk classification, task decomposition, research dele
 - For Tier 3 features: Orchestrator halts at DECOMPOSE and presents the task with risk justification
 - All automated checks pass: pnpm check, pnpm type-check, vitest (where applicable)
 - PR created targeting staging branch with conventional commit title
-- Verifier agent explicitly approved before PR creation
+- Verifier agent explicitly approved before PR creation (SAFE-04 gate)
+- Pipeline safeguards enforced: risk tier classified (SAFE-01), iteration limits tracked (SAFE-02), build verified (SAFE-03)
+- For Tier 3 features: Orchestrator halted at DECOMPOSE with classification details (SAFE-01)
 </success_criteria>
