@@ -54,41 +54,21 @@ jobs:
         run: |
           echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Build, tag, and push app image to ECR
-        id: build-app-image
-        if: ${{ !contains(github.event.head_commit.message , '[skip build]') }}
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          build-args: |
-            NEXT_PUBLIC_AUTH_PROVIDERS=${{ env.NEXT_PUBLIC_AUTH_PROVIDERS }}
-            NEXT_PUBLIC_GITHUB_CLIENT_ID=${{ env.NEXT_PUBLIC_GITHUB_CLIENT_ID }}
-            NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ env.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:app-${{ steps.vars.outputs.sha_short }}
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:app-latest
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:${{ env.ENVIRONMENT_TAG }}
-          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-app
-          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-app,mode=max
-
-      - name: Build, tag, and push migrator image to ECR
-        id: build-migrator
+      - name: Build and push all images to ECR
         if: ${{ !contains(github.event.head_commit.message, '[skip build]') }}
-        uses: docker/build-push-action@v6
+        uses: docker/bake-action@v6
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPO: ${{ env.AWS_ECR_NAME }}
+          IMAGE_TAG: ${{ steps.vars.outputs.sha_short }}
+          NEXT_PUBLIC_AUTH_PROVIDERS: ${{ env.NEXT_PUBLIC_AUTH_PROVIDERS }}
+          NEXT_PUBLIC_GITHUB_CLIENT_ID: ${{ env.NEXT_PUBLIC_GITHUB_CLIENT_ID }}
+          NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ env.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
         with:
-          context: .
-          file: ./Dockerfile
-          target: migrator
+          files: docker-bake.hcl
           push: true
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:migrator-${{ steps.vars.outputs.sha_short }}
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:migrator-latest
-          cache-from: |
-            type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-app
-            type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-migrator
-          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-migrator,mode=max
+          set: |
+            app.tags=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:${{ env.ENVIRONMENT_TAG }}
 
       - name: Replace variables in the Helm values file
         id: replace-vars
