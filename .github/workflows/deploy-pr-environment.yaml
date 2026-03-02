@@ -22,8 +22,97 @@ jobs:
             echo "labeled=false" >> $GITHUB_OUTPUT
           fi
 
-  deploy:
+  build-images:
     needs: check-label
+    if: needs.check-label.outputs.should-deploy == 'true'
+    runs-on: ubuntu-latest
+    environment: staging
+    strategy:
+      fail-fast: true
+      matrix:
+        image:
+          - name: app
+            target: runner
+            tag_prefix: app
+            build_args: true
+            cache_key: cache-app
+          - name: migrator
+            target: migrator
+            tag_prefix: migrator
+            build_args: false
+            cache_key: cache-migrator
+          - name: scheduler
+            target: scheduler
+            tag_prefix: scheduler
+            build_args: false
+            cache_key: cache-scheduler
+          - name: workflow-runner
+            target: workflow-runner
+            tag_prefix: workflow-runner
+            build_args: false
+            cache_key: cache-workflow-runner
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      REGION: us-east-2
+      AWS_ECR_NAME: keeperhub-staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.REGION }}
+
+      - name: Login to AWS ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract commit hash
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Check if image exists
+        id: check-image
+        run: |
+          IMAGE_TAG="${{ steps.vars.outputs.sha_short }}"
+          if aws ecr describe-images \
+            --repository-name ${{ env.AWS_ECR_NAME }} \
+            --image-ids imageTag=${{ matrix.image.tag_prefix }}-${IMAGE_TAG} \
+            --region ${{ env.REGION }} >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push image
+        if: steps.check-image.outputs.exists != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: ${{ matrix.image.target }}
+          push: true
+          build-args: |
+            ${{ matrix.image.build_args == true && format('NEXT_PUBLIC_AUTH_PROVIDERS={0}', vars.NEXT_PUBLIC_AUTH_PROVIDERS) || '' }}
+            ${{ matrix.image.build_args == true && format('NEXT_PUBLIC_GITHUB_CLIENT_ID={0}', vars.NEXT_PUBLIC_GITHUB_CLIENT_ID) || '' }}
+            ${{ matrix.image.build_args == true && format('NEXT_PUBLIC_GOOGLE_CLIENT_ID={0}', vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID) || '' }}
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:${{ matrix.image.tag_prefix }}-${{ steps.vars.outputs.sha_short }}
+          cache-from: |
+            type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-app
+            type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:${{ matrix.image.cache_key }}
+          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:${{ matrix.image.cache_key }},mode=max
+
+  deploy:
+    needs: [check-label, build-images]
     if: needs.check-label.outputs.should-deploy == 'true'
     runs-on: ubuntu-latest
     environment: staging
@@ -52,109 +141,10 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Extract commit hash
         id: vars
         run: |
           echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Check if images exist or need rebuild
-        id: check-images
-        run: |
-          ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
-          IMAGE_TAG="${{ steps.vars.outputs.sha_short }}"
-
-          # Check if app image exists
-          if aws ecr describe-images --repository-name ${{ env.AWS_ECR_NAME }} --image-ids imageTag=app-${IMAGE_TAG} --region ${{ env.REGION }} >/dev/null 2>&1; then
-            echo "app-exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "app-exists=false" >> $GITHUB_OUTPUT
-          fi
-
-          # Check if migrator image exists
-          if aws ecr describe-images --repository-name ${{ env.AWS_ECR_NAME }} --image-ids imageTag=migrator-${IMAGE_TAG} --region ${{ env.REGION }} >/dev/null 2>&1; then
-            echo "migrator-exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "migrator-exists=false" >> $GITHUB_OUTPUT
-          fi
-
-          # Check if scheduler image exists
-          if aws ecr describe-images --repository-name ${{ env.AWS_ECR_NAME }} --image-ids imageTag=scheduler-${IMAGE_TAG} --region ${{ env.REGION }} >/dev/null 2>&1; then
-            echo "scheduler-exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "scheduler-exists=false" >> $GITHUB_OUTPUT
-          fi
-
-          # Check if workflow-runner image exists
-          if aws ecr describe-images --repository-name ${{ env.AWS_ECR_NAME }} --image-ids imageTag=workflow-runner-${IMAGE_TAG} --region ${{ env.REGION }} >/dev/null 2>&1; then
-            echo "workflow-runner-exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "workflow-runner-exists=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Build and push app image
-        if: steps.check-images.outputs.app-exists != 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          target: runner
-          push: true
-          build-args: |
-            NEXT_PUBLIC_AUTH_PROVIDERS=${{ vars.NEXT_PUBLIC_AUTH_PROVIDERS }}
-            NEXT_PUBLIC_GITHUB_CLIENT_ID=${{ vars.NEXT_PUBLIC_GITHUB_CLIENT_ID }}
-            NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:app-${{ steps.vars.outputs.sha_short }}
-          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-app
-          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-app,mode=max
-
-      - name: Build and push migrator image
-        if: steps.check-images.outputs.migrator-exists != 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          target: migrator
-          push: true
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:migrator-${{ steps.vars.outputs.sha_short }}
-          cache-from: |
-            type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-app
-            type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-migrator
-          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-migrator,mode=max
-
-      - name: Build and push scheduler image
-        if: steps.check-images.outputs.scheduler-exists != 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          target: scheduler
-          push: true
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:scheduler-${{ steps.vars.outputs.sha_short }}
-          cache-from: |
-            type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-app
-            type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-scheduler
-          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-scheduler,mode=max
-
-      - name: Build and push workflow-runner image
-        if: steps.check-images.outputs.workflow-runner-exists != 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          target: workflow-runner
-          push: true
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:workflow-runner-${{ steps.vars.outputs.sha_short }}
-          cache-from: |
-            type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-app
-            type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-workflow-runner
-          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-workflow-runner,mode=max
 
       - name: Configure kubectl
         run: |
