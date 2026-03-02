@@ -9,19 +9,19 @@ vi.mock("@/keeperhub/lib/logging", () => ({
 import { fallbackCompleteExecution } from "@/keeperhub/lib/execution-fallback";
 
 describe("fallbackCompleteExecution", () => {
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+  let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
   const mockFetch = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
-    consoleErrorSpy = vi
-      .spyOn(console, "error")
+    consoleWarnSpy = vi
+      .spyOn(console, "warn")
       .mockImplementation(() => undefined);
     vi.stubGlobal("fetch", mockFetch);
   });
 
   afterEach(() => {
-    consoleErrorSpy.mockRestore();
+    consoleWarnSpy.mockRestore();
     vi.unstubAllGlobals();
   });
 
@@ -68,7 +68,7 @@ describe("fallbackCompleteExecution", () => {
       error: "workflow failed",
     });
 
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
       expect.stringContaining("exec_1")
     );
     expect(mockLogSystemError).not.toHaveBeenCalled();

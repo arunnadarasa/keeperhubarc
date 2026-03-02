@@ -38,7 +38,7 @@ export async function fallbackCompleteExecution(
       throw new Error(`HTTP ${response.status}: ${body}`);
     }
 
-    console.error(
+    console.warn(
       `[Execution Fallback] Successfully updated execution ${params.executionId} via HTTP fallback`
     );
   } catch (fallbackError) {
