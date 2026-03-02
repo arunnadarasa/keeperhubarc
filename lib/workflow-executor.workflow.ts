@@ -27,6 +27,7 @@ import {
   detectTriggerType,
   recordWorkflowComplete,
 } from "@/keeperhub/lib/metrics/instrumentation/workflow";
+import { fallbackCompleteExecution } from "@/keeperhub/lib/execution-fallback";
 import { ARRAY_SOURCE_RE } from "@/keeperhub/lib/for-each-utils";
 import {
   buildEdgesBySourceHandle,
@@ -1972,6 +1973,15 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             ...(executionId ? { execution_id: executionId } : {}),
           }
         );
+        // start custom keeperhub code //
+        await fallbackCompleteExecution({
+          executionId,
+          status: finalSuccess ? "success" : "error",
+          output: Object.values(results).at(-1)?.data,
+          error: Object.values(results).find((r) => !r.success)?.error,
+          startTime: workflowStartTime,
+        });
+        // end keeperhub code //
       }
     }
 
@@ -2027,6 +2037,14 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             ...(executionId ? { execution_id: executionId } : {}),
           }
         );
+        // start custom keeperhub code //
+        await fallbackCompleteExecution({
+          executionId,
+          status: "error",
+          error: errorMessage,
+          startTime: Date.now(),
+        });
+        // end keeperhub code //
       }
     }
 
