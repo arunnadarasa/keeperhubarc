@@ -27,13 +27,6 @@ export KUBECONFIG="${KUBECONFIG:-$HOME/.kube/maker-staging}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
-# Source .env for TEST_PARA_USER_SHARE
-if [[ -f "${SCRIPT_DIR}/../../.env" ]]; then
-  set -a
-  source "${SCRIPT_DIR}/../../.env"
-  set +a
-fi
-
 NAMESPACE="pr-${PR_NUMBER}"
 ENV_FILE="/tmp/pr-test-${PR_NUMBER}.env"
 SEED_FILE="${SCRIPT_DIR}/seed-pr-data.sql"
@@ -68,41 +61,13 @@ echo "  Namespace: ${NAMESPACE}"
 echo "  SQL file:  ${SEED_FILE}"
 echo ""
 
-# Extract WALLET_ENCRYPTION_KEY from pod if not set locally
-if [[ -z "${WALLET_ENCRYPTION_KEY:-}" ]]; then
-  APP_POD=$(aws-vault exec sky -- kubectl get pods -n "$NAMESPACE" \
-    -l "app.kubernetes.io/instance=keeperhub-pr-${PR_NUMBER}" \
-    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null) || true
-  if [[ -n "$APP_POD" ]]; then
-    WALLET_ENCRYPTION_KEY=$(aws-vault exec sky -- kubectl exec "$APP_POD" \
-      -n "$NAMESPACE" -- printenv WALLET_ENCRYPTION_KEY 2>/dev/null) || true
-  fi
-  export WALLET_ENCRYPTION_KEY
-fi
-
-# Encrypt wallet user share if env vars are available
-ENCRYPTED_USER_SHARE="__SKIP__"
-if [[ -n "${TEST_PARA_USER_SHARE:-}" && -n "${WALLET_ENCRYPTION_KEY:-}" ]]; then
-  echo "Encrypting wallet user share..."
-  ENCRYPTED_USER_SHARE=$(npx tsx -e "
-    import { encryptUserShare } from './keeperhub/lib/encryption';
-    console.log(encryptUserShare(process.env.TEST_PARA_USER_SHARE));
-  ") || {
-    echo "[WARNING] Wallet encryption failed, skipping wallet seed." >&2
-    ENCRYPTED_USER_SHARE="__SKIP__"
-  }
-else
-  echo "[INFO] TEST_PARA_USER_SHARE or WALLET_ENCRYPTION_KEY not set, skipping wallet seed."
-fi
-
-# Execute seed SQL (pass encrypted_user_share as psql variable)
+# Execute seed SQL
 SEED_OUTPUT=$(aws-vault exec sky -- kubectl run "$SEED_POD_NAME" \
   --rm -i --restart=Never \
   -n "$NAMESPACE" \
   --image=postgres:16-alpine \
   -- psql "${PR_DB_URL}" \
     -v ON_ERROR_STOP=1 \
-    -v encrypted_user_share="${ENCRYPTED_USER_SHARE}" \
     -f - < "$SEED_FILE" 2>&1) || {
   echo "[ERROR] Seed SQL execution failed:" >&2
   echo "$SEED_OUTPUT" >&2

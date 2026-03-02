@@ -1,22 +1,14 @@
 -- seed-pr-data.sql
--- Populate PR environment DB with test workflows, execution history, org API key, and wallet.
--- Run via: psql $PR_DB_URL -v encrypted_user_share="..." -f scripts/pr-test/seed-pr-data.sql
+-- Populate PR environment DB with test workflows, execution history, and org API key.
+-- Run via: psql $PR_DB_URL -f scripts/pr-test/seed-pr-data.sql
 --
--- IDEMPOTENT: Uses INSERT ... ON CONFLICT DO NOTHING throughout.
+-- IDEMPOTENT: Uses INSERT ... ON CONFLICT DO NOTHING (except uniswap workflow which uses DO UPDATE).
 -- DETERMINISTIC: All IDs prefixed with 'pr-test-' for easy identification and cleanup.
 --
 -- PREREQUISITE: Init container must have already created:
 --   - User: pr-test-do-not-delete@techops.services
 --   - Organization: e2e-test-org
---   - Wallet, chains, tokens
---
--- PSQL VARIABLES (optional):
---   :encrypted_user_share - AES-256-GCM encrypted Para user share (iv:tag:data)
---                           If set to '__SKIP__' or unset, wallet seeding is skipped.
-
--- Pass the psql variable into a session setting so the DO block can read it.
--- psql does not expand :variables inside dollar-quoted ($$) blocks.
-SELECT set_config('app.encrypted_user_share', :'encrypted_user_share', false);
+--   - Wallet (via pnpm db:seed-test-wallet), chains, tokens
 
 DO $$
 DECLARE
@@ -140,7 +132,10 @@ BEGIN
     v_1d_ago,
     v_1d_ago
   )
-  ON CONFLICT (id) DO NOTHING;
+  ON CONFLICT (id) DO UPDATE SET
+    nodes = EXCLUDED.nodes,
+    edges = EXCLUDED.edges,
+    updated_at = EXCLUDED.updated_at;
 
   -------------------------------------------------------------------
   -- 2. WORKFLOW SCHEDULE (1 for the schedule workflow)
@@ -344,47 +339,9 @@ BEGIN
   ON CONFLICT (id) DO NOTHING;
 
   -------------------------------------------------------------------
-  -- 6. WALLET + WEB3 INTEGRATION (conditional on :encrypted_user_share)
-  -------------------------------------------------------------------
-
-  IF current_setting('app.encrypted_user_share', true) IS DISTINCT FROM '__SKIP__' THEN
-    INSERT INTO para_wallets (id, user_id, organization_id, email, wallet_id, wallet_address, user_share, created_at)
-    VALUES (
-      'pr-test-wallet-1',
-      v_user_id,
-      v_org_id,
-      'pr-test-do-not-delete@techops.services',
-      '3b1acc96-170f-4148-800b-7bca3e2ee6ad',
-      '0x4f1089424dcf25b1290631df483a436b320e51a1',
-      current_setting('app.encrypted_user_share', true),
-      v_1d_ago
-    )
-    ON CONFLICT (organization_id) DO UPDATE SET
-      user_share = EXCLUDED.user_share,
-      wallet_address = EXCLUDED.wallet_address;
-
-    INSERT INTO integrations (id, user_id, organization_id, name, type, config, created_at, updated_at)
-    VALUES (
-      'pr-test-integration-web3',
-      v_user_id,
-      v_org_id,
-      'Web3 Wallet',
-      'web3',
-      '{"walletAddress":"0x4f1089424dcf25b1290631df483a436b320e51a1"}'::jsonb,
-      v_1d_ago,
-      v_1d_ago
-    )
-    ON CONFLICT (id) DO NOTHING;
-
-    RAISE NOTICE 'Wallet + web3 integration seeded';
-  ELSE
-    RAISE NOTICE 'Skipping wallet seed (encrypted_user_share not provided)';
-  END IF;
-
-  -------------------------------------------------------------------
   -- Done
   -------------------------------------------------------------------
 
-  RAISE NOTICE 'Seed complete: user=%, org=%, 4 workflows, 1 schedule, 6 executions, 2 logs, 1 org API key', v_user_id, v_org_id;
+  RAISE NOTICE 'Seed complete: user=%, org=%, 4 workflows, 1 schedule, 6 executions, 2 logs, 1 org API key (wallet from init container)', v_user_id, v_org_id;
 
 END $$;
