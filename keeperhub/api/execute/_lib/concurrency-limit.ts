@@ -22,13 +22,12 @@ export type ConcurrencyLimitResult =
 export async function checkConcurrencyLimit(): Promise<ConcurrencyLimitResult> {
   const limit = getMaxConcurrent();
 
-  const result = await db
+  const [result] = await db
     .select({
       count: sql<number>`COUNT(*)::int`,
     })
     .from(workflowExecutions)
-    .where(eq(workflowExecutions.status, "running"))
-    .then((rows) => rows[0]);
+    .where(eq(workflowExecutions.status, "running"));
 
   const running = result?.count ?? 0;
 
