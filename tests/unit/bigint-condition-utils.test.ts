@@ -358,10 +358,9 @@ describe("applyBigIntConversion", () => {
 
   describe("decimal literal handling", () => {
     it("should preserve decimal literals instead of splitting them", () => {
-      const { expression } = applyBigIntConversion(
-        "__v0 > 3.14",
-        { __v0: "9007199254740993" }
-      );
+      const { expression } = applyBigIntConversion("__v0 > 3.14", {
+        __v0: "9007199254740993",
+      });
       expect(expression).toBe("__v0 > 3.14");
     });
 
