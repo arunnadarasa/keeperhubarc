@@ -275,7 +275,7 @@ jobs:
       - name: Deploy satellite services (parallel)
         run: |
           set -euo pipefail
-          COMMON_ARGS="--namespace ${NAMESPACE} --timeout 5m0s --atomic --version 0.2.1"
+          COMMON_ARGS=(--namespace "${NAMESPACE}" --timeout 5m0s --atomic --version 0.2.1)
           REPO="https://techops-services.github.io/helm-charts"
           LOGDIR=$(mktemp -d)
 
@@ -286,7 +286,7 @@ jobs:
             helm upgrade --install scheduler-dispatcher-pr-${PR_NUMBER} \
               techops-services/common \
               -f ${GITHUB_WORKSPACE}/scheduler-dispatcher-pr-${PR_NUMBER}.yaml \
-              ${COMMON_ARGS}
+              "${COMMON_ARGS[@]}"
           ) > "${LOGDIR}/scheduler-dispatcher.log" 2>&1 &
           PID1=$!
 
@@ -294,7 +294,7 @@ jobs:
             helm upgrade --install scheduler-executor-pr-${PR_NUMBER} \
               techops-services/common \
               -f ${GITHUB_WORKSPACE}/scheduler-executor-pr-${PR_NUMBER}.yaml \
-              ${COMMON_ARGS}
+              "${COMMON_ARGS[@]}"
           ) > "${LOGDIR}/scheduler-executor.log" 2>&1 &
           PID2=$!
 
@@ -302,7 +302,7 @@ jobs:
             helm upgrade --install events-worker-pr-${PR_NUMBER} \
               techops-services/common \
               -f ${GITHUB_WORKSPACE}/sc-event-worker-pr-${PR_NUMBER}.yaml \
-              ${COMMON_ARGS}
+              "${COMMON_ARGS[@]}"
           ) > "${LOGDIR}/events-worker.log" 2>&1 &
           PID3=$!
 
@@ -310,7 +310,7 @@ jobs:
             helm upgrade --install events-tracker-pr-${PR_NUMBER} \
               techops-services/common \
               -f ${GITHUB_WORKSPACE}/sc-event-tracker-pr-${PR_NUMBER}.yaml \
-              ${COMMON_ARGS}
+              "${COMMON_ARGS[@]}"
           ) > "${LOGDIR}/events-tracker.log" 2>&1 &
           PID4=$!
 
