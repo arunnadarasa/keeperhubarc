@@ -81,6 +81,9 @@ deployment:
           type: parameterStore
           name: wallet-encryption-key
           parameter_name: /eks/maker-staging/keeperhub/wallet-encryption-key
+        TEST_PARA_USER_SHARE:
+          type: kv
+          value: "${TEST_PARA_USER_SHARE}"
 
 serviceAccount:
   create: true
