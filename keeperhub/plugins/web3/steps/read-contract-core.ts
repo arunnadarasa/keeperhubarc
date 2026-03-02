@@ -132,7 +132,7 @@ export async function readContractCore(
 
   // Find the selected function in the ABI to get output structure
   const functionAbi = parsedAbi.find(
-    (item: { type: string; name: string }) =>
+    (item: { type: string; name: string; stateMutability?: string }) =>
       item.type === "function" && item.name === abiFunction
   );
 
@@ -272,7 +272,13 @@ export async function readContractCore(
       args
     );
 
-    const result = await contract[abiFunction](...args);
+    const isView =
+      functionAbi.stateMutability === "view" ||
+      functionAbi.stateMutability === "pure";
+
+    const result = isView
+      ? await contract[abiFunction](...args)
+      : await contract[abiFunction].staticCall(...args);
 
     console.log("[Read Contract] Function call successful, result:", result);
 
