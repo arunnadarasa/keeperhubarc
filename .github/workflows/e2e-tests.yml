@@ -236,9 +236,9 @@ jobs:
           retention-days: 7
 
   # Playwright E2E tests (browser-based, sharded)
-  # Runs in parallel with Vitest E2E tests
+  # Runs after Vitest to avoid conflicts on shared external test accounts
   e2e-playwright:
-    needs: [should-run]
+    needs: [should-run, e2e-vitest]
     if: needs.should-run.outputs.run-e2e == 'true'
     runs-on: ubuntu-latest
     environment: staging
