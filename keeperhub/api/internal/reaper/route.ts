@@ -1,5 +1,5 @@
 // start custom keeperhub code //
-import { and, eq, lt, sql } from "drizzle-orm";
+import { and, eq, lt, notInArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import { authenticateInternalService } from "@/keeperhub/lib/internal-service-auth";
@@ -38,50 +38,38 @@ export async function GET(request: Request): Promise<NextResponse> {
     const thresholdMinutes = getThresholdMinutes();
     const cutoff = new Date(Date.now() - thresholdMinutes * 60 * 1000);
 
-    const staleExecutions = await db
+    // Find execution IDs that have recent step activity (should NOT be reaped)
+    const activeExecutionIds = await db
       .select({
-        id: workflowExecutions.id,
-        workflowId: workflowExecutions.workflowId,
-        startedAt: workflowExecutions.startedAt,
+        executionId: workflowExecutionLogs.executionId,
       })
-      .from(workflowExecutions)
-      .where(
-        and(
-          eq(workflowExecutions.status, "running"),
-          lt(workflowExecutions.startedAt, cutoff)
-        )
-      );
+      .from(workflowExecutionLogs)
+      .where(sql`${workflowExecutionLogs.completedAt} > ${cutoff}`)
+      .groupBy(workflowExecutionLogs.executionId);
 
-    if (staleExecutions.length === 0) {
-      return NextResponse.json({ reapedCount: 0, reapedIds: [] });
-    }
+    const excludeIds = activeExecutionIds.map((row) => row.executionId);
 
-    const reapedIds: string[] = [];
+    // Bulk update all stale executions in a single query, excluding those with recent activity
+    const staleConditions = and(
+      eq(workflowExecutions.status, "running"),
+      lt(workflowExecutions.startedAt, cutoff),
+      excludeIds.length > 0
+        ? notInArray(workflowExecutions.id, excludeIds)
+        : undefined
+    );
 
-    for (const execution of staleExecutions) {
-      const lastLog = await db
-        .select({ completedAt: workflowExecutionLogs.completedAt })
-        .from(workflowExecutionLogs)
-        .where(eq(workflowExecutionLogs.executionId, execution.id))
-        .orderBy(sql`${workflowExecutionLogs.completedAt} DESC NULLS LAST`)
-        .limit(1);
+    const reaped = await db
+      .update(workflowExecutions)
+      .set({
+        status: "error",
+        error: `Execution timed out: no activity for ${thresholdMinutes} minutes`,
+        completedAt: new Date(),
+        duration: sql`EXTRACT(EPOCH FROM (NOW() - ${workflowExecutions.startedAt})) * 1000`,
+      })
+      .where(staleConditions)
+      .returning({ id: workflowExecutions.id });
 
-      const lastActivity = lastLog[0]?.completedAt;
-      const hasRecentActivity = lastActivity && new Date(lastActivity) > cutoff;
-
-      if (!hasRecentActivity) {
-        await db
-          .update(workflowExecutions)
-          .set({
-            status: "error",
-            error: `Execution timed out: no activity for ${thresholdMinutes} minutes`,
-            completedAt: new Date(),
-          })
-          .where(eq(workflowExecutions.id, execution.id));
-
-        reapedIds.push(execution.id);
-      }
-    }
+    const reapedIds = reaped.map((row) => row.id);
 
     return NextResponse.json({
       reapedCount: reapedIds.length,
