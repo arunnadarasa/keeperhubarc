@@ -416,4 +416,69 @@ describe("applyBigIntConversion", () => {
       expect(fn(...varValues)).toBe(false);
     });
   });
+
+  describe("mixed BigInt and string operator scenarios", () => {
+    it("should handle String().includes() alongside BigInt comparison", () => {
+      // Simulates: String(balance).includes("000") && balance > 1e18
+      // When BigInt mode triggers, balance becomes BigInt but String(BigInt)
+      // still returns a digit string, so includes() works correctly.
+      const { expression, evalContext } = applyBigIntConversion(
+        'String(__v0).includes("000") && __v0 > 1000000000000000000',
+        { __v0: "2000000000000000000" }
+      );
+
+      expect(evalContext.__v0).toBe(BigInt("2000000000000000000"));
+
+      const varNames = Object.keys(evalContext);
+      const varValues = Object.values(evalContext);
+      const fn = new Function(...varNames, `return (${expression});`);
+      expect(fn(...varValues)).toBe(true);
+    });
+
+    it("should handle String().startsWith() with BigInt context value", () => {
+      const { expression, evalContext } = applyBigIntConversion(
+        'String(__v0).startsWith("200") && __v0 > 100',
+        { __v0: "2000000000000000000" }
+      );
+
+      expect(evalContext.__v0).toBe(BigInt("2000000000000000000"));
+
+      const varNames = Object.keys(evalContext);
+      const varValues = Object.values(evalContext);
+      const fn = new Function(...varNames, `return (${expression});`);
+      expect(fn(...varValues)).toBe(true);
+    });
+
+    it("should handle non-numeric string alongside BigInt comparison", () => {
+      // One variable is a large number (triggers BigInt mode), another is
+      // a non-numeric string that stays as-is during conversion.
+      const { expression, evalContext } = applyBigIntConversion(
+        '__v0 > 1000000000000000000 && __v1 === "active"',
+        { __v0: "2000000000000000000", __v1: "active" }
+      );
+
+      expect(evalContext.__v0).toBe(BigInt("2000000000000000000"));
+      expect(evalContext.__v1).toBe("active");
+
+      const varNames = Object.keys(evalContext);
+      const varValues = Object.values(evalContext);
+      const fn = new Function(...varNames, `return (${expression});`);
+      expect(fn(...varValues)).toBe(true);
+    });
+
+    it("should handle boolean alongside BigInt comparison", () => {
+      const { expression, evalContext } = applyBigIntConversion(
+        "__v0 > 1000000000000000000 && __v1 === true",
+        { __v0: "2000000000000000000", __v1: true }
+      );
+
+      expect(evalContext.__v0).toBe(BigInt("2000000000000000000"));
+      expect(evalContext.__v1).toBe(true);
+
+      const varNames = Object.keys(evalContext);
+      const varValues = Object.values(evalContext);
+      const fn = new Function(...varNames, `return (${expression});`);
+      expect(fn(...varValues)).toBe(true);
+    });
+  });
 });
