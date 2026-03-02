@@ -1977,9 +1977,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
         await fallbackCompleteExecution({
           executionId,
           status: finalSuccess ? "success" : "error",
-          output: Object.values(results).at(-1)?.data,
           error: Object.values(results).find((r) => !r.success)?.error,
-          startTime: workflowStartTime,
         });
         // end keeperhub code //
       }
@@ -2042,7 +2040,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           executionId,
           status: "error",
           error: errorMessage,
-          startTime: Date.now(),
         });
         // end keeperhub code //
       }

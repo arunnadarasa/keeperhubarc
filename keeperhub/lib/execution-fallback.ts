@@ -3,9 +3,7 @@ import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 type FallbackCompleteParams = {
   executionId: string;
   status: "success" | "error";
-  output?: unknown;
   error?: string;
-  startTime: number;
 };
 
 /**

@@ -31,7 +31,6 @@ describe("fallbackCompleteExecution", () => {
     await fallbackCompleteExecution({
       executionId: "exec_1",
       status: "success",
-      startTime: Date.now(),
     });
 
     expect(mockFetch).toHaveBeenCalledWith(
@@ -53,7 +52,6 @@ describe("fallbackCompleteExecution", () => {
       executionId: "exec_1",
       status: "error",
       error: "step 3 failed",
-      startTime: Date.now(),
     });
 
     const callArgs = mockFetch.mock.calls[0];
@@ -68,7 +66,6 @@ describe("fallbackCompleteExecution", () => {
       executionId: "exec_1",
       status: "error",
       error: "workflow failed",
-      startTime: Date.now(),
     });
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -88,7 +85,6 @@ describe("fallbackCompleteExecution", () => {
       executionId: "exec_2",
       status: "error",
       error: "workflow failed",
-      startTime: Date.now(),
     });
 
     expect(mockLogSystemError).toHaveBeenCalledWith(
@@ -105,7 +101,6 @@ describe("fallbackCompleteExecution", () => {
     await fallbackCompleteExecution({
       executionId: "exec_3",
       status: "error",
-      startTime: Date.now(),
     });
 
     expect(mockLogSystemError).toHaveBeenCalledWith(
@@ -123,7 +118,6 @@ describe("fallbackCompleteExecution", () => {
       fallbackCompleteExecution({
         executionId: "exec_4",
         status: "error",
-        startTime: Date.now(),
       })
     ).resolves.toBeUndefined();
   });
