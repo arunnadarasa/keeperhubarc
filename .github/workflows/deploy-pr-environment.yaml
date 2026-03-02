@@ -175,6 +175,8 @@ jobs:
           PG_VERSION: ${{ env.PG_VERSION }}
         run: |
           set -euo pipefail
+          LOGDIR=$(mktemp -d)
+
           # PostgreSQL
           (
             envsubst < deploy/pr-environment/postgres-cluster.template.yaml | kubectl apply -f -
@@ -186,7 +188,7 @@ jobs:
               exit 1
             }
             echo "PostgreSQL ready."
-          ) &
+          ) > "${LOGDIR}/postgres.log" 2>&1 &
           PG_PID=$!
 
           # LocalStack
@@ -201,7 +203,7 @@ jobs:
               exit 1
             }
             echo "LocalStack ready."
-          ) &
+          ) > "${LOGDIR}/localstack.log" 2>&1 &
           LS_PID=$!
 
           # Redis
@@ -215,17 +217,24 @@ jobs:
               exit 1
             }
             echo "Redis ready."
-          ) &
+          ) > "${LOGDIR}/redis.log" 2>&1 &
           REDIS_PID=$!
 
-          # Wait for all three
+          # Wait for all three, print logs for failures
           FAILED=0
-          wait $PG_PID || FAILED=1
-          wait $LS_PID || FAILED=1
-          wait $REDIS_PID || FAILED=1
+          for COMPONENT in postgres:$PG_PID localstack:$LS_PID redis:$REDIS_PID; do
+            NAME="${COMPONENT%%:*}"
+            PID="${COMPONENT##*:}"
+            if wait "$PID"; then
+              echo "${NAME}: OK"
+            else
+              echo "=== ${NAME} FAILED ==="
+              cat "${LOGDIR}/${NAME}.log"
+              FAILED=1
+            fi
+          done
 
           if [ $FAILED -ne 0 ]; then
-            echo "One or more infrastructure components failed to deploy."
             exit 1
           fi
           echo "All infrastructure components ready."
@@ -268,57 +277,57 @@ jobs:
           set -euo pipefail
           COMMON_ARGS="--namespace ${NAMESPACE} --timeout 5m0s --atomic --version 0.2.1"
           REPO="https://techops-services.github.io/helm-charts"
+          LOGDIR=$(mktemp -d)
 
           helm repo add techops-services ${REPO}
           helm repo update
 
           (
-            echo "Deploying Scheduler Dispatcher..."
             helm upgrade --install scheduler-dispatcher-pr-${PR_NUMBER} \
               techops-services/common \
               -f ${GITHUB_WORKSPACE}/scheduler-dispatcher-pr-${PR_NUMBER}.yaml \
               ${COMMON_ARGS}
-            echo "Scheduler Dispatcher deployed."
-          ) &
+          ) > "${LOGDIR}/scheduler-dispatcher.log" 2>&1 &
           PID1=$!
 
           (
-            echo "Deploying Scheduler Executor..."
             helm upgrade --install scheduler-executor-pr-${PR_NUMBER} \
               techops-services/common \
               -f ${GITHUB_WORKSPACE}/scheduler-executor-pr-${PR_NUMBER}.yaml \
               ${COMMON_ARGS}
-            echo "Scheduler Executor deployed."
-          ) &
+          ) > "${LOGDIR}/scheduler-executor.log" 2>&1 &
           PID2=$!
 
           (
-            echo "Deploying SC Event Worker..."
             helm upgrade --install events-worker-pr-${PR_NUMBER} \
               techops-services/common \
               -f ${GITHUB_WORKSPACE}/sc-event-worker-pr-${PR_NUMBER}.yaml \
               ${COMMON_ARGS}
-            echo "SC Event Worker deployed."
-          ) &
+          ) > "${LOGDIR}/events-worker.log" 2>&1 &
           PID3=$!
 
           (
-            echo "Deploying SC Event Tracker..."
             helm upgrade --install events-tracker-pr-${PR_NUMBER} \
               techops-services/common \
               -f ${GITHUB_WORKSPACE}/sc-event-tracker-pr-${PR_NUMBER}.yaml \
               ${COMMON_ARGS}
-            echo "SC Event Tracker deployed."
-          ) &
+          ) > "${LOGDIR}/events-tracker.log" 2>&1 &
           PID4=$!
 
           FAILED=0
-          for PID in $PID1 $PID2 $PID3 $PID4; do
-            wait $PID || FAILED=1
+          for COMPONENT in scheduler-dispatcher:$PID1 scheduler-executor:$PID2 events-worker:$PID3 events-tracker:$PID4; do
+            NAME="${COMPONENT%%:*}"
+            PID="${COMPONENT##*:}"
+            if wait "$PID"; then
+              echo "${NAME}: OK"
+            else
+              echo "=== ${NAME} FAILED ==="
+              cat "${LOGDIR}/${NAME}.log"
+              FAILED=1
+            fi
           done
 
           if [ $FAILED -ne 0 ]; then
-            echo "One or more satellite services failed to deploy."
             helm list -n ${NAMESPACE}
             exit 1
           fi
