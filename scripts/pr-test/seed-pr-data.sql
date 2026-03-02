@@ -59,7 +59,7 @@ BEGIN
   END;
 
   -------------------------------------------------------------------
-  -- 1. WORKFLOWS (3)
+  -- 1. WORKFLOWS (4)
   -------------------------------------------------------------------
 
   -- Workflow 1: Webhook trigger with HTTP Request action
@@ -117,6 +117,26 @@ BEGIN
     '[{"id":"edge-trigger-1-action-1","source":"trigger-1","target":"action-1","type":"default"}]'::jsonb,
     'private',
     false,
+    v_1d_ago,
+    v_1d_ago
+  )
+  ON CONFLICT (id) DO NOTHING;
+
+  -- Workflow 4: Uniswap Swap Pipeline (wrap ETH -> approve WETH -> swap WETH for UNI)
+  INSERT INTO workflows (id, name, description, user_id, organization_id, is_anonymous, featured, featured_order, nodes, edges, visibility, enabled, created_at, updated_at)
+  VALUES (
+    'pr-test-wf-uniswap-swap',
+    'Uniswap Swap Pipeline',
+    'Wraps ETH to WETH, approves Uniswap SwapRouter, then swaps WETH for UNI on Sepolia',
+    v_user_id,
+    v_org_id,
+    false,
+    false,
+    0,
+    '[{"id":"trigger-1","type":"trigger","position":{"x":100,"y":200},"data":{"type":"trigger","label":"Manual Trigger","config":{"triggerType":"Manual"}}},{"id":"action-1","type":"action","position":{"x":400,"y":200},"data":{"type":"action","label":"Transfer Native Token","config":{"actionType":"web3/transfer-funds","network":"sepolia","amount":"0.002","recipientAddress":"0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"}}},{"id":"action-2","type":"action","position":{"x":700,"y":200},"data":{"type":"action","label":"Approve ERC20 Token","config":{"actionType":"web3/approve-token","network":"sepolia","tokenConfig":"0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14","spenderAddress":"0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E","amount":"max"}}},{"id":"action-3","type":"action","position":{"x":1000,"y":200},"data":{"type":"action","label":"Uniswap: Swap Exact Input","config":{"actionType":"web3/uniswap-swap-exact-input","network":"sepolia","contractAddress":"0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E","tokenIn":"0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14","tokenOut":"0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984","fee":"3000","recipient":"0x4f1089424dcf25b1290631df483a436b320e51a1","amountIn":"1000000000000000","amountOutMinimum":"0","sqrtPriceLimitX96":"0"}}}]'::jsonb,
+    '[{"id":"edge-trigger-1-action-1","source":"trigger-1","target":"action-1","type":"default"},{"id":"edge-action-1-action-2","source":"action-1","target":"action-2","type":"default"},{"id":"edge-action-2-action-3","source":"action-2","target":"action-3","type":"default"}]'::jsonb,
+    'private',
+    true,
     v_1d_ago,
     v_1d_ago
   )
@@ -339,7 +359,9 @@ BEGIN
       current_setting('app.encrypted_user_share', true),
       v_1d_ago
     )
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT (organization_id) DO UPDATE SET
+      user_share = EXCLUDED.user_share,
+      wallet_address = EXCLUDED.wallet_address;
 
     INSERT INTO integrations (id, user_id, organization_id, name, type, config, created_at, updated_at)
     VALUES (
@@ -363,6 +385,6 @@ BEGIN
   -- Done
   -------------------------------------------------------------------
 
-  RAISE NOTICE 'Seed complete: user=%, org=%, 3 workflows, 1 schedule, 6 executions, 2 logs, 1 org API key', v_user_id, v_org_id;
+  RAISE NOTICE 'Seed complete: user=%, org=%, 4 workflows, 1 schedule, 6 executions, 2 logs, 1 org API key', v_user_id, v_org_id;
 
 END $$;
