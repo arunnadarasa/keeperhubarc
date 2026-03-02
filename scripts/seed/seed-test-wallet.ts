@@ -15,7 +15,7 @@
  *
  * Environment variables:
  *   DATABASE_URL                - PostgreSQL connection string (required)
- *   WALLET_ENCRYPTION_KEY        - 32-byte hex key for encrypting user share (required for wallet)
+ *   TEST_WALLET_ENCRYPTION_KEY  - 32-byte hex key for encrypting user share (required for wallet)
  *   TEST_PARA_USER_SHARE        - Raw Para user share base64 string (required for wallet)
  *
  * Run with: pnpm db:seed-test-wallet
