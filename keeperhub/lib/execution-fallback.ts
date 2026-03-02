@@ -8,9 +8,6 @@ type FallbackCompleteParams = {
   startTime: number;
 };
 
-const INTERNAL_SERVICE_KEY = process.env.EVENTS_SERVICE_API_KEY ?? "";
-const APP_PORT = process.env.PORT ?? "3000";
-
 /**
  * Fallback for when triggerStep({ _workflowComplete }) fails.
  * Uses fetch() to PATCH /api/internal/executions/[executionId] via HTTP loopback,
@@ -19,14 +16,17 @@ const APP_PORT = process.env.PORT ?? "3000";
 export async function fallbackCompleteExecution(
   params: FallbackCompleteParams
 ): Promise<void> {
+  const serviceKey = process.env.EVENTS_SERVICE_API_KEY ?? "";
+  const port = process.env.PORT ?? "3000";
+
   try {
     const response = await fetch(
-      `http://localhost:${APP_PORT}/api/internal/executions/${params.executionId}`,
+      `http://localhost:${port}/api/internal/executions/${params.executionId}`,
       {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "X-Service-Key": INTERNAL_SERVICE_KEY,
+          "X-Service-Key": serviceKey,
         },
         body: JSON.stringify({
           status: params.status,
