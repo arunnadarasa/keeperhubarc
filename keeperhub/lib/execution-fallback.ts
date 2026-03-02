@@ -43,7 +43,7 @@ export async function fallbackCompleteExecution(
     );
   } catch (fallbackError) {
     logSystemError(
-      ErrorCategory.DATABASE,
+      ErrorCategory.INFRASTRUCTURE,
       "[Execution Fallback] HTTP fallback also failed:",
       fallbackError,
       { execution_id: params.executionId }

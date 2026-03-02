@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockLogSystemError = vi.fn();
 vi.mock("@/keeperhub/lib/logging", () => ({
-  ErrorCategory: { DATABASE: "DATABASE" },
+  ErrorCategory: { INFRASTRUCTURE: "INFRASTRUCTURE" },
   logSystemError: (...args: unknown[]) => mockLogSystemError(...args),
 }));
 
@@ -88,7 +88,7 @@ describe("fallbackCompleteExecution", () => {
     });
 
     expect(mockLogSystemError).toHaveBeenCalledWith(
-      "DATABASE",
+      "INFRASTRUCTURE",
       expect.stringContaining("HTTP fallback also failed"),
       expect.any(Error),
       { execution_id: "exec_2" }
@@ -104,7 +104,7 @@ describe("fallbackCompleteExecution", () => {
     });
 
     expect(mockLogSystemError).toHaveBeenCalledWith(
-      "DATABASE",
+      "INFRASTRUCTURE",
       expect.stringContaining("HTTP fallback also failed"),
       expect.any(Error),
       { execution_id: "exec_3" }
