@@ -242,6 +242,7 @@ jobs:
           IMAGE_TAG: ${{ steps.vars.outputs.sha_short }}
           DB_PASSWORD: ${{ steps.db-password.outputs.password }}
           SERVICE_ACCOUNT_ROLE_ARN: ${{ vars.KEEPERHUB_STAGING_SERVICE_ACCOUNT_ROLE_ARN }}
+          TEST_PARA_USER_SHARE: ${{ secrets.TEST_PARA_USER_SHARE }}
         run: |
           envsubst < deploy/pr-environment/values.template.yaml > ${{ github.workspace }}/values-pr-${{ env.PR_NUMBER }}.yaml
           envsubst < deploy/pr-environment/scheduler-dispatcher.template.yaml > ${{ github.workspace }}/scheduler-dispatcher-pr-${{ env.PR_NUMBER }}.yaml
