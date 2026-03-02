@@ -33,14 +33,19 @@
 const INTEGER_RE = /^\d+$/;
 
 /**
- * Matches either a quoted string (single or double) to skip, or a bare number
- * literal at a word boundary. When used with replace(), check which capture
- * group matched to decide whether to substitute.
+ * Matches either a quoted string (single or double) to skip, a decimal number
+ * (digits.digits) to skip, or a bare integer literal at a word boundary.
  *
- * Group 1: quote character (means this match is a string literal - skip it)
- * Group 2: bare digit sequence (means this is a number literal - replace it)
+ * Order matters - decimal patterns are checked before bare integers so that
+ * "3.14" is consumed as one match (and skipped) rather than splitting into
+ * two digit matches ("3" and "14") which would produce invalid `__b0.__b1`.
+ *
+ * Group 1: quote character (string literal - skip)
+ * Group 2: decimal number (float literal - skip, BigInt cannot represent floats)
+ * Group 3: bare digit sequence (integer literal - replace with __b variable)
  */
-const EXPRESSION_TOKEN_RE = /(["'])(?:(?!\1).)*\1|\b(\d+)\b/g;
+const EXPRESSION_TOKEN_RE =
+  /(["'])(?:(?!\1).)*\1|(\b\d+\.\d+\b)|\b(\d+)\b/g;
 
 /**
  * Check if a digit string represents an integer beyond Number.MAX_SAFE_INTEGER.
@@ -85,8 +90,8 @@ export function needsBigIntMode(
   }
 
   for (const match of expression.matchAll(EXPRESSION_TOKEN_RE)) {
-    const digits = match[2];
-    // Skip quoted strings (digits is undefined when group 1 matched a string literal)
+    const digits = match[3];
+    // Skip quoted strings and decimals (digits is undefined when group 1 or 2 matched)
     if (digits !== undefined && isLargeInteger(digits)) {
       return true;
     }
@@ -148,8 +153,13 @@ export function applyBigIntConversion(
   let counter = 0;
   const resultExpression = expression.replace(
     EXPRESSION_TOKEN_RE,
-    (fullMatch, _quoteChar: string | undefined, digits: string | undefined) => {
-      // If no digits captured, this is a quoted string - leave it unchanged
+    (
+      fullMatch,
+      _quoteChar: string | undefined,
+      _decimal: string | undefined,
+      digits: string | undefined
+    ) => {
+      // If no digits captured, this is a quoted string or decimal - leave unchanged
       if (digits === undefined) {
         return fullMatch;
       }

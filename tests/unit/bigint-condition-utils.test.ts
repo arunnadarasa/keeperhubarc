@@ -356,6 +356,25 @@ describe("applyBigIntConversion", () => {
     });
   });
 
+  describe("decimal literal handling", () => {
+    it("should preserve decimal literals instead of splitting them", () => {
+      const { expression } = applyBigIntConversion(
+        "__v0 > 3.14",
+        { __v0: "9007199254740993" }
+      );
+      expect(expression).toBe("__v0 > 3.14");
+    });
+
+    it("should replace integer literals but leave decimals in same expression", () => {
+      const { expression, evalContext } = applyBigIntConversion(
+        "__v0 > 100 && __v1 > 3.14",
+        { __v0: "9007199254740993", __v1: 5.0 }
+      );
+      expect(expression).toBe("__v0 > __b0 && __v1 > 3.14");
+      expect(evalContext.__b0).toBe(BigInt(100));
+    });
+  });
+
   describe("full conversion scenarios", () => {
     it("should produce correct BigInt comparison for wei balance check", () => {
       const { expression, evalContext } = applyBigIntConversion(
