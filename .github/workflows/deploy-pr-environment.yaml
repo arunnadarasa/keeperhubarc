@@ -174,6 +174,7 @@ jobs:
           DB_PASSWORD: ${{ steps.db-password.outputs.password }}
           PG_VERSION: ${{ env.PG_VERSION }}
         run: |
+          set -euo pipefail
           # PostgreSQL
           (
             envsubst < deploy/pr-environment/postgres-cluster.template.yaml | kubectl apply -f -
@@ -264,6 +265,7 @@ jobs:
 
       - name: Deploy satellite services (parallel)
         run: |
+          set -euo pipefail
           COMMON_ARGS="--namespace ${NAMESPACE} --timeout 5m0s --atomic --version 0.2.1"
           REPO="https://techops-services.github.io/helm-charts"
 
