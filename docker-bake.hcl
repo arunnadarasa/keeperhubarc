@@ -1,3 +1,11 @@
+# Docker Buildx Bake definition for parallel image builds.
+# Used by deploy-keeperhub.yaml via docker/bake-action to build the "app" and
+# "migrator" targets from our Dockerfile concurrently in a single BuildKit
+# session. Shared Dockerfile stages (deps, source) are built once and reused
+# across both targets, saving ~47s vs sequential build-push-action steps.
+# Variables are passed as env vars from the GHA workflow.
+# Docs: https://docs.docker.com/build/bake/reference/
+
 variable "ECR_REGISTRY" { default = "" }
 variable "ECR_REPO" { default = "" }
 variable "IMAGE_TAG" { default = "latest" }
