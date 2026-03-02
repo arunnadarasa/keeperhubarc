@@ -1,4 +1,6 @@
 // start custom keeperhub code //
+
+import { resolveConditionExpression } from "@/keeperhub/lib/condition-resolver";
 import { buildEdgesBySourceHandle } from "@/keeperhub/lib/edge-handle-utils";
 // end keeperhub code //
 import { findActionById, flattenConfigFields } from "@/plugins";
@@ -883,7 +885,7 @@ export function generateWorkflowCode(
       lines.push(`${indent}// ${node.data.description}`);
     }
 
-    const condition = node.data.config?.condition as string;
+    const condition = resolveConditionExpression(node.data.config);
 
     // start custom keeperhub code //
     const {
@@ -1006,7 +1008,7 @@ export function generateWorkflowCode(
     branchVisited: Set<string>
   ): string[] {
     const lines: string[] = [`${indent}// Condition: ${node.data.label}`];
-    const condition = node.data.config?.condition as string;
+    const condition = resolveConditionExpression(node.data.config);
 
     // start custom keeperhub code //
     const {

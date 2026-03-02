@@ -37,6 +37,7 @@ import {
   expressionToConditionGroup,
   visualConditionToExpression,
 } from "@/keeperhub/lib/condition-builder-utils";
+import { resolveConditionExpression } from "@/keeperhub/lib/condition-resolver";
 // end keeperhub
 import { aiGatewayStatusAtom } from "@/lib/ai-gateway/state";
 import { validateConditionExpressionUI } from "@/lib/condition-validator";
@@ -215,7 +216,8 @@ function ConditionFields({
   onUpdateConfig: (key: string, value: ConfigValue) => void;
   disabled: boolean;
 }) {
-  const conditionValue = (config?.condition as string) || "";
+  const conditionValue =
+    resolveConditionExpression(config ?? {}) ?? "";
   const existingConditionConfig = config?.conditionConfig as
     | { group: ConditionGroup }
     | undefined;

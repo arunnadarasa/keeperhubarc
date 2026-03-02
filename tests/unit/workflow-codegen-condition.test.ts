@@ -233,6 +233,94 @@ describe("workflow-codegen condition validation", () => {
       );
     });
   });
+
+  describe("KEEP-1520: conditionConfig-only nodes (no condition string)", () => {
+    it("should generate code from conditionConfig when condition string is missing", () => {
+      const nodes: WorkflowNode[] = [
+        createTriggerNode("trigger-1"),
+        {
+          id: "condition-1",
+          type: "action",
+          position: { x: 0, y: 100 },
+          data: {
+            label: "Visual Condition",
+            type: "action",
+            config: {
+              actionType: "Condition",
+              conditionConfig: {
+                group: {
+                  id: "g1",
+                  logic: "AND",
+                  rules: [
+                    {
+                      id: "r1",
+                      leftOperand: "{{@trigger-1:Manual Trigger.value}}",
+                      operator: ">",
+                      rightOperand: "100",
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        createActionNode("action-1"),
+      ];
+
+      const edges: WorkflowEdge[] = [
+        createEdge("trigger-1", "condition-1"),
+        createEdge("condition-1", "action-1", "true"),
+      ];
+
+      const result = generateWorkflowCode(nodes, edges);
+      expect(result.validationErrors ?? []).toHaveLength(0);
+      expect(result.code).toContain("> 100");
+    });
+
+    it("should prefer conditionConfig over stale condition string", () => {
+      const nodes: WorkflowNode[] = [
+        createTriggerNode("trigger-1"),
+        {
+          id: "condition-1",
+          type: "action",
+          position: { x: 0, y: 100 },
+          data: {
+            label: "Mixed Condition",
+            type: "action",
+            config: {
+              actionType: "Condition",
+              condition: "stale === expression",
+              conditionConfig: {
+                group: {
+                  id: "g1",
+                  logic: "AND",
+                  rules: [
+                    {
+                      id: "r1",
+                      leftOperand: "{{@trigger-1:Manual Trigger.value}}",
+                      operator: "===",
+                      rightOperand: "1",
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        createActionNode("action-1"),
+      ];
+
+      const edges: WorkflowEdge[] = [
+        createEdge("trigger-1", "condition-1"),
+        createEdge("condition-1", "action-1", "true"),
+      ];
+
+      const result = generateWorkflowCode(nodes, edges);
+      expect(result.validationErrors ?? []).toHaveLength(0);
+      expect(result.code).toContain("=== 1");
+      expect(result.code).not.toContain("stale");
+    });
+  });
 });
 
 /**
