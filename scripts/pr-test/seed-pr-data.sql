@@ -1,6 +1,6 @@
 -- seed-pr-data.sql
 -- Populate PR environment DB with test workflows, execution history, org API key, and wallet.
--- Run via: psql $PR_DB_URL -v encrypted_user_share="'...'" -f scripts/pr-test/seed-pr-data.sql
+-- Run via: psql $PR_DB_URL -v encrypted_user_share="..." -f scripts/pr-test/seed-pr-data.sql
 --
 -- IDEMPOTENT: Uses INSERT ... ON CONFLICT DO NOTHING throughout.
 -- DETERMINISTIC: All IDs prefixed with 'pr-test-' for easy identification and cleanup.

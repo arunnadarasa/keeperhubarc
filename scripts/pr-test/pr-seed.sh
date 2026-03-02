@@ -102,7 +102,7 @@ SEED_OUTPUT=$(aws-vault exec sky -- kubectl run "$SEED_POD_NAME" \
   --image=postgres:16-alpine \
   -- psql "${PR_DB_URL}" \
     -v ON_ERROR_STOP=1 \
-    -v encrypted_user_share="'${ENCRYPTED_USER_SHARE}'" \
+    -v encrypted_user_share="${ENCRYPTED_USER_SHARE}" \
     -f - < "$SEED_FILE" 2>&1) || {
   echo "[ERROR] Seed SQL execution failed:" >&2
   echo "$SEED_OUTPUT" >&2
