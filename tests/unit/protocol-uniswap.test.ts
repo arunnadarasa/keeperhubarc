@@ -104,14 +104,15 @@ describe("Uniswap Protocol Definition", () => {
     expect(Object.keys(uniswapDef.contracts)).toHaveLength(4);
   });
 
-  it("all contracts are available on 4 chains", () => {
+  it("all contracts are available on 5 chains", () => {
     for (const [key, contract] of Object.entries(uniswapDef.contracts)) {
       const chains = Object.keys(contract.addresses);
-      expect(chains, `${key} should have 4 chains`).toHaveLength(4);
+      expect(chains, `${key} should have 5 chains`).toHaveLength(5);
       expect(contract.addresses["1"]).toBeDefined();
       expect(contract.addresses["8453"]).toBeDefined();
       expect(contract.addresses["42161"]).toBeDefined();
       expect(contract.addresses["10"]).toBeDefined();
+      expect(contract.addresses["11155111"]).toBeDefined();
     }
   });
 

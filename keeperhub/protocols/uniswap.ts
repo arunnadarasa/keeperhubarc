@@ -16,6 +16,7 @@ export default defineProtocol({
         "8453": "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
         "42161": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
         "10": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+        "11155111": "0x0227628f3F023bb0B980b67D528571c95c6DaC1c",
       },
     },
     positionManager: {
@@ -25,6 +26,7 @@ export default defineProtocol({
         "8453": "0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1",
         "42161": "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
         "10": "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
+        "11155111": "0x1238536071E1c677A632429e3655c799b22cDA52",
       },
     },
     swapRouter: {
@@ -34,6 +36,7 @@ export default defineProtocol({
         "8453": "0x2626664c2603336E57B271c5C0b26F421741e481",
         "42161": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",
         "10": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",
+        "11155111": "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E",
       },
     },
     quoter: {
@@ -43,6 +46,7 @@ export default defineProtocol({
         "8453": "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a",
         "42161": "0x61fFE014bA17989E743c5F6cB21bF9697530B21e",
         "10": "0x61fFE014bA17989E743c5F6cB21bF9697530B21e",
+        "11155111": "0xEd1f6473345F45b75F8179591dd5bA1888cf2FB3",
       },
     },
   },
