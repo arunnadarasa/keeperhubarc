@@ -19,7 +19,7 @@ type AbiInput = {
 };
 
 type FunctionAbiEntry = {
-  inputs: AbiInput[];
+  inputs?: AbiInput[];
 };
 
 function isTupleInput(input: AbiInput): boolean {
@@ -61,7 +61,7 @@ export function reshapeArgsForAbi(
     return args;
   }
 
-  const hasTuple = functionAbi.inputs.some(isTupleInput);
+  const hasTuple = functionAbi.inputs?.some(isTupleInput);
   if (!hasTuple) {
     return args;
   }
@@ -69,7 +69,7 @@ export function reshapeArgsForAbi(
   const reshaped: unknown[] = [];
   let cursor = 0;
 
-  for (const input of functionAbi.inputs) {
+  for (const input of functionAbi.inputs ?? []) {
     if (isTupleInput(input)) {
       const result = buildTupleArg(input.components ?? [], args, cursor);
       reshaped.push(result.value);

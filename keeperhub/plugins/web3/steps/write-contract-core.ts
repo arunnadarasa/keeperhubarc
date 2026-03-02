@@ -219,6 +219,19 @@ export async function writeContractCore(
     }
   }
 
+  // Parse ethValue early so we fail fast with a friendly message
+  let parsedEthValue: bigint | undefined;
+  if (ethValue) {
+    try {
+      parsedEthValue = ethers.parseEther(ethValue);
+    } catch {
+      return {
+        success: false,
+        error: `Invalid ETH value "${ethValue}" -- expected a decimal string like "0.1" or "1.5"`,
+      };
+    }
+  }
+
   // Build transaction context
   const txContext: TransactionContext = {
     organizationId,
@@ -275,9 +288,7 @@ export async function writeContractCore(
       }
 
       // Build value override for payable functions (e.g. WETH deposit)
-      const valueOverride = ethValue
-        ? { value: ethers.parseEther(ethValue) }
-        : {};
+      const valueOverride = parsedEthValue ? { value: parsedEthValue } : {};
 
       // Get nonce from session
       const nonce = nonceManager.getNextNonce(session);
