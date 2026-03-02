@@ -19,6 +19,9 @@ export type ConcurrencyLimitResult =
   | { allowed: true }
   | { allowed: false; running: number; limit: number };
 
+// Soft cap: the count-then-admit check is not atomic, so under burst load
+// concurrent requests may all pass before any new execution is inserted.
+// This is acceptable -- the goal is back-pressure, not a hard guarantee.
 export async function checkConcurrencyLimit(): Promise<ConcurrencyLimitResult> {
   const limit = getMaxConcurrent();
 
