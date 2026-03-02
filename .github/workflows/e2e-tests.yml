@@ -126,6 +126,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**/*.ts', '**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-
+            ${{ runner.os }}-nextjs-
+
       - name: Generate plugin registry
         run: pnpm discover-plugins
 
@@ -226,13 +235,17 @@ jobs:
             coverage/
           retention-days: 7
 
-  # Playwright E2E tests (browser-based)
-  # Only runs after Vitest E2E tests pass
+  # Playwright E2E tests (browser-based, sharded)
+  # Runs in parallel with Vitest E2E tests
   e2e-playwright:
-    needs: [should-run, e2e-vitest]
+    needs: [should-run]
     if: needs.should-run.outputs.run-e2e == 'true'
     runs-on: ubuntu-latest
     environment: staging
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
 
     services:
       postgres:
@@ -311,8 +324,8 @@ jobs:
           TEST_PARA_USER_SHARE: ${{ secrets.TEST_PARA_USER_SHARE }}
           WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
 
-      - name: Run Playwright tests
-        run: pnpm test:e2e
+      - name: Run Playwright tests (shard ${{ matrix.shard }}/2)
+        run: pnpm test:e2e --shard=${{ matrix.shard }}/2
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
           PARA_API_KEY: ${{ secrets.TEST_PARA_API_KEY }}
@@ -329,7 +342,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-shard-${{ matrix.shard }}
           path: |
             playwright-report/
             test-results/
@@ -339,7 +352,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-screenshots
+          name: playwright-screenshots-shard-${{ matrix.shard }}
           path: test-results/**/*.png
           retention-days: 7
 
