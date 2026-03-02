@@ -179,56 +179,65 @@ jobs:
           echo "::add-mask::$DB_PASSWORD"
           echo "password=$DB_PASSWORD" >> $GITHUB_OUTPUT
 
-      - name: Deploy PostgreSQL cluster
+      - name: Deploy infrastructure (parallel)
         env:
           DB_PASSWORD: ${{ steps.db-password.outputs.password }}
           PG_VERSION: ${{ env.PG_VERSION }}
         run: |
-          envsubst < deploy/pr-environment/postgres-cluster.template.yaml | kubectl apply -f -
+          # PostgreSQL
+          (
+            envsubst < deploy/pr-environment/postgres-cluster.template.yaml | kubectl apply -f -
+            echo "Waiting for PostgreSQL..."
+            kubectl wait --for=condition=ready cluster/keeperhub-pr-${PR_NUMBER}-db \
+              -n ${NAMESPACE} --timeout=10m || {
+              echo "PostgreSQL failed:"
+              kubectl describe cluster keeperhub-pr-${PR_NUMBER}-db -n ${NAMESPACE}
+              exit 1
+            }
+            echo "PostgreSQL ready."
+          ) &
+          PG_PID=$!
 
-      - name: Wait for PostgreSQL to be ready
-        run: |
-          echo "Waiting for PostgreSQL cluster to be ready..."
-          kubectl wait --for=condition=ready cluster/keeperhub-pr-${{ env.PR_NUMBER }}-db \
-            -n ${{ env.NAMESPACE }} \
-            --timeout=10m || {
-            echo "PostgreSQL cluster failed to become ready. Checking status:"
-            kubectl describe cluster keeperhub-pr-${{ env.PR_NUMBER }}-db -n ${{ env.NAMESPACE }}
+          # LocalStack
+          (
+            kubectl delete job create-sqs-queue -n ${NAMESPACE} --ignore-not-found
+            envsubst '$PR_NUMBER' < deploy/pr-environment/localstack.template.yaml | kubectl apply -f -
+            echo "Waiting for LocalStack..."
+            kubectl wait --for=condition=ready pod -l app=localstack,pr=pr-${PR_NUMBER} \
+              -n ${NAMESPACE} --timeout=5m || {
+              echo "LocalStack failed:"
+              kubectl get pods -l app=localstack -n ${NAMESPACE}
+              exit 1
+            }
+            echo "LocalStack ready."
+          ) &
+          LS_PID=$!
+
+          # Redis
+          (
+            envsubst '$PR_NUMBER' < deploy/pr-environment/redis.template.yaml | kubectl apply -f -
+            echo "Waiting for Redis..."
+            kubectl wait --for=condition=ready pod -l app=redis,pr=pr-${PR_NUMBER} \
+              -n ${NAMESPACE} --timeout=3m || {
+              echo "Redis failed:"
+              kubectl get pods -l app=redis -n ${NAMESPACE}
+              exit 1
+            }
+            echo "Redis ready."
+          ) &
+          REDIS_PID=$!
+
+          # Wait for all three
+          FAILED=0
+          wait $PG_PID || FAILED=1
+          wait $LS_PID || FAILED=1
+          wait $REDIS_PID || FAILED=1
+
+          if [ $FAILED -ne 0 ]; then
+            echo "One or more infrastructure components failed to deploy."
             exit 1
-          }
-
-      - name: Deploy LocalStack
-        run: |
-          kubectl delete job create-sqs-queue -n ${{ env.NAMESPACE }} --ignore-not-found
-          envsubst '$PR_NUMBER' < deploy/pr-environment/localstack.template.yaml | kubectl apply -f -
-
-      - name: Wait for LocalStack to be ready
-        run: |
-          echo "Waiting for LocalStack to be ready..."
-          kubectl wait --for=condition=ready pod -l app=localstack,pr=pr-${{ env.PR_NUMBER }} \
-            -n ${{ env.NAMESPACE }} \
-            --timeout=5m || {
-            echo "LocalStack failed to become ready. Checking status:"
-            kubectl get pods -l app=localstack -n ${{ env.NAMESPACE }}
-            kubectl logs -l app=localstack -n ${{ env.NAMESPACE }} --tail=50
-            exit 1
-          }
-
-      - name: Deploy Redis
-        run: |
-          envsubst '$PR_NUMBER' < deploy/pr-environment/redis.template.yaml | kubectl apply -f -
-
-      - name: Wait for Redis to be ready
-        run: |
-          echo "Waiting for Redis to be ready..."
-          kubectl wait --for=condition=ready pod -l app=redis,pr=pr-${{ env.PR_NUMBER }} \
-            -n ${{ env.NAMESPACE }} \
-            --timeout=3m || {
-            echo "Redis failed to become ready. Checking status:"
-            kubectl get pods -l app=redis -n ${{ env.NAMESPACE }}
-            kubectl logs -l app=redis -n ${{ env.NAMESPACE }} --tail=50
-            exit 1
-          }
+          fi
+          echo "All infrastructure components ready."
 
       - name: Prepare Helm values
         env:
@@ -263,57 +272,65 @@ jobs:
           version: 0.2.1
           atomic: true
 
-      - name: Deploy Scheduler Dispatcher with Helm
-        uses: bitovi/github-actions-deploy-eks-helm@v1.2.10
-        with:
-          cluster-name: ${{ env.CLUSTER_NAME }}
-          config-files: ${{ github.workspace }}/scheduler-dispatcher-pr-${{ env.PR_NUMBER }}.yaml
-          chart-path: techops-services/common
-          namespace: ${{ env.NAMESPACE }}
-          timeout: 5m0s
-          name: scheduler-dispatcher-pr-${{ env.PR_NUMBER }}
-          chart-repository: https://techops-services.github.io/helm-charts
-          version: 0.2.1
-          atomic: true
+      - name: Deploy satellite services (parallel)
+        run: |
+          COMMON_ARGS="--namespace ${NAMESPACE} --timeout 5m0s --atomic --version 0.2.1"
+          REPO="https://techops-services.github.io/helm-charts"
 
-      - name: Deploy Scheduler Executor with Helm
-        uses: bitovi/github-actions-deploy-eks-helm@v1.2.10
-        with:
-          cluster-name: ${{ env.CLUSTER_NAME }}
-          config-files: ${{ github.workspace }}/scheduler-executor-pr-${{ env.PR_NUMBER }}.yaml
-          chart-path: techops-services/common
-          namespace: ${{ env.NAMESPACE }}
-          timeout: 5m0s
-          name: scheduler-executor-pr-${{ env.PR_NUMBER }}
-          chart-repository: https://techops-services.github.io/helm-charts
-          version: 0.2.1
-          atomic: true
+          helm repo add techops-services ${REPO}
+          helm repo update
 
-      - name: Deploy SC Event Worker with Helm
-        uses: bitovi/github-actions-deploy-eks-helm@v1.2.10
-        with:
-          cluster-name: ${{ env.CLUSTER_NAME }}
-          config-files: ${{ github.workspace }}/sc-event-worker-pr-${{ env.PR_NUMBER }}.yaml
-          chart-path: techops-services/common
-          namespace: ${{ env.NAMESPACE }}
-          timeout: 5m0s
-          name: events-worker-pr-${{ env.PR_NUMBER }}
-          chart-repository: https://techops-services.github.io/helm-charts
-          version: 0.2.1
-          atomic: true
+          (
+            echo "Deploying Scheduler Dispatcher..."
+            helm upgrade --install scheduler-dispatcher-pr-${PR_NUMBER} \
+              techops-services/common \
+              -f ${GITHUB_WORKSPACE}/scheduler-dispatcher-pr-${PR_NUMBER}.yaml \
+              ${COMMON_ARGS}
+            echo "Scheduler Dispatcher deployed."
+          ) &
+          PID1=$!
 
-      - name: Deploy SC Event Tracker with Helm
-        uses: bitovi/github-actions-deploy-eks-helm@v1.2.10
-        with:
-          cluster-name: ${{ env.CLUSTER_NAME }}
-          config-files: ${{ github.workspace }}/sc-event-tracker-pr-${{ env.PR_NUMBER }}.yaml
-          chart-path: techops-services/common
-          namespace: ${{ env.NAMESPACE }}
-          timeout: 5m0s
-          name: events-tracker-pr-${{ env.PR_NUMBER }}
-          chart-repository: https://techops-services.github.io/helm-charts
-          version: 0.2.1
-          atomic: true
+          (
+            echo "Deploying Scheduler Executor..."
+            helm upgrade --install scheduler-executor-pr-${PR_NUMBER} \
+              techops-services/common \
+              -f ${GITHUB_WORKSPACE}/scheduler-executor-pr-${PR_NUMBER}.yaml \
+              ${COMMON_ARGS}
+            echo "Scheduler Executor deployed."
+          ) &
+          PID2=$!
+
+          (
+            echo "Deploying SC Event Worker..."
+            helm upgrade --install events-worker-pr-${PR_NUMBER} \
+              techops-services/common \
+              -f ${GITHUB_WORKSPACE}/sc-event-worker-pr-${PR_NUMBER}.yaml \
+              ${COMMON_ARGS}
+            echo "SC Event Worker deployed."
+          ) &
+          PID3=$!
+
+          (
+            echo "Deploying SC Event Tracker..."
+            helm upgrade --install events-tracker-pr-${PR_NUMBER} \
+              techops-services/common \
+              -f ${GITHUB_WORKSPACE}/sc-event-tracker-pr-${PR_NUMBER}.yaml \
+              ${COMMON_ARGS}
+            echo "SC Event Tracker deployed."
+          ) &
+          PID4=$!
+
+          FAILED=0
+          for PID in $PID1 $PID2 $PID3 $PID4; do
+            wait $PID || FAILED=1
+          done
+
+          if [ $FAILED -ne 0 ]; then
+            echo "One or more satellite services failed to deploy."
+            helm list -n ${NAMESPACE}
+            exit 1
+          fi
+          echo "All satellite services deployed successfully."
 
       - name: Get deployment status
         if: always()
