@@ -245,6 +245,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Increase shard count as the test suite grows
         shard: [1, 2]
 
     services:
