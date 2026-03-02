@@ -32,7 +32,6 @@ target "app" {
   ]
   cache-from = ["type=registry,ref=${ECR_REGISTRY}/${ECR_REPO}:cache-app"]
   cache-to   = ["type=registry,ref=${ECR_REGISTRY}/${ECR_REPO}:cache-app,mode=max"]
-  output     = ["type=registry"]
 }
 
 target "migrator" {
@@ -48,5 +47,4 @@ target "migrator" {
     "type=registry,ref=${ECR_REGISTRY}/${ECR_REPO}:cache-migrator",
   ]
   cache-to = ["type=registry,ref=${ECR_REGISTRY}/${ECR_REPO}:cache-migrator,mode=max"]
-  output   = ["type=registry"]
 }
