@@ -256,28 +256,24 @@ jobs:
             helm uninstall "$release" -n ${{ env.NAMESPACE }} --no-hooks 2>/dev/null || true
           done
 
+      - name: Add Helm repository
+        run: |
+          helm repo add techops-services https://techops-services.github.io/helm-charts
+          helm repo update
+
       - name: Deploy Keeperhub application with Helm
-        uses: bitovi/github-actions-deploy-eks-helm@v1.2.10
-        with:
-          cluster-name: ${{ env.CLUSTER_NAME }}
-          config-files: ${{ github.workspace }}/values-pr-${{ env.PR_NUMBER }}.yaml
-          chart-path: techops-services/common
-          namespace: ${{ env.NAMESPACE }}
-          timeout: 10m0s
-          name: keeperhub-pr-${{ env.PR_NUMBER }}
-          chart-repository: https://techops-services.github.io/helm-charts
-          version: 0.2.1
-          atomic: true
+        run: |
+          set -euo pipefail
+          helm upgrade --install keeperhub-pr-${PR_NUMBER} \
+            techops-services/common \
+            -f ${GITHUB_WORKSPACE}/values-pr-${PR_NUMBER}.yaml \
+            --namespace "${NAMESPACE}" --timeout 10m0s --atomic --version 0.2.1
 
       - name: Deploy satellite services (parallel)
         run: |
           set -euo pipefail
           COMMON_ARGS=(--namespace "${NAMESPACE}" --timeout 5m0s --atomic --version 0.2.1)
-          REPO="https://techops-services.github.io/helm-charts"
           LOGDIR=$(mktemp -d)
-
-          helm repo add techops-services ${REPO}
-          helm repo update
 
           (
             helm upgrade --install scheduler-dispatcher-pr-${PR_NUMBER} \
