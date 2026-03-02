@@ -117,8 +117,9 @@ describe("/api/internal/reaper", () => {
 
     await GET(createRequest());
 
-    const setArg = mockUpdateSet.mock.calls[0][0];
-    expect(setArg.duration).toBeDefined();
+    const calls = mockUpdateSet.mock.calls as unknown[][];
+    const setArg = calls[0]?.[0] as Record<string, unknown> | undefined;
+    expect(setArg?.duration).toBeDefined();
   });
 
   it("excludes executions with recent step activity", async () => {
