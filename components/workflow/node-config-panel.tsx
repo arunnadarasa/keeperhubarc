@@ -312,6 +312,9 @@ export const PanelInner = () => {
   // within the same event (e.g. toggling manual ABI + clearing the field)
   // don't overwrite each other due to stale selectedNode closure.
   const pendingConfigRef = useRef<Record<string, unknown> | null>(null);
+  const sidebarRefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
   // end keeperhub code //
   const selectedNode = nodes.find((node) => node.id === selectedNodeId);
   const selectedEdge = edges.find((edge) => edge.id === selectedEdgeId);
@@ -627,6 +630,12 @@ export const PanelInner = () => {
           nodes,
           edges,
         });
+        if (sidebarRefetchTimerRef.current) {
+          clearTimeout(sidebarRefetchTimerRef.current);
+        }
+        sidebarRefetchTimerRef.current = setTimeout(() => {
+          refetchSidebar();
+        }, 500);
       } catch (error) {
         console.error("Failed to update workflow name:", error);
         toast.error("Failed to update workspace name");
