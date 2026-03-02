@@ -58,6 +58,7 @@ export type ProtocolAction = {
   function: string;
   inputs: ProtocolActionInput[];
   outputs?: ProtocolActionOutput[];
+  payable?: boolean;
 };
 
 export type ProtocolDefinition = {
@@ -200,6 +201,16 @@ function buildConfigFieldsFromAction(
       placeholder: "0x...",
       required: true,
       isAddressField: true,
+    });
+  }
+
+  if (action.payable) {
+    fields.push({
+      key: "ethValue",
+      label: "ETH Value",
+      type: "template-input",
+      placeholder: "0.0",
+      required: true,
     });
   }
 

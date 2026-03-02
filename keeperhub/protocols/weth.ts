@@ -37,6 +37,7 @@ export default defineProtocol({
       contract: "weth",
       function: "deposit",
       inputs: [],
+      payable: true,
     },
     {
       slug: "unwrap",

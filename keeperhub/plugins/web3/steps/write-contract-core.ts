@@ -35,6 +35,7 @@ export type WriteContractCoreInput = {
   abi: string;
   abiFunction: string;
   functionArgs?: string;
+  ethValue?: string;
   gasLimitMultiplier?: string;
   _context?: {
     executionId?: string;
@@ -68,6 +69,7 @@ export async function writeContractCore(
     abi,
     abiFunction,
     functionArgs,
+    ethValue,
     gasLimitMultiplier,
     _context,
   } = input;
@@ -272,11 +274,19 @@ export async function writeContractCore(
         };
       }
 
+      // Build value override for payable functions (e.g. WETH deposit)
+      const valueOverride = ethValue
+        ? { value: ethers.parseEther(ethValue) }
+        : {};
+
       // Get nonce from session
       const nonce = nonceManager.getNextNonce(session);
 
       // Estimate gas for the contract call
-      const estimatedGas = await contract[abiFunction].estimateGas(...args);
+      const estimatedGas = await contract[abiFunction].estimateGas(
+        ...args,
+        valueOverride
+      );
 
       // Get gas configuration from strategy
       const provider = signer.provider;
@@ -307,6 +317,7 @@ export async function writeContractCore(
         gasLimit: txGasConfig.gasLimit,
         maxFeePerGas: txGasConfig.maxFeePerGas,
         maxPriorityFeePerGas: txGasConfig.maxPriorityFeePerGas,
+        ...valueOverride,
       });
 
       // Record pending transaction
