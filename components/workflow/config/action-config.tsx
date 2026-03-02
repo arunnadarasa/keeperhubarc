@@ -579,8 +579,6 @@ function CollectFields() {
   );
 }
 
-// end keeperhub code //
-
 // System action fields wrapper - extracts conditional rendering to reduce complexity
 function SystemActionFields({
   actionType,

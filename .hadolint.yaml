@@ -1,0 +1,4 @@
+ignored:
+  # Alpine package versions are tied to the base image tag (node:25-alpine).
+  # Pinning apk packages independently breaks when the base image updates.
+  - DL3018

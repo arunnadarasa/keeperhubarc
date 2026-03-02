@@ -6,7 +6,7 @@ RUN wget -O /etc/ssl/certs/rds-combined-ca-bundle.pem https://truststore.pki.rds
 WORKDIR /app
 
 # Install pnpm
-RUN npm install -g pnpm
+RUN npm install -g pnpm@9
 
 # Copy package files
 COPY package.json pnpm-lock.yaml* ./
@@ -19,7 +19,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 # Stage 2: Source (dependencies + source files, no build)
 FROM node:25-alpine AS source
 WORKDIR /app
-RUN npm install -g pnpm
+RUN npm install -g pnpm@9
 
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
@@ -45,7 +45,7 @@ RUN pnpm build
 # Stage 2.6: Migration stage (for running migrations and seeding)
 FROM node:25-alpine AS migrator
 WORKDIR /app
-RUN npm install -g pnpm tsx
+RUN npm install -g pnpm@9 tsx@4
 COPY --from=deps /etc/ssl/certs/rds-combined-ca-bundle.pem /etc/ssl/certs/rds-combined-ca-bundle.pem
 
 # Copy dependencies, migration files, and seed scripts
@@ -72,7 +72,7 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Install pnpm
-RUN npm install -g pnpm
+RUN npm install -g pnpm@9
 
 # Use main project package.json (scheduler/package.json was removed)
 COPY package.json pnpm-lock.yaml ./
@@ -84,7 +84,7 @@ RUN --mount=type=cache,id=pnpm-scheduler,target=/root/.local/share/pnpm/store \
 # Stage 2.7b: Scheduler stage (for schedule dispatcher and job spawner)
 FROM node:25-alpine AS scheduler
 WORKDIR /app
-RUN npm install -g tsx
+RUN npm install -g tsx@4
 COPY --from=deps /etc/ssl/certs/rds-combined-ca-bundle.pem /etc/ssl/certs/rds-combined-ca-bundle.pem
 
 # Copy ONLY scheduler dependencies (not full node_modules - saves ~1.7GB)
@@ -108,7 +108,7 @@ ENV NODE_ENV=production
 # Stage 2.8: Workflow Runner stage (for executing workflows in K8s Jobs)
 FROM node:25-alpine AS workflow-runner
 WORKDIR /app
-RUN npm install -g pnpm tsx
+RUN npm install -g pnpm@9 tsx@4
 COPY --from=deps /etc/ssl/certs/rds-combined-ca-bundle.pem /etc/ssl/certs/rds-combined-ca-bundle.pem
 
 # Copy dependencies and workflow execution files
@@ -131,7 +131,8 @@ COPY --from=builder /app/keeperhub/plugins/index.ts ./keeperhub/plugins/index.ts
 # Create a shim for 'server-only' package - the runner runs outside Next.js
 # so we replace the package with an empty module that doesn't throw
 # We need to replace it in the .pnpm folder where the actual package lives
-RUN find /app/node_modules -path "*server-only*/index.js" | while read f; do echo 'module.exports = {};' > "$f"; done
+SHELL ["/bin/ash", "-o", "pipefail", "-c"]
+RUN find /app/node_modules -path "*server-only*/index.js" | while read -r f; do echo 'module.exports = {};' > "$f"; done
 
 ENV NODE_ENV=production
 

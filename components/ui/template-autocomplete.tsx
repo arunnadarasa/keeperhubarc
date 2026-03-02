@@ -35,7 +35,7 @@ import {
   schemaToFields,
 } from "@/keeperhub/lib/template-helpers";
 import { getTriggerOutputFields } from "@/keeperhub/lib/trigger-output-fields";
-// end custom keeperhub code //
+// end keeperhub code //
 
 type TemplateAutocompleteProps = {
   isOpen: boolean;
@@ -156,7 +156,7 @@ const getCommonFields = (node: WorkflowNode) => {
         return outputFields;
       }
     }
-    // end custom keeperhub code //
+    // end keeperhub code //
 
     if (triggerType === "Webhook" && webhookSchema) {
       try {
@@ -180,7 +180,7 @@ const getCommonFields = (node: WorkflowNode) => {
         return outputFields;
       }
     }
-    // end custom keeperhub code //
+    // end keeperhub code //
 
     return [
       { field: "triggered", description: "Trigger status" },
@@ -211,7 +211,7 @@ export function TemplateAutocomplete({
   const currentWorkflowIdRef = useRef<string | null>(null);
   const lastFetchWorkflowIdRef = useRef<string | null>(null);
   currentWorkflowIdRef.current = currentWorkflowId;
-  // end custom keeperhub code //
+  // end keeperhub code //
   const [selectedIndex, setSelectedIndex] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -290,7 +290,7 @@ export function TemplateAutocomplete({
     lastExecutionLogs.workflowId,
     setLastExecutionLogs,
   ]);
-  // end custom keeperhub code //
+  // end keeperhub code //
 
   // Find all nodes that come before the current node
   const getUpstreamNodes = () => {
@@ -445,7 +445,7 @@ export function TemplateAutocomplete({
           template: `{{@${node.id}:${nodeName}.${fieldPath}}}`,
         });
       }
-      // end custom keeperhub code //
+      // end keeperhub code //
     } else {
       const fields = getCommonFields(node);
 

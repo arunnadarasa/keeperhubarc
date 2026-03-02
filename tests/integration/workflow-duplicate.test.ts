@@ -87,7 +87,7 @@ vi.mock("@/keeperhub/lib/middleware/org-context", () => ({
     isAnonymous: false,
   }),
 }));
-// end custom keeperhub code //
+// end keeperhub code //
 
 const workflowWithArrayConfig = {
   ...sourceWorkflow,

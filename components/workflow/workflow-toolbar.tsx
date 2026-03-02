@@ -1090,7 +1090,7 @@ function useWorkflowActions(state: ReturnType<typeof useWorkflowState>) {
       await updateWorkflowEnabled(true);
     }
   };
-  // end custom keeperhub code //
+  // end keeperhub code //
 
   const handleDuplicate = async () => {
     if (!currentWorkflowId) {
@@ -1393,7 +1393,7 @@ function ToolbarActions({
           </div>
         </>
       )}
-      {/* end custom keeperhub code // */}
+      {/* end keeperhub code // */}
 
       <RunButtonGroup actions={actions} state={state} />
     </>
@@ -1554,7 +1554,7 @@ function RunButtonGroup({
     state.nodes.length === 0 ||
     state.isGenerating ||
     isNonManualTrigger;
-  // end custom keeperhub code //
+  // end keeperhub code //
 
   const button = (
     <Button
@@ -1591,7 +1591,7 @@ function RunButtonGroup({
   }
 
   return button;
-  // end custom keeperhub code //
+  // end keeperhub code //
 }
 
 // Read-only badge - pill with a live green accent on the toolbar

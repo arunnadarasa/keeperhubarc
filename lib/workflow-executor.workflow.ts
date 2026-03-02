@@ -1690,7 +1690,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
               triggerData.triggeredAt = triggerInput.triggerTime;
             }
           }
-          // end custom keeperhub code //
+          // end keeperhub code //
         }
 
         // Build context for logging

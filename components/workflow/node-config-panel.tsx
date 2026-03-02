@@ -1111,7 +1111,7 @@ export const PanelInner = () => {
                   isOwner={isOwner}
                   // start custom keeperhub code //
                   nodeId={selectedNode.id}
-                  // end custom keeperhub code //
+                  // end keeperhub code //
                   onUpdateConfig={handleUpdateConfig}
                 />
               ) : null}
