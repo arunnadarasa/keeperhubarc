@@ -15,6 +15,7 @@ import {
   getOrganizationWalletAddress,
   initializeParaSigner,
 } from "@/keeperhub/lib/para/wallet-helpers";
+import { formatContractError } from "@/keeperhub/lib/web3/decode-revert-error";
 import { resolveGasLimitOverrides } from "@/keeperhub/lib/web3/gas-defaults";
 import { getGasStrategy } from "@/keeperhub/lib/web3/gas-strategy";
 import { getNonceManager } from "@/keeperhub/lib/web3/nonce-manager";
@@ -290,6 +291,10 @@ export async function writeContractCore(
       // Build value override for payable functions (e.g. WETH deposit)
       const valueOverride = parsedEthValue ? { value: parsedEthValue } : {};
 
+      // Simulate call first to get decodable revert data on failure
+      // (eth_call returns revert data reliably, eth_estimateGas often does not)
+      await contract[abiFunction].staticCall(...args, valueOverride);
+
       // Get nonce from session
       const nonce = nonceManager.getNextNonce(session);
 
@@ -384,7 +389,7 @@ export async function writeContractCore(
       );
       return {
         success: false,
-        error: `Contract call failed: ${getErrorMessage(error)}`,
+        error: formatContractError(error, contract.interface),
       };
     }
   });
