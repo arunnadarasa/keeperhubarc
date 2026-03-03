@@ -1,4 +1,18 @@
-import { ethers, isError } from "ethers";
+import { type EthersError, ethers, isError } from "ethers";
+
+/**
+ * Ethers error codes that indicate a permanent failure -- retrying on the same
+ * or a different provider will never succeed. These are re-thrown immediately,
+ * bypassing both the retry loop and the failover logic.
+ */
+const NON_RETRYABLE_ERROR_CODES: ReadonlySet<string> = new Set([
+  "CALL_EXCEPTION", // contract revert, out-of-gas, function not found
+  "INVALID_ARGUMENT", // bad parameter types/values
+  "MISSING_ARGUMENT",
+  "UNEXPECTED_ARGUMENT",
+  "NUMERIC_FAULT", // overflow, division by zero
+  "BAD_DATA", // malformed ABI encoding that won't decode on any provider
+]);
 
 /**
  * Interface for metrics collection - allows dependency injection
@@ -329,6 +343,13 @@ export class RpcProviderManager {
           this.metricsCollector.recordFallbackFailure(this.config.chainName);
         }
 
+        // Non-retryable errors (contract revert, invalid args, etc.) will
+        // never succeed on any provider -- re-throw immediately to skip
+        // both remaining retries and failover to the other provider.
+        if (this.isNonRetryableError(error)) {
+          throw lastError;
+        }
+
         if (attempt === maxRetries - 1) {
           break;
         }
@@ -381,6 +402,15 @@ export class RpcProviderManager {
 
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private isNonRetryableError(error: unknown): boolean {
+    if (typeof error !== "object" || error === null || !("code" in error)) {
+      return false;
+    }
+    return NON_RETRYABLE_ERROR_CODES.has(
+      (error as EthersError).code as string
+    );
   }
 
   getMetrics(): Readonly<RpcProviderMetrics> {
