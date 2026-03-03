@@ -13,6 +13,15 @@ import {
   type TierKey,
 } from "@/keeperhub/lib/billing/plans";
 
+type OverageCharge = {
+  periodStart: string;
+  periodEnd: string;
+  overageCount: number;
+  totalChargeCents: number;
+  status: string;
+  createdAt: string;
+};
+
 type SubscriptionData = {
   subscription: {
     plan: string;
@@ -24,6 +33,11 @@ type SubscriptionData = {
     billingAlert: string | null;
     billingAlertUrl: string | null;
   };
+  usage: {
+    executionsUsed: number;
+    executionLimit: number;
+  };
+  overageCharges: OverageCharge[];
 };
 
 type SuggestionNoUpgrade = {
@@ -196,21 +210,38 @@ function UpgradeSuggestionBanner({
 }): React.ReactElement {
   const savingsFormatted = `$${(suggestion.monthlySavings / 100).toFixed(2)}`;
 
+  function handleScrollToPlans(): void {
+    const plansSection = document.getElementById("plans-section");
+    if (plansSection) {
+      plansSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
   return (
-    <div className="rounded-md border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-600 dark:text-blue-400">
+    <div className="rounded-md border border-blue-500/20 bg-blue-500/5 px-4 py-3 text-sm text-blue-600 dark:text-blue-400">
       <p className="font-medium">
         You've used {suggestion.currentUsage.toLocaleString()} of{" "}
         {suggestion.currentLimit.toLocaleString()} executions this month (
         {suggestion.usagePercent}%).
       </p>
-      <p className="mt-1 text-blue-500 dark:text-blue-300">
-        Upgrading to {suggestion.suggestedPlan} ({suggestion.suggestedTier})
-        would include {suggestion.suggestedLimit.toLocaleString()} executions
-        {suggestion.monthlySavings > 0
-          ? ` and save ~${savingsFormatted}/mo in overage fees`
-          : ""}
-        .
-      </p>
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <p className="text-blue-500 dark:text-blue-300">
+          Upgrading to {suggestion.suggestedPlan} ({suggestion.suggestedTier})
+          would include {suggestion.suggestedLimit.toLocaleString()} executions
+          {suggestion.monthlySavings > 0
+            ? ` and save ~${savingsFormatted}/mo in overage fees`
+            : ""}
+          .
+        </p>
+        <Button
+          className="shrink-0"
+          onClick={handleScrollToPlans}
+          size="sm"
+          variant="outline"
+        >
+          View Plans
+        </Button>
+      </div>
     </div>
   );
 }
@@ -315,13 +346,156 @@ function BillingStatusSkeleton(): React.ReactElement {
   );
 }
 
+function ExecutionUsageBar({
+  used,
+  limit,
+  plan,
+}: {
+  used: number;
+  limit: number;
+  plan: PlanName;
+}): React.ReactElement {
+  const isUnlimited = limit === -1;
+  const percent = isUnlimited ? 0 : Math.min((used / limit) * 100, 100);
+  const isOverLimit = !isUnlimited && used >= limit;
+  const isNearLimit = !isUnlimited && percent >= 80;
+  const hasOverage = PLANS[plan].overage.enabled;
+  const overageRate = PLANS[plan].overage.ratePerThousand;
+
+  function resolveBarColor(): string {
+    if (isOverLimit) {
+      return hasOverage ? "bg-amber-400/70" : "bg-destructive";
+    }
+    if (isNearLimit) {
+      return "bg-yellow-400/70";
+    }
+    return "bg-keeperhub-green";
+  }
+  const barColor = resolveBarColor();
+
+  const overageCount = isOverLimit ? used - limit : 0;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-muted-foreground">Monthly executions</span>
+        <span className="font-medium">
+          {used.toLocaleString()} /{" "}
+          {isUnlimited ? "Unlimited" : limit.toLocaleString()}
+        </span>
+      </div>
+      {!isUnlimited && (
+        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className={`h-full rounded-full transition-all ${barColor}`}
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+      )}
+      {isOverLimit && hasOverage && (
+        <p className="text-xs text-amber-600/80 dark:text-amber-400/80">
+          {overageCount.toLocaleString()} overage execution
+          {overageCount !== 1 ? "s" : ""} at ${overageRate}/1,000 will be added
+          to your next invoice.
+        </p>
+      )}
+      {isOverLimit && !hasOverage && (
+        <p className="text-xs text-destructive">
+          You have reached your monthly execution limit. Upgrade your plan to
+          continue.
+        </p>
+      )}
+    </div>
+  );
+}
+
+const OVERAGE_STATUS_VARIANT: Record<
+  string,
+  "default" | "secondary" | "destructive" | "outline"
+> = {
+  billed: "secondary",
+  pending: "outline",
+  failed: "destructive",
+};
+
+function OverageChargesSection({
+  charges,
+}: {
+  charges: OverageCharge[];
+}): React.ReactElement | null {
+  const visibleCharges = charges.filter((c) => c.status !== "billed");
+  if (visibleCharges.length === 0) {
+    return null;
+  }
+
+  const formatPeriod = (start: string, end: string): string => {
+    const s = new Date(start).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
+    const e = new Date(end).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+    return `${s} - ${e}`;
+  };
+
+  const pendingTotal = charges
+    .filter((c) => c.status === "pending")
+    .reduce((sum, c) => sum + c.totalChargeCents, 0);
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium text-muted-foreground">
+        Overage charges
+      </p>
+      <div className="space-y-1.5">
+        {visibleCharges.map((charge) => (
+          <div
+            className="flex items-center justify-between rounded-md border border-border/50 px-3 py-2 text-xs"
+            key={`${charge.periodStart}-${charge.periodEnd}`}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">
+                {formatPeriod(charge.periodStart, charge.periodEnd)}
+              </span>
+              <span>{charge.overageCount.toLocaleString()} executions</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">
+                ${(charge.totalChargeCents / 100).toFixed(2)}
+              </span>
+              <Badge
+                variant={OVERAGE_STATUS_VARIANT[charge.status] ?? "outline"}
+              >
+                {charge.status}
+              </Badge>
+            </div>
+          </div>
+        ))}
+      </div>
+      {pendingTotal > 0 && (
+        <p className="text-xs text-muted-foreground">
+          ${(pendingTotal / 100).toFixed(2)} in overage charges will be added to
+          your next invoice.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function BillingStatusContent({
   sub,
+  usage,
+  overageCharges,
   suggestion,
   portalLoading,
   onManageBilling,
 }: {
   sub: SubscriptionData["subscription"] | undefined;
+  usage: SubscriptionData["usage"] | undefined;
+  overageCharges: OverageCharge[];
   suggestion: SuggestionData | null;
   portalLoading: boolean;
   onManageBilling: () => void;
@@ -363,6 +537,16 @@ function BillingStatusContent({
         <Badge variant={statusVariant}>{sub?.status ?? "active"}</Badge>
       </div>
 
+      {usage && (
+        <ExecutionUsageBar
+          limit={usage.executionLimit}
+          plan={plan}
+          used={usage.executionsUsed}
+        />
+      )}
+
+      <OverageChargesSection charges={overageCharges} />
+
       {renewalMessage && (
         <p className={`text-sm ${renewalMessage.className}`}>
           {renewalMessage.text}
@@ -402,9 +586,11 @@ export function BillingStatus(): React.ReactElement {
       </CardHeader>
       <BillingStatusContent
         onManageBilling={handleManageBilling}
+        overageCharges={data?.overageCharges ?? []}
         portalLoading={portalLoading}
         sub={sub}
         suggestion={suggestion}
+        usage={data?.usage}
       />
     </Card>
   );

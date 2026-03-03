@@ -88,7 +88,7 @@ export function BillingPage(): React.ReactElement {
 
           <BillingHistory key={`history-${String(refreshKey)}`} />
 
-          <div className="border-t border-border/50 pt-8">
+          <div className="border-t border-border/50 pt-8" id="plans-section">
             <h2 className="text-xl font-semibold mb-4">Plans</h2>
             <PricingTable
               currentInterval={currentInterval}

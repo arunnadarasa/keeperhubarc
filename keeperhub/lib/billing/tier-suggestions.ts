@@ -148,10 +148,12 @@ function findBestUpgrade(
   const currentTotalCost =
     (currentTierDef?.monthlyPrice ?? 0) * 100 + currentOverageCost;
 
-  let bestOption: UpgradeOption | undefined;
-  let bestSavings = 0;
-
   const plansToCheck: PlanName[] = ["pro", "business"];
+
+  // Collect all upgrade options that save money, sorted by tier size ascending.
+  // We prefer the smallest tier that covers projected usage (cheapest logical
+  // next step) rather than the tier with the absolute highest savings.
+  const candidates: UpgradeOption[] = [];
 
   for (const planName of plansToCheck) {
     const planDef = PLANS[planName];
@@ -168,21 +170,37 @@ function findBestUpgrade(
         currentTotalCost
       );
 
-      if (savings > bestSavings) {
-        bestSavings = savings;
-        bestOption = {
+      if (savings > 0) {
+        candidates.push({
           plan: planName,
           tier: tierDef.key,
           limit: tierDef.executions,
           savings: Math.round(savings),
-        };
+        });
       }
     }
   }
 
-  if (!bestOption || bestOption.savings <= 0) {
+  if (candidates.length === 0) {
     return undefined;
   }
 
-  return bestOption;
+  // Prefer same-plan tier upgrades over cross-plan jumps.
+  // Within each group, pick the smallest tier that covers projected usage.
+  const samePlan = candidates
+    .filter((c) => c.plan === currentPlan)
+    .sort((a, b) => a.limit - b.limit);
+  const crossPlan = candidates
+    .filter((c) => c.plan !== currentPlan)
+    .sort((a, b) => a.limit - b.limit);
+
+  const samePlanMatch =
+    samePlan.find((c) => c.limit >= projectedUsage) ?? samePlan[0];
+  if (samePlanMatch) {
+    return samePlanMatch;
+  }
+
+  const crossPlanMatch =
+    crossPlan.find((c) => c.limit >= projectedUsage) ?? crossPlan[0];
+  return crossPlanMatch;
 }

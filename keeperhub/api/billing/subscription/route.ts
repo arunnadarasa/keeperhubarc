@@ -1,3 +1,4 @@
+import { desc, eq, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
@@ -11,6 +12,8 @@ import {
   resolvePriceId,
 } from "@/keeperhub/lib/billing/plans-server";
 import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { overageBillingRecords } from "@/lib/db/schema";
 
 export async function GET(): Promise<NextResponse> {
   if (!isBillingEnabled()) {
@@ -43,7 +46,39 @@ export async function GET(): Promise<NextResponse> {
       : undefined;
     const interval = resolved?.interval ?? null;
 
+    const now = new Date();
+    const startOfMonth = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+    );
+    const usageResult = await db.execute<{ count: number }>(
+      sql`SELECT COUNT(*)::int as count
+          FROM workflow_executions we
+          JOIN workflows w ON we.workflow_id = w.id
+          WHERE w.organization_id = ${activeOrgId}
+          AND we.started_at >= ${startOfMonth.toISOString()}`
+    );
+    const executionsUsed = usageResult[0]?.count ?? 0;
+
+    const recentOverage = await db
+      .select({
+        periodStart: overageBillingRecords.periodStart,
+        periodEnd: overageBillingRecords.periodEnd,
+        overageCount: overageBillingRecords.overageCount,
+        totalChargeCents: overageBillingRecords.totalChargeCents,
+        status: overageBillingRecords.status,
+        createdAt: overageBillingRecords.createdAt,
+      })
+      .from(overageBillingRecords)
+      .where(eq(overageBillingRecords.organizationId, activeOrgId))
+      .orderBy(desc(overageBillingRecords.createdAt))
+      .limit(5);
+
     return NextResponse.json({
+      usage: {
+        executionsUsed,
+        executionLimit: limits.maxExecutionsPerMonth,
+      },
+      overageCharges: recentOverage,
       subscription: sub
         ? {
             plan: sub.plan,
