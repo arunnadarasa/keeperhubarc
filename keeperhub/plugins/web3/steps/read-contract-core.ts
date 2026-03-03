@@ -14,7 +14,11 @@ import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
 import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
 import { getAddressUrl } from "@/lib/explorer";
-import { getChainIdFromNetwork, getRpcProvider } from "@/lib/rpc";
+import {
+  type RpcProviderManager,
+  getChainIdFromNetwork,
+  getRpcProvider,
+} from "@/lib/rpc";
 import { getErrorMessage } from "@/lib/utils";
 
 export type ReadContractCoreInput = {
@@ -222,7 +226,7 @@ export async function readContractCore(
   }
 
   // Resolve RPC provider with failover support
-  let rpcManager: Awaited<ReturnType<typeof getRpcProvider>>;
+  let rpcManager: RpcProviderManager;
   try {
     rpcManager = await getRpcProvider({ chainId, userId });
   } catch (error) {

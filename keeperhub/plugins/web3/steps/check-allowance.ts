@@ -6,7 +6,11 @@ import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
 import { ERC20_ABI } from "@/lib/contracts";
 import { db } from "@/lib/db";
 import { workflowExecutions } from "@/lib/db/schema";
-import { getChainIdFromNetwork, getRpcProvider } from "@/lib/rpc";
+import {
+  type RpcProviderManager,
+  getChainIdFromNetwork,
+  getRpcProvider,
+} from "@/lib/rpc";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import { getErrorMessage } from "@/lib/utils";
 import { parseTokenAddress } from "./transfer-token-core";
@@ -97,7 +101,7 @@ async function stepHandler(
   const userId = await getUserIdFromExecution(_context?.executionId);
 
   // Resolve RPC provider with failover support
-  let rpcManager: Awaited<ReturnType<typeof getRpcProvider>>;
+  let rpcManager: RpcProviderManager;
   try {
     rpcManager = await getRpcProvider({ chainId, userId });
   } catch (error) {

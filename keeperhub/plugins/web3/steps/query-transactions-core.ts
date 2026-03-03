@@ -10,7 +10,11 @@ import {
   getTransactionUrl,
   type NormalizedTransaction,
 } from "@/lib/explorer";
-import { getChainIdFromNetwork, getRpcProvider } from "@/lib/rpc";
+import {
+  type RpcProviderManager,
+  getChainIdFromNetwork,
+  getRpcProvider,
+} from "@/lib/rpc";
 import { getErrorMessage } from "@/lib/utils";
 
 const DEFAULT_BLOCK_LOOKBACK = 6500;
@@ -417,7 +421,7 @@ export async function queryTransactionsCore(
 
   const userId = await getUserIdFromExecution(input._context?.executionId);
 
-  let rpcManager: Awaited<ReturnType<typeof getRpcProvider>>;
+  let rpcManager: RpcProviderManager;
   try {
     rpcManager = await getRpcProvider({ chainId, userId });
   } catch (error) {

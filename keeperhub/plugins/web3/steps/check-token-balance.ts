@@ -15,7 +15,11 @@ import {
   workflowExecutions,
 } from "@/lib/db/schema";
 import { getAddressUrl } from "@/lib/explorer";
-import { getChainIdFromNetwork, getRpcProvider } from "@/lib/rpc";
+import {
+  type RpcProviderManager,
+  getChainIdFromNetwork,
+  getRpcProvider,
+} from "@/lib/rpc";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import { getErrorMessage } from "@/lib/utils";
 
@@ -406,7 +410,7 @@ async function stepHandler(
   }
 
   // Resolve RPC provider with failover support
-  let rpcManager: Awaited<ReturnType<typeof getRpcProvider>>;
+  let rpcManager: RpcProviderManager;
   try {
     rpcManager = await getRpcProvider({ chainId, userId });
   } catch (error) {
