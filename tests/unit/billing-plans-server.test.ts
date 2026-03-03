@@ -287,34 +287,36 @@ describe("checkExecutionLimit", () => {
   });
 });
 
+const hasStripeEnv = process.env.STRIPE_PRICE_PRO_25K_MONTHLY !== undefined;
+
 describe("resolvePriceId", () => {
-  it("resolves a known tiered price ID back to plan, tier, and interval", () => {
-    const priceId = process.env.STRIPE_PRICE_PRO_25K_MONTHLY;
-    if (priceId === undefined) {
-      return;
+  it.skipIf(!hasStripeEnv)(
+    "resolves a known tiered price ID back to plan, tier, and interval",
+    () => {
+      const priceId = String(process.env.STRIPE_PRICE_PRO_25K_MONTHLY);
+
+      const resolved = resolvePriceId(priceId);
+      expect(resolved).toEqual({
+        plan: "pro",
+        tier: "25k",
+        interval: "monthly",
+      });
     }
+  );
 
-    const resolved = resolvePriceId(priceId);
-    expect(resolved).toEqual({
-      plan: "pro",
-      tier: "25k",
-      interval: "monthly",
-    });
-  });
+  it.skipIf(!hasStripeEnv)(
+    "resolves enterprise price ID with null tier",
+    () => {
+      const priceId = String(process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY);
 
-  it("resolves enterprise price ID with null tier", () => {
-    const priceId = process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY;
-    if (priceId === undefined) {
-      return;
+      const resolved = resolvePriceId(priceId);
+      expect(resolved).toEqual({
+        plan: "enterprise",
+        tier: null,
+        interval: "monthly",
+      });
     }
-
-    const resolved = resolvePriceId(priceId);
-    expect(resolved).toEqual({
-      plan: "enterprise",
-      tier: null,
-      interval: "monthly",
-    });
-  });
+  );
 
   it("returns undefined for unknown price ID", () => {
     const resolved = resolvePriceId("price_unknown_xyz");

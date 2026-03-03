@@ -167,6 +167,7 @@ export async function checkExecutionLimit(
   const limits = getPlanLimits(plan, tier);
 
   if (limits.maxExecutionsPerMonth === -1) {
+    // Unlimited plans are unaffected by debt -- skip the query intentionally
     return {
       allowed: true,
       isOverage: false,
