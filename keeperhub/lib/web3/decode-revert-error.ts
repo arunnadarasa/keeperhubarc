@@ -29,6 +29,13 @@ const COMMON_ERROR_FRAGMENTS: string[] = [
   "error NotInitializing()",
   "error MathOverflowedMulDiv()",
   "error SafeERC20FailedOperation(address token)",
+  "error NotAuthorized()",
+  "error InsufficientLiquidity()",
+  "error InsufficientBalance()",
+  "error InvalidAmount()",
+  "error InvalidAddress()",
+  "error Expired()",
+  "error AlreadyInitialized()",
 ];
 
 const COMMON_ERRORS_INTERFACE = new ethers.Interface(COMMON_ERROR_FRAGMENTS);
