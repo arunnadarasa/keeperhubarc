@@ -172,3 +172,247 @@ Vitest E2E tests are not run against staging/prod after deployment. Only Playwri
 - **PR environments:** `e2e-vitest-remote` runs with full DB access on PR deploys, where each PR has an isolated CloudNativePG instance. No risk to shared data.
 
 **If this needs to change:** The staging/prod databases are RDS instances accessible only within the VPC. Connecting from a CI runner would require either a socat tunnel pod in K8s or running tests as a K8s Job inside the cluster. Both add complexity and the orphaned-resource risk outweighs the benefit given the existing coverage.
+
+---
+
+## Test Data and Seeding
+
+### Persistent Test Users
+
+Five test users are seeded before every Playwright run by `global-setup.ts`. They are created via direct SQL inserts (not the app's signup flow) and persist across test files. Passwords are hashed with scrypt (compatible with Better Auth).
+
+| Email | Password | Org Slug | Role | Purpose |
+|---|---|---|---|---|
+| `pr-test-do-not-delete@techops.services` | `TestPassword123!` | `e2e-test-org` | owner | Primary test user, wallet holder |
+| `pr-test-inviter@techops.services` | `TestPassword123!` | `e2e-test-inviter-org` | owner | Invitation sender tests |
+| `pr-test-member@techops.services` | `TestPassword123!` | `e2e-test-member-org` | owner | Also a member of `e2e-test-inviter-org` |
+| `pr-test-bystander@techops.services` | `TestPassword123!` | `e2e-test-bystander-org` | owner | Non-participant in shared org tests |
+| `test-analytics@techops.services` | `TestAnalytics123!` | `e2e-test-analytics-org` | owner | Analytics dashboard testing |
+
+The analytics user also gets seed data: 3 workflows, 30 workflow executions (with step logs), 40 direct executions, and a 0.05 ETH spend cap.
+
+**Source:** `tests/e2e/playwright/utils/seed.ts`
+
+### Ephemeral Test Users
+
+Playwright signup tests create ephemeral users matching `test+*@techops.services`. These are cleaned up at the start of each test run by `cleanupTestUsers()`. The persistent `pr-test-do-not-delete@techops.services` user is explicitly protected from cleanup.
+
+**Source:** `tests/e2e/playwright/utils/cleanup.ts`
+
+### Seed Lifecycle
+
+The Playwright global setup (`tests/e2e/playwright/global-setup.ts`) runs this sequence before all tests:
+
+1. `cleanupTestUsers()` -- delete ephemeral `test+*@techops.services` users and all their data
+2. `cleanupPersistentTestUsers()` -- delete data owned by persistent users (workflows, executions, wallets) but keep the users themselves
+3. `seedPersistentTestUsers()` -- recreate the 5 persistent users and their orgs (idempotent)
+4. `seedAnalyticsData()` -- create analytics seed workflows and executions
+
+Cleanup follows FK-safe deletion order: execution logs -> executions -> schedules -> workflows -> para wallets -> integrations -> API keys -> invitations -> members -> sessions -> accounts -> organizations -> users -> verifications.
+
+### Vitest Seed Commands
+
+Vitest E2E tests rely on seed scripts run before the test suite (in CI, these run as workflow steps):
+
+```bash
+pnpm db:setup-workflow   # Create workflow-specific tables
+pnpm db:migrate          # Run all migrations
+pnpm db:seed             # Seed chains and tokens
+pnpm db:seed-test-wallet # Create persistent test user + org + Para wallet
+```
+
+---
+
+## Para Wallet
+
+A single pre-provisioned Para wallet is used for all write-contract tests. It is shared with keeper-app (same Para project).
+
+| Property | Value |
+|---|---|
+| Wallet ID | `3b1acc96-170f-4148-800b-7bca3e2ee6ad` |
+| Wallet Address | `0x4f1089424dcf25b1290631df483a436b320e51a1` |
+| Owner | `pr-test-do-not-delete@techops.services` / `e2e-test-org` |
+| Encryption | AES-256-GCM (iv:authTag:ciphertext format) |
+
+The wallet is **not** created dynamically via the Para API. The wallet ID and address are hardcoded in the seed script. At seed time, the raw Para user share (`TEST_PARA_USER_SHARE`) is encrypted with `WALLET_ENCRYPTION_KEY` and stored in the `para_wallets` table.
+
+**Seed script:** `scripts/seed/seed-test-wallet.ts`
+**Encryption:** `keeperhub/lib/encryption.ts` -- `encryptUserShare()` / `decryptUserShare()`
+
+### Safety Guards
+
+The seed script refuses to run against production databases:
+- Blocks if `NODE_ENV=production` (unless `ALLOW_SEED_TEST_WALLET=true`)
+- Blocks if `DATABASE_URL` host is not `localhost`, `127.0.0.1`, `*.svc.cluster.local`, or `*.internal` (unless `ALLOW_SEED_TEST_WALLET=true`)
+
+---
+
+## Sepolia Testnet
+
+### Test Contract
+
+The `write-contract-workflow.test.ts` test interacts with a SimpleStorage contract on Sepolia:
+
+| Property | Value |
+|---|---|
+| Contract | `0x069d34E130ccA7D435351FB30c0e97F2Ce6B42Ad` |
+| Chain ID | `11155111` (Sepolia) |
+| Function | `store(uint256)` -- writes a random value, then reads it back to verify |
+
+This test validates the full write-contract step: wallet signing via Para SDK, gas estimation, transaction submission, and on-chain state verification.
+
+### Wallet Funding
+
+The test wallet needs Sepolia ETH to pay gas. A funding script tops it up from a funder EOA:
+
+```bash
+pnpm db:fund-test-wallet
+```
+
+| Parameter | Value |
+|---|---|
+| Funding amount | 0.002 ETH per run |
+| Minimum balance threshold | 0.001 ETH (skips funding if wallet already has enough) |
+| Funder key | `TESTNET_FUNDER_PK` env var (private key of a funded Sepolia EOA) |
+| RPC | Looked up from the `chains` table (Sepolia entry, seeded by `pnpm db:seed-chains`) |
+
+**Source:** `scripts/miscellaneous/fund-test-wallet.ts`
+
+The funder wallet needs to be periodically topped up via a Sepolia faucet. If the funder runs dry, `write-contract-workflow.test.ts` will fail with "insufficient funds".
+
+### RPC Configuration
+
+Tests use public RPC endpoints by default (no API keys required). RPCs are resolved in this priority order:
+
+1. `CHAIN_RPC_CONFIG` JSON env var (from AWS Parameter Store in deployed environments)
+2. Individual env vars (e.g., `CHAIN_SEPOLIA_PRIMARY_RPC`)
+3. Public defaults (hardcoded in `lib/rpc/rpc-config.ts`)
+
+Default public RPCs used by tests:
+
+| Network | Chain ID | Default RPC |
+|---|---|---|
+| Ethereum | 1 | `https://eth.llamarpc.com` |
+| Sepolia | 11155111 | `https://ethereum-sepolia-rpc.publicnode.com` |
+| Base | 8453 | `https://mainnet.base.org` |
+| Base Sepolia | 84532 | `https://sepolia.base.org` |
+
+---
+
+## Secrets Reference
+
+### Required for full test suite
+
+| Secret | Purpose | Used by |
+|---|---|---|
+| `WALLET_ENCRYPTION_KEY` | 32-byte hex key (64 chars) for AES-256-GCM encryption of Para user shares | Vitest wallet tests, seed script |
+| `PARA_API_KEY` | Para SDK API key for transaction signing | `write-contract-workflow.test.ts` |
+| `TEST_PARA_USER_SHARE` | Raw Para user share (base64 string) for the test wallet | `pnpm db:seed-test-wallet` |
+| `PARA_ENVIRONMENT` | Para SDK environment (always `beta` for tests) | All Para-dependent tests |
+
+### Required for testnet funding
+
+| Secret | Purpose | Used by |
+|---|---|---|
+| `TESTNET_FUNDER_PK` | Private key of a funded Sepolia EOA | `pnpm db:fund-test-wallet` |
+
+### Required for Para wallet cleanup (Playwright)
+
+| Secret | Purpose | Used by |
+|---|---|---|
+| `PARA_PORTAL_ORG_ID` | Para Portal organization ID | `cleanupTestUsers()` |
+| `PARA_PORTAL_PROJECT_ID` | Para Portal project ID | `cleanupTestUsers()` |
+| `PARA_PORTAL_KEY_ID` | Para Portal key ID | `cleanupTestUsers()` |
+| `PARA_PORTAL_API_KEY` | Para Portal API key | `cleanupTestUsers()` |
+
+Without the Portal credentials, ephemeral wallets are only deleted from the database (not from Para's API). Persistent wallet cleanup skips the API call regardless.
+
+### Required for deployed PR environment access
+
+| Secret | Purpose | Used by |
+|---|---|---|
+| `CF_ACCESS_CLIENT_ID` | Cloudflare Access service token | Remote tests against PR environments |
+| `CF_ACCESS_CLIENT_SECRET` | Cloudflare Access service token | Remote tests against PR environments |
+
+### Test defaults (no secret needed)
+
+| Variable | Default | Source |
+|---|---|---|
+| `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5433/keeperhub` | `tests/setup.ts` |
+| `AWS_ENDPOINT_URL` | `http://localhost:4566` | `tests/setup.ts` |
+| `AWS_ACCESS_KEY_ID` | `test` | `tests/setup.ts` |
+| `AWS_SECRET_ACCESS_KEY` | `test` | `tests/setup.ts` |
+| `SQS_QUEUE_URL` | `http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/keeperhub-workflow-queue` | `tests/setup.ts` |
+| `KEEPERHUB_URL` | `http://localhost:3000` | `tests/setup.ts` |
+
+---
+
+## Test Cleanup
+
+### Ephemeral Users
+
+`cleanupTestUsers()` targets users matching `test+*@techops.services` (the pattern Playwright signup tests use). It deletes in FK-safe order:
+
+1. Workflow execution logs, executions, schedules, workflows
+2. Para wallets (API deletion via Para Portal if credentials available, then DB rows)
+3. Integrations, API keys, RPC preferences
+4. Organization-scoped data (direct executions, spend caps, address book, tokens, projects, tags)
+5. Invitations (org-owned + email-matched)
+6. Members (org-owned + user-owned)
+7. Sessions, accounts
+8. Organizations
+9. Users
+10. Verification records (OTP)
+
+The persistent user `pr-test-do-not-delete@techops.services` is explicitly excluded.
+
+### Persistent Users
+
+`cleanupPersistentTestUsers()` deletes **data** owned by persistent users (workflows, executions, wallets, integrations, API keys, org-scoped records) but preserves the users, accounts, memberships, and organizations themselves. This gives each test run a clean slate without re-creating the users from scratch.
+
+### Para Wallet API Cleanup
+
+Ephemeral wallets created during Playwright signup flows are deleted from Para's API via:
+
+```
+DELETE /organizations/{orgId}/projects/{projectId}/beta/keys/{keyId}/pregen/{walletId}
+```
+
+This requires `PARA_PORTAL_*` env vars. Without them, wallets are only deleted from the database. The persistent test wallet is never deleted from the API (only its DB row is cleaned and re-seeded).
+
+---
+
+## Playwright Auth State
+
+Playwright tests use persistent auth state to avoid signing in for every test. Three auth setup projects run once and store browser state:
+
+| Setup | Storage File | User |
+|---|---|---|
+| Authenticate as persistent test user | `.auth/user.json` | `pr-test-do-not-delete@techops.services` |
+| Authenticate as inviter | `.auth/inviter.json` | `pr-test-inviter@techops.services` |
+| Authenticate as bystander | `.auth/bystander.json` | `pr-test-bystander@techops.services` |
+
+Tests that use the "authenticated" project automatically get the persistent test user's session. Tests needing a different user context specify the appropriate auth state file.
+
+**Source:** `tests/e2e/playwright/auth.setup.ts`
+
+---
+
+## Vitest E2E Test Inventory
+
+| Test File | DB | SQS | RPC | Para | What it tests |
+|---|---|---|---|---|---|
+| `rpc-failover.test.ts` | write | -- | yes | -- | RPC failover and preference resolution |
+| `api-key-auth.test.ts` | write | -- | -- | -- | API key authentication and authorization |
+| `nonce-manager.test.ts` | write | -- | -- | -- | PG advisory locks, nonce lifecycle |
+| `full-pipeline.test.ts` | write | yes | -- | -- | Workflow trigger -> SQS -> runner execution |
+| `transaction-flow.test.ts` | write | -- | Sepolia | -- | Nonce sessions, gas strategy, pending txs |
+| `schedule-pipeline.test.ts` | write | yes | -- | -- | Cron scheduling, SQS dispatch, execution |
+| `workflow-runner.test.ts` | write | -- | -- | -- | Runner subprocess exit codes, DB state |
+| `user-rpc-workflow.test.ts` | write | -- | yes | -- | Custom RPC preferences in workflow execution |
+| `write-contract-workflow.test.ts` | write | -- | Sepolia | yes | On-chain write via Para wallet signing |
+| `graceful-shutdown.test.ts` | write | -- | -- | -- | Signal handling, execution lifecycle |
+| `check-balance.test.ts` | -- | -- | yes | -- | Balance checks across EVM + Solana |
+| `gas-strategy.test.ts` | -- | -- | yes | -- | Gas estimation across networks |
+
+All DB-dependent tests skip when `DATABASE_URL` is unset or `SKIP_INFRA_TESTS=true`.
