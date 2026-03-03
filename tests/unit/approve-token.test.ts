@@ -134,6 +134,7 @@ vi.mock("ethers", async () => {
         decimals = mockDecimals;
         symbol = mockSymbol;
         approve = Object.assign(mockApprove, {
+          staticCall: vi.fn().mockResolvedValue(true),
           estimateGas: mockApproveEstimateGas,
         });
       },
