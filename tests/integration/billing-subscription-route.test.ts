@@ -6,7 +6,13 @@ vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
 }));
 
-const mockGetSession = vi.fn();
+const { mockGetSession, mockSelectLimit, mockExecute, mockOverageLimit } =
+  vi.hoisted(() => ({
+    mockGetSession: vi.fn(),
+    mockSelectLimit: vi.fn().mockResolvedValue([]),
+    mockExecute: vi.fn().mockResolvedValue([{ count: 0 }]),
+    mockOverageLimit: vi.fn().mockResolvedValue([]),
+  }));
 
 vi.mock("@/lib/auth", () => ({
   auth: {
@@ -16,22 +22,37 @@ vi.mock("@/lib/auth", () => ({
   },
 }));
 
-const mockSelectLimit = vi.fn().mockResolvedValue([]);
-
 vi.mock("@/lib/db", () => ({
   db: {
     select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: mockSelectLimit,
-        })),
-      })),
+      from: vi.fn((table: unknown) => {
+        if (table === "overageBillingRecords") {
+          return {
+            where: vi.fn(() => ({
+              orderBy: vi.fn(() => ({
+                limit: mockOverageLimit,
+              })),
+            })),
+          };
+        }
+        return {
+          where: vi.fn(() => ({
+            limit: mockSelectLimit,
+          })),
+        };
+      }),
     })),
+    execute: mockExecute,
   },
 }));
 
 vi.mock("@/lib/db/schema", () => ({
   organizationSubscriptions: { organizationId: "organizationId" },
+  overageBillingRecords: "overageBillingRecords",
+}));
+
+vi.mock("@/keeperhub/lib/billing/execution-debt", () => ({
+  getActiveDebtExecutions: vi.fn().mockResolvedValue(0),
 }));
 
 import { GET } from "@/keeperhub/api/billing/subscription/route";
@@ -45,6 +66,8 @@ function mockSession(): void {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockExecute.mockResolvedValue([{ count: 0 }]);
+  mockOverageLimit.mockResolvedValue([]);
   process.env.NEXT_PUBLIC_BILLING_ENABLED = "true";
 });
 
