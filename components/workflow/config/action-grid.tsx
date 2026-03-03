@@ -228,7 +228,7 @@ export function ActionGrid({
   );
   const [collapsedSuperCategories, setCollapsedSuperCategories] = useState<
     Set<SuperCategory>
-  >(() => new Set(SUPER_CATEGORY_ORDER));
+  >(() => new Set());
   const [hiddenGroups, setHiddenGroups] = useState<Set<string>>(
     getInitialHiddenGroups
   );
