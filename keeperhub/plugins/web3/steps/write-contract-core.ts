@@ -26,7 +26,7 @@ import {
 import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
 import { getTransactionUrl } from "@/lib/explorer";
-import { getChainIdFromNetwork, resolveRpcConfig } from "@/lib/rpc";
+import { getChainIdFromNetwork, getRpcProvider } from "@/lib/rpc";
 import { getErrorMessage } from "@/lib/utils";
 
 export type WriteContractCoreInput = {
@@ -157,25 +157,16 @@ export async function writeContractCore(
   }
   const { organizationId, userId } = orgCtx;
 
-  // Get chain ID and resolve RPC config (with user preferences)
+  // Get chain ID and resolve RPC config (with user preferences + failover)
   let chainId: number;
   let rpcUrl: string;
   try {
     chainId = getChainIdFromNetwork(network);
     console.log("[Write Contract] Resolved chain ID:", chainId);
 
-    const rpcConfig = await resolveRpcConfig(chainId, userId);
-    if (!rpcConfig) {
-      throw new Error(`Chain ${chainId} not found or not enabled`);
-    }
-
-    rpcUrl = rpcConfig.primaryRpcUrl;
-    console.log(
-      "[Write Contract] Using RPC URL:",
-      rpcUrl,
-      "source:",
-      rpcConfig.source
-    );
+    const rpcManager = await getRpcProvider({ chainId, userId });
+    rpcUrl = rpcManager.getCurrentRpcUrl();
+    console.log("[Write Contract] Using RPC URL:", rpcUrl);
   } catch (error) {
     logUserError(
       ErrorCategory.VALIDATION,

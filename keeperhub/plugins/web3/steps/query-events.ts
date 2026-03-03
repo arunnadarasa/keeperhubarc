@@ -6,7 +6,7 @@ import { withPluginMetrics } from "@/keeperhub/lib/metrics/instrumentation/plugi
 import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
 import { getAddressUrl } from "@/lib/explorer";
-import { getChainIdFromNetwork, resolveRpcConfig } from "@/lib/rpc";
+import { getChainIdFromNetwork, getRpcProvider } from "@/lib/rpc";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import { getErrorMessage } from "@/lib/utils";
 
@@ -277,74 +277,71 @@ async function stepHandler(
   }
 
   const userId = await getUserIdFromExecution(_context?.executionId);
-  const rpcConfig = await resolveRpcConfig(chainId, userId);
-  if (!rpcConfig) {
+
+  let rpcManager: Awaited<ReturnType<typeof getRpcProvider>>;
+  try {
+    rpcManager = await getRpcProvider({ chainId, userId });
+  } catch (error) {
     return {
       success: false,
-      error: `Chain ${chainId} not found or not enabled`,
-    };
-  }
-
-  console.log(
-    "[Query Events] Using RPC URL:",
-    rpcConfig.primaryRpcUrl,
-    "source:",
-    rpcConfig.source
-  );
-
-  const provider = new ethers.JsonRpcProvider(rpcConfig.primaryRpcUrl);
-  const contract = new ethers.Contract(
-    contractAddress,
-    abiResult.parsed,
-    provider
-  );
-
-  const eventFragment = contract.interface.getEvent(eventName);
-  if (!eventFragment) {
-    return {
-      success: false,
-      error: `Event '${eventName}' not found in contract interface`,
-    };
-  }
-
-  const blockRangeResult = await resolveBlockRange(
-    provider,
-    input.fromBlock,
-    input.toBlock,
-    input.blockCount
-  );
-  if (!blockRangeResult.success) {
-    return { success: false, error: blockRangeResult.error };
-  }
-  const { range } = blockRangeResult;
-
-  if (range.fromBlock > range.toBlock) {
-    return {
-      success: true,
-      events: [],
-      fromBlock: range.fromBlock,
-      toBlock: range.toBlock,
-      eventCount: 0,
+      error: getErrorMessage(error),
     };
   }
 
   try {
-    const events = await queryEventBatches(
-      contract,
-      eventName,
-      eventFragment,
-      range
-    );
+    return await rpcManager.executeWithFailover(async (provider) => {
+      const contract = new ethers.Contract(
+        contractAddress,
+        abiResult.parsed,
+        provider
+      );
 
-    console.log("[Query Events] Query complete. Events found:", events.length);
+      const eventFragment = contract.interface.getEvent(eventName);
+      if (!eventFragment) {
+        throw new Error(`Event '${eventName}' not found in contract interface`);
+      }
 
-    return {
-      success: true,
-      events,
-      fromBlock: range.fromBlock,
-      toBlock: range.toBlock,
-      eventCount: events.length,
-    };
+      const blockRangeResult = await resolveBlockRange(
+        provider,
+        input.fromBlock,
+        input.toBlock,
+        input.blockCount
+      );
+      if (!blockRangeResult.success) {
+        throw new Error(blockRangeResult.error);
+      }
+      const { range } = blockRangeResult;
+
+      if (range.fromBlock > range.toBlock) {
+        return {
+          success: true as const,
+          events: [],
+          fromBlock: range.fromBlock,
+          toBlock: range.toBlock,
+          eventCount: 0,
+        };
+      }
+
+      const events = await queryEventBatches(
+        contract,
+        eventName,
+        eventFragment,
+        range
+      );
+
+      console.log(
+        "[Query Events] Query complete. Events found:",
+        events.length
+      );
+
+      return {
+        success: true as const,
+        events,
+        fromBlock: range.fromBlock,
+        toBlock: range.toBlock,
+        eventCount: events.length,
+      };
+    });
   } catch (error) {
     return {
       success: false,

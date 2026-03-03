@@ -354,6 +354,16 @@ export class RpcProviderManager {
   }
 
   /**
+   * Get the currently-active RPC URL, respecting failover state.
+   * Use this for write operations that need a raw URL (e.g. signer initialization).
+   */
+  getCurrentRpcUrl(): string {
+    return this.isUsingFallback && this.config.fallbackRpcUrl
+      ? this.config.fallbackRpcUrl
+      : this.config.primaryRpcUrl;
+  }
+
+  /**
    * Get the chain name this manager is configured for
    */
   getChainName(): string {

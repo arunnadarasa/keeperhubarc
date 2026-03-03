@@ -41,12 +41,12 @@ vi.mock("@/lib/explorer", () => ({
 }));
 
 const mockGetChainIdFromNetwork = vi.fn();
-const mockResolveRpcConfig = vi.fn();
+const mockGetRpcProvider = vi.fn();
 
 vi.mock("@/lib/rpc", () => ({
   getChainIdFromNetwork: (...args: unknown[]) =>
     mockGetChainIdFromNetwork(...args),
-  resolveRpcConfig: (...args: unknown[]) => mockResolveRpcConfig(...args),
+  getRpcProvider: (...args: unknown[]) => mockGetRpcProvider(...args),
 }));
 
 const mockContractFunction = vi.fn();
@@ -138,8 +138,9 @@ function makeInput(
 
 function setupRpcMocks(): void {
   mockGetChainIdFromNetwork.mockReturnValue(1);
-  mockResolveRpcConfig.mockResolvedValue({
-    primaryRpcUrl: "https://rpc.example.com",
+  mockGetRpcProvider.mockResolvedValue({
+    executeWithFailover: (fn: (provider: unknown) => unknown) =>
+      fn(new (class MockProvider {})()),
   });
 }
 

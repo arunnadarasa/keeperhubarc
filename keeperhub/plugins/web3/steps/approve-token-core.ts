@@ -26,7 +26,7 @@ import { ERC20_ABI } from "@/lib/contracts";
 import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
 import { getTransactionUrl } from "@/lib/explorer";
-import { getChainIdFromNetwork, resolveRpcConfig } from "@/lib/rpc";
+import { getChainIdFromNetwork, getRpcProvider } from "@/lib/rpc";
 import { getErrorMessage } from "@/lib/utils";
 import { parseTokenAddress } from "./transfer-token-core";
 
@@ -132,14 +132,11 @@ export async function approveTokenCore(
 
   const { organizationId, userId } = orgCtx;
 
-  // Resolve RPC config
+  // Resolve RPC config (with failover)
   let rpcUrl: string;
   try {
-    const rpcConfig = await resolveRpcConfig(chainId, userId);
-    if (!rpcConfig) {
-      throw new Error(`Chain ${chainId} not found or not enabled`);
-    }
-    rpcUrl = rpcConfig.primaryRpcUrl;
+    const rpcManager = await getRpcProvider({ chainId, userId });
+    rpcUrl = rpcManager.getCurrentRpcUrl();
   } catch (error) {
     logUserError(
       ErrorCategory.VALIDATION,
