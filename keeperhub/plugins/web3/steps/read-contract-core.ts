@@ -11,6 +11,7 @@ import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
 import { reshapeArgsForAbi } from "@/keeperhub/lib/abi-struct-args";
 import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
+import { formatContractError } from "@/keeperhub/lib/web3/decode-revert-error";
 import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
 import { getAddressUrl } from "@/lib/explorer";
@@ -252,6 +253,11 @@ export async function readContractCore(
     };
   }
 
+  // Build interface from parsed ABI for error decoding in catch block
+  const contractInterface = new ethers.Interface(
+    parsedAbi as ethers.InterfaceAbi
+  );
+
   // Call the contract function
   try {
     const provider = new ethers.JsonRpcProvider(rpcUrl);
@@ -351,7 +357,7 @@ export async function readContractCore(
     );
     return {
       success: false,
-      error: `Contract call failed: ${getErrorMessage(error)}`,
+      error: formatContractError(error, contractInterface),
     };
   }
 }

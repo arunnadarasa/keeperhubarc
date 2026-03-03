@@ -14,6 +14,7 @@ import {
   getOrganizationWalletAddress,
   initializeParaSigner,
 } from "@/keeperhub/lib/para/wallet-helpers";
+import { formatContractError } from "@/keeperhub/lib/web3/decode-revert-error";
 import { resolveGasLimitOverrides } from "@/keeperhub/lib/web3/gas-defaults";
 import { getGasStrategy } from "@/keeperhub/lib/web3/gas-strategy";
 import { getNonceManager } from "@/keeperhub/lib/web3/nonce-manager";
@@ -323,7 +324,11 @@ export async function approveTokenCore(
       );
       return {
         success: false,
-        error: `Token approval failed: ${getErrorMessage(error)}`,
+        error: formatContractError(
+          error,
+          contract.interface,
+          "Token approval failed"
+        ),
       };
     }
   });
