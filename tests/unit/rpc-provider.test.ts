@@ -38,8 +38,44 @@ vi.mock("ethers", () => {
       JsonRpcProvider: MockJsonRpcProvider,
       FetchRequest: MockFetchRequest,
     },
+    isError: (error: unknown, code: string): boolean => {
+      return (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error as { code: string }).code === code
+      );
+    },
   };
 });
+
+// ---------------------------------------------------------------------------
+// Helpers for 429 / Retry-After tests
+// ---------------------------------------------------------------------------
+
+function makeEthersError(code: string, message: string): Error & { code: string } {
+  const err = new Error(message) as Error & { code: string };
+  err.code = code;
+  return err;
+}
+
+function makeServerError(
+  statusCode: number,
+  headers: Record<string, string> = {}
+): Error & { code: string; response: { statusCode: number; getHeader: (key: string) => string } } {
+  const err = new Error(`server responded with ${statusCode}`) as Error & {
+    code: string;
+    response: { statusCode: number; getHeader: (key: string) => string };
+  };
+  err.code = "SERVER_ERROR";
+  err.response = {
+    statusCode,
+    getHeader(key: string): string {
+      return headers[key.toLowerCase()] ?? "";
+    },
+  };
+  return err;
+}
 
 describe("RpcProviderManager", () => {
   let metricsCollector: RpcMetricsCollector;
@@ -291,6 +327,260 @@ describe("RpcProviderManager", () => {
         false,
         "recovery"
       );
+    });
+
+    it("should throw without redundant fallback retry when both fail in sticky fallback state", async () => {
+      const manager = new RpcProviderManager({
+        config: {
+          primaryRpcUrl: "https://primary.example.com",
+          fallbackRpcUrl: "https://fallback.example.com",
+          maxRetries: 1,
+          timeoutMs: 100,
+          chainName: "Ethereum",
+        },
+        metricsCollector,
+      });
+
+      // First call: primary fails, fallback succeeds -> sticky fallback
+      const firstOp = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Primary failed"))
+        .mockResolvedValue("fallback ok");
+      await manager.executeWithFailover(firstOp);
+      expect(manager.isCurrentlyUsingFallback()).toBe(true);
+
+      vi.mocked(metricsCollector.recordFallbackAttempt).mockClear();
+      vi.mocked(metricsCollector.recordPrimaryAttempt).mockClear();
+
+      // Second call: both fail. Fallback should be tried once, primary once.
+      // No redundant third attempt on fallback.
+      const secondOp = vi.fn().mockRejectedValue(new Error("down"));
+
+      await expect(manager.executeWithFailover(secondOp)).rejects.toThrow(
+        "RPC failed on both endpoints"
+      );
+
+      // Fallback attempted once, primary attempted once -- no double fallback
+      expect(metricsCollector.recordFallbackAttempt).toHaveBeenCalledTimes(1);
+      expect(metricsCollector.recordPrimaryAttempt).toHaveBeenCalledTimes(1);
+    });
+
+    describe("Retry-After handling on 429", () => {
+      it("should respect Retry-After header within cap and retry", async () => {
+        const manager = new RpcProviderManager({
+          config: {
+            primaryRpcUrl: "https://primary.example.com",
+            maxRetries: 3,
+            timeoutMs: 100,
+            chainName: "Ethereum",
+          },
+          metricsCollector,
+        });
+
+        let callCount = 0;
+        const result = await manager.executeWithFailover(async () => {
+          callCount++;
+          if (callCount === 1) {
+            throw makeServerError(429, { "retry-after": "1" });
+          }
+          return "ok";
+        });
+
+        expect(result).toBe("ok");
+        expect(callCount).toBe(2);
+      });
+
+      it("should bail immediately on 429 without Retry-After header", async () => {
+        const manager = new RpcProviderManager({
+          config: {
+            primaryRpcUrl: "https://primary.example.com",
+            fallbackRpcUrl: "https://fallback.example.com",
+            maxRetries: 3,
+            timeoutMs: 100,
+            chainName: "Ethereum",
+          },
+          metricsCollector,
+        });
+
+        let totalCalls = 0;
+        const result = await manager.executeWithFailover(async () => {
+          totalCalls++;
+          if (totalCalls === 1) {
+            throw makeServerError(429);
+          }
+          return "fallback-ok";
+        });
+
+        expect(result).toBe("fallback-ok");
+        // Primary called once (bailed on 429), fallback called once (success)
+        expect(totalCalls).toBe(2);
+        expect(metricsCollector.recordPrimaryFailure).toHaveBeenCalledTimes(1);
+      });
+
+      it("should bail immediately on 429 with Retry-After exceeding cap", async () => {
+        const manager = new RpcProviderManager({
+          config: {
+            primaryRpcUrl: "https://primary.example.com",
+            fallbackRpcUrl: "https://fallback.example.com",
+            maxRetries: 3,
+            timeoutMs: 100,
+            chainName: "Ethereum",
+          },
+          metricsCollector,
+        });
+
+        let totalCalls = 0;
+        const result = await manager.executeWithFailover(async () => {
+          totalCalls++;
+          if (totalCalls === 1) {
+            throw makeServerError(429, { "retry-after": "60" });
+          }
+          return "fallback-ok";
+        });
+
+        expect(result).toBe("fallback-ok");
+        expect(totalCalls).toBe(2);
+        expect(metricsCollector.recordPrimaryFailure).toHaveBeenCalledTimes(1);
+      });
+
+      it("should throw when both providers return 429 without Retry-After", async () => {
+        const manager = new RpcProviderManager({
+          config: {
+            primaryRpcUrl: "https://primary.example.com",
+            fallbackRpcUrl: "https://fallback.example.com",
+            maxRetries: 3,
+            timeoutMs: 100,
+            chainName: "Ethereum",
+          },
+          metricsCollector,
+        });
+
+        await expect(
+          manager.executeWithFailover(async () => {
+            throw makeServerError(429);
+          })
+        ).rejects.toThrow("RPC failed on both endpoints");
+      });
+
+      it("should use exponential backoff for non-429 errors", async () => {
+        const manager = new RpcProviderManager({
+          config: {
+            primaryRpcUrl: "https://primary.example.com",
+            maxRetries: 2,
+            timeoutMs: 100,
+            chainName: "Ethereum",
+          },
+          metricsCollector,
+        });
+
+        let callCount = 0;
+        const result = await manager.executeWithFailover(async () => {
+          callCount++;
+          if (callCount === 1) {
+            throw new Error("connection reset");
+          }
+          return "ok";
+        });
+
+        expect(result).toBe("ok");
+        expect(callCount).toBe(2);
+        expect(metricsCollector.recordPrimaryAttempt).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    describe("non-retryable error handling", () => {
+      it("should throw immediately on CALL_EXCEPTION without retrying or failing over", async () => {
+        const manager = new RpcProviderManager({
+          config: {
+            primaryRpcUrl: "https://primary.example.com",
+            fallbackRpcUrl: "https://fallback.example.com",
+            maxRetries: 3,
+            timeoutMs: 100,
+            chainName: "Ethereum",
+          },
+          metricsCollector,
+        });
+
+        await expect(
+          manager.executeWithFailover(async () => {
+            throw makeEthersError("CALL_EXCEPTION", "execution reverted");
+          })
+        ).rejects.toThrow("execution reverted");
+
+        // Called once on primary, no retries, no fallback attempt
+        expect(metricsCollector.recordPrimaryAttempt).toHaveBeenCalledTimes(1);
+        expect(metricsCollector.recordPrimaryFailure).toHaveBeenCalledTimes(1);
+        expect(metricsCollector.recordFallbackAttempt).not.toHaveBeenCalled();
+      });
+
+      it("should throw immediately on INVALID_ARGUMENT", async () => {
+        const manager = new RpcProviderManager({
+          config: {
+            primaryRpcUrl: "https://primary.example.com",
+            fallbackRpcUrl: "https://fallback.example.com",
+            maxRetries: 3,
+            timeoutMs: 100,
+            chainName: "Ethereum",
+          },
+          metricsCollector,
+        });
+
+        await expect(
+          manager.executeWithFailover(async () => {
+            throw makeEthersError("INVALID_ARGUMENT", "invalid address");
+          })
+        ).rejects.toThrow("invalid address");
+
+        expect(metricsCollector.recordPrimaryAttempt).toHaveBeenCalledTimes(1);
+        expect(metricsCollector.recordFallbackAttempt).not.toHaveBeenCalled();
+      });
+
+      it("should throw immediately on NUMERIC_FAULT", async () => {
+        const manager = new RpcProviderManager({
+          config: {
+            primaryRpcUrl: "https://primary.example.com",
+            fallbackRpcUrl: "https://fallback.example.com",
+            maxRetries: 3,
+            timeoutMs: 100,
+            chainName: "Ethereum",
+          },
+          metricsCollector,
+        });
+
+        await expect(
+          manager.executeWithFailover(async () => {
+            throw makeEthersError("NUMERIC_FAULT", "overflow");
+          })
+        ).rejects.toThrow("overflow");
+
+        expect(metricsCollector.recordPrimaryAttempt).toHaveBeenCalledTimes(1);
+        expect(metricsCollector.recordFallbackAttempt).not.toHaveBeenCalled();
+      });
+
+      it("should still retry transient SERVER_ERROR (non-429)", async () => {
+        const manager = new RpcProviderManager({
+          config: {
+            primaryRpcUrl: "https://primary.example.com",
+            maxRetries: 2,
+            timeoutMs: 100,
+            chainName: "Ethereum",
+          },
+          metricsCollector,
+        });
+
+        let callCount = 0;
+        const result = await manager.executeWithFailover(async () => {
+          callCount++;
+          if (callCount === 1) {
+            throw makeServerError(503);
+          }
+          return "ok";
+        });
+
+        expect(result).toBe("ok");
+        expect(callCount).toBe(2);
+        expect(metricsCollector.recordPrimaryAttempt).toHaveBeenCalledTimes(2);
+      });
     });
   });
 
