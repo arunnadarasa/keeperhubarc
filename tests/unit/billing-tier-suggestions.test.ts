@@ -55,6 +55,17 @@ describe("getUpgradeSuggestion", () => {
     expect(db.execute).not.toHaveBeenCalled();
   });
 
+  it("returns shouldUpgrade: false when fewer than 3 days of data", async () => {
+    vi.setSystemTime(new Date("2025-06-02T12:00:00Z"));
+    mockSubscription("pro", "25k");
+    // High usage on day 2 would normally trigger, but too few days for projection
+    mockExecutionCount(22_000);
+
+    const result = await getUpgradeSuggestion("org_1");
+
+    expect(result.shouldUpgrade).toBe(false);
+  });
+
   it("returns shouldUpgrade: false when usage is below 80%", async () => {
     mockSubscription("pro", "25k");
     // 25k limit, 10k used = 40% -- well below 80%

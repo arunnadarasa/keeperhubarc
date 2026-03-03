@@ -59,13 +59,15 @@ export async function getUpgradeSuggestion(
     return { shouldUpgrade: false };
   }
 
-  // Project full-month usage based on days elapsed
-  const dayOfMonth = now.getDate();
+  // Project full-month usage based on days elapsed (UTC to match the query)
+  const dayOfMonth = now.getUTCDate();
+  if (dayOfMonth < 3) {
+    // Too few days of data for a meaningful projection
+    return { shouldUpgrade: false };
+  }
   const daysInMonth = new Date(
-    now.getFullYear(),
-    now.getMonth() + 1,
-    0
-  ).getDate();
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)
+  ).getUTCDate();
   const projectedUsage = Math.ceil((currentUsage / dayOfMonth) * daysInMonth);
 
   // Find the best upgrade option across all plans and tiers
