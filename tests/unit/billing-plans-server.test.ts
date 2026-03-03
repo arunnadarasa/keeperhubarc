@@ -27,11 +27,18 @@ function mockExecuteReturning(rows: Record<string, unknown>[]): void {
   mockExecute.mockResolvedValue(rows);
 }
 
+import type {
+  BillingInterval,
+  PlanName,
+  TierKey,
+} from "@/keeperhub/lib/billing/plans";
 import {
   checkExecutionLimit,
   checkFeatureAccess,
   getOrgPlan,
   getOrgSubscription,
+  getPriceId,
+  resolvePriceId,
 } from "@/keeperhub/lib/billing/plans-server";
 
 beforeEach(() => {
@@ -277,5 +284,68 @@ describe("checkExecutionLimit", () => {
       debtExecutions: 10_000,
       effectiveLimit: 15_000,
     });
+  });
+});
+
+describe("resolvePriceId", () => {
+  it("resolves a known tiered price ID back to plan, tier, and interval", () => {
+    const priceId = process.env.STRIPE_PRICE_PRO_25K_MONTHLY;
+    if (priceId === undefined) {
+      return;
+    }
+
+    const resolved = resolvePriceId(priceId);
+    expect(resolved).toEqual({
+      plan: "pro",
+      tier: "25k",
+      interval: "monthly",
+    });
+  });
+
+  it("resolves enterprise price ID with null tier", () => {
+    const priceId = process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY;
+    if (priceId === undefined) {
+      return;
+    }
+
+    const resolved = resolvePriceId(priceId);
+    expect(resolved).toEqual({
+      plan: "enterprise",
+      tier: null,
+      interval: "monthly",
+    });
+  });
+
+  it("returns undefined for unknown price ID", () => {
+    const resolved = resolvePriceId("price_unknown_xyz");
+    expect(resolved).toBeUndefined();
+  });
+
+  it("every getPriceId result can be resolved back (no orphaned keys)", () => {
+    const plans: PlanName[] = ["pro", "business", "enterprise"];
+    const tiers: Array<TierKey | null> = [
+      "25k",
+      "50k",
+      "100k",
+      "250k",
+      "500k",
+      "1m",
+      null,
+    ];
+    const intervals: BillingInterval[] = ["monthly", "yearly"];
+
+    for (const plan of plans) {
+      for (const tier of tiers) {
+        for (const interval of intervals) {
+          const priceId = getPriceId(plan, tier, interval);
+          if (priceId === undefined) {
+            continue;
+          }
+          const resolved = resolvePriceId(priceId);
+          expect(resolved).toBeDefined();
+          expect(resolved?.plan).toBe(plan);
+        }
+      }
+    }
   });
 });

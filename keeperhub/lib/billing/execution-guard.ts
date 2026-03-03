@@ -22,6 +22,11 @@ export type ExecutionGuardResult = GuardAllowed | GuardBlocked;
  * - Returns `{ blocked: false }` if billing is disabled or org is null.
  * - Returns `{ blocked: false }` if within limits or overage is enabled (billed later).
  * - Returns `{ blocked: true, response }` with 429 if free plan limit exceeded.
+ *
+ * NOTE: This is a soft limit (check-then-act, not atomic). Under concurrent load,
+ * a small number of executions may exceed the limit, bounded by request concurrency.
+ * For paid plans, the overage billing system acts as the backstop.
+ * For free plans, the overshoot is bounded and acceptable.
  */
 export async function enforceExecutionLimit(
   organizationId: string | null | undefined
