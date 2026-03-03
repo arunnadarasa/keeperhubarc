@@ -9,6 +9,7 @@ import {
   MetricNames,
 } from "@/keeperhub/lib/metrics";
 // start custom keeperhub code //
+import { checkConcurrencyLimit } from "@/keeperhub/api/execute/_lib/concurrency-limit";
 import { recordWebhookMetrics } from "@/keeperhub/lib/metrics/instrumentation/api";
 import { db } from "@/lib/db";
 import { validateWorkflowIntegrations } from "@/lib/db/integrations";
@@ -229,6 +230,26 @@ export async function POST(
         { status: 403, headers: corsHeaders }
       );
     }
+
+    // start custom keeperhub code //
+    const concurrencyCheck = await checkConcurrencyLimit();
+    if (!concurrencyCheck.allowed) {
+      recordWebhookMetrics({
+        workflowId,
+        durationMs: timer(),
+        statusCode: 429,
+        error: "Too many concurrent workflow executions",
+      });
+      return NextResponse.json(
+        {
+          error: "Too many concurrent workflow executions",
+          running: concurrencyCheck.running,
+          limit: concurrencyCheck.limit,
+        },
+        { status: 429, headers: { ...corsHeaders, "Retry-After": "30" } }
+      );
+    }
+    // end keeperhub code //
 
     // Parse request body
     const body = await request.json().catch(() => ({}));
