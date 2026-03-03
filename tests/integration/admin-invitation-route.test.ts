@@ -38,9 +38,13 @@ import { GET } from "@/keeperhub/api/admin/test/invitation/route";
 
 function createRequest(email?: string, token?: string): Request {
   const url = new URL("http://localhost:3000/api/admin/test/invitation");
-  if (email) url.searchParams.set("email", email);
+  if (email) {
+    url.searchParams.set("email", email);
+  }
   const headers: Record<string, string> = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
   return new Request(url.toString(), { headers });
 }
 

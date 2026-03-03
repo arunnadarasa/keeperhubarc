@@ -37,9 +37,13 @@ import { GET } from "@/keeperhub/api/admin/test/otp/route";
 
 function createRequest(email?: string, token?: string): Request {
   const url = new URL("http://localhost:3000/api/admin/test/otp");
-  if (email) url.searchParams.set("email", email);
+  if (email) {
+    url.searchParams.set("email", email);
+  }
   const headers: Record<string, string> = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
   return new Request(url.toString(), { headers });
 }
 
@@ -53,6 +57,7 @@ describe("GET /api/admin/test/otp", () => {
 
   describe("authentication", () => {
     it("should return 401 when TEST_API_KEY is not configured", async () => {
+      // biome-ignore lint/performance/noDelete: delete is required to remove env vars (undefined assignment coerces to string)
       delete process.env.TEST_API_KEY;
       const response = await GET(createRequest(TEST_EMAIL, TEST_KEY));
       expect(response.status).toBe(401);

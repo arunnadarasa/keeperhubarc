@@ -16,6 +16,7 @@ function createRequest(token?: string): Request {
 
 describe("authenticateAdmin", () => {
   beforeEach(() => {
+    // biome-ignore lint/performance/noDelete: delete is required to remove env vars (undefined assignment coerces to string)
     delete process.env.TEST_API_KEY;
   });
 
@@ -83,8 +84,6 @@ describe("validateTestEmail", () => {
   });
 
   it("should reject empty string", () => {
-    expect(validateTestEmail("")).toBe(
-      "Email must end with @techops.services"
-    );
+    expect(validateTestEmail("")).toBe("Email must end with @techops.services");
   });
 });
