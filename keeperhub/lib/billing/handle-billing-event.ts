@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { organizationSubscriptions } from "@/lib/db/schema";
 import { BILLING_ALERTS } from "./constants";
+import { clearAllDebtForOrg, clearDebtForInvoice } from "./execution-debt";
 import { billOverageForOrg } from "./overage";
 import { resolvePriceId } from "./plans-server";
 import type { BillingProvider, BillingWebhookEvent } from "./provider";
@@ -22,6 +23,17 @@ async function findSubscriptionByProviderId(
         providerSubscriptionId
       )
     )
+    .limit(1);
+  return rows[0];
+}
+
+async function findSubscriptionByCustomerId(
+  providerCustomerId: string
+): Promise<SubscriptionRow | undefined> {
+  const rows = await db
+    .select()
+    .from(organizationSubscriptions)
+    .where(eq(organizationSubscriptions.providerCustomerId, providerCustomerId))
     .limit(1);
   return rows[0];
 }
@@ -297,6 +309,12 @@ async function handleSubscriptionDeleted(
           providerSubscriptionId
         )
       );
+
+    // Clear debt even when period is still active -- no further overage
+    // will be billed on a canceled subscription, so debt is moot.
+    if (current) {
+      await clearAllDebtForOrg(current.organizationId);
+    }
     return;
   }
 
@@ -325,34 +343,65 @@ async function handleSubscriptionDeleted(
         providerSubscriptionId
       )
     );
+
+  // Clear any active debt -- it becomes moot when downgrading to free
+  if (current) {
+    await clearAllDebtForOrg(current.organizationId);
+  }
 }
 
 async function handleInvoicePaid(
   data: BillingWebhookEvent["data"]
 ): Promise<void> {
-  const { providerSubscriptionId } = data;
+  const { providerSubscriptionId, invoiceId, providerCustomerId } = data;
 
-  if (!providerSubscriptionId) {
-    console.warn(LOG_PREFIX, "invoice.paid - no subscriptionId, skipping");
+  // Clear debt for this invoice regardless of subscription presence
+  if (invoiceId) {
+    await clearDebtForInvoice(invoiceId);
+  }
+
+  if (providerSubscriptionId) {
+    console.log(LOG_PREFIX, "invoice.paid - subId:", providerSubscriptionId);
+
+    await db
+      .update(organizationSubscriptions)
+      .set({
+        status: "active",
+        billingAlert: null,
+        billingAlertUrl: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        eq(
+          organizationSubscriptions.providerSubscriptionId,
+          providerSubscriptionId
+        )
+      );
     return;
   }
 
-  console.log(LOG_PREFIX, "invoice.paid - subId:", providerSubscriptionId);
+  // Fallback: standalone invoice (no subscription) -- find org by customer ID
+  if (providerCustomerId) {
+    const sub = await findSubscriptionByCustomerId(providerCustomerId);
+    if (sub) {
+      console.log(
+        LOG_PREFIX,
+        "invoice.paid - no subId, found org via customerId:",
+        providerCustomerId
+      );
 
-  await db
-    .update(organizationSubscriptions)
-    .set({
-      status: "active",
-      billingAlert: null,
-      billingAlertUrl: null,
-      updatedAt: new Date(),
-    })
-    .where(
-      eq(
-        organizationSubscriptions.providerSubscriptionId,
-        providerSubscriptionId
-      )
-    );
+      await db
+        .update(organizationSubscriptions)
+        .set({
+          billingAlert: null,
+          billingAlertUrl: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          eq(organizationSubscriptions.organizationId, sub.organizationId)
+        );
+    }
+  }
 }
 
 async function handleInvoicePaymentFailed(

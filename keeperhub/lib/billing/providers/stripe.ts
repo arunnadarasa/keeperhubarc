@@ -25,6 +25,15 @@ function getStripe(): Stripe {
   return stripe;
 }
 
+function isStripeNotFound(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "statusCode" in error &&
+    (error as { statusCode: number }).statusCode === 404
+  );
+}
+
 const EVENT_TYPE_MAP: Record<string, BillingWebhookEvent["type"] | undefined> =
   {
     "checkout.session.completed": "checkout.completed",
@@ -114,11 +123,18 @@ function normalizeInvoiceEvent(
   invoice: Stripe.Invoice,
   type: BillingWebhookEvent["type"]
 ): BillingWebhookEvent {
+  const customerId =
+    typeof invoice.customer === "string"
+      ? invoice.customer
+      : invoice.customer?.id;
+
   return {
     type,
     providerEventId: event.id,
     data: {
       providerSubscriptionId: getSubscriptionIdFromInvoice(invoice),
+      providerCustomerId: customerId ?? undefined,
+      invoiceId: invoice.id ?? undefined,
       invoiceUrl: invoice.hosted_invoice_url ?? undefined,
     },
   };
@@ -445,6 +461,46 @@ export class StripeBillingProvider implements BillingProvider {
       metadata: params.metadata,
     });
     return { invoiceItemId: item.id };
+  }
+
+  async getInvoiceStatus(
+    invoiceId: string
+  ): Promise<{ status: string; paid: boolean }> {
+    const invoice = await getStripe().invoices.retrieve(invoiceId);
+    return {
+      status: invoice.status ?? "draft",
+      paid: invoice.status === "paid",
+    };
+  }
+
+  async getInvoiceForItem(
+    invoiceItemId: string
+  ): Promise<{ invoiceId: string; status: string; paid: boolean } | undefined> {
+    let item: Stripe.InvoiceItem;
+    try {
+      item = await getStripe().invoiceItems.retrieve(invoiceItemId);
+    } catch (error: unknown) {
+      // Invoice items are deleted by Stripe once consumed into a finalized
+      // invoice, so a 404 is expected for older items.
+      if (isStripeNotFound(error)) {
+        return undefined;
+      }
+      throw error;
+    }
+
+    const invoiceId =
+      typeof item.invoice === "string" ? item.invoice : item.invoice?.id;
+
+    if (!invoiceId) {
+      return undefined;
+    }
+
+    const invoice = await getStripe().invoices.retrieve(invoiceId);
+    return {
+      invoiceId,
+      status: invoice.status ?? "draft",
+      paid: invoice.status === "paid",
+    };
   }
 }
 

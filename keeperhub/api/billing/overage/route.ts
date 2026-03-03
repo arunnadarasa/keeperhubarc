@@ -4,10 +4,7 @@ import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
 import { billOverageForOrg } from "@/keeperhub/lib/billing/overage";
 import { authenticateInternalService } from "@/keeperhub/lib/internal-service-auth";
 import { db } from "@/lib/db";
-import {
-  organizationSubscriptions,
-  overageBillingRecords,
-} from "@/lib/db/schema";
+import { organizationSubscriptions } from "@/lib/db/schema";
 
 type SingleOrgBody = {
   scan?: never;
@@ -96,20 +93,6 @@ async function handleScan(): Promise<NextResponse> {
 
   for (const sub of subs) {
     if (sub.periodStart === null || sub.periodEnd === null) {
-      continue;
-    }
-
-    // Check if already billed for this period
-    const existing = await db.query.overageBillingRecords.findFirst({
-      where: and(
-        eq(overageBillingRecords.organizationId, sub.organizationId),
-        eq(overageBillingRecords.periodStart, sub.periodStart),
-        eq(overageBillingRecords.periodEnd, sub.periodEnd)
-      ),
-      columns: { id: true },
-    });
-
-    if (existing) {
       continue;
     }
 

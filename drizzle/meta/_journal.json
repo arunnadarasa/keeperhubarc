@@ -204,6 +204,13 @@
       "when": 1772477375583,
       "tag": "0028_opposite_human_cannonball",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1772556435595,
+      "tag": "0029_lucky_praxagora",
+      "breakpoints": true
     }
   ]
 }

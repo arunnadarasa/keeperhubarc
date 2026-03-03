@@ -35,8 +35,19 @@ vi.mock("@/keeperhub/lib/billing/providers", () => ({
 }));
 
 import { billOverageForOrg } from "@/keeperhub/lib/billing/overage";
+import type { BillingProvider } from "@/keeperhub/lib/billing/provider";
 import { getBillingProvider } from "@/keeperhub/lib/billing/providers";
 import { db } from "@/lib/db";
+
+function mockExecutionCount(count: number): void {
+  vi.mocked(db.execute).mockResolvedValue([{ count }] as unknown as Awaited<
+    ReturnType<typeof db.execute>
+  >);
+}
+
+function mockBillingProvider(overrides: Partial<BillingProvider>): void {
+  vi.mocked(getBillingProvider).mockReturnValue(overrides as BillingProvider);
+}
 
 const periodStart = new Date("2025-01-01");
 const periodEnd = new Date("2025-02-01");
@@ -138,7 +149,7 @@ describe("billOverageForOrg", () => {
       providerCustomerId: "cus_123",
     });
     mockFindFirstOverage.mockResolvedValue(undefined);
-    vi.mocked(db.execute).mockResolvedValue([{ count: 20_000 }] as never);
+    mockExecutionCount(20_000);
 
     const result = await billOverageForOrg("org_1", periodStart, periodEnd);
 
@@ -153,15 +164,13 @@ describe("billOverageForOrg", () => {
       providerCustomerId: "cus_123",
     });
     mockFindFirstOverage.mockResolvedValue(undefined);
-    vi.mocked(db.execute).mockResolvedValue([{ count: 26_500 }] as never);
+    mockExecutionCount(26_500);
     mockReturning.mockResolvedValue([{ id: "rec_1" }]);
 
     const mockCreateInvoiceItem = vi
       .fn()
       .mockResolvedValue({ invoiceItemId: "ii_123" });
-    vi.mocked(getBillingProvider).mockReturnValue({
-      createInvoiceItem: mockCreateInvoiceItem,
-    } as unknown as ReturnType<typeof getBillingProvider>);
+    mockBillingProvider({ createInvoiceItem: mockCreateInvoiceItem });
 
     const result = await billOverageForOrg("org_1", periodStart, periodEnd);
 
@@ -193,7 +202,7 @@ describe("billOverageForOrg", () => {
       providerCustomerId: "cus_123",
     });
     mockFindFirstOverage.mockResolvedValue(undefined);
-    vi.mocked(db.execute).mockResolvedValue([{ count: 30_000 }] as never);
+    mockExecutionCount(30_000);
     mockReturning.mockResolvedValue([{ id: "rec_1" }]);
 
     vi.mocked(getBillingProvider).mockReturnValue({
@@ -221,7 +230,7 @@ describe("billOverageForOrg", () => {
       providerCustomerId: "cus_123",
     });
     mockFindFirstOverage.mockResolvedValue(undefined);
-    vi.mocked(db.execute).mockResolvedValue([{ count: 30_000 }] as never);
+    mockExecutionCount(30_000);
     // onConflictDoNothing returns empty array (conflict)
     mockReturning.mockResolvedValue([]);
 

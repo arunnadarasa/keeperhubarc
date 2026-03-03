@@ -10,6 +10,7 @@ import {
   apiKeys,
   chains,
   chainsRelations,
+  executionDebt,
   explorerConfigs,
   explorerConfigsRelations,
   integrations,
@@ -50,6 +51,7 @@ const schema = {
   workflowSchedulesRelations,
   apiKeys,
   // start custom keeperhub code //
+  executionDebt,
   organizationApiKeys,
   organizationSubscriptions,
   overageBillingRecords,

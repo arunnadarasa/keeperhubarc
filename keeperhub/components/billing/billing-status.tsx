@@ -231,8 +231,8 @@ function useBillingData(): {
           const result = (await response.json()) as SubscriptionData;
           setData(result);
         }
-      } catch (error) {
-        console.error("[Billing] Failed to fetch subscription:", error);
+      } catch {
+        // Subscription fetch failed -- loading state handles UX
       } finally {
         setLoading(false);
       }
@@ -243,7 +243,7 @@ function useBillingData(): {
   useEffect(() => {
     async function fetchSuggestion(): Promise<void> {
       try {
-        const response = await fetch("/api/billing/usage-suggestion");
+        const response = await fetch(BILLING_API.USAGE_SUGGESTION);
         if (response.ok) {
           const result = (await response.json()) as SuggestionData;
           setSuggestion(result);

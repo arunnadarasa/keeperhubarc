@@ -40,7 +40,9 @@ function mockSubscription(
 }
 
 function mockExecutionCount(count: number): void {
-  vi.mocked(db.execute).mockResolvedValue([{ count }] as never);
+  vi.mocked(db.execute).mockResolvedValue([{ count }] as unknown as Awaited<
+    ReturnType<typeof db.execute>
+  >);
 }
 
 describe("getUpgradeSuggestion", () => {

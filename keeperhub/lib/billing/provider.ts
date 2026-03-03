@@ -25,6 +25,7 @@ export type BillingWebhookEvent = {
   data: {
     providerSubscriptionId?: string;
     providerCustomerId?: string;
+    invoiceId?: string;
     organizationId?: string;
     priceId?: string;
     status?: string;
@@ -127,4 +128,12 @@ export interface BillingProvider {
   createInvoiceItem(
     params: CreateInvoiceItemParams
   ): Promise<CreateInvoiceItemResult>;
+
+  getInvoiceStatus(
+    invoiceId: string
+  ): Promise<{ status: string; paid: boolean }>;
+
+  getInvoiceForItem(
+    invoiceItemId: string
+  ): Promise<{ invoiceId: string; status: string; paid: boolean } | undefined>;
 }

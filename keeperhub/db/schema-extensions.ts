@@ -389,6 +389,7 @@ export const overageBillingRecords = pgTable(
     overageRateCents: integer("overage_rate_cents").notNull(),
     totalChargeCents: integer("total_charge_cents").notNull(),
     providerInvoiceItemId: text("provider_invoice_item_id"),
+    providerInvoiceId: text("provider_invoice_id"),
     status: text("status").notNull().default("pending"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
@@ -405,6 +406,49 @@ export const overageBillingRecords = pgTable(
 
 export type OverageBillingRecord = typeof overageBillingRecords.$inferSelect;
 export type NewOverageBillingRecord = typeof overageBillingRecords.$inferInsert;
+
+/**
+ * Execution Debt table
+ *
+ * Tracks unpaid overage executions that reduce the next month's allowance.
+ * When a paid org exceeds its monthly limit and doesn't pay the overage invoice
+ * within 15 days, the overage count is recorded as debt. The debt reduces the
+ * org's effective execution limit until the invoice is paid.
+ *
+ * Status lifecycle: active -> cleared
+ * Minimum floor: even with debt, an org always gets at least 100 executions.
+ */
+export const executionDebt = pgTable(
+  "execution_debt",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => generateId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    overageRecordId: text("overage_record_id")
+      .notNull()
+      .unique()
+      .references(() => overageBillingRecords.id, { onDelete: "cascade" }),
+    providerInvoiceId: text("provider_invoice_id"),
+    debtExecutions: integer("debt_executions").notNull(),
+    status: text("status").notNull().default("active"),
+    enforcedAt: timestamp("enforced_at").notNull(),
+    clearedAt: timestamp("cleared_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_execution_debt_org_status").on(
+      table.organizationId,
+      table.status
+    ),
+    index("idx_execution_debt_invoice").on(table.providerInvoiceId),
+  ]
+);
+
+export type ExecutionDebt = typeof executionDebt.$inferSelect;
+export type NewExecutionDebt = typeof executionDebt.$inferInsert;
 
 /**
  * Organization Subscriptions table

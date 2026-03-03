@@ -3,6 +3,7 @@ import "server-only";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { organizationSubscriptions } from "@/lib/db/schema";
+import { getActiveDebtExecutions } from "./execution-debt";
 import {
   type BillingInterval,
   getPlanLimits,
@@ -11,6 +12,8 @@ import {
   type PlanName,
   type TierKey,
 } from "./plans";
+
+const MINIMUM_EXECUTION_FLOOR = 100;
 
 // -- Price ID mapping (server-only, env vars not available in client bundles) --
 
@@ -112,6 +115,8 @@ export async function checkFeatureAccess(
 export type ExecutionWithinLimits = {
   allowed: true;
   isOverage: false;
+  debtExecutions: number;
+  effectiveLimit: number;
 };
 
 /** Paid plan exceeded its included limit -- execution proceeds, billed later. */
@@ -121,6 +126,8 @@ export type ExecutionOverageAllowed = {
   limit: number;
   used: number;
   overageRate: number;
+  debtExecutions: number;
+  effectiveLimit: number;
 };
 
 /** Free plan limit exhausted -- execution must be blocked. */
@@ -129,6 +136,8 @@ export type ExecutionLimitExceeded = {
   limit: number;
   used: number;
   plan: PlanName;
+  debtExecutions: number;
+  effectiveLimit: number;
 };
 
 export type ExecutionLimitResult =
@@ -153,8 +162,19 @@ export async function checkExecutionLimit(
   const limits = getPlanLimits(plan, tier);
 
   if (limits.maxExecutionsPerMonth === -1) {
-    return { allowed: true, isOverage: false };
+    return {
+      allowed: true,
+      isOverage: false,
+      debtExecutions: 0,
+      effectiveLimit: -1,
+    };
   }
+
+  const debtExecutions = await getActiveDebtExecutions(organizationId);
+  const effectiveLimit = Math.max(
+    MINIMUM_EXECUTION_FLOOR,
+    limits.maxExecutionsPerMonth - debtExecutions
+  );
 
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -169,18 +189,30 @@ export async function checkExecutionLimit(
 
   const used = result[0]?.count ?? 0;
 
-  if (used < limits.maxExecutionsPerMonth) {
-    return { allowed: true, isOverage: false };
+  // Under the debt-adjusted limit: always allowed, no overage
+  if (used < effectiveLimit) {
+    return {
+      allowed: true,
+      isOverage: false,
+      debtExecutions,
+      effectiveLimit,
+    };
   }
 
+  // Between effectiveLimit and plan limit: blocked (debt penalty zone).
+  // Between plan limit and infinity: overage if paid+active, else blocked.
   const planDef = PLANS[plan];
-  if (planDef.overage.enabled && sub?.status === "active") {
+  const overPlanLimit = used >= limits.maxExecutionsPerMonth;
+
+  if (overPlanLimit && planDef.overage.enabled && sub?.status === "active") {
     return {
       allowed: true,
       isOverage: true,
       limit: limits.maxExecutionsPerMonth,
       used,
       overageRate: planDef.overage.ratePerThousand,
+      debtExecutions,
+      effectiveLimit,
     };
   }
 
@@ -189,5 +221,7 @@ export async function checkExecutionLimit(
     limit: limits.maxExecutionsPerMonth,
     used,
     plan,
+    debtExecutions,
+    effectiveLimit,
   };
 }

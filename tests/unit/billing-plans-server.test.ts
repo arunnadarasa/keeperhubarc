@@ -3,7 +3,15 @@ import { db } from "@/lib/db";
 
 vi.mock("server-only", () => ({}));
 
-(db as any).execute = vi.fn();
+const mockGetActiveDebtExecutions = vi.fn().mockResolvedValue(0);
+
+vi.mock("@/keeperhub/lib/billing/execution-debt", () => ({
+  getActiveDebtExecutions: (...args: unknown[]) =>
+    mockGetActiveDebtExecutions(...args),
+}));
+
+const mockExecute = vi.fn();
+Object.assign(db, { execute: mockExecute });
 
 function mockSelectReturning(rows: Record<string, unknown>[]): void {
   vi.mocked(db.select).mockReturnValue({
@@ -16,7 +24,7 @@ function mockSelectReturning(rows: Record<string, unknown>[]): void {
 }
 
 function mockExecuteReturning(rows: Record<string, unknown>[]): void {
-  vi.mocked((db as any).execute).mockResolvedValue(rows);
+  mockExecute.mockResolvedValue(rows);
 }
 
 import {
@@ -28,6 +36,7 @@ import {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockGetActiveDebtExecutions.mockResolvedValue(0);
 });
 
 describe("getOrgSubscription", () => {
@@ -105,7 +114,12 @@ describe("checkExecutionLimit", () => {
     mockSelectReturning([{ plan: "enterprise", tier: null, status: "active" }]);
 
     const result = await checkExecutionLimit("org_1");
-    expect(result).toEqual({ allowed: true, isOverage: false });
+    expect(result).toEqual({
+      allowed: true,
+      isOverage: false,
+      debtExecutions: 0,
+      effectiveLimit: -1,
+    });
   });
 
   it("allows free plan when under limit", async () => {
@@ -113,7 +127,12 @@ describe("checkExecutionLimit", () => {
     mockExecuteReturning([{ count: 100 }]);
 
     const result = await checkExecutionLimit("org_1");
-    expect(result).toEqual({ allowed: true, isOverage: false });
+    expect(result).toEqual({
+      allowed: true,
+      isOverage: false,
+      debtExecutions: 0,
+      effectiveLimit: 5000,
+    });
   });
 
   it("allows pro plan within limits without overage flag", async () => {
@@ -121,7 +140,12 @@ describe("checkExecutionLimit", () => {
     mockExecuteReturning([{ count: 1000 }]);
 
     const result = await checkExecutionLimit("org_1");
-    expect(result).toEqual({ allowed: true, isOverage: false });
+    expect(result).toEqual({
+      allowed: true,
+      isOverage: false,
+      debtExecutions: 0,
+      effectiveLimit: 25_000,
+    });
   });
 
   it("allows pro plan over limit with overage details", async () => {
@@ -135,6 +159,8 @@ describe("checkExecutionLimit", () => {
       limit: 25_000,
       used: 30_000,
       overageRate: 2,
+      debtExecutions: 0,
+      effectiveLimit: 25_000,
     });
   });
 
@@ -148,6 +174,8 @@ describe("checkExecutionLimit", () => {
       limit: 5000,
       used: 5000,
       plan: "free",
+      debtExecutions: 0,
+      effectiveLimit: 5000,
     });
   });
 
@@ -161,6 +189,8 @@ describe("checkExecutionLimit", () => {
       limit: 5000,
       used: 6000,
       plan: "free",
+      debtExecutions: 0,
+      effectiveLimit: 5000,
     });
   });
 
@@ -174,6 +204,78 @@ describe("checkExecutionLimit", () => {
       limit: 25_000,
       used: 30_000,
       plan: "pro",
+      debtExecutions: 0,
+      effectiveLimit: 25_000,
+    });
+  });
+
+  it("reduces effective limit by debt executions", async () => {
+    mockSelectReturning([{ plan: "pro", tier: "25k", status: "active" }]);
+    mockGetActiveDebtExecutions.mockResolvedValue(5000);
+    mockExecuteReturning([{ count: 21_000 }]);
+
+    // 21k is above effectiveLimit (20k) but below plan limit (25k),
+    // so the org is blocked in the debt penalty zone (not overage).
+    const result = await checkExecutionLimit("org_1");
+
+    expect(result).toEqual({
+      allowed: false,
+      limit: 25_000,
+      used: 21_000,
+      plan: "pro",
+      debtExecutions: 5000,
+      effectiveLimit: 20_000,
+    });
+  });
+
+  it("allows overage when usage exceeds plan limit despite debt", async () => {
+    mockSelectReturning([{ plan: "pro", tier: "25k", status: "active" }]);
+    mockGetActiveDebtExecutions.mockResolvedValue(5000);
+    mockExecuteReturning([{ count: 26_000 }]);
+
+    // 26k exceeds the 25k plan limit, so overage applies (not just debt penalty)
+    const result = await checkExecutionLimit("org_1");
+
+    expect(result).toEqual({
+      allowed: true,
+      isOverage: true,
+      limit: 25_000,
+      used: 26_000,
+      overageRate: 2,
+      debtExecutions: 5000,
+      effectiveLimit: 20_000,
+    });
+  });
+
+  it("enforces minimum floor of 100 even with large debt", async () => {
+    mockSelectReturning([{ plan: "pro", tier: "25k", status: "active" }]);
+    mockGetActiveDebtExecutions.mockResolvedValue(30_000);
+    mockExecuteReturning([{ count: 50 }]);
+
+    const result = await checkExecutionLimit("org_1");
+
+    expect(result).toEqual({
+      allowed: true,
+      isOverage: false,
+      debtExecutions: 30_000,
+      effectiveLimit: 100,
+    });
+  });
+
+  it("blocks when usage exceeds debt-reduced limit", async () => {
+    mockSelectReturning([{ plan: "pro", tier: "25k", status: "canceled" }]);
+    mockGetActiveDebtExecutions.mockResolvedValue(10_000);
+    mockExecuteReturning([{ count: 16_000 }]);
+
+    const result = await checkExecutionLimit("org_1");
+
+    expect(result).toEqual({
+      allowed: false,
+      limit: 25_000,
+      used: 16_000,
+      plan: "pro",
+      debtExecutions: 10_000,
+      effectiveLimit: 15_000,
     });
   });
 });

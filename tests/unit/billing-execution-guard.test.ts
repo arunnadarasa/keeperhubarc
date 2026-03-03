@@ -56,6 +56,8 @@ describe("enforceExecutionLimit", () => {
     const withinLimits: ExecutionWithinLimits = {
       allowed: true,
       isOverage: false,
+      debtExecutions: 0,
+      effectiveLimit: 25_000,
     };
     vi.mocked(checkExecutionLimit).mockResolvedValue(withinLimits);
 
@@ -75,6 +77,8 @@ describe("enforceExecutionLimit", () => {
       limit: 25_000,
       used: 30_000,
       overageRate: 2,
+      debtExecutions: 0,
+      effectiveLimit: 25_000,
     };
     vi.mocked(checkExecutionLimit).mockResolvedValue(overageAllowed);
 
@@ -93,6 +97,8 @@ describe("enforceExecutionLimit", () => {
       limit: 5000,
       used: 5000,
       plan: "free",
+      debtExecutions: 0,
+      effectiveLimit: 5000,
     };
     vi.mocked(checkExecutionLimit).mockResolvedValue(exceeded);
 
