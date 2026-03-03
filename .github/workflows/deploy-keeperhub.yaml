@@ -196,8 +196,12 @@ jobs:
       - name: Wait for deployment to be ready
         run: |
           echo "Waiting for ${{ env.BASE_URL }}/api/health to return 200..."
+          CURL_ARGS=(-s -o /dev/null -w "%{http_code}")
+          if [[ -n "$CF_ACCESS_CLIENT_ID" && -n "$CF_ACCESS_CLIENT_SECRET" ]]; then
+            CURL_ARGS+=(-H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
+          fi
           for i in {1..30}; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ env.BASE_URL }}/api/health" || echo "000")
+            STATUS=$(curl "${CURL_ARGS[@]}" "${{ env.BASE_URL }}/api/health" || echo "000")
             if [[ "$STATUS" == "200" ]]; then
               echo "Deployment is ready!"
               exit 0
@@ -207,12 +211,17 @@ jobs:
           done
           echo "Deployment did not become ready in time"
           exit 1
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 
       - name: Run Playwright tests against deployed environment
         run: pnpm exec playwright test --grep-invert "happy-paths"
         env:
           BASE_URL: ${{ env.BASE_URL }}
           TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           CI: true
 
       - name: Upload Playwright report
