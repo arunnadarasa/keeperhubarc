@@ -47,6 +47,7 @@ Research questions for the Researcher agent:
 - What contracts does this protocol have and on which chains?
 - Does any existing protocol definition serve as a closer pattern than WETH?
 - Does the slug "{slug}" already exist in lib/types/integration.ts or keeperhub/protocols/?
+- Does the protocol have Sepolia testnet deployments? If so, include addresses for chain "11155111".
 
 Success criteria:
 - keeperhub/protocols/{slug}.ts imports without throwing (defineProtocol validation passes)

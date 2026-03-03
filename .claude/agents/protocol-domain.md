@@ -73,6 +73,7 @@ Supported chains with their numeric string keys:
 - "8453" -- Base
 - "42161" -- Arbitrum One
 - "10" -- Optimism
+- "11155111" -- Sepolia Testnet
 </chain_ids>
 
 <abi_handling>
@@ -123,7 +124,7 @@ NEVER manually edit `keeperhub/protocols/index.ts` or `lib/types/integration.ts`
 </registration>
 
 <weth_reference>
-Canonical WETH example -- 4 chains, 3 actions (wrap, unwrap, balance-of):
+Canonical WETH example -- 5 chains, 3 actions (wrap, unwrap, balance-of):
 
 ```typescript
 import { defineProtocol } from "@/keeperhub/lib/protocol-registry";
@@ -147,6 +148,8 @@ export default defineProtocol({
         "42161": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
         // Optimism
         "10": "0x4200000000000000000000000000000000000006",
+        // Sepolia Testnet
+        "11155111": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14",
       },
       // ABI omitted -- resolved automatically via abi-cache
     },
