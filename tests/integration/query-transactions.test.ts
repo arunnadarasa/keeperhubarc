@@ -17,7 +17,7 @@ const {
   mockGetAddressUrl,
   mockGetTransactionUrl,
   mockGetChainIdFromNetwork,
-  mockResolveRpcConfig,
+  mockGetRpcProvider,
 } = vi.hoisted(() => ({
   mockParseResults: new Map<
     string,
@@ -35,7 +35,7 @@ const {
   mockGetAddressUrl: vi.fn(),
   mockGetTransactionUrl: vi.fn(),
   mockGetChainIdFromNetwork: vi.fn(),
-  mockResolveRpcConfig: vi.fn(),
+  mockGetRpcProvider: vi.fn(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -137,7 +137,7 @@ vi.mock("@/lib/explorer", () => ({
 // ---------------------------------------------------------------------------
 vi.mock("@/lib/rpc", () => ({
   getChainIdFromNetwork: mockGetChainIdFromNetwork,
-  resolveRpcConfig: mockResolveRpcConfig,
+  getRpcProvider: mockGetRpcProvider,
 }));
 
 // ---------------------------------------------------------------------------
@@ -244,12 +244,9 @@ function registerParseResult(
 // ---------------------------------------------------------------------------
 function setupDefaultMocks(): void {
   mockGetChainIdFromNetwork.mockReturnValue(1);
-  mockResolveRpcConfig.mockResolvedValue({
-    chainId: 1,
-    chainName: "Ethereum Mainnet",
-    primaryRpcUrl: "https://eth.example.com",
-    fallbackRpcUrl: "https://eth-backup.example.com",
-    source: "default",
+  mockGetRpcProvider.mockResolvedValue({
+    executeWithFailover: (fn: (provider: unknown) => unknown) =>
+      fn({ getBlockNumber: mockGetBlockNumber }),
   });
   mockFindFirstExplorer.mockResolvedValue(MOCK_EXPLORER_CONFIG);
   mockGetAddressUrl.mockReturnValue(
@@ -507,7 +504,9 @@ describe("queryTransactionsCore", () => {
   });
 
   it("returns error when RPC config is not available (chain disabled)", async () => {
-    mockResolveRpcConfig.mockResolvedValue(null);
+    mockGetRpcProvider.mockRejectedValue(
+      new Error("Chain 1 not found or not enabled")
+    );
 
     const result = await queryTransactionsCore(defaultInput());
 
