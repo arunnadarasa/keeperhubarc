@@ -38,14 +38,11 @@ vi.mock("ethers", () => {
       JsonRpcProvider: MockJsonRpcProvider,
       FetchRequest: MockFetchRequest,
     },
-    isError: (error: unknown, code: string): boolean => {
-      return (
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        (error as { code: string }).code === code
-      );
-    },
+    isError: (error: unknown, code: string): boolean =>
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code: string }).code === code,
   };
 });
 
@@ -53,7 +50,10 @@ vi.mock("ethers", () => {
 // Helpers for 429 / Retry-After tests
 // ---------------------------------------------------------------------------
 
-function makeEthersError(code: string, message: string): Error & { code: string } {
+function makeEthersError(
+  code: string,
+  message: string
+): Error & { code: string } {
   const err = new Error(message) as Error & { code: string };
   err.code = code;
   return err;
@@ -62,7 +62,10 @@ function makeEthersError(code: string, message: string): Error & { code: string 
 function makeServerError(
   statusCode: number,
   headers: Record<string, string> = {}
-): Error & { code: string; response: { statusCode: number; getHeader: (key: string) => string } } {
+): Error & {
+  code: string;
+  response: { statusCode: number; getHeader: (key: string) => string };
+} {
   const err = new Error(`server responded with ${statusCode}`) as Error & {
     code: string;
     response: { statusCode: number; getHeader: (key: string) => string };
@@ -378,7 +381,7 @@ describe("RpcProviderManager", () => {
         });
 
         let callCount = 0;
-        const result = await manager.executeWithFailover(async () => {
+        const result = await manager.executeWithFailover(() => {
           callCount++;
           if (callCount === 1) {
             throw makeServerError(429, { "retry-after": "1" });
@@ -403,7 +406,7 @@ describe("RpcProviderManager", () => {
         });
 
         let totalCalls = 0;
-        const result = await manager.executeWithFailover(async () => {
+        const result = await manager.executeWithFailover(() => {
           totalCalls++;
           if (totalCalls === 1) {
             throw makeServerError(429);
@@ -430,7 +433,7 @@ describe("RpcProviderManager", () => {
         });
 
         let totalCalls = 0;
-        const result = await manager.executeWithFailover(async () => {
+        const result = await manager.executeWithFailover(() => {
           totalCalls++;
           if (totalCalls === 1) {
             throw makeServerError(429, { "retry-after": "60" });
@@ -456,7 +459,7 @@ describe("RpcProviderManager", () => {
         });
 
         await expect(
-          manager.executeWithFailover(async () => {
+          manager.executeWithFailover(() => {
             throw makeServerError(429);
           })
         ).rejects.toThrow("RPC failed on both endpoints");
@@ -474,7 +477,7 @@ describe("RpcProviderManager", () => {
         });
 
         let callCount = 0;
-        const result = await manager.executeWithFailover(async () => {
+        const result = await manager.executeWithFailover(() => {
           callCount++;
           if (callCount === 1) {
             throw new Error("connection reset");
@@ -502,7 +505,7 @@ describe("RpcProviderManager", () => {
         });
 
         await expect(
-          manager.executeWithFailover(async () => {
+          manager.executeWithFailover(() => {
             throw makeEthersError("CALL_EXCEPTION", "execution reverted");
           })
         ).rejects.toThrow("execution reverted");
@@ -526,7 +529,7 @@ describe("RpcProviderManager", () => {
         });
 
         await expect(
-          manager.executeWithFailover(async () => {
+          manager.executeWithFailover(() => {
             throw makeEthersError("INVALID_ARGUMENT", "invalid address");
           })
         ).rejects.toThrow("invalid address");
@@ -548,7 +551,7 @@ describe("RpcProviderManager", () => {
         });
 
         await expect(
-          manager.executeWithFailover(async () => {
+          manager.executeWithFailover(() => {
             throw makeEthersError("NUMERIC_FAULT", "overflow");
           })
         ).rejects.toThrow("overflow");
@@ -569,7 +572,7 @@ describe("RpcProviderManager", () => {
         });
 
         let callCount = 0;
-        const result = await manager.executeWithFailover(async () => {
+        const result = await manager.executeWithFailover(() => {
           callCount++;
           if (callCount === 1) {
             throw makeServerError(503);

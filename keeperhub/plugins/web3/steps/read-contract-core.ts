@@ -15,9 +15,9 @@ import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
 import { getAddressUrl } from "@/lib/explorer";
 import {
-  type RpcProviderManager,
   getChainIdFromNetwork,
   getRpcProvider,
+  type RpcProviderManager,
 } from "@/lib/rpc";
 import { getErrorMessage } from "@/lib/utils";
 

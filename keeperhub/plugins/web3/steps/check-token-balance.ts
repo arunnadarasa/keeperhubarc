@@ -16,9 +16,9 @@ import {
 } from "@/lib/db/schema";
 import { getAddressUrl } from "@/lib/explorer";
 import {
-  type RpcProviderManager,
   getChainIdFromNetwork,
   getRpcProvider,
+  type RpcProviderManager,
 } from "@/lib/rpc";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import { getErrorMessage } from "@/lib/utils";

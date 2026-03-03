@@ -11,9 +11,9 @@ import {
   type NormalizedTransaction,
 } from "@/lib/explorer";
 import {
-  type RpcProviderManager,
   getChainIdFromNetwork,
   getRpcProvider,
+  type RpcProviderManager,
 } from "@/lib/rpc";
 import { getErrorMessage } from "@/lib/utils";
 

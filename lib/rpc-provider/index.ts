@@ -224,7 +224,11 @@ export class RpcProviderManager {
             })
           );
           this.isUsingFallback = false;
-          this.onFailoverStateChange?.(this.config.chainName, false, "recovery");
+          this.onFailoverStateChange?.(
+            this.config.chainName,
+            false,
+            "recovery"
+          );
           return primaryResult.result as T;
         }
 
@@ -308,6 +312,73 @@ export class RpcProviderManager {
     throw new Error(`RPC failed on primary endpoint: ${primaryResult.error}`);
   }
 
+  private recordAttempt(providerType: "primary" | "fallback"): void {
+    if (providerType === "primary") {
+      this.metrics.primaryAttempts += 1;
+      this.metricsCollector.recordPrimaryAttempt(this.config.chainName);
+    } else {
+      this.metrics.fallbackAttempts += 1;
+      this.metricsCollector.recordFallbackAttempt(this.config.chainName);
+    }
+  }
+
+  private recordFailure(providerType: "primary" | "fallback"): void {
+    if (providerType === "primary") {
+      this.metrics.primaryFailures += 1;
+      this.metricsCollector.recordPrimaryFailure(this.config.chainName);
+    } else {
+      this.metrics.fallbackFailures += 1;
+      this.metricsCollector.recordFallbackFailure(this.config.chainName);
+    }
+  }
+
+  /**
+   * Compute how long to wait before retrying, or return null to stop retrying.
+   * Handles 429 Retry-After headers and exponential backoff for other errors.
+   */
+  private getRetryDelayMs(error: unknown, attempt: number): number | null {
+    if (isError(error, "SERVER_ERROR") && error.response?.statusCode === 429) {
+      const retryAfterHeader = error.response.getHeader("retry-after");
+      const retryAfterSeconds = retryAfterHeader
+        ? Number.parseInt(retryAfterHeader, 10)
+        : Number.NaN;
+
+      if (
+        !Number.isNaN(retryAfterSeconds) &&
+        retryAfterSeconds > 0 &&
+        retryAfterSeconds <= RpcProviderManager.RETRY_AFTER_CAP_SECONDS
+      ) {
+        return retryAfterSeconds * 1000;
+      }
+
+      return null;
+    }
+
+    return Math.min(1000 * 2 ** attempt, 5000);
+  }
+
+  /**
+   * Evaluate a caught error and decide what to do next.
+   * Throws for non-retryable errors, returns null to stop retrying,
+   * or returns the delay in ms before the next attempt.
+   */
+  private evaluateRetryAction(
+    error: unknown,
+    wrappedError: Error,
+    attempt: number,
+    maxRetries: number
+  ): number | null {
+    if (this.isNonRetryableError(error)) {
+      throw wrappedError;
+    }
+
+    if (attempt === maxRetries - 1) {
+      return null;
+    }
+
+    return this.getRetryDelayMs(error, attempt);
+  }
+
   private async tryProvider<T>(
     provider: ethers.JsonRpcProvider,
     operation: (p: ethers.JsonRpcProvider) => Promise<T>,
@@ -318,13 +389,7 @@ export class RpcProviderManager {
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        if (providerType === "primary") {
-          this.metrics.primaryAttempts += 1;
-          this.metricsCollector.recordPrimaryAttempt(this.config.chainName);
-        } else {
-          this.metrics.fallbackAttempts += 1;
-          this.metricsCollector.recordFallbackAttempt(this.config.chainName);
-        }
+        this.recordAttempt(providerType);
 
         const result = await this.withTimeout(
           operation(provider),
@@ -334,51 +399,19 @@ export class RpcProviderManager {
         return { success: true, result };
       } catch (error: unknown) {
         lastError = error instanceof Error ? error : new Error(String(error));
+        this.recordFailure(providerType);
 
-        if (providerType === "primary") {
-          this.metrics.primaryFailures += 1;
-          this.metricsCollector.recordPrimaryFailure(this.config.chainName);
-        } else {
-          this.metrics.fallbackFailures += 1;
-          this.metricsCollector.recordFallbackFailure(this.config.chainName);
-        }
-
-        // Non-retryable errors (contract revert, invalid args, etc.) will
-        // never succeed on any provider -- re-throw immediately to skip
-        // both remaining retries and failover to the other provider.
-        if (this.isNonRetryableError(error)) {
-          throw lastError;
-        }
-
-        if (attempt === maxRetries - 1) {
+        const delayMs = this.evaluateRetryAction(
+          error,
+          lastError,
+          attempt,
+          maxRetries
+        );
+        if (delayMs === null) {
           break;
         }
 
-        // On 429 rate limit: respect Retry-After if within cap,
-        // otherwise bail immediately and let executeWithFailover switch providers
-        if (
-          isError(error, "SERVER_ERROR") &&
-          error.response?.statusCode === 429
-        ) {
-          const retryAfterHeader = error.response.getHeader("retry-after");
-          const retryAfterSeconds = retryAfterHeader
-            ? Number.parseInt(retryAfterHeader, 10)
-            : Number.NaN;
-
-          if (
-            !Number.isNaN(retryAfterSeconds) &&
-            retryAfterSeconds > 0 &&
-            retryAfterSeconds <= RpcProviderManager.RETRY_AFTER_CAP_SECONDS
-          ) {
-            await this.delay(retryAfterSeconds * 1000);
-            continue;
-          }
-
-          // No usable Retry-After -- stop retrying this provider
-          break;
-        }
-
-        await this.delay(Math.min(1000 * 2 ** attempt, 5000));
+        await this.delay(delayMs);
       }
     }
 
@@ -408,9 +441,7 @@ export class RpcProviderManager {
     if (typeof error !== "object" || error === null || !("code" in error)) {
       return false;
     }
-    return NON_RETRYABLE_ERROR_CODES.has(
-      (error as EthersError).code as string
-    );
+    return NON_RETRYABLE_ERROR_CODES.has((error as EthersError).code as string);
   }
 
   getMetrics(): Readonly<RpcProviderMetrics> {

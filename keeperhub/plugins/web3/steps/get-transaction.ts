@@ -7,9 +7,9 @@ import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
 import { getAddressUrl, getTransactionUrl } from "@/lib/explorer";
 import {
-  type RpcProviderManager,
   getChainIdFromNetwork,
   getRpcProvider,
+  type RpcProviderManager,
 } from "@/lib/rpc";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import { getErrorMessage } from "@/lib/utils";
