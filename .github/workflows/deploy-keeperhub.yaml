@@ -64,6 +64,22 @@ jobs:
         run: |
           echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
+      - name: Verify submodule token access
+        if: steps.skip.outputs.skip_build != 'true'
+        env:
+          TOKEN: ${{ secrets.KEEPERHUB_SUBMODULE_TOKEN }}
+        run: |
+          for repo in keeperhub-events keeperhub-scheduler; do
+            status=$(curl -sf -o /dev/null -w "%{http_code}" \
+              -H "Authorization: Bearer $TOKEN" \
+              "https://api.github.com/repos/techops-services/$repo")
+            if [ "$status" != "200" ]; then
+              echo "::error::KEEPERHUB_SUBMODULE_TOKEN cannot access techops-services/$repo (HTTP $status). Token may be expired or revoked."
+              exit 1
+            fi
+            echo "Verified access to techops-services/$repo"
+          done
+
       - name: Build and push all images to ECR
         if: steps.skip.outputs.skip_build != 'true'
         uses: docker/bake-action@v6
