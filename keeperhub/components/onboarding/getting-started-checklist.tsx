@@ -49,6 +49,52 @@ function ProgressBar({
   );
 }
 
+type StepRowProps = {
+  config: StepConfig;
+  isComplete: boolean;
+  onAction: () => void;
+};
+
+function StepRow({
+  config,
+  isComplete,
+  onAction,
+}: StepRowProps): React.ReactElement {
+  const Icon = config.icon;
+
+  const handleClick = (e: React.MouseEvent): void => {
+    if ((e.target as Element).closest("[data-checklist-tooltip]")) {
+      return;
+    }
+    onAction();
+  };
+
+  return (
+    <button
+      className={cn(
+        "relative flex w-full cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-hidden transition-colors select-none hover:bg-accent hover:text-accent-foreground",
+        isComplete && "opacity-50"
+      )}
+      onClick={handleClick}
+      type="button"
+    >
+      <Icon
+        className={cn(
+          "size-4 shrink-0",
+          isComplete ? "text-emerald-500" : "text-muted-foreground"
+        )}
+      />
+      <span className={cn(isComplete && "line-through")}>{config.title}</span>
+      {config.extra ? (
+        <span data-checklist-tooltip="">{config.extra}</span>
+      ) : null}
+      {isComplete && (
+        <Check className="ml-auto size-3.5 shrink-0 text-emerald-500" />
+      )}
+    </button>
+  );
+}
+
 function SkeletonRows(): React.ReactElement {
   return (
     <div className="space-y-0.5 p-1">
@@ -198,38 +244,18 @@ export function GettingStartedChecklist({
               {stepConfigs.map((config) => {
                 const step = steps.find((s) => s.id === config.id);
                 const isComplete = step?.complete ?? false;
-                const Icon = config.icon;
-                const handleClick =
+                const action =
                   isAnonymous && config.requiresAuth
                     ? promptSignIn
                     : config.action;
 
                 return (
-                  <button
-                    className={cn(
-                      "relative flex w-full cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-hidden transition-colors select-none hover:bg-accent hover:text-accent-foreground",
-                      isComplete && "opacity-50"
-                    )}
+                  <StepRow
+                    config={config}
+                    isComplete={isComplete}
                     key={config.id}
-                    onClick={handleClick}
-                    type="button"
-                  >
-                    <Icon
-                      className={cn(
-                        "size-4 shrink-0",
-                        isComplete
-                          ? "text-emerald-500"
-                          : "text-muted-foreground"
-                      )}
-                    />
-                    <span className={cn(isComplete && "line-through")}>
-                      {config.title}
-                    </span>
-                    {config.extra}
-                    {isComplete && (
-                      <Check className="ml-auto size-3.5 shrink-0 text-emerald-500" />
-                    )}
-                  </button>
+                    onAction={action}
+                  />
                 );
               })}
             </div>
