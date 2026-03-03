@@ -1,10 +1,13 @@
-import { and, eq, lt } from "drizzle-orm";
+import { and, eq, lt, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
 import { billOverageForOrg } from "@/keeperhub/lib/billing/overage";
 import { authenticateInternalService } from "@/keeperhub/lib/internal-service-auth";
 import { db } from "@/lib/db";
-import { organizationSubscriptions } from "@/lib/db/schema";
+import {
+  organizationSubscriptions,
+  overageBillingRecords,
+} from "@/lib/db/schema";
 
 type SingleOrgBody = {
   scan?: never;
@@ -104,5 +107,35 @@ async function handleScan(): Promise<NextResponse> {
     results.push({ organizationId: sub.organizationId, result });
   }
 
-  return NextResponse.json({ scanned: subs.length, results });
+  // Retry pending/failed overage records that were created but not successfully
+  // billed (e.g. if billOverageForOrg failed after inserting the record).
+  // These records store period dates independently from the subscription row.
+  const failedRecords = await db
+    .select({
+      organizationId: overageBillingRecords.organizationId,
+      periodStart: overageBillingRecords.periodStart,
+      periodEnd: overageBillingRecords.periodEnd,
+    })
+    .from(overageBillingRecords)
+    .where(
+      or(
+        eq(overageBillingRecords.status, "pending"),
+        eq(overageBillingRecords.status, "failed")
+      )
+    );
+
+  for (const record of failedRecords) {
+    const result = await billOverageForOrg(
+      record.organizationId,
+      record.periodStart,
+      record.periodEnd
+    );
+    results.push({ organizationId: record.organizationId, result });
+  }
+
+  return NextResponse.json({
+    scanned: subs.length,
+    retried: failedRecords.length,
+    results,
+  });
 }

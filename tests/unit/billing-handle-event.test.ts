@@ -10,6 +10,14 @@ vi.mock("@/keeperhub/lib/billing/execution-debt", () => ({
   clearAllDebtForOrg: (...args: unknown[]) => mockClearAllDebtForOrg(...args),
 }));
 
+const mockBillOverageForOrg = vi
+  .fn()
+  .mockResolvedValue({ billed: false, reason: "no overage" });
+
+vi.mock("@/keeperhub/lib/billing/overage", () => ({
+  billOverageForOrg: (...args: unknown[]) => mockBillOverageForOrg(...args),
+}));
+
 import { handleBillingEvent } from "@/keeperhub/lib/billing/handle-billing-event";
 import type {
   BillingProvider,
@@ -79,6 +87,10 @@ function makeEvent(
 beforeEach(() => {
   vi.clearAllMocks();
   mockSet.mockReturnValue({ where: mockWhere });
+  mockBillOverageForOrg.mockResolvedValue({
+    billed: false,
+    reason: "no overage",
+  });
 });
 
 describe("handleBillingEvent", () => {
@@ -239,6 +251,118 @@ describe("handleBillingEvent", () => {
       await handleBillingEvent(event, provider);
 
       expect(db.select).not.toHaveBeenCalled();
+    });
+
+    it("bills overage before updating subscription on period rollover", async () => {
+      const oldStart = new Date("2025-01-01");
+      const oldEnd = new Date("2025-02-01");
+      const newStart = new Date("2025-02-01");
+      const newEnd = new Date("2025-03-01");
+
+      mockSelectReturning([
+        {
+          providerSubscriptionId: "sub_1",
+          organizationId: "org_1",
+          providerPriceId: process.env.STRIPE_PRICE_PRO_25K_MONTHLY,
+          plan: "pro",
+          tier: "25k",
+          status: "active",
+          cancelAtPeriodEnd: false,
+          currentPeriodStart: oldStart,
+          currentPeriodEnd: oldEnd,
+        },
+      ]);
+
+      const provider = createMockProvider();
+      const event = makeEvent("subscription.updated", {
+        providerSubscriptionId: "sub_1",
+        priceId: process.env.STRIPE_PRICE_PRO_25K_MONTHLY,
+        status: "active",
+        cancelAtPeriodEnd: false,
+        periodStart: newStart,
+        periodEnd: newEnd,
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(mockBillOverageForOrg).toHaveBeenCalledWith(
+        "org_1",
+        oldStart,
+        oldEnd
+      );
+      expect(db.update).toHaveBeenCalled();
+    });
+
+    it("still updates subscription when overage billing fails", async () => {
+      const oldStart = new Date("2025-01-01");
+      const oldEnd = new Date("2025-02-01");
+      const newStart = new Date("2025-02-01");
+      const newEnd = new Date("2025-03-01");
+
+      mockSelectReturning([
+        {
+          providerSubscriptionId: "sub_1",
+          organizationId: "org_1",
+          providerPriceId: process.env.STRIPE_PRICE_PRO_25K_MONTHLY,
+          plan: "pro",
+          tier: "25k",
+          status: "active",
+          cancelAtPeriodEnd: false,
+          currentPeriodStart: oldStart,
+          currentPeriodEnd: oldEnd,
+        },
+      ]);
+
+      mockBillOverageForOrg.mockRejectedValue(new Error("Stripe error"));
+
+      const provider = createMockProvider();
+      const event = makeEvent("subscription.updated", {
+        providerSubscriptionId: "sub_1",
+        priceId: process.env.STRIPE_PRICE_PRO_25K_MONTHLY,
+        status: "active",
+        cancelAtPeriodEnd: false,
+        periodStart: newStart,
+        periodEnd: newEnd,
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(mockBillOverageForOrg).toHaveBeenCalled();
+      expect(db.update).toHaveBeenCalled();
+    });
+
+    it("skips overage billing when period has not rolled", async () => {
+      const sameStart = new Date("2025-01-01");
+      const sameEnd = new Date("2025-02-01");
+
+      mockSelectReturning([
+        {
+          providerSubscriptionId: "sub_1",
+          organizationId: "org_1",
+          providerPriceId: process.env.STRIPE_PRICE_PRO_25K_MONTHLY,
+          plan: "pro",
+          tier: "25k",
+          status: "active",
+          cancelAtPeriodEnd: false,
+          currentPeriodStart: sameStart,
+          currentPeriodEnd: sameEnd,
+        },
+      ]);
+
+      const provider = createMockProvider();
+      const event = makeEvent("subscription.updated", {
+        providerSubscriptionId: "sub_1",
+        priceId: process.env.STRIPE_PRICE_PRO_25K_MONTHLY,
+        status: "active",
+        cancelAtPeriodEnd: false,
+        periodStart: sameStart,
+        periodEnd: sameEnd,
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(mockBillOverageForOrg).not.toHaveBeenCalled();
+      expect(db.update).toHaveBeenCalled();
     });
   });
 

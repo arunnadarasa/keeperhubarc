@@ -232,17 +232,8 @@ async function handleSubscriptionUpdated(
 
   const update = buildSubscriptionUpdate(data, current);
 
-  await db
-    .update(organizationSubscriptions)
-    .set(update)
-    .where(
-      eq(
-        organizationSubscriptions.providerSubscriptionId,
-        providerSubscriptionId
-      )
-    );
-
-  // Detect billing period rollover and bill overage for the previous period
+  // Bill overage BEFORE updating the subscription row so that if billing fails,
+  // the old period data remains on the row for the scan endpoint to pick up.
   const periodRolled =
     data.periodStart instanceof Date &&
     current.currentPeriodStart instanceof Date &&
@@ -253,20 +244,32 @@ async function handleSubscriptionUpdated(
     current.currentPeriodStart instanceof Date &&
     current.currentPeriodEnd instanceof Date
   ) {
-    billOverageForOrg(
-      current.organizationId,
-      current.currentPeriodStart,
-      current.currentPeriodEnd
-    ).catch((error: unknown) => {
+    try {
+      await billOverageForOrg(
+        current.organizationId,
+        current.currentPeriodStart,
+        current.currentPeriodEnd
+      );
+    } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error(
+      console.warn(
         LOG_PREFIX,
-        "Failed to bill overage for org:",
+        "Failed to bill overage for org (will be retried by scan):",
         current.organizationId,
         message
       );
-    });
+    }
   }
+
+  await db
+    .update(organizationSubscriptions)
+    .set(update)
+    .where(
+      eq(
+        organizationSubscriptions.providerSubscriptionId,
+        providerSubscriptionId
+      )
+    );
 }
 
 async function handleSubscriptionDeleted(
