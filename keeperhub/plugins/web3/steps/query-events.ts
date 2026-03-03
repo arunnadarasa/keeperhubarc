@@ -278,6 +278,16 @@ async function stepHandler(
 
   const userId = await getUserIdFromExecution(_context?.executionId);
 
+  // Validate event exists in ABI using ethers Interface (no provider needed)
+  const iface = new ethers.Interface(abiResult.parsed);
+  const eventFragment = iface.getEvent(eventName);
+  if (!eventFragment) {
+    return {
+      success: false,
+      error: `Event '${eventName}' not found in contract interface`,
+    };
+  }
+
   let rpcManager: Awaited<ReturnType<typeof getRpcProvider>>;
   try {
     rpcManager = await getRpcProvider({ chainId, userId });
@@ -288,6 +298,32 @@ async function stepHandler(
     };
   }
 
+  // Resolve block range (uses RPC for latest block number)
+  const blockRangeResult = await rpcManager.executeWithFailover(
+    async (provider) =>
+      resolveBlockRange(
+        provider,
+        input.fromBlock,
+        input.toBlock,
+        input.blockCount
+      )
+  );
+  if (!blockRangeResult.success) {
+    return { success: false, error: blockRangeResult.error };
+  }
+  const { range } = blockRangeResult;
+
+  if (range.fromBlock > range.toBlock) {
+    return {
+      success: true,
+      events: [],
+      fromBlock: range.fromBlock,
+      toBlock: range.toBlock,
+      eventCount: 0,
+    };
+  }
+
+  // Query events (uses RPC for log fetching)
   try {
     return await rpcManager.executeWithFailover(async (provider) => {
       const contract = new ethers.Contract(
@@ -295,32 +331,6 @@ async function stepHandler(
         abiResult.parsed,
         provider
       );
-
-      const eventFragment = contract.interface.getEvent(eventName);
-      if (!eventFragment) {
-        throw new Error(`Event '${eventName}' not found in contract interface`);
-      }
-
-      const blockRangeResult = await resolveBlockRange(
-        provider,
-        input.fromBlock,
-        input.toBlock,
-        input.blockCount
-      );
-      if (!blockRangeResult.success) {
-        throw new Error(blockRangeResult.error);
-      }
-      const { range } = blockRangeResult;
-
-      if (range.fromBlock > range.toBlock) {
-        return {
-          success: true as const,
-          events: [],
-          fromBlock: range.fromBlock,
-          toBlock: range.toBlock,
-          eventCount: 0,
-        };
-      }
 
       const events = await queryEventBatches(
         contract,
