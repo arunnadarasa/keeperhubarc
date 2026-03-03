@@ -226,6 +226,9 @@ export function ActionGrid({
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
     () => new Set(actions.map((a) => a.category))
   );
+  const [collapsedSuperCategories, setCollapsedSuperCategories] = useState<
+    Set<SuperCategory>
+  >(() => new Set(SUPER_CATEGORY_ORDER));
   const [hiddenGroups, setHiddenGroups] = useState<Set<string>>(
     getInitialHiddenGroups
   );
@@ -252,16 +255,13 @@ export function ActionGrid({
     });
   };
 
-  const toggleSuperCategory = (groups: PluginGroup[]): void => {
-    setCollapsedGroups((prev) => {
+  const toggleSuperCategory = (sc: SuperCategory): void => {
+    setCollapsedSuperCategories((prev) => {
       const next = new Set(prev);
-      const allCollapsed = groups.every((g) => next.has(g.category));
-      for (const g of groups) {
-        if (allCollapsed) {
-          next.delete(g.category);
-        } else {
-          next.add(g.category);
-        }
+      if (next.has(sc)) {
+        next.delete(sc);
+      } else {
+        next.add(sc);
       }
       return next;
     });
@@ -509,7 +509,7 @@ export function ActionGrid({
                   "flex w-full items-center gap-2 px-3 pb-1.5 transition-opacity hover:opacity-80",
                   sgIndex === 0 ? "pt-1" : "pt-4"
                 )}
-                onClick={() => toggleSuperCategory(sg.pluginGroups)}
+                onClick={() => toggleSuperCategory(sg.superCategory)}
                 type="button"
               >
                 <div className="h-px flex-1 bg-border/40" />
@@ -520,7 +520,8 @@ export function ActionGrid({
               </button>
 
               {/* Plugin groups within super-category */}
-              {sg.pluginGroups.map((group, groupIndex) => {
+              {!collapsedSuperCategories.has(sg.superCategory) &&
+              sg.pluginGroups.map((group, groupIndex) => {
                 const isCollapsed = collapsedGroups.has(group.category);
                 const isHidden = hiddenGroups.has(group.category);
                 return (
