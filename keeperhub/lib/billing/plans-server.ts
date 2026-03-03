@@ -152,6 +152,11 @@ export type ExecutionLimitResult =
  * - allowed + not overage (within limits or unlimited plan)
  * - allowed + overage (paid plan with overage enabled, will be billed later)
  * - not allowed (free plan limit exceeded)
+ *
+ * NOTE: This is a point-in-time check (TOCTOU). The caller does not hold a lock,
+ * so concurrent requests may each pass the check before any execution is recorded.
+ * The resulting overshoot is bounded by request concurrency and is acceptable:
+ * paid plans are backstopped by overage billing, free plans by a small bounded excess.
  */
 export async function checkExecutionLimit(
   organizationId: string
@@ -177,7 +182,9 @@ export async function checkExecutionLimit(
   );
 
   const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfMonth = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+  );
 
   const result = await db.execute<{ count: number }>(
     sql`SELECT COUNT(*)::int as count
