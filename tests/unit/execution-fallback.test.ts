@@ -48,6 +48,23 @@ describe("fallbackCompleteExecution", () => {
     );
   });
 
+  it("logs error and returns early when service key is not configured", async () => {
+    delete process.env.EVENTS_SERVICE_API_KEY;
+
+    await fallbackCompleteExecution({
+      executionId: "exec_no_key",
+      status: "error",
+    });
+
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockLogSystemError).toHaveBeenCalledWith(
+      "INFRASTRUCTURE",
+      expect.stringContaining("EVENTS_SERVICE_API_KEY"),
+      expect.any(Error),
+      { execution_id: "exec_no_key" }
+    );
+  });
+
   it("uses VERCEL_URL when NEXT_PUBLIC_APP_URL is not set", async () => {
     delete process.env.NEXT_PUBLIC_APP_URL;
     process.env.VERCEL_URL = "my-app.vercel.app";
