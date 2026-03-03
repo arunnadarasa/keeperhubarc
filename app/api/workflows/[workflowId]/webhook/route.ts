@@ -240,7 +240,8 @@ export async function POST(
         statusCode: 429,
         error: "Monthly execution limit exceeded",
       });
-      return new NextResponse(executionGuard.response.body, {
+      const body = await executionGuard.response.json();
+      return NextResponse.json(body, {
         status: 429,
         headers: corsHeaders,
       });
