@@ -221,16 +221,16 @@ export function ActionGrid({
   disabled,
   isNewlyCreated,
 }: ActionGridProps) {
+  const actions = useAllActions();
   const [filter, setFilter] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
-    new Set()
+    () => new Set(actions.map((a) => a.category))
   );
   const [hiddenGroups, setHiddenGroups] = useState<Set<string>>(
     getInitialHiddenGroups
   );
   const [showHidden, setShowHidden] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
-  const actions = useAllActions();
   const inputRef = useRef<HTMLInputElement>(null);
   const isTouch = useIsTouch();
 
