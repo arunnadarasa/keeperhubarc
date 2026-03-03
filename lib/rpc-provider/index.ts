@@ -354,13 +354,25 @@ export class RpcProviderManager {
   }
 
   /**
-   * Get the currently-active RPC URL, respecting failover state.
-   * Use this for write operations that need a raw URL (e.g. signer initialization).
+   * Get the currently-active RPC URL, respecting cached failover state.
+   * Does NOT probe the endpoint -- use resolveActiveRpcUrl() for write
+   * operations where you need to verify the endpoint is reachable first.
    */
   getCurrentRpcUrl(): string {
     return this.isUsingFallback && this.config.fallbackRpcUrl
       ? this.config.fallbackRpcUrl
       : this.config.primaryRpcUrl;
+  }
+
+  /**
+   * Probe the RPC endpoint with a lightweight getBlockNumber call via
+   * executeWithFailover, then return the URL of whichever provider responded.
+   * Use this for write operations that need a raw URL for signer construction
+   * but should still benefit from failover if the primary is unreachable.
+   */
+  async resolveActiveRpcUrl(): Promise<string> {
+    await this.executeWithFailover((provider) => provider.getBlockNumber());
+    return this.getCurrentRpcUrl();
   }
 
   /**

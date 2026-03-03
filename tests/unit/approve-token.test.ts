@@ -172,7 +172,7 @@ function makeInput(
 function setupMocks(): void {
   mockGetChainIdFromNetwork.mockReturnValue(1);
   mockGetRpcProvider.mockResolvedValue({
-    getCurrentRpcUrl: () => "https://rpc.example.com",
+    resolveActiveRpcUrl: () => Promise.resolve("https://rpc.example.com"),
   });
   mockResolveOrgContext.mockResolvedValue({
     success: true,

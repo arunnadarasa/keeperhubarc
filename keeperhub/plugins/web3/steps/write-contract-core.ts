@@ -165,7 +165,7 @@ export async function writeContractCore(
     console.log("[Write Contract] Resolved chain ID:", chainId);
 
     const rpcManager = await getRpcProvider({ chainId, userId });
-    rpcUrl = rpcManager.getCurrentRpcUrl();
+    rpcUrl = await rpcManager.resolveActiveRpcUrl();
     console.log("[Write Contract] Using RPC URL:", rpcUrl);
   } catch (error) {
     logUserError(

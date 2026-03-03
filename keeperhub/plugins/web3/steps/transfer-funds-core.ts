@@ -113,7 +113,7 @@ export async function transferFundsCore(
     chainId = getChainIdFromNetwork(network);
 
     const rpcManager = await getRpcProvider({ chainId, userId });
-    rpcUrl = rpcManager.getCurrentRpcUrl();
+    rpcUrl = await rpcManager.resolveActiveRpcUrl();
   } catch (error) {
     logUserError(
       ErrorCategory.VALIDATION,

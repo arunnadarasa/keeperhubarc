@@ -244,7 +244,7 @@ export async function transferTokenCore(
   let rpcUrl: string;
   try {
     const rpcManager = await getRpcProvider({ chainId, userId });
-    rpcUrl = rpcManager.getCurrentRpcUrl();
+    rpcUrl = await rpcManager.resolveActiveRpcUrl();
   } catch (error) {
     logUserError(
       ErrorCategory.VALIDATION,
