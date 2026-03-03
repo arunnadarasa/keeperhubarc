@@ -9,6 +9,7 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
+import { reshapeArgsForAbi } from "@/keeperhub/lib/abi-struct-args";
 import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
 import {
   getOrganizationWalletAddress,
@@ -34,6 +35,7 @@ export type WriteContractCoreInput = {
   abi: string;
   abiFunction: string;
   functionArgs?: string;
+  ethValue?: string;
   gasLimitMultiplier?: string;
   _context?: {
     executionId?: string;
@@ -67,6 +69,7 @@ export async function writeContractCore(
     abi,
     abiFunction,
     functionArgs,
+    ethValue,
     gasLimitMultiplier,
     _context,
   } = input;
@@ -134,6 +137,7 @@ export async function writeContractCore(
         // Keep empty strings if they're not at the end
         return parsedArgs.slice(index + 1).some((a) => a !== "");
       });
+      args = reshapeArgsForAbi(args, functionAbi);
     } catch (error) {
       return {
         success: false,
@@ -215,6 +219,19 @@ export async function writeContractCore(
     }
   }
 
+  // Parse ethValue early so we fail fast with a friendly message
+  let parsedEthValue: bigint | undefined;
+  if (ethValue) {
+    try {
+      parsedEthValue = ethers.parseEther(ethValue);
+    } catch {
+      return {
+        success: false,
+        error: `Invalid ETH value "${ethValue}" -- expected a decimal string like "0.1" or "1.5"`,
+      };
+    }
+  }
+
   // Build transaction context
   const txContext: TransactionContext = {
     organizationId,
@@ -270,11 +287,17 @@ export async function writeContractCore(
         };
       }
 
+      // Build value override for payable functions (e.g. WETH deposit)
+      const valueOverride = parsedEthValue ? { value: parsedEthValue } : {};
+
       // Get nonce from session
       const nonce = nonceManager.getNextNonce(session);
 
       // Estimate gas for the contract call
-      const estimatedGas = await contract[abiFunction].estimateGas(...args);
+      const estimatedGas = await contract[abiFunction].estimateGas(
+        ...args,
+        valueOverride
+      );
 
       // Get gas configuration from strategy
       const provider = signer.provider;
@@ -305,6 +328,7 @@ export async function writeContractCore(
         gasLimit: txGasConfig.gasLimit,
         maxFeePerGas: txGasConfig.maxFeePerGas,
         maxPriorityFeePerGas: txGasConfig.maxPriorityFeePerGas,
+        ...valueOverride,
       });
 
       // Record pending transaction

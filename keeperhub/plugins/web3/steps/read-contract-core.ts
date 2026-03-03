@@ -9,6 +9,7 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
+import { reshapeArgsForAbi } from "@/keeperhub/lib/abi-struct-args";
 import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
 import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
@@ -131,7 +132,7 @@ export async function readContractCore(
 
   // Find the selected function in the ABI to get output structure
   const functionAbi = parsedAbi.find(
-    (item: { type: string; name: string }) =>
+    (item: { type: string; name: string; stateMutability?: string }) =>
       item.type === "function" && item.name === abiFunction
   );
 
@@ -180,6 +181,7 @@ export async function readContractCore(
         // Keep empty strings if they're not at the end
         return parsedArgs.slice(index + 1).some((a) => a !== "");
       });
+      args = reshapeArgsForAbi(args, functionAbi);
       console.log("[Read Contract] Function arguments parsed:", args);
     } catch (error) {
       logUserError(
@@ -270,7 +272,13 @@ export async function readContractCore(
       args
     );
 
-    const result = await contract[abiFunction](...args);
+    const isView =
+      functionAbi.stateMutability === "view" ||
+      functionAbi.stateMutability === "pure";
+
+    const result = isView
+      ? await contract[abiFunction](...args)
+      : await contract[abiFunction].staticCall(...args);
 
     console.log("[Read Contract] Function call successful, result:", result);
 

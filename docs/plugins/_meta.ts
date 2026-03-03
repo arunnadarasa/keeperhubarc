@@ -7,6 +7,7 @@ export default {
   ajna: "Ajna",
   pendle: "Pendle",
   sky: "Sky",
+  uniswap: "Uniswap",
   discord: "Discord",
   telegram: "Telegram",
   sendgrid: "SendGrid",
