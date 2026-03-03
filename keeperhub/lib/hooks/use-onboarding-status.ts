@@ -105,28 +105,42 @@ export function useOnboardingStatus(): OnboardingStatus {
 
       const results = await Promise.allSettled([
         fetch("/api/workflows").then((r) => r.json()),
-        fetch("/api/api-keys").then((r) => r.json()),
+        fetch("/api/keeperhub/keys").then((r) => r.json()),
         fetch("/api/user/wallet").then((r) => r.json()),
-        fetch("/api/user/wallet/balances").then((r) => r.json()),
       ]);
 
       if (cancelled) {
         return;
       }
 
-      const [workflowsResult, keysResult, walletResult, balancesResult] =
-        results;
+      const [workflowsResult, keysResult, walletResult] = results;
 
       const hasWallet =
         walletResult.status === "fulfilled" &&
         (walletResult.value as { hasWallet?: boolean } | null)?.hasWallet ===
           true;
 
+      // Only check balances if wallet exists
+      let hasFunds = false;
+      if (hasWallet) {
+        const balancesResult = await fetch("/api/user/wallet/balances")
+          .then((r) => r.json())
+          .catch(() => []);
+        hasFunds = hasNonZeroBalance({
+          status: "fulfilled",
+          value: balancesResult,
+        });
+      }
+
+      if (cancelled) {
+        return;
+      }
+
       setSteps([
         { id: "create-workflow", complete: isFulfilledArray(workflowsResult) },
         { id: "generate-api-key", complete: isFulfilledArray(keysResult) },
         { id: "create-wallet", complete: hasWallet },
-        { id: "fund-wallet", complete: hasNonZeroBalance(balancesResult) },
+        { id: "fund-wallet", complete: hasFunds },
       ]);
       setIsLoading(false);
     }
