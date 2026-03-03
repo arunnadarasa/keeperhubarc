@@ -31,8 +31,16 @@ jobs:
           if [[ "${{ github.event_name }}" == "push" ]]; then
             echo "run-e2e=true" >> $GITHUB_OUTPUT
           elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            if [[ "${{ contains(github.event.pull_request.labels.*.name, 'run-e2e-tests-local') }}" == "true" ]]; then
-              echo "run-e2e=true" >> $GITHUB_OUTPUT
+            if [[ "${{ github.event.action }}" == "labeled" ]]; then
+              # Only run when the run-e2e-tests-local label was the one just added
+              if [[ "${{ github.event.label.name }}" == "run-e2e-tests-local" ]]; then
+                echo "run-e2e=true" >> $GITHUB_OUTPUT
+              fi
+            elif [[ "${{ github.event.action }}" == "synchronize" ]]; then
+              # On new commits, re-run if the label is already present
+              if [[ "${{ contains(github.event.pull_request.labels.*.name, 'run-e2e-tests-local') }}" == "true" ]]; then
+                echo "run-e2e=true" >> $GITHUB_OUTPUT
+              fi
             fi
           fi
 

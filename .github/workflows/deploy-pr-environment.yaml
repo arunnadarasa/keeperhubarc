@@ -8,23 +8,48 @@ on:
       - production
 
 jobs:
-  check-label:
+  check-labels:
     runs-on: ubuntu-latest
     outputs:
-      should-deploy: ${{ steps.check.outputs.labeled }}
+      should-deploy: ${{ steps.check.outputs.should-deploy }}
+      should-test: ${{ steps.check.outputs.should-test }}
     steps:
-      - name: Check for deploy-pr-environment label
+      - name: Determine what to run based on trigger
         id: check
         run: |
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'deploy-pr-environment') }}" == "true" ]]; then
-            echo "labeled=true" >> $GITHUB_OUTPUT
-          else
-            echo "labeled=false" >> $GITHUB_OUTPUT
+          echo "should-deploy=false" >> $GITHUB_OUTPUT
+          echo "should-test=false" >> $GITHUB_OUTPUT
+
+          HAS_DEPLOY_LABEL="${{ contains(github.event.pull_request.labels.*.name, 'deploy-pr-environment') }}"
+          HAS_TEST_LABEL="${{ contains(github.event.pull_request.labels.*.name, 'run-e2e-tests-pr-deploy') }}"
+          ACTION="${{ github.event.action }}"
+          ADDED_LABEL="${{ github.event.label.name }}"
+
+          if [[ "$ACTION" == "labeled" ]]; then
+            if [[ "$ADDED_LABEL" == "deploy-pr-environment" ]]; then
+              echo "should-deploy=true" >> $GITHUB_OUTPUT
+              # Also run tests if test label was already present
+              if [[ "$HAS_TEST_LABEL" == "true" ]]; then
+                echo "should-test=true" >> $GITHUB_OUTPUT
+              fi
+            elif [[ "$ADDED_LABEL" == "run-e2e-tests-pr-deploy" ]]; then
+              # Only run tests, don't re-deploy
+              echo "should-test=true" >> $GITHUB_OUTPUT
+            fi
+          elif [[ "$ACTION" == "synchronize" || "$ACTION" == "opened" || "$ACTION" == "reopened" ]]; then
+            # On new commits or PR open, re-deploy if label present
+            if [[ "$HAS_DEPLOY_LABEL" == "true" ]]; then
+              echo "should-deploy=true" >> $GITHUB_OUTPUT
+            fi
+            # Re-test if both labels present
+            if [[ "$HAS_DEPLOY_LABEL" == "true" && "$HAS_TEST_LABEL" == "true" ]]; then
+              echo "should-test=true" >> $GITHUB_OUTPUT
+            fi
           fi
 
   build-images:
-    needs: check-label
-    if: needs.check-label.outputs.should-deploy == 'true'
+    needs: check-labels
+    if: needs.check-labels.outputs.should-deploy == 'true'
     runs-on: ubuntu-latest
     environment: staging
     strategy:
@@ -109,8 +134,8 @@ jobs:
           cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:${{ matrix.image.cache_key }},mode=max
 
   deploy:
-    needs: [check-label, build-images]
-    if: needs.check-label.outputs.should-deploy == 'true'
+    needs: [check-labels, build-images]
+    if: needs.check-labels.outputs.should-deploy == 'true'
     runs-on: ubuntu-latest
     environment: staging
     env:
@@ -405,24 +430,13 @@ jobs:
             });
 
   # Remote E2E tests against deployed PR environment
-  check-e2e-label:
-    needs: deploy
-    runs-on: ubuntu-latest
-    outputs:
-      should-run: ${{ steps.check.outputs.run }}
-    steps:
-      - name: Check for run-e2e-tests-pr-deploy label
-        id: check
-        run: |
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'run-e2e-tests-pr-deploy') }}" == "true" ]]; then
-            echo "run=true" >> $GITHUB_OUTPUT
-          else
-            echo "run=false" >> $GITHUB_OUTPUT
-          fi
-
+  # Runs when: test label just added (deploy skipped), or deploy just completed with test label present
   e2e-vitest-remote:
-    needs: [check-e2e-label, deploy]
-    if: needs.check-e2e-label.outputs.should-run == 'true'
+    needs: [check-labels, deploy]
+    if: >-
+      always() &&
+      needs.check-labels.outputs.should-test == 'true' &&
+      (needs.deploy.result == 'success' || needs.deploy.result == 'skipped')
     runs-on: ubuntu-latest
     environment: staging
     env:
@@ -567,8 +581,11 @@ jobs:
           retention-days: 7
 
   e2e-playwright-remote:
-    needs: [check-e2e-label, deploy]
-    if: needs.check-e2e-label.outputs.should-run == 'true'
+    needs: [check-labels, deploy]
+    if: >-
+      always() &&
+      needs.check-labels.outputs.should-test == 'true' &&
+      (needs.deploy.result == 'success' || needs.deploy.result == 'skipped')
     runs-on: ubuntu-latest
     env:
       PR_NUMBER: ${{ github.event.pull_request.number }}
