@@ -26,16 +26,24 @@ type SubscriptionData = {
   };
 };
 
-type SuggestionData = {
-  shouldUpgrade: boolean;
-  currentUsage?: number;
-  currentLimit?: number;
-  usagePercent?: number;
-  suggestedPlan?: string;
-  suggestedTier?: string;
-  suggestedLimit?: number;
-  monthlySavings?: number;
+type SuggestionNoUpgrade = {
+  shouldUpgrade: false;
 };
+
+type SuggestionUpgrade = {
+  shouldUpgrade: true;
+  currentPlan: string;
+  currentTier: string | null;
+  currentUsage: number;
+  currentLimit: number;
+  usagePercent: number;
+  suggestedPlan: string;
+  suggestedTier: string;
+  suggestedLimit: number;
+  monthlySavings: number;
+};
+
+type SuggestionData = SuggestionNoUpgrade | SuggestionUpgrade;
 
 const STATUS_VARIANT: Record<
   string,
@@ -184,28 +192,21 @@ function BillingAlertBanner({
 function UpgradeSuggestionBanner({
   suggestion,
 }: {
-  suggestion: SuggestionData;
-}): React.ReactElement | null {
-  if (!suggestion.shouldUpgrade) {
-    return null;
-  }
-
-  const savingsFormatted =
-    suggestion.monthlySavings !== undefined
-      ? `$${(suggestion.monthlySavings / 100).toFixed(2)}`
-      : null;
+  suggestion: SuggestionUpgrade;
+}): React.ReactElement {
+  const savingsFormatted = `$${(suggestion.monthlySavings / 100).toFixed(2)}`;
 
   return (
     <div className="rounded-md border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-600 dark:text-blue-400">
       <p className="font-medium">
-        You've used {suggestion.currentUsage?.toLocaleString()} of{" "}
-        {suggestion.currentLimit?.toLocaleString()} executions this month (
+        You've used {suggestion.currentUsage.toLocaleString()} of{" "}
+        {suggestion.currentLimit.toLocaleString()} executions this month (
         {suggestion.usagePercent}%).
       </p>
       <p className="mt-1 text-blue-500 dark:text-blue-300">
         Upgrading to {suggestion.suggestedPlan} ({suggestion.suggestedTier})
-        would include {suggestion.suggestedLimit?.toLocaleString()} executions
-        {savingsFormatted
+        would include {suggestion.suggestedLimit.toLocaleString()} executions
+        {suggestion.monthlySavings > 0
           ? ` and save ~${savingsFormatted}/mo in overage fees`
           : ""}
         .
@@ -348,7 +349,7 @@ function BillingStatusContent({
         />
       )}
 
-      {suggestion?.shouldUpgrade && (
+      {suggestion?.shouldUpgrade === true && (
         <UpgradeSuggestionBanner suggestion={suggestion} />
       )}
 
