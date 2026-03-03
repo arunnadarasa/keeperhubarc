@@ -22,10 +22,9 @@ export function AddNode({ data }: NodeProps & { data?: AddNodeData }) {
 
   return (
     <div className="flex flex-col items-center justify-center gap-8 rounded-lg border border-border border-dashed bg-background/50 p-8 backdrop-blur-sm">
-      <div className="text-center">
-        <h1 className="mb-2 flex items-center justify-center gap-2 font-bold text-3xl">
-          {CustomLogo && <CustomLogo className="size-10" />} {appName}
-        </h1>
+      <div className="flex flex-col items-center text-center">
+        {CustomLogo && <CustomLogo className="mb-2 size-10" />}
+        <h1 className="mb-1 font-bold text-3xl">{appName}</h1>
         <p className="text-muted-foreground">Automate anything onchain</p>
       </div>
       {/* start custom keeperhub code */}

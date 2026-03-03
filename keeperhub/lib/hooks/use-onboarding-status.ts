@@ -26,6 +26,7 @@ type OnboardingStatus = {
   isLoading: boolean;
   allComplete: boolean;
   completedCount: number;
+  refetch: () => void;
   hidden: boolean;
   hide: () => void;
   show: () => void;
@@ -71,6 +72,11 @@ export function useOnboardingStatus(): OnboardingStatus {
   ]);
   const [isLoading, setIsLoading] = useState(true);
   const [hidden, setHidden] = useState(isDismissed);
+  const [refetchKey, setRefetchKey] = useState(0);
+
+  const refetch = useCallback(() => {
+    setRefetchKey((k) => k + 1);
+  }, []);
 
   const isAuthenticated = Boolean(session?.user);
 
@@ -92,6 +98,7 @@ export function useOnboardingStatus(): OnboardingStatus {
     }
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refetchKey intentionally triggers re-fetch
   useEffect(() => {
     if (!isAuthenticated) {
       setIsLoading(false);
@@ -150,7 +157,7 @@ export function useOnboardingStatus(): OnboardingStatus {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, refetchKey]);
 
   const completedCount = steps.filter((s) => s.complete).length;
   const allComplete = completedCount === steps.length;
@@ -163,5 +170,6 @@ export function useOnboardingStatus(): OnboardingStatus {
     hidden,
     hide,
     show,
+    refetch,
   };
 }

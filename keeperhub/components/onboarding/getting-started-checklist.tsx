@@ -84,8 +84,16 @@ function isAnonymousSession(
 export function GettingStartedChecklist({
   onCreateWorkflow,
 }: GettingStartedChecklistProps): React.ReactElement | null {
-  const { steps, isLoading, allComplete, completedCount, hidden, hide, show } =
-    useOnboardingStatus();
+  const {
+    steps,
+    isLoading,
+    allComplete,
+    completedCount,
+    hidden,
+    hide,
+    show,
+    refetch,
+  } = useOnboardingStatus();
   const { open: openOverlay } = useOverlay();
   const { data: session } = useSession();
   const authTriggerRef = useRef<HTMLButtonElement>(null);
@@ -133,7 +141,8 @@ export function GettingStartedChecklist({
           </Tooltip>
         </TooltipProvider>
       ),
-      action: () => openOverlay(ApiKeysOverlay),
+      action: () =>
+        openOverlay(ApiKeysOverlay, undefined, { onClose: refetch }),
     },
     {
       id: "create-wallet",
@@ -161,7 +170,7 @@ export function GettingStartedChecklist({
           </Tooltip>
         </TooltipProvider>
       ),
-      action: () => openOverlay(WalletOverlay),
+      action: () => openOverlay(WalletOverlay, undefined, { onClose: refetch }),
     },
     {
       id: "fund-wallet",
@@ -180,7 +189,7 @@ export function GettingStartedChecklist({
           </Tooltip>
         </TooltipProvider>
       ),
-      action: () => openOverlay(WalletOverlay),
+      action: () => openOverlay(WalletOverlay, undefined, { onClose: refetch }),
     },
   ];
 
@@ -272,6 +281,18 @@ export function GettingStartedChecklist({
           </div>
         </div>
       )}
+
+      <p className="mt-1.5 text-center text-base tracking-wide text-muted-foreground/40">
+        Read{" "}
+        <a
+          className="underline decoration-muted-foreground/20 underline-offset-2 transition-colors hover:text-muted-foreground hover:decoration-muted-foreground/40"
+          href="https://docs.keeperhub.com/"
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          docs
+        </a>
+      </p>
     </div>
   );
 }
