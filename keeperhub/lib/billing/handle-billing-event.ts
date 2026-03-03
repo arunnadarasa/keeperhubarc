@@ -1,6 +1,9 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { organizationSubscriptions } from "@/lib/db/schema";
+import {
+  organizationSubscriptions,
+  overageBillingRecords,
+} from "@/lib/db/schema";
 import { BILLING_ALERTS } from "./constants";
 import { clearAllDebtForOrg, clearDebtForInvoice } from "./execution-debt";
 import { billOverageForOrg } from "./overage";
@@ -353,6 +356,22 @@ async function handleSubscriptionDeleted(
   }
 }
 
+async function markOverageRecordsPaid(
+  organizationId: string,
+  invoiceId: string
+): Promise<void> {
+  await db
+    .update(overageBillingRecords)
+    .set({ providerInvoiceId: invoiceId })
+    .where(
+      and(
+        eq(overageBillingRecords.organizationId, organizationId),
+        eq(overageBillingRecords.status, "billed"),
+        isNull(overageBillingRecords.providerInvoiceId)
+      )
+    );
+}
+
 async function handleInvoicePaid(
   data: BillingWebhookEvent["data"]
 ): Promise<void> {
@@ -365,6 +384,8 @@ async function handleInvoicePaid(
 
   if (providerSubscriptionId) {
     console.warn(LOG_PREFIX, "invoice.paid - subId:", providerSubscriptionId);
+
+    const sub = await findSubscriptionByProviderId(providerSubscriptionId);
 
     await db
       .update(organizationSubscriptions)
@@ -380,6 +401,10 @@ async function handleInvoicePaid(
           providerSubscriptionId
         )
       );
+
+    if (sub && invoiceId) {
+      await markOverageRecordsPaid(sub.organizationId, invoiceId);
+    }
     return;
   }
 
@@ -405,6 +430,10 @@ async function handleInvoicePaid(
         .where(
           eq(organizationSubscriptions.organizationId, sub.organizationId)
         );
+
+      if (invoiceId) {
+        await markOverageRecordsPaid(sub.organizationId, invoiceId);
+      }
     }
   }
 }

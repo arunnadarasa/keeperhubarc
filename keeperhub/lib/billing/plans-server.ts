@@ -196,9 +196,22 @@ export async function checkExecutionLimit(
   );
 
   const used = result[0]?.count ?? 0;
+  const planDef = PLANS[plan];
 
-  // Under the debt-adjusted limit: always allowed, no overage
-  if (used < effectiveLimit) {
+  // Paid plans with active debt (unpaid overage past 15-day grace period) are blocked
+  if (debtExecutions > 0 && planDef.overage.enabled) {
+    return {
+      allowed: false,
+      limit: limits.maxExecutionsPerMonth,
+      used,
+      plan,
+      debtExecutions,
+      effectiveLimit,
+    };
+  }
+
+  // Under limit: always allowed, no overage
+  if (used < limits.maxExecutionsPerMonth) {
     return {
       allowed: true,
       isOverage: false,
@@ -207,12 +220,8 @@ export async function checkExecutionLimit(
     };
   }
 
-  // Between effectiveLimit and plan limit: blocked (debt penalty zone).
-  // Between plan limit and infinity: overage if paid+active, else blocked.
-  const planDef = PLANS[plan];
-  const overPlanLimit = used >= limits.maxExecutionsPerMonth;
-
-  if (overPlanLimit && planDef.overage.enabled && sub?.status === "active") {
+  // Paid plans over limit: allowed with overage billing
+  if (planDef.overage.enabled && sub?.status === "active") {
     return {
       allowed: true,
       isOverage: true,
@@ -224,6 +233,7 @@ export async function checkExecutionLimit(
     };
   }
 
+  // Free plans and inactive subscriptions are blocked at the limit
   return {
     allowed: false,
     limit: limits.maxExecutionsPerMonth,

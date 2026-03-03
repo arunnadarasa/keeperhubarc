@@ -17,6 +17,8 @@ type GuardBlocked = {
 export type ExecutionGuardResult = GuardAllowed | GuardBlocked;
 
 export const EXECUTION_LIMIT_ERROR = "Monthly execution limit exceeded";
+export const EXECUTION_DEBT_ERROR =
+  "Executions suspended due to unpaid overage invoice. Please update your payment method.";
 
 /**
  * Enforce execution limits for a given organization.
@@ -47,11 +49,13 @@ export async function enforceExecutionLimit(
     return { blocked: false, limitResult: result };
   }
 
+  const hasDebt = result.debtExecutions > 0;
+
   return {
     blocked: true,
     response: NextResponse.json(
       {
-        error: EXECUTION_LIMIT_ERROR,
+        error: hasDebt ? EXECUTION_DEBT_ERROR : EXECUTION_LIMIT_ERROR,
         limit: result.limit,
         used: result.used,
         plan: result.plan,
