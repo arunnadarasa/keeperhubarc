@@ -2,16 +2,15 @@ import { defineProtocol } from "@/keeperhub/lib/protocol-registry";
 
 export default defineProtocol({
   name: "Aave V3",
-  slug: "aave-v3",
+  slug: "aave",
   description:
     "Aave V3 lending and borrowing protocol -- supply, borrow, repay, and monitor account health",
   website: "https://aave.com",
-  icon: "/protocols/aave-v3.png",
+  icon: "/protocols/aave.png",
 
   contracts: {
     pool: {
       label: "Aave V3 Pool",
-      // Proxy contract -- ABI auto-resolved via abi-cache
       addresses: {
         // Ethereum Mainnet
         "1": "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
@@ -22,6 +21,7 @@ export default defineProtocol({
         // Optimism
         "10": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
       },
+      // Proxy contract -- ABI auto-resolved via abi-cache
     },
     poolDataProvider: {
       label: "Aave V3 Pool Data Provider",
@@ -35,6 +35,7 @@ export default defineProtocol({
         // Optimism
         "10": "0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654",
       },
+      // ABI auto-resolved via abi-cache
     },
   },
 
