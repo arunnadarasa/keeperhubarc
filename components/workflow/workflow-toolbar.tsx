@@ -37,6 +37,7 @@ import { GoLiveOverlay } from "@/keeperhub/components/overlays/go-live-overlay";
 import { Switch } from "@/keeperhub/components/ui/switch";
 // start custom keeperhub code //
 import { BUILTIN_NODE_ID } from "@/keeperhub/lib/builtin-variables";
+import { isAnonymousUser } from "@/keeperhub/lib/is-anonymous";
 import { api, type Project, type Tag } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
 import { getCustomLogo } from "@/lib/extension-registry";
@@ -1073,12 +1074,7 @@ function useWorkflowActions(state: ReturnType<typeof useWorkflowState>) {
     }
 
     // When enabling, check if user is logged in (not anonymous)
-    const isAnonymous =
-      !session?.user ||
-      session.user.name === "Anonymous" ||
-      session.user.email?.startsWith("temp-");
-
-    if (isAnonymous) {
+    if (isAnonymousUser(session?.user)) {
       toast.error("Please sign in to activate your workflow");
       return;
     }
@@ -1360,16 +1356,16 @@ function ToolbarActions({
       </ButtonGroup>
 
       {/* Save/Download - Mobile Vertical */}
-      <ButtonGroup className="flex lg:hidden" orientation="vertical">
+      <div className="flex flex-col gap-1 lg:hidden">
         <SaveButton handleSave={actions.handleSave} state={state} />
         <DownloadButton actions={actions} state={state} />
-      </ButtonGroup>
+      </div>
 
       {/* Save/Download - Desktop Horizontal */}
-      <ButtonGroup className="hidden lg:flex" orientation="horizontal">
+      <div className="hidden gap-1 lg:flex">
         <SaveButton handleSave={actions.handleSave} state={state} />
         <DownloadButton actions={actions} state={state} />
-      </ButtonGroup>
+      </div>
 
       {/* Visibility Toggle */}
       <VisibilityButton actions={actions} state={state} />
@@ -1408,15 +1404,28 @@ function SaveButton({
   state: ReturnType<typeof useWorkflowState>;
   handleSave: () => Promise<void>;
 }) {
-  return (
+  // start custom keeperhub code //
+  const isAnonymous = isAnonymousUser(state.session?.user);
+  const disabled =
+    isAnonymous ||
+    !state.currentWorkflowId ||
+    state.isGenerating ||
+    state.isSaving;
+  // end keeperhub code //
+
+  const button = (
     <Button
       className="relative border hover:bg-black/5 disabled:opacity-100 dark:hover:bg-white/5 disabled:[&>svg]:text-muted-foreground"
-      disabled={
-        !state.currentWorkflowId || state.isGenerating || state.isSaving
-      }
+      disabled={disabled}
       onClick={handleSave}
       size="icon"
-      title={state.isSaving ? "Saving..." : "Save workflow"}
+      title={
+        isAnonymous
+          ? "Sign in to save workflows"
+          : state.isSaving
+            ? "Saving..."
+            : "Save workflow"
+      }
       variant="secondary"
     >
       {state.isSaving ? (
@@ -1424,11 +1433,26 @@ function SaveButton({
       ) : (
         <Save className="size-4" />
       )}
-      {state.hasUnsavedChanges && !state.isSaving && (
+      {state.hasUnsavedChanges && !state.isSaving && !isAnonymous && (
         <div className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary" />
       )}
     </Button>
   );
+
+  // start custom keeperhub code //
+  if (isAnonymous) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-block">{button}</span>
+        </TooltipTrigger>
+        <TooltipContent>Sign in to save workflows</TooltipContent>
+      </Tooltip>
+    );
+  }
+  // end keeperhub code //
+
+  return button;
 }
 
 // Download Button Component
