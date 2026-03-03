@@ -1,4 +1,4 @@
-import { ethers } from "ethers";
+import { ethers, isError } from "ethers";
 
 /**
  * Interface for metrics collection - allows dependency injection
@@ -96,6 +96,7 @@ export class RpcProviderManager {
 
   private static readonly DEFAULT_MAX_RETRIES = 3;
   private static readonly DEFAULT_TIMEOUT_MS = 30_000;
+  private static readonly RETRY_AFTER_CAP_SECONDS = 30;
 
   constructor(options: RpcProviderManagerOptions) {
     const {
@@ -304,6 +305,30 @@ export class RpcProviderManager {
         }
 
         if (attempt === maxRetries - 1) {
+          break;
+        }
+
+        // On 429 rate limit: respect Retry-After if within cap,
+        // otherwise bail immediately and let executeWithFailover switch providers
+        if (
+          isError(error, "SERVER_ERROR") &&
+          error.response?.statusCode === 429
+        ) {
+          const retryAfterHeader = error.response.getHeader("retry-after");
+          const retryAfterSeconds = retryAfterHeader
+            ? Number.parseInt(retryAfterHeader, 10)
+            : Number.NaN;
+
+          if (
+            !Number.isNaN(retryAfterSeconds) &&
+            retryAfterSeconds > 0 &&
+            retryAfterSeconds <= RpcProviderManager.RETRY_AFTER_CAP_SECONDS
+          ) {
+            await this.delay(retryAfterSeconds * 1000);
+            continue;
+          }
+
+          // No usable Retry-After -- stop retrying this provider
           break;
         }
 
