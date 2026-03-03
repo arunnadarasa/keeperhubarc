@@ -1,4 +1,4 @@
-name: E2E Tests Local
+name: E2E Tests Ephemeral
 
 on:
   push:
@@ -33,18 +33,18 @@ jobs:
           elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
             if [[ "${{ github.event.action }}" == "labeled" ]]; then
               # Only run when the run-e2e-tests-local label was the one just added
-              if [[ "${{ github.event.label.name }}" == "run-e2e-tests-local" ]]; then
+              if [[ "${{ github.event.label.name }}" == "run-e2e-tests-ephemeral" ]]; then
                 echo "run-e2e=true" >> $GITHUB_OUTPUT
               fi
             elif [[ "${{ github.event.action }}" == "synchronize" ]]; then
               # On new commits, re-run if the label is already present
-              if [[ "${{ contains(github.event.pull_request.labels.*.name, 'run-e2e-tests-local') }}" == "true" ]]; then
+              if [[ "${{ contains(github.event.pull_request.labels.*.name, 'run-e2e-tests-ephemeral') }}" == "true" ]]; then
                 echo "run-e2e=true" >> $GITHUB_OUTPUT
               fi
             fi
           fi
 
-  e2e-vitest-local:
+  e2e-vitest-ephemeral:
     needs: should-run
     if: needs.should-run.outputs.run-e2e == 'true'
     runs-on: ubuntu-latest
@@ -224,8 +224,8 @@ jobs:
 
   # Playwright E2E tests (browser-based, sharded)
   # Runs after Vitest to avoid conflicts on shared external test accounts
-  e2e-playwright-local:
-    needs: [should-run, e2e-vitest-local]
+  e2e-playwright-ephemeral:
+    needs: [should-run, e2e-vitest-ephemeral]
     if: needs.should-run.outputs.run-e2e == 'true'
     runs-on: ubuntu-latest
     environment: staging

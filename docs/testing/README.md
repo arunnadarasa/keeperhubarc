@@ -43,7 +43,13 @@ Tests run against a deployed environment over HTTPS:
 - Staging: `https://app-staging.keeperhub.com`
 - Production: `https://app.keeperhub.com`
 
-**PR environments:** Both vitest and playwright run remotely. Vitest gets full database access via `kubectl port-forward` to CloudNativePG (`svc/keeperhub-pr-N-db-rw`) and LocalStack (`svc/localstack`). Playwright runs browser tests against the deployed URL.
+**PR environments:** Both vitest and playwright run remotely. Vitest gets database access via `kubectl port-forward` to CloudNativePG (`svc/keeperhub-pr-N-db-rw`) and LocalStack (`svc/localstack`). Playwright runs browser tests against the deployed URL.
+
+**Remote vitest exclusions:** Two test files are excluded from remote vitest runs:
+- `full-pipeline.test.ts` -- Spawns local `workflow-runner` processes and relies on direct SQS message send/receive. Cannot work remotely because workflow execution happens in K8s, not on the CI runner.
+- `write-contract-workflow.test.ts` -- Requires the wallet encryption key to match the environment's seeded data exactly. The PR environment seeds wallets during deployment, and the CI runner's key may not match.
+
+**Remote playwright setup:** Playwright uses admin test API endpoints (`/api/admin/test/otp`, `/api/admin/test/invitation`) for DB lookups when `TEST_API_KEY` + `BASE_URL` are set. `global-setup.ts` runs preflight checks and skips DB seeding in remote mode.
 
 **Staging/prod:** Only playwright runs post-deploy. Vitest is excluded -- see [Design Decisions](#design-decisions) below.
 
@@ -167,11 +173,53 @@ Vitest E2E tests are not run against staging/prod after deployment. Only Playwri
 **Why Playwright is safe for this:** Playwright tests interact exclusively through the browser and HTTP API layer. All data mutations go through the application's authentication, authorization, and validation logic. The app controls what gets written.
 
 **What covers the gap:**
-- **Pre-deploy gate:** `e2e-vitest-local` runs against an isolated database before the deploy is allowed to proceed. This validates all backend logic.
-- **Post-deploy verification:** `e2e-playwright-remote` confirms the deployed application is functional end-to-end through the UI.
+- **Pre-deploy gate:** `e2e-vitest-ephemeral` runs against an isolated database before the deploy is allowed to proceed. This validates all backend logic.
+- **Post-deploy verification:** `e2e-playwright-remote` confirms the deployed application is functional end-to-end through the UI, using admin test API endpoints for DB lookups.
 - **PR environments:** `e2e-vitest-remote` runs with full DB access on PR deploys, where each PR has an isolated CloudNativePG instance. No risk to shared data.
 
 **If this needs to change:** The staging/prod databases are RDS instances accessible only within the VPC. Connecting from a CI runner would require either a socat tunnel pod in K8s or running tests as a K8s Job inside the cluster. Both add complexity and the orphaned-resource risk outweighs the benefit given the existing coverage.
+
+### Remote vitest test exclusions (PR environments)
+
+When vitest runs remotely against a PR environment, two test files are excluded:
+
+- **`full-pipeline.test.ts`** -- Uses `child_process.spawn` to run `workflow-runner` locally and sends SQS messages expecting local consumption. In a PR environment, workflow execution happens in K8s pods, not on the CI runner.
+- **`write-contract-workflow.test.ts`** -- Depends on the wallet encryption key matching the exact seeded data. The PR environment seeds wallet data during its deploy pipeline, and the CI runner may not have a compatible key.
+
+The remaining 10 vitest files (114+ tests) run successfully against PR environments via `kubectl port-forward`.
+
+### Admin test API endpoints (TEST_API_KEY)
+
+Playwright tests that need database lookups (OTP codes, invitation IDs) previously required direct DB access, which excluded them from remote runs. Instead of `kubectl port-forward` or VPC tunneling from CI runners, the app exposes two admin API endpoints gated by a `TEST_API_KEY` (`kha_...` prefixed, stored in AWS SSM):
+
+- `GET /api/admin/test/otp?email=xxx` -- Returns the latest OTP for the given email
+- `GET /api/admin/test/invitation?email=xxx` -- Returns the pending invitation ID for the given email
+
+Both endpoints validate:
+1. `Authorization: Bearer <TEST_API_KEY>` via timing-safe comparison
+2. Email must end with `@techops.services`
+
+The Playwright test utils (`getOtpFromDb`, `getInvitationIdFromDb`) automatically use these endpoints when `TEST_API_KEY` + `BASE_URL` are both set (remote mode), falling back to direct DB queries for local/ephemeral runs. This eliminates the need for `--grep-invert` exclusions on invitation and wallet tests.
+
+### Remote Playwright exclusions (remaining)
+
+Only `happy-paths` tests are excluded from remote Playwright runs via `--grep-invert`. These are long-running integration scenarios that require local infrastructure (SQS, workflow-runner).
+
+### Preflight checks
+
+Playwright's `global-setup.ts` runs preflight validation before any tests execute:
+
+- **Remote mode** (`BASE_URL` set): Validates `TEST_API_KEY` is present. Fails fast if missing. Skips DB seeding (deployed environments manage their own state).
+- **Ephemeral mode** (no `BASE_URL`): Validates/defaults `DATABASE_URL`. Runs full cleanup + seed cycle.
+
+### Naming convention
+
+| Job name | Where | What |
+|---|---|---|
+| `e2e-vitest-ephemeral` | `e2e-tests-ephemeral.yml` | Vitest against ephemeral CI postgres + localstack |
+| `e2e-playwright-ephemeral` | `e2e-tests-ephemeral.yml` | Playwright against ephemeral CI app (sharded) |
+| `e2e-vitest-remote` | `deploy-pr-environment.yaml` | Vitest against deployed PR env via kubectl port-forward |
+| `e2e-playwright-remote` | `deploy-pr-environment.yaml`, `deploy-keeperhub.yaml` | Playwright against deployed env via admin API |
 
 ---
 

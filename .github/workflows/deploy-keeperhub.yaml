@@ -212,6 +212,7 @@ jobs:
         run: pnpm exec playwright test --grep-invert "happy-paths"
         env:
           BASE_URL: ${{ env.BASE_URL }}
+          TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
           CI: true
 
       - name: Upload Playwright report

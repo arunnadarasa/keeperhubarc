@@ -553,7 +553,10 @@ jobs:
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 
       - name: Run E2E Vitest tests (remote)
-        run: pnpm test:e2e:vitest
+        run: >-
+          pnpm vitest run tests/e2e/vitest
+          --exclude '**/full-pipeline.test.ts'
+          --exclude '**/write-contract-workflow.test.ts'
         env:
           KEEPERHUB_URL: ${{ env.KEEPERHUB_URL }}
           WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
@@ -667,6 +670,7 @@ jobs:
         run: pnpm exec playwright test --grep-invert "happy-paths"
         env:
           BASE_URL: ${{ env.BASE_URL }}
+          TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           CI: true

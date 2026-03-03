@@ -2,6 +2,17 @@ import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 import postgres from "postgres";
 
+function getAdminFetchHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${process.env.TEST_API_KEY}`,
+  };
+  if (process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET) {
+    headers["CF-Access-Client-Id"] = process.env.CF_ACCESS_CLIENT_ID;
+    headers["CF-Access-Client-Secret"] = process.env.CF_ACCESS_CLIENT_SECRET;
+  }
+  return headers;
+}
+
 /**
  * Sign up a new user and navigate to verification view.
  * Returns the test email for later use.
@@ -45,13 +56,46 @@ export async function signUp(
 }
 
 /**
- * Get OTP from database for a given email.
- * Requires DATABASE_URL environment variable.
+ * Get OTP for a given email.
+ * Uses admin API when TEST_API_KEY + BASE_URL are set (remote/deployed mode).
+ * Falls back to direct DB query when DATABASE_URL is available (local mode).
  */
 export async function getOtpFromDb(email: string): Promise<string> {
+  const adminKey = process.env.TEST_API_KEY;
+  const baseUrl = process.env.BASE_URL;
+
+  if (adminKey && baseUrl) {
+    return await getOtpViaApi(email, baseUrl);
+  }
+
+  return await getOtpViaDb(email);
+}
+
+async function getOtpViaApi(email: string, baseUrl: string): Promise<string> {
+  const url = `${baseUrl}/api/admin/test/otp?email=${encodeURIComponent(email)}`;
+  const maxRetries = 10;
+
+  for (let i = 0; i < maxRetries; i++) {
+    const response = await fetch(url, { headers: getAdminFetchHeaders() });
+    if (response.ok) {
+      const data = (await response.json()) as { otp: string };
+      return data.otp;
+    }
+    if (response.status !== 404) {
+      const body = await response.text();
+      throw new Error(`Admin OTP API returned ${response.status}: ${body}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error(
+    `No OTP found for ${email} after ${maxRetries} retries via API`
+  );
+}
+
+async function getOtpViaDb(email: string): Promise<string> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
-    throw new Error("DATABASE_URL environment variable is required");
+    throw new Error("DATABASE_URL or TEST_API_KEY+BASE_URL is required");
   }
 
   const sql = postgres(databaseUrl, { max: 1 });
@@ -74,7 +118,6 @@ export async function getOtpFromDb(email: string): Promise<string> {
       throw new Error(`No OTP found for email: ${email}`);
     }
 
-    // Value format is "OTP:attempts", extract just the OTP
     const otp = rawValue.split(":")[0];
     return otp;
   } finally {

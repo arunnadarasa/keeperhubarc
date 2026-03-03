@@ -248,6 +248,10 @@ env:
     type: parameterStore
     name: hub-service-api-key
     parameter_name: /eks/maker-staging/keeperhub-hub/keeperhub-api-key
+  TEST_API_KEY:
+    type: parameterStore
+    name: test-api-key
+    parameter_name: /eks/maker-staging/keeperhub/test-api-key
   # PR-specific SQS configuration (using LocalStack)
   AWS_REGION:
     type: kv
