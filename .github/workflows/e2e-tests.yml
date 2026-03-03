@@ -19,6 +19,12 @@ jobs:
       run-deployed: ${{ steps.check.outputs.run-deployed }}
       pr-number: ${{ steps.check.outputs.pr-number }}
     steps:
+      - name: Checkout code
+        if: github.event_name == 'push'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - name: Check trigger conditions
         id: check
         run: |
@@ -26,6 +32,15 @@ jobs:
           echo "run-e2e=false" >> $GITHUB_OUTPUT
           echo "run-deployed=false" >> $GITHUB_OUTPUT
           echo "pr-number=" >> $GITHUB_OUTPUT
+
+          # Check for [skip e2e] flag in commit message (push events only)
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            MSG=$(git log -1 --format=%B 2>/dev/null || echo "")
+            if [[ "$MSG" == *"[skip e2e]"* ]]; then
+              echo "Skipping E2E tests: [skip e2e] found in commit message"
+              exit 0
+            fi
+          fi
 
           if [[ "${{ github.event_name }}" == "push" ]]; then
             echo "run-e2e=true" >> $GITHUB_OUTPUT

@@ -12,6 +12,7 @@ variable "IMAGE_TAG" { default = "latest" }
 variable "NEXT_PUBLIC_AUTH_PROVIDERS" { default = "" }
 variable "NEXT_PUBLIC_GITHUB_CLIENT_ID" { default = "" }
 variable "NEXT_PUBLIC_GOOGLE_CLIENT_ID" { default = "" }
+variable "ENVIRONMENT_TAG" { default = "" }
 
 group "default" {
   targets = ["app", "migrator"]
@@ -26,10 +27,11 @@ target "app" {
     NEXT_PUBLIC_GITHUB_CLIENT_ID = NEXT_PUBLIC_GITHUB_CLIENT_ID
     NEXT_PUBLIC_GOOGLE_CLIENT_ID = NEXT_PUBLIC_GOOGLE_CLIENT_ID
   }
-  tags = [
+  tags = compact([
     "${ECR_REGISTRY}/${ECR_REPO}:app-${IMAGE_TAG}",
     "${ECR_REGISTRY}/${ECR_REPO}:app-latest",
-  ]
+    ENVIRONMENT_TAG != "" ? "${ECR_REGISTRY}/${ECR_REPO}:${ENVIRONMENT_TAG}" : "",
+  ])
   cache-from = ["type=registry,ref=${ECR_REGISTRY}/${ECR_REPO}:cache-app"]
   cache-to   = ["type=registry,ref=${ECR_REGISTRY}/${ECR_REPO}:cache-app,mode=max"]
 }
