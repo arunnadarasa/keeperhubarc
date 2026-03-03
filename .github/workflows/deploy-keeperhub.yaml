@@ -74,6 +74,7 @@ jobs:
           NEXT_PUBLIC_AUTH_PROVIDERS: ${{ env.NEXT_PUBLIC_AUTH_PROVIDERS }}
           NEXT_PUBLIC_GITHUB_CLIENT_ID: ${{ env.NEXT_PUBLIC_GITHUB_CLIENT_ID }}
           NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ env.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
+          BUILDX_BAKE_GIT_AUTH_TOKEN: ${{ secrets.KEEPERHUB_SUBMODULE_TOKEN }}
         with:
           files: docker-bake.hcl
           push: true
