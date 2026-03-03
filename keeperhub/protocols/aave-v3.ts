@@ -20,6 +20,8 @@ export default defineProtocol({
         "42161": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
         // Optimism
         "10": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
+        // Sepolia Testnet
+        "11155111": "0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951",
       },
       // Proxy contract -- ABI auto-resolved via abi-cache
     },
@@ -34,6 +36,8 @@ export default defineProtocol({
         "42161": "0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654",
         // Optimism
         "10": "0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654",
+        // Sepolia Testnet
+        "11155111": "0x3e9708d80f7B3e43118013075F7e95CE3AB31F31",
       },
       // ABI auto-resolved via abi-cache
     },
