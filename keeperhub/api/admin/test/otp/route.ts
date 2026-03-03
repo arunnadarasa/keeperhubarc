@@ -27,7 +27,7 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   const emailError = validateTestEmail(email);
   if (emailError) {
-    return NextResponse.json({ error: emailError }, { status: 400 });
+    return NextResponse.json({ error: emailError }, { status: 403 });
   }
 
   try {
