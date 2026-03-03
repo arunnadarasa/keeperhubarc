@@ -16,6 +16,8 @@ type GuardBlocked = {
 
 export type ExecutionGuardResult = GuardAllowed | GuardBlocked;
 
+export const EXECUTION_LIMIT_ERROR = "Monthly execution limit exceeded";
+
 /**
  * Enforce execution limits for a given organization.
  *
@@ -49,7 +51,7 @@ export async function enforceExecutionLimit(
     blocked: true,
     response: NextResponse.json(
       {
-        error: "Monthly execution limit exceeded",
+        error: EXECUTION_LIMIT_ERROR,
         limit: result.limit,
         used: result.used,
         plan: result.plan,

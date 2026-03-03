@@ -9,7 +9,10 @@ import {
   MetricNames,
 } from "@/keeperhub/lib/metrics";
 // start custom keeperhub code //
-import { enforceExecutionLimit } from "@/keeperhub/lib/billing/execution-guard";
+import {
+  EXECUTION_LIMIT_ERROR,
+  enforceExecutionLimit,
+} from "@/keeperhub/lib/billing/execution-guard";
 import { recordWebhookMetrics } from "@/keeperhub/lib/metrics/instrumentation/api";
 import { db } from "@/lib/db";
 import { validateWorkflowIntegrations } from "@/lib/db/integrations";
@@ -238,7 +241,7 @@ export async function POST(
         workflowId,
         durationMs: timer(),
         statusCode: 429,
-        error: "Monthly execution limit exceeded",
+        error: EXECUTION_LIMIT_ERROR,
       });
       const body = await executionGuard.response.json();
       return NextResponse.json(body, {
