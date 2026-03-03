@@ -98,21 +98,31 @@ const Home = () => {
 
   // start custom keeperhub code //
   // Handler to add initial nodes and create the workflow.
-  // Creation is done here (not in a useEffect watching nodes) to avoid a race
-  // condition where stale nodes from a previously-open workflow would be picked
-  // up by the effect before the init effect's setNodes([placeholder]) is applied.
+  // If the user already has workflows, navigate to the most recent one instead
+  // of creating a new one. Anonymous users are limited to a single workflow.
   const handleAddNode = useCallback(async () => {
     if (hasCreatedWorkflowRef.current) {
       return;
     }
     hasCreatedWorkflowRef.current = true;
 
-    const { nodes: defaultNodes, edges: defaultEdges } = createDefaultNodes();
-    setNodes(defaultNodes);
-    setEdges(defaultEdges);
-
     try {
       await ensureSession();
+
+      const existing = await api.workflow.getAll();
+      if (existing.length > 0) {
+        const latest = existing.sort(
+          (a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        )[0];
+        setIsTransitioningFromHomepage(true);
+        router.replace(`/workflows/${latest.id}`);
+        return;
+      }
+
+      const { nodes: defaultNodes, edges: defaultEdges } = createDefaultNodes();
+      setNodes(defaultNodes);
+      setEdges(defaultEdges);
 
       const newWorkflow = await api.workflow.create({
         name: "Untitled Workflow",

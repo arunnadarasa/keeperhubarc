@@ -1360,16 +1360,16 @@ function ToolbarActions({
       </ButtonGroup>
 
       {/* Save/Download - Mobile Vertical */}
-      <ButtonGroup className="flex lg:hidden" orientation="vertical">
+      <div className="flex flex-col gap-1 lg:hidden">
         <SaveButton handleSave={actions.handleSave} state={state} />
         <DownloadButton actions={actions} state={state} />
-      </ButtonGroup>
+      </div>
 
       {/* Save/Download - Desktop Horizontal */}
-      <ButtonGroup className="hidden lg:flex" orientation="horizontal">
+      <div className="hidden gap-1 lg:flex">
         <SaveButton handleSave={actions.handleSave} state={state} />
         <DownloadButton actions={actions} state={state} />
-      </ButtonGroup>
+      </div>
 
       {/* Visibility Toggle */}
       <VisibilityButton actions={actions} state={state} />
