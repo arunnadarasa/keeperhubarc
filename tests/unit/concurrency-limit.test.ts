@@ -67,27 +67,39 @@ describe("checkConcurrencyLimit", () => {
 
   it("uses custom limit from env var", async () => {
     process.env.MAX_CONCURRENT_WORKFLOW_EXECUTIONS = "10";
+    vi.resetModules();
+    const { checkConcurrencyLimit: freshCheck } = await import(
+      "@/keeperhub/api/execute/_lib/concurrency-limit"
+    );
     mockRunningCount = 10;
 
-    const result = await checkConcurrencyLimit();
+    const result = await freshCheck();
 
     expect(result).toEqual({ allowed: false, running: 10, limit: 10 });
   });
 
   it("allows when below custom limit", async () => {
     process.env.MAX_CONCURRENT_WORKFLOW_EXECUTIONS = "10";
+    vi.resetModules();
+    const { checkConcurrencyLimit: freshCheck } = await import(
+      "@/keeperhub/api/execute/_lib/concurrency-limit"
+    );
     mockRunningCount = 9;
 
-    const result = await checkConcurrencyLimit();
+    const result = await freshCheck();
 
     expect(result).toEqual({ allowed: true });
   });
 
   it("falls back to default when env var is not a number", async () => {
     process.env.MAX_CONCURRENT_WORKFLOW_EXECUTIONS = "abc";
+    vi.resetModules();
+    const { checkConcurrencyLimit: freshCheck } = await import(
+      "@/keeperhub/api/execute/_lib/concurrency-limit"
+    );
     mockRunningCount = 499;
 
-    const result = await checkConcurrencyLimit();
+    const result = await freshCheck();
 
     expect(result).toEqual({ allowed: true });
   });

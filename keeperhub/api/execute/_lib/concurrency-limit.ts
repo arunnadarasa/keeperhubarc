@@ -6,7 +6,7 @@ import { workflowExecutions } from "@/lib/db/schema";
 
 const DEFAULT_LIMIT = 500;
 
-function getMaxConcurrent(): number {
+function parseMaxConcurrent(): number {
   const envValue = process.env.MAX_CONCURRENT_WORKFLOW_EXECUTIONS;
   if (!envValue) {
     return DEFAULT_LIMIT;
@@ -14,6 +14,8 @@ function getMaxConcurrent(): number {
   const parsed = Number.parseInt(envValue, 10);
   return Number.isNaN(parsed) ? DEFAULT_LIMIT : parsed;
 }
+
+const MAX_CONCURRENT = parseMaxConcurrent();
 
 export type ConcurrencyLimitResult =
   | { allowed: true }
@@ -23,7 +25,7 @@ export type ConcurrencyLimitResult =
 // concurrent requests may all pass before any new execution is inserted.
 // This is acceptable -- the goal is back-pressure, not a hard guarantee.
 export async function checkConcurrencyLimit(): Promise<ConcurrencyLimitResult> {
-  const limit = getMaxConcurrent();
+  const limit = MAX_CONCURRENT;
 
   // TODO: workflow_executions.status has no DB index -- add one if this
   // query becomes a bottleneck under high execution volume.
