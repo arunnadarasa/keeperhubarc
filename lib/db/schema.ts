@@ -258,39 +258,43 @@ export const integrations = pgTable("integrations", {
 });
 
 // Workflow executions table to track workflow runs
-export const workflowExecutions = pgTable("workflow_executions", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => generateId()),
-  workflowId: text("workflow_id")
-    .notNull()
-    .references(() => workflows.id),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id),
-  status: text("status")
-    .notNull()
-    .$type<"pending" | "running" | "success" | "error" | "cancelled">(),
-  // biome-ignore lint/suspicious/noExplicitAny: JSONB type - structure validated at application level
-  input: jsonb("input").$type<Record<string, any>>(),
-  // biome-ignore lint/suspicious/noExplicitAny: JSONB type - structure validated at application level
-  output: jsonb("output").$type<any>(),
-  error: text("error"),
-  startedAt: timestamp("started_at").notNull().defaultNow(),
-  completedAt: timestamp("completed_at"),
-  duration: text("duration"), // Duration in milliseconds
-  // Progress tracking
-  totalSteps: text("total_steps"),
-  completedSteps: text("completed_steps").default("0"),
-  currentNodeId: text("current_node_id"),
-  currentNodeName: text("current_node_name"),
-  lastSuccessfulNodeId: text("last_successful_node_id"),
-  lastSuccessfulNodeName: text("last_successful_node_name"),
-  executionTrace: jsonb("execution_trace").$type<string[]>(),
-  // start custom keeperhub code //
-  runId: text("run_id"),
-  // end keeperhub code //
-});
+export const workflowExecutions = pgTable(
+  "workflow_executions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => generateId()),
+    workflowId: text("workflow_id")
+      .notNull()
+      .references(() => workflows.id),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    status: text("status")
+      .notNull()
+      .$type<"pending" | "running" | "success" | "error" | "cancelled">(),
+    // biome-ignore lint/suspicious/noExplicitAny: JSONB type - structure validated at application level
+    input: jsonb("input").$type<Record<string, any>>(),
+    // biome-ignore lint/suspicious/noExplicitAny: JSONB type - structure validated at application level
+    output: jsonb("output").$type<any>(),
+    error: text("error"),
+    startedAt: timestamp("started_at").notNull().defaultNow(),
+    completedAt: timestamp("completed_at"),
+    duration: text("duration"), // Duration in milliseconds
+    // Progress tracking
+    totalSteps: text("total_steps"),
+    completedSteps: text("completed_steps").default("0"),
+    currentNodeId: text("current_node_id"),
+    currentNodeName: text("current_node_name"),
+    lastSuccessfulNodeId: text("last_successful_node_id"),
+    lastSuccessfulNodeName: text("last_successful_node_name"),
+    executionTrace: jsonb("execution_trace").$type<string[]>(),
+    // start custom keeperhub code //
+    runId: text("run_id"),
+    // end keeperhub code //
+  },
+  (table) => [index("idx_workflow_executions_status").on(table.status)]
+);
 
 // Workflow execution logs to track individual node executions
 export const workflowExecutionLogs = pgTable("workflow_execution_logs", {

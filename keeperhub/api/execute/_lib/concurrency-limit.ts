@@ -27,8 +27,6 @@ export type ConcurrencyLimitResult =
 export async function checkConcurrencyLimit(): Promise<ConcurrencyLimitResult> {
   const limit = MAX_CONCURRENT;
 
-  // TODO: workflow_executions.status has no DB index -- add one if this
-  // query becomes a bottleneck under high execution volume.
   const [result] = await db
     .select({
       count: sql<number>`COUNT(*)::int`,
