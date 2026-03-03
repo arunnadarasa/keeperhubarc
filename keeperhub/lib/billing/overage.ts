@@ -84,8 +84,8 @@ export async function billOverageForOrg(
     return { billed: false, reason: "no overage" };
   }
 
-  const rateCents = Math.round(planDef.overage.ratePerThousand * 100);
-  const totalChargeCents = Math.ceil(overageCount / 1000) * rateCents;
+  const perExecutionCents = (planDef.overage.ratePerThousand * 100) / 1000;
+  const totalChargeCents = Math.round(overageCount * perExecutionCents);
 
   // Insert record as pending
   const [record] = await db
@@ -97,7 +97,7 @@ export async function billOverageForOrg(
       executionLimit: limits.maxExecutionsPerMonth,
       totalExecutions,
       overageCount,
-      overageRateCents: rateCents,
+      overageRateCents: Math.round(perExecutionCents * 1000),
       totalChargeCents,
       status: "pending",
     })

@@ -67,6 +67,7 @@ export async function GET(): Promise<NextResponse> {
         totalChargeCents: overageBillingRecords.totalChargeCents,
         status: overageBillingRecords.status,
         createdAt: overageBillingRecords.createdAt,
+        providerInvoiceId: overageBillingRecords.providerInvoiceId,
       })
       .from(overageBillingRecords)
       .where(eq(overageBillingRecords.organizationId, activeOrgId))

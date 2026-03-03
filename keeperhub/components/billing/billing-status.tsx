@@ -20,6 +20,7 @@ type OverageCharge = {
   totalChargeCents: number;
   status: string;
   createdAt: string;
+  providerInvoiceId: string | null;
 };
 
 type SubscriptionData = {
@@ -364,10 +365,10 @@ function ExecutionUsageBar({
 
   function resolveBarColor(): string {
     if (isOverLimit) {
-      return hasOverage ? "bg-amber-400/70" : "bg-destructive";
+      return hasOverage ? "bg-muted-foreground" : "bg-destructive";
     }
     if (isNearLimit) {
-      return "bg-yellow-400/70";
+      return "bg-yellow-500";
     }
     return "bg-keeperhub-green";
   }
@@ -384,7 +385,7 @@ function ExecutionUsageBar({
           {isUnlimited ? "Unlimited" : limit.toLocaleString()}
         </span>
       </div>
-      {!isUnlimited && (
+      {!(isUnlimited || isOverLimit) && (
         <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
           <div
             className={`h-full rounded-full transition-all ${barColor}`}
@@ -392,11 +393,27 @@ function ExecutionUsageBar({
           />
         </div>
       )}
+      {!isUnlimited && isOverLimit && (
+        <div className="flex h-2 w-full gap-0.5">
+          <div className="h-full flex-1 overflow-hidden rounded-l-full bg-muted">
+            <div className="h-full w-full rounded-l-full bg-muted-foreground" />
+          </div>
+          <div
+            className="h-full overflow-hidden rounded-r-full bg-muted"
+            style={{ width: `${Math.min((overageCount / limit) * 100, 50)}%` }}
+          >
+            <div className="h-full w-full rounded-r-full bg-destructive/50 transition-all" />
+          </div>
+        </div>
+      )}
       {isOverLimit && hasOverage && (
-        <p className="text-xs text-amber-600/80 dark:text-amber-400/80">
+        <p className="text-xs text-muted-foreground">
           {overageCount.toLocaleString()} overage execution
-          {overageCount !== 1 ? "s" : ""} at ${overageRate}/1,000 will be added
-          to your next invoice.
+          {overageCount !== 1 ? "s" : ""} at{" "}
+          <span className="font-semibold">
+            ${(overageRate / 1000).toFixed(4)}/execution
+          </span>{" "}
+          will be added to your next invoice.
         </p>
       )}
       {isOverLimit && !hasOverage && (
@@ -423,7 +440,9 @@ function OverageChargesSection({
 }: {
   charges: OverageCharge[];
 }): React.ReactElement | null {
-  const visibleCharges = charges.filter((c) => c.status !== "billed");
+  const visibleCharges = charges.filter(
+    (c) => c.providerInvoiceId === null || c.providerInvoiceId === undefined
+  );
   if (visibleCharges.length === 0) {
     return null;
   }

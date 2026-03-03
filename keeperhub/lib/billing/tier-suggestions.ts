@@ -110,7 +110,8 @@ function calculateOverageCostCents(overage: number, planDef: PlanDef): number {
   if (!planDef.overage.enabled || overage <= 0) {
     return 0;
   }
-  return Math.ceil(overage / 1000) * planDef.overage.ratePerThousand * 100;
+  const perExecutionCents = (planDef.overage.ratePerThousand * 100) / 1000;
+  return Math.round(overage * perExecutionCents);
 }
 
 function calculateTierSavings(
