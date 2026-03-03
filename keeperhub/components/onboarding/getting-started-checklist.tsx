@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  Check,
-  ChevronDown,
-  Coins,
-  Info,
-  KeyRound,
-  Wallet,
-  Workflow,
-} from "lucide-react";
+import { Check, Coins, Info, KeyRound, Wallet, Workflow } from "lucide-react";
 import { useRef } from "react";
 import { AuthDialog } from "@/components/auth/dialog";
 import { ApiKeysOverlay } from "@/components/overlays/api-keys-overlay";
@@ -196,12 +188,15 @@ export function GettingStartedChecklist({
     <div className="w-full min-w-[14rem] max-w-[16rem]">
       {hidden ? (
         <button
-          className="flex w-full items-center rounded-md border bg-popover px-2 py-1.5 text-sm font-medium shadow-md transition-colors hover:bg-accent"
+          className="flex w-full items-center gap-2 px-3 py-1.5 transition-opacity hover:opacity-80"
           onClick={show}
           type="button"
         >
-          <span>Setup Guide</span>
-          <ChevronDown className="ml-auto size-4 text-muted-foreground" />
+          <div className="h-px flex-1 bg-border/40" />
+          <span className="shrink-0 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+            Setup Guide
+          </span>
+          <div className="h-px flex-1 bg-border/40" />
         </button>
       ) : (
         <div className="rounded-md border bg-popover p-1 shadow-md">

@@ -5,6 +5,17 @@ import { useSession } from "@/lib/auth-client";
 
 const DISMISSED_KEY = "keeperhub-onboarding-dismissed";
 
+function isDismissed(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  try {
+    return localStorage.getItem(DISMISSED_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
 export type OnboardingStep = {
   id: string;
   complete: boolean;
@@ -19,17 +30,6 @@ type OnboardingStatus = {
   hide: () => void;
   show: () => void;
 };
-
-function isDismissed(): boolean {
-  if (typeof window === "undefined") {
-    return false;
-  }
-  try {
-    return localStorage.getItem(DISMISSED_KEY) === "true";
-  } catch {
-    return false;
-  }
-}
 
 function isFulfilledArray(result: PromiseSettledResult<unknown>): boolean {
   return (
@@ -93,11 +93,6 @@ export function useOnboardingStatus(): OnboardingStatus {
   }, []);
 
   useEffect(() => {
-    if (hidden) {
-      setIsLoading(false);
-      return;
-    }
-
     if (!isAuthenticated) {
       setIsLoading(false);
       return;
@@ -141,7 +136,7 @@ export function useOnboardingStatus(): OnboardingStatus {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, hidden]);
+  }, [isAuthenticated]);
 
   const completedCount = steps.filter((s) => s.complete).length;
   const allComplete = completedCount === steps.length;
