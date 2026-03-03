@@ -15,11 +15,23 @@ export async function fallbackCompleteExecution(
   params: FallbackCompleteParams
 ): Promise<void> {
   const serviceKey = process.env.EVENTS_SERVICE_API_KEY ?? "";
-  const port = process.env.PORT ?? "3000";
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);
+
+  if (!baseUrl) {
+    logSystemError(
+      ErrorCategory.INFRASTRUCTURE,
+      "[Execution Fallback] Missing required config: NEXT_PUBLIC_APP_URL or VERCEL_URL not set",
+      new Error("Missing fallback URL configuration"),
+      { execution_id: params.executionId }
+    );
+    return;
+  }
 
   try {
     const response = await fetch(
-      `http://localhost:${port}/api/internal/executions/${params.executionId}`,
+      `${baseUrl}/api/internal/executions/${params.executionId}`,
       {
         method: "PATCH",
         headers: {

@@ -12,17 +12,56 @@ describe("fallbackCompleteExecution", () => {
   let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
   const mockFetch = vi.fn();
 
+  const originalEnv = { ...process.env };
+
   beforeEach(() => {
     vi.clearAllMocks();
     consoleWarnSpy = vi
       .spyOn(console, "warn")
       .mockImplementation(() => undefined);
     vi.stubGlobal("fetch", mockFetch);
+    process.env.NEXT_PUBLIC_APP_URL = "https://app.keeperhub.io";
+    process.env.EVENTS_SERVICE_API_KEY = "test-service-key";
   });
 
   afterEach(() => {
     consoleWarnSpy.mockRestore();
     vi.unstubAllGlobals();
+    process.env = { ...originalEnv };
+  });
+
+  it("logs error and returns early when base URL is not configured", async () => {
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    delete process.env.VERCEL_URL;
+
+    await fallbackCompleteExecution({
+      executionId: "exec_no_url",
+      status: "error",
+    });
+
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockLogSystemError).toHaveBeenCalledWith(
+      "INFRASTRUCTURE",
+      expect.stringContaining("Missing required config"),
+      expect.any(Error),
+      { execution_id: "exec_no_url" }
+    );
+  });
+
+  it("uses VERCEL_URL when NEXT_PUBLIC_APP_URL is not set", async () => {
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    process.env.VERCEL_URL = "my-app.vercel.app";
+    mockFetch.mockResolvedValue({ ok: true });
+
+    await fallbackCompleteExecution({
+      executionId: "exec_vercel",
+      status: "success",
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://my-app.vercel.app/api/internal/executions/exec_vercel",
+      expect.any(Object)
+    );
   });
 
   it("sends PATCH request to internal executions endpoint", async () => {
