@@ -1,6 +1,6 @@
 on:
   workflow_run:
-    workflows: ["E2E Tests"]
+    workflows: ["E2E Tests Local"]
     types: [completed]
     branches:
       - staging
@@ -9,7 +9,7 @@ on:
 
 name: deploy-keeperhub
 jobs:
-  build-and-deploy-keeperhub:
+  build-and-deploy:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
@@ -134,3 +134,92 @@ jobs:
           chart-repository: https://techops-services.github.io/helm-charts
           version: 0.2.1
           atomic: true
+
+  e2e-playwright-remote:
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    environment: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && 'prod' || 'staging' }}
+    env:
+      BASE_URL: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && 'https://app.keeperhub.com' || 'https://app-staging.keeperhub.com' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Get Playwright version
+        run: echo "PW_VERSION=$(pnpm exec playwright --version | awk '{print $2}')" >> $GITHUB_ENV
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ env.PW_VERSION }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Install Playwright system deps
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Wait for deployment to be ready
+        run: |
+          echo "Waiting for ${{ env.BASE_URL }}/api/health to return 200..."
+          for i in {1..30}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ env.BASE_URL }}/api/health" || echo "000")
+            if [[ "$STATUS" == "200" ]]; then
+              echo "Deployment is ready!"
+              exit 0
+            fi
+            echo "Attempt $i/30: got HTTP $STATUS, waiting 10s..."
+            sleep 10
+          done
+          echo "Deployment did not become ready in time"
+          exit 1
+
+      - name: Run Playwright tests against deployed environment
+        run: pnpm exec playwright test --grep-invert "happy-paths"
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+          CI: true
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-remote-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

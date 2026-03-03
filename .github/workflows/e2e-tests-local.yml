@@ -1,36 +1,42 @@
-name: E2E Tests
+name: E2E Tests Local
 
 on:
   push:
     branches: [staging, prod]
   pull_request:
     types: [labeled, synchronize]
-  # Run after PR environment deployment completes
-  workflow_run:
-    workflows: ["Deploy PR Environment"]
-    types: [completed]
 
 jobs:
-  # Check if E2E tests should run
-  # NOTE: E2E tests are temporarily disabled. All test jobs will be skipped
-  # but the workflow still completes so deploy-keeperhub.yaml triggers correctly.
   should-run:
     runs-on: ubuntu-latest
     outputs:
       run-e2e: ${{ steps.check.outputs.run-e2e }}
-      run-deployed: ${{ steps.check.outputs.run-deployed }}
-      pr-number: ${{ steps.check.outputs.pr-number }}
     steps:
       - name: E2E tests disabled
         id: check
         run: |
-          echo "E2E tests are temporarily disabled"
           echo "run-e2e=false" >> $GITHUB_OUTPUT
           echo "run-deployed=false" >> $GITHUB_OUTPUT
           echo "pr-number=" >> $GITHUB_OUTPUT
 
-  # Vitest E2E tests (schedule-pipeline, workflow-runner)
-  e2e-vitest:
+          # Check for [skip e2e] flag in commit message (push events only)
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            MSG=$(git log -1 --format=%B 2>/dev/null || echo "")
+            if [[ "$MSG" == *"[skip e2e]"* ]]; then
+              echo "Skipping E2E tests: [skip e2e] found in commit message"
+              exit 0
+            fi
+          fi
+
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "run-e2e=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            if [[ "${{ contains(github.event.pull_request.labels.*.name, 'run-e2e-tests-local') }}" == "true" ]]; then
+              echo "run-e2e=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  e2e-vitest-local:
     needs: should-run
     if: needs.should-run.outputs.run-e2e == 'true'
     runs-on: ubuntu-latest
@@ -210,15 +216,14 @@ jobs:
 
   # Playwright E2E tests (browser-based, sharded)
   # Runs after Vitest to avoid conflicts on shared external test accounts
-  e2e-playwright:
-    needs: [should-run, e2e-vitest]
+  e2e-playwright-local:
+    needs: [should-run, e2e-vitest-local]
     if: needs.should-run.outputs.run-e2e == 'true'
     runs-on: ubuntu-latest
     environment: staging
     strategy:
       fail-fast: false
       matrix:
-        # Increase shard count as the test suite grows
         shard: [1, 2]
 
     services:
@@ -364,153 +369,3 @@ jobs:
           name: playwright-screenshots-shard-${{ matrix.shard }}
           path: test-results/**/*.png
           retention-days: 7
-
-  # Playwright E2E tests against deployed PR environment
-  e2e-playwright-deployed:
-    needs: should-run
-    if: needs.should-run.outputs.run-deployed == 'true' && needs.should-run.outputs.pr-number != ''
-    runs-on: ubuntu-latest
-    env:
-      PR_NUMBER: ${{ needs.should-run.outputs.pr-number }}
-      BASE_URL: https://app-pr-${{ needs.should-run.outputs.pr-number }}.keeperhub.com
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Get Playwright version
-        run: echo "PW_VERSION=$(pnpm exec playwright --version | awk '{print $2}')" >> $GITHUB_ENV
-
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ env.PW_VERSION }}
-
-      - name: Install Playwright browsers
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install --with-deps chromium
-
-      - name: Install Playwright system deps
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium
-
-      - name: Wait for PR environment to be ready
-        id: health-check
-        run: |
-          echo "Waiting for ${{ env.BASE_URL }}/api/health to return 200..."
-          CURL_ARGS=(-s -o /dev/null -w "%{http_code}")
-          if [[ -n "$CF_ACCESS_CLIENT_ID" && -n "$CF_ACCESS_CLIENT_SECRET" ]]; then
-            CURL_ARGS+=(-H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
-          fi
-          for i in {1..30}; do
-            STATUS=$(curl "${CURL_ARGS[@]}" "${{ env.BASE_URL }}/api/health" || echo "000")
-            if [[ "$STATUS" == "200" ]]; then
-              echo "PR environment is ready!"
-              exit 0
-            fi
-            echo "Attempt $i/30: got HTTP $STATUS, waiting 10s..."
-            sleep 10
-          done
-          echo "PR environment did not become ready in time"
-          exit 1
-        env:
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-
-      - name: Run Playwright tests against deployed environment
-        run: pnpm exec playwright test --grep-invert "happy-paths"
-        env:
-          BASE_URL: ${{ env.BASE_URL }}
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-          CI: true
-
-      - name: Upload Playwright report
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-deployed-report-pr-${{ env.PR_NUMBER }}
-          path: |
-            playwright-report/
-            test-results/
-          retention-days: 7
-
-      - name: Comment test results on PR
-        if: success()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = parseInt('${{ env.PR_NUMBER }}');
-            if (!prNumber) {
-              console.log('No PR number found, skipping comment');
-              return;
-            }
-
-            const status = '${{ job.status }}';
-            const emoji = status === 'success' ? 'PASS' : 'FAIL';
-            const title = status === 'success' ? 'E2E Tests Passed' : 'E2E Tests Failed';
-            const marker = '<!-- e2e-test-result -->';
-
-            const body = [
-              marker,
-              `## ${emoji} ${title}`,
-              '',
-              `**Environment:** [app-pr-${prNumber}.keeperhub.com](https://app-pr-${prNumber}.keeperhub.com)`,
-              `**Status:** ${status}`,
-              `**Workflow Run:** [View Details](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`,
-              '',
-              status !== 'success' ? 'Check the workflow run for test failure details and screenshots.' : '',
-            ].filter(Boolean).join('\n');
-
-            const { data: comments } = await github.rest.issues.listComments({
-              issue_number: prNumber,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-            });
-            const existing = comments.find(c => c.body?.includes(marker));
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                comment_id: existing.id,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                issue_number: prNumber,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body,
-              });
-            }
