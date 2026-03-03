@@ -19,11 +19,13 @@ export async function fallbackCompleteExecution(
     process.env.NEXT_PUBLIC_APP_URL ??
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);
 
-  if (!baseUrl || !serviceKey) {
+  if (!(baseUrl && serviceKey)) {
     const missing = [
       !baseUrl && "NEXT_PUBLIC_APP_URL or VERCEL_URL",
       !serviceKey && "EVENTS_SERVICE_API_KEY",
-    ].filter(Boolean).join(", ");
+    ]
+      .filter(Boolean)
+      .join(", ");
 
     logSystemError(
       ErrorCategory.INFRASTRUCTURE,

@@ -31,8 +31,8 @@ describe("fallbackCompleteExecution", () => {
   });
 
   it("logs error and returns early when base URL is not configured", async () => {
-    delete process.env.NEXT_PUBLIC_APP_URL;
-    delete process.env.VERCEL_URL;
+    Reflect.deleteProperty(process.env, "NEXT_PUBLIC_APP_URL");
+    Reflect.deleteProperty(process.env, "VERCEL_URL");
 
     await fallbackCompleteExecution({
       executionId: "exec_no_url",
@@ -49,7 +49,7 @@ describe("fallbackCompleteExecution", () => {
   });
 
   it("logs error and returns early when service key is not configured", async () => {
-    delete process.env.EVENTS_SERVICE_API_KEY;
+    Reflect.deleteProperty(process.env, "EVENTS_SERVICE_API_KEY");
 
     await fallbackCompleteExecution({
       executionId: "exec_no_key",
@@ -66,7 +66,7 @@ describe("fallbackCompleteExecution", () => {
   });
 
   it("uses VERCEL_URL when NEXT_PUBLIC_APP_URL is not set", async () => {
-    delete process.env.NEXT_PUBLIC_APP_URL;
+    Reflect.deleteProperty(process.env, "NEXT_PUBLIC_APP_URL");
     process.env.VERCEL_URL = "my-app.vercel.app";
     mockFetch.mockResolvedValue({ ok: true });
 
