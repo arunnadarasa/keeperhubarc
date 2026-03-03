@@ -94,6 +94,9 @@ async function handleScan(): Promise<NextResponse> {
     result: { billed: boolean; reason?: string };
   }> = [];
 
+  // Track orgs processed in loop 1 to avoid double-processing in loop 2
+  const processedOrgPeriods = new Set<string>();
+
   for (const sub of subs) {
     if (sub.periodStart === null || sub.periodEnd === null) {
       continue;
@@ -103,6 +106,9 @@ async function handleScan(): Promise<NextResponse> {
       sub.organizationId,
       sub.periodStart,
       sub.periodEnd
+    );
+    processedOrgPeriods.add(
+      `${sub.organizationId}:${sub.periodStart.toISOString()}:${sub.periodEnd.toISOString()}`
     );
     results.push({ organizationId: sub.organizationId, result });
   }
@@ -125,6 +131,10 @@ async function handleScan(): Promise<NextResponse> {
     );
 
   for (const record of failedRecords) {
+    const key = `${record.organizationId}:${record.periodStart.toISOString()}:${record.periodEnd.toISOString()}`;
+    if (processedOrgPeriods.has(key)) {
+      continue;
+    }
     const result = await billOverageForOrg(
       record.organizationId,
       record.periodStart,
