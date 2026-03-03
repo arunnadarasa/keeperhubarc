@@ -1,6 +1,6 @@
 on:
   workflow_run:
-    workflows: ["E2E Tests Local"]
+    workflows: ["E2E Tests Ephemeral"]
     types: [completed]
     branches:
       - staging
