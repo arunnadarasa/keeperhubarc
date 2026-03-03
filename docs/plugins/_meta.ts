@@ -5,6 +5,7 @@ export default {
   math: "Math",
   safe: "Safe",
   ajna: "Ajna",
+  cowswap: "CoW Swap",
   pendle: "Pendle",
   sky: "Sky",
   uniswap: "Uniswap",
