@@ -185,7 +185,7 @@ For each new/modified protocol, construct 1-2 workflows that exercise its action
 - Manual Trigger -> read action (to get state) -> write action
 - Only build if the protocol has write actions
 
-Use the first available chain ID from the contract's `addresses` keys as the `"network"` value (e.g., if `addresses: { "1": "0x...", "8453": "0x..." }`, use `"network": "1"`). Network values MUST be numeric chain ID strings, never names like "ethereum" or "sepolia".
+The test wallet is funded on **Sepolia** (chain `11155111`). Always prefer Sepolia if the protocol supports it. Chain selection priority: `"11155111"` (Sepolia) > first available chain ID. For example, if `addresses: { "1": "0x...", "8453": "0x...", "11155111": "0x..." }`, use `"network": "11155111"`. Network values MUST be numeric chain ID strings, never names like "ethereum" or "sepolia".
 
 Construct workflow node JSON following this pattern (from `seed-pr-data.sql`):
 
@@ -290,9 +290,8 @@ curl -s "${APP_URL}/api/workflows/executions/${EXECUTION_ID}/logs" \
 ```
 
 Pass/fail logic:
-- Execution completes with output data -> **PASS**
-- Contract reverts on placeholder inputs (e.g., `execution failed` with revert error in logs) -> **PASS** (plumbing works, inputs were fake)
-- RPC connection error, ABI resolution failure, chain not found, or missing protocol meta -> **FAIL** (infrastructure broken)
+- Execution completes successfully with output data (all nodes green) -> **PASS**
+- Any failure (revert, RPC error, ABI failure, chain not found, missing protocol meta, or any other error) -> **FAIL**
 
 Record the execution status, any error messages, and which nodes succeeded/failed.
 
@@ -311,11 +310,11 @@ curl -s -X POST "${APP_URL}/api/workflow/pr-test-wf-<protocolSlug>-write/execute
 Poll and fetch logs using the same pattern as 7p-f.
 
 Pass/fail logic:
-- Reaches the write action step (any outcome including revert, insufficient funds, or gas estimation failure) -> **PASS** (full chain works: protocol meta -> ABI -> wallet -> signer -> tx construction)
-- Fails before the write action step (RPC error, ABI failure, chain resolution error) -> **FAIL** (infrastructure broken)
+- Execution completes successfully with all nodes green -> **PASS**
+- Any failure (revert, insufficient funds, gas estimation failure, RPC error, ABI failure, chain resolution error, or any other error) -> **FAIL**
 - No write workflow was seeded -> **SKIP**
 
-Check `nodeStatuses` in the status response to determine which step failed. If the write action node itself shows the error, the plumbing is working. If a preceding node (trigger, read action) fails, that indicates an infrastructure issue.
+Record which nodes succeeded/failed and the error details.
 
 ### Step 8: Exploratory testing (browser)
 
@@ -382,8 +381,8 @@ Generate the test report inline using this format:
 - [PASS/FAIL] Action nodes show correct icon, label, and config
 - [PASS/FAIL] Config panel shows correct service/action/chain/inputs
 - [PASS/FAIL] Action grid shows expected action count (<N> actions)
-- [PASS/FAIL/SKIP] Read workflow execution (status: <completed/failed>, nodes: <N>/<total> passed)
-- [PASS/FAIL/SKIP] Write workflow execution (status: <completed/failed>, reached write step: yes/no)
+- [PASS/FAIL/SKIP] Read workflow execution (status: <completed/failed>, all nodes must succeed)
+- [PASS/FAIL/SKIP] Write workflow execution (status: <completed/failed>, all nodes must succeed)
 
 ### Exploratory Tests
 - [PASS/FAIL] Workflow creation flow
