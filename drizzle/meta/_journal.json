@@ -183,6 +183,13 @@
       "when": 1772006400001,
       "tag": "0025_rename-safe-wallet-to-safe",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1772521625290,
+      "tag": "0026_puzzling_thunderball",
+      "breakpoints": true
     }
   ]
 }
