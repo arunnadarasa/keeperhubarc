@@ -6,6 +6,7 @@ vi.mock("@/keeperhub/lib/stripe", () => ({
     checkout: { sessions: { create: vi.fn() } },
     billingPortal: { sessions: { create: vi.fn() } },
     webhooks: { constructEvent: vi.fn() },
+    invoiceItems: { create: vi.fn() },
     invoices: { list: vi.fn(), createPreview: vi.fn() },
     subscriptions: { retrieve: vi.fn(), update: vi.fn() },
     prices: { retrieve: vi.fn() },
@@ -567,6 +568,48 @@ describe("StripeBillingProvider", () => {
       const subDetails = (callArgs as Record<string, unknown> | undefined)
         ?.subscription_details as Record<string, unknown> | undefined;
       expect(subDetails?.proration_date).toBeUndefined();
+    });
+  });
+
+  describe("createInvoiceItem", () => {
+    it("passes correct params to stripe.invoiceItems.create", async () => {
+      vi.mocked(s.invoiceItems.create).mockResolvedValue({
+        id: "ii_123",
+      } as Awaited<ReturnType<typeof s.invoiceItems.create>>);
+
+      const result = await provider.createInvoiceItem({
+        customerId: "cus_456",
+        amount: 400,
+        currency: "usd",
+        description: "Overage: 2 blocks of 1000 executions",
+        metadata: { organizationId: "org_1", period: "2025-01" },
+      });
+
+      expect(s.invoiceItems.create).toHaveBeenCalledWith({
+        customer: "cus_456",
+        amount: 400,
+        currency: "usd",
+        description: "Overage: 2 blocks of 1000 executions",
+        metadata: { organizationId: "org_1", period: "2025-01" },
+      });
+      expect(result).toEqual({ invoiceItemId: "ii_123" });
+    });
+
+    it("passes empty metadata when none provided", async () => {
+      vi.mocked(s.invoiceItems.create).mockResolvedValue({
+        id: "ii_456",
+      } as Awaited<ReturnType<typeof s.invoiceItems.create>>);
+
+      await provider.createInvoiceItem({
+        customerId: "cus_789",
+        amount: 200,
+        currency: "usd",
+        description: "Overage charge",
+      });
+
+      const callArgs = vi.mocked(s.invoiceItems.create).mock
+        .calls[0][0] as Record<string, unknown>;
+      expect(callArgs.metadata).toBeUndefined();
     });
   });
 });

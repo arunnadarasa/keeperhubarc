@@ -361,6 +361,52 @@ export type OrganizationSpendCap = typeof organizationSpendCaps.$inferSelect;
 export type NewOrganizationSpendCap = typeof organizationSpendCaps.$inferInsert;
 
 /**
+ * Overage Billing Records table
+ *
+ * Tracks overage charges applied at the end of each billing period.
+ * When a paid plan (Pro/Business) exceeds its included execution limit,
+ * the excess is billed via Stripe invoice items.
+ *
+ * Unique constraint on (organizationId, periodStart, periodEnd) ensures
+ * idempotent billing -- each period is billed at most once per org.
+ *
+ * Status lifecycle: pending -> billed | failed
+ */
+export const overageBillingRecords = pgTable(
+  "overage_billing_records",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => generateId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    periodStart: timestamp("period_start").notNull(),
+    periodEnd: timestamp("period_end").notNull(),
+    executionLimit: integer("execution_limit").notNull(),
+    totalExecutions: integer("total_executions").notNull(),
+    overageCount: integer("overage_count").notNull(),
+    overageRateCents: integer("overage_rate_cents").notNull(),
+    totalChargeCents: integer("total_charge_cents").notNull(),
+    providerInvoiceItemId: text("provider_invoice_item_id"),
+    status: text("status").notNull().default("pending"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    unique("overage_billing_org_period").on(
+      table.organizationId,
+      table.periodStart,
+      table.periodEnd
+    ),
+    index("idx_overage_billing_org").on(table.organizationId),
+    index("idx_overage_billing_status").on(table.status),
+  ]
+);
+
+export type OverageBillingRecord = typeof overageBillingRecords.$inferSelect;
+export type NewOverageBillingRecord = typeof overageBillingRecords.$inferInsert;
+
+/**
  * Organization Subscriptions table
  *
  * Stores billing subscription state for each organization.

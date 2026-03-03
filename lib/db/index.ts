@@ -14,6 +14,8 @@ import {
   explorerConfigsRelations,
   integrations,
   organizationApiKeys,
+  organizationSubscriptions,
+  overageBillingRecords,
   pendingTransactions,
   publicTags,
   // end keeperhub code //
@@ -49,6 +51,8 @@ const schema = {
   apiKeys,
   // start custom keeperhub code //
   organizationApiKeys,
+  organizationSubscriptions,
+  overageBillingRecords,
   pendingTransactions,
   publicTags,
   walletLocks,

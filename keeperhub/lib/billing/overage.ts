@@ -1,0 +1,147 @@
+import "server-only";
+
+import { and, eq, sql } from "drizzle-orm";
+import { db } from "@/lib/db";
+import {
+  organizationSubscriptions,
+  overageBillingRecords,
+} from "@/lib/db/schema";
+import { getPlanLimits, PLANS, type PlanName, type TierKey } from "./plans";
+import { getBillingProvider } from "./providers";
+
+const LOG_PREFIX = "[Overage Billing]";
+
+type OverageResult =
+  | { billed: false; reason: string }
+  | { billed: true; overageCount: number; totalChargeCents: number };
+
+/**
+ * Bill overage executions for an organization's billing period.
+ *
+ * Idempotent: if a record already exists for the given org + period, it skips.
+ * Creates a Stripe invoice item that attaches to the customer's next invoice.
+ */
+export async function billOverageForOrg(
+  organizationId: string,
+  periodStart: Date,
+  periodEnd: Date
+): Promise<OverageResult> {
+  const sub = await db.query.organizationSubscriptions.findFirst({
+    where: eq(organizationSubscriptions.organizationId, organizationId),
+  });
+
+  if (!sub) {
+    return { billed: false, reason: "no subscription" };
+  }
+
+  const plan = sub.plan as PlanName;
+  const tier = (sub.tier ?? null) as TierKey | null;
+  const planDef = PLANS[plan];
+
+  if (!planDef.overage.enabled) {
+    return { billed: false, reason: "overage not enabled for plan" };
+  }
+
+  if (!sub.providerCustomerId) {
+    return { billed: false, reason: "no provider customer ID" };
+  }
+
+  const limits = getPlanLimits(plan, tier);
+  if (limits.maxExecutionsPerMonth === -1) {
+    return { billed: false, reason: "unlimited plan" };
+  }
+
+  // Idempotency check
+  const existing = await db.query.overageBillingRecords.findFirst({
+    where: and(
+      eq(overageBillingRecords.organizationId, organizationId),
+      eq(overageBillingRecords.periodStart, periodStart),
+      eq(overageBillingRecords.periodEnd, periodEnd)
+    ),
+  });
+
+  if (existing) {
+    return { billed: false, reason: "already billed for this period" };
+  }
+
+  // Count executions for the period
+  const result = await db.execute<{ count: number }>(
+    sql`SELECT COUNT(*)::int as count
+        FROM workflow_executions we
+        JOIN workflows w ON we.workflow_id = w.id
+        WHERE w.organization_id = ${organizationId}
+        AND we.started_at >= ${periodStart.toISOString()}
+        AND we.started_at < ${periodEnd.toISOString()}`
+  );
+
+  const totalExecutions = result[0]?.count ?? 0;
+  const overageCount = Math.max(
+    0,
+    totalExecutions - limits.maxExecutionsPerMonth
+  );
+
+  if (overageCount === 0) {
+    return { billed: false, reason: "no overage" };
+  }
+
+  const rateCents = Math.round(planDef.overage.ratePerThousand * 100);
+  const totalChargeCents = Math.ceil(overageCount / 1000) * rateCents;
+
+  // Insert record as pending
+  const [record] = await db
+    .insert(overageBillingRecords)
+    .values({
+      organizationId,
+      periodStart,
+      periodEnd,
+      executionLimit: limits.maxExecutionsPerMonth,
+      totalExecutions,
+      overageCount,
+      overageRateCents: rateCents,
+      totalChargeCents,
+      status: "pending",
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  // If conflict (race condition), another process already handled it
+  if (!record) {
+    return { billed: false, reason: "already billed for this period" };
+  }
+
+  try {
+    const provider = getBillingProvider();
+    const { invoiceItemId } = await provider.createInvoiceItem({
+      customerId: sub.providerCustomerId,
+      amount: totalChargeCents,
+      currency: "usd",
+      description: `Overage: ${overageCount.toLocaleString()} executions above ${limits.maxExecutionsPerMonth.toLocaleString()} limit (${plan} plan)`,
+      metadata: {
+        organizationId,
+        periodStart: periodStart.toISOString(),
+        periodEnd: periodEnd.toISOString(),
+        overageCount: String(overageCount),
+      },
+    });
+
+    await db
+      .update(overageBillingRecords)
+      .set({
+        status: "billed",
+        providerInvoiceItemId: invoiceItemId,
+      })
+      .where(eq(overageBillingRecords.id, record.id));
+
+    return { billed: true, overageCount, totalChargeCents };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(LOG_PREFIX, "Failed to create invoice item:", message);
+
+    await db
+      .update(overageBillingRecords)
+      .set({ status: "failed" })
+      .where(eq(overageBillingRecords.id, record.id));
+
+    return { billed: false, reason: `provider error: ${message}` };
+  }
+}

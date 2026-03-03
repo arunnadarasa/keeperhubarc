@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { organizationSubscriptions } from "@/lib/db/schema";
 import { BILLING_ALERTS } from "./constants";
+import { billOverageForOrg } from "./overage";
 import { resolvePriceId } from "./plans-server";
 import type { BillingProvider, BillingWebhookEvent } from "./provider";
 
@@ -228,6 +229,32 @@ async function handleSubscriptionUpdated(
         providerSubscriptionId
       )
     );
+
+  // Detect billing period rollover and bill overage for the previous period
+  const periodRolled =
+    data.periodStart instanceof Date &&
+    current.currentPeriodStart instanceof Date &&
+    data.periodStart.getTime() !== current.currentPeriodStart.getTime();
+
+  if (
+    periodRolled &&
+    current.currentPeriodStart instanceof Date &&
+    current.currentPeriodEnd instanceof Date
+  ) {
+    billOverageForOrg(
+      current.organizationId,
+      current.currentPeriodStart,
+      current.currentPeriodEnd
+    ).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(
+        LOG_PREFIX,
+        "Failed to bill overage for org:",
+        current.organizationId,
+        message
+      );
+    });
+  }
 }
 
 async function handleSubscriptionDeleted(

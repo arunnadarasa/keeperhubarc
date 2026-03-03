@@ -54,6 +54,7 @@ function createMockProvider(
     updateSubscription: vi.fn(),
     cancelSubscription: vi.fn(),
     previewProration: vi.fn(),
+    createInvoiceItem: vi.fn(),
     ...overrides,
   };
 }

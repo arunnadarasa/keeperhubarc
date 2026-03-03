@@ -5,6 +5,8 @@ import type {
   BillingWebhookEvent,
   CreateCheckoutParams,
   CreateCustomerParams,
+  CreateInvoiceItemParams,
+  CreateInvoiceItemResult,
   InvoiceItem,
   ListInvoicesParams,
   ListInvoicesResult,
@@ -430,6 +432,19 @@ export class StripeBillingProvider implements BillingProvider {
       periodEnd: period,
       lineItems,
     };
+  }
+
+  async createInvoiceItem(
+    params: CreateInvoiceItemParams
+  ): Promise<CreateInvoiceItemResult> {
+    const item = await getStripe().invoiceItems.create({
+      customer: params.customerId,
+      amount: params.amount,
+      currency: params.currency,
+      description: params.description,
+      metadata: params.metadata,
+    });
+    return { invoiceItemId: item.id };
   }
 }
 

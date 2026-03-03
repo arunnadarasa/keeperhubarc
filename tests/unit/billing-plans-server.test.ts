@@ -101,26 +101,41 @@ describe("checkFeatureAccess", () => {
 });
 
 describe("checkExecutionLimit", () => {
-  it("allows unlimited plans", async () => {
+  it("allows unlimited plans (enterprise)", async () => {
     mockSelectReturning([{ plan: "enterprise", tier: null, status: "active" }]);
 
     const result = await checkExecutionLimit("org_1");
-    expect(result).toEqual({ allowed: true });
+    expect(result).toEqual({ allowed: true, isOverage: false });
   });
 
-  it("allows when overage is enabled and subscription is active", async () => {
-    mockSelectReturning([{ plan: "pro", tier: "25k", status: "active" }]);
-
-    const result = await checkExecutionLimit("org_1");
-    expect(result).toEqual({ allowed: true });
-  });
-
-  it("enforces limit on free plan when under limit", async () => {
+  it("allows free plan when under limit", async () => {
     mockSelectReturning([]);
     mockExecuteReturning([{ count: 100 }]);
 
     const result = await checkExecutionLimit("org_1");
-    expect(result).toEqual({ allowed: true });
+    expect(result).toEqual({ allowed: true, isOverage: false });
+  });
+
+  it("allows pro plan within limits without overage flag", async () => {
+    mockSelectReturning([{ plan: "pro", tier: "25k", status: "active" }]);
+    mockExecuteReturning([{ count: 1000 }]);
+
+    const result = await checkExecutionLimit("org_1");
+    expect(result).toEqual({ allowed: true, isOverage: false });
+  });
+
+  it("allows pro plan over limit with overage details", async () => {
+    mockSelectReturning([{ plan: "pro", tier: "25k", status: "active" }]);
+    mockExecuteReturning([{ count: 30_000 }]);
+
+    const result = await checkExecutionLimit("org_1");
+    expect(result).toEqual({
+      allowed: true,
+      isOverage: true,
+      limit: 25_000,
+      used: 30_000,
+      overageRate: 2,
+    });
   });
 
   it("blocks free plan when at limit", async () => {
@@ -128,7 +143,12 @@ describe("checkExecutionLimit", () => {
     mockExecuteReturning([{ count: 5000 }]);
 
     const result = await checkExecutionLimit("org_1");
-    expect(result).toEqual({ allowed: false, limit: 5000, used: 5000 });
+    expect(result).toEqual({
+      allowed: false,
+      limit: 5000,
+      used: 5000,
+      plan: "free",
+    });
   });
 
   it("blocks free plan when over limit", async () => {
@@ -136,14 +156,24 @@ describe("checkExecutionLimit", () => {
     mockExecuteReturning([{ count: 6000 }]);
 
     const result = await checkExecutionLimit("org_1");
-    expect(result).toEqual({ allowed: false, limit: 5000, used: 6000 });
+    expect(result).toEqual({
+      allowed: false,
+      limit: 5000,
+      used: 6000,
+      plan: "free",
+    });
   });
 
-  it("blocks paid plan with overage disabled (canceled status)", async () => {
+  it("blocks paid plan when canceled (overage disabled)", async () => {
     mockSelectReturning([{ plan: "pro", tier: "25k", status: "canceled" }]);
     mockExecuteReturning([{ count: 30_000 }]);
 
     const result = await checkExecutionLimit("org_1");
-    expect(result).toEqual({ allowed: false, limit: 25_000, used: 30_000 });
+    expect(result).toEqual({
+      allowed: false,
+      limit: 25_000,
+      used: 30_000,
+      plan: "pro",
+    });
   });
 });

@@ -67,6 +67,18 @@ export type SubscriptionDetails = {
   periodEnd: Date | null;
 };
 
+export type CreateInvoiceItemParams = {
+  customerId: string;
+  amount: number;
+  currency: string;
+  description: string;
+  metadata?: Record<string, string>;
+};
+
+export type CreateInvoiceItemResult = {
+  invoiceItemId: string;
+};
+
 export type ProrationPreview = {
   amountDue: number;
   subtotal: number;
@@ -111,4 +123,8 @@ export interface BillingProvider {
     subscriptionId: string,
     newPriceId: string
   ): Promise<ProrationPreview>;
+
+  createInvoiceItem(
+    params: CreateInvoiceItemParams
+  ): Promise<CreateInvoiceItemResult>;
 }

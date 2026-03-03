@@ -26,6 +26,17 @@ type SubscriptionData = {
   };
 };
 
+type SuggestionData = {
+  shouldUpgrade: boolean;
+  currentUsage?: number;
+  currentLimit?: number;
+  usagePercent?: number;
+  suggestedPlan?: string;
+  suggestedTier?: string;
+  suggestedLimit?: number;
+  monthlySavings?: number;
+};
+
 const STATUS_VARIANT: Record<
   string,
   "default" | "secondary" | "destructive" | "outline"
@@ -170,10 +181,47 @@ function BillingAlertBanner({
   return null;
 }
 
-export function BillingStatus(): React.ReactElement {
+function UpgradeSuggestionBanner({
+  suggestion,
+}: {
+  suggestion: SuggestionData;
+}): React.ReactElement | null {
+  if (!suggestion.shouldUpgrade) {
+    return null;
+  }
+
+  const savingsFormatted =
+    suggestion.monthlySavings !== undefined
+      ? `$${(suggestion.monthlySavings / 100).toFixed(2)}`
+      : null;
+
+  return (
+    <div className="rounded-md border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-600 dark:text-blue-400">
+      <p className="font-medium">
+        You've used {suggestion.currentUsage?.toLocaleString()} of{" "}
+        {suggestion.currentLimit?.toLocaleString()} executions this month (
+        {suggestion.usagePercent}%).
+      </p>
+      <p className="mt-1 text-blue-500 dark:text-blue-300">
+        Upgrading to {suggestion.suggestedPlan} ({suggestion.suggestedTier})
+        would include {suggestion.suggestedLimit?.toLocaleString()} executions
+        {savingsFormatted
+          ? ` and save ~${savingsFormatted}/mo in overage fees`
+          : ""}
+        .
+      </p>
+    </div>
+  );
+}
+
+function useBillingData(): {
+  data: SubscriptionData | null;
+  suggestion: SuggestionData | null;
+  loading: boolean;
+} {
   const [data, setData] = useState<SubscriptionData | null>(null);
+  const [suggestion, setSuggestion] = useState<SuggestionData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [portalLoading, setPortalLoading] = useState(false);
 
   useEffect(() => {
     async function fetchSubscription(): Promise<void> {
@@ -191,6 +239,30 @@ export function BillingStatus(): React.ReactElement {
     }
     fetchSubscription().catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    async function fetchSuggestion(): Promise<void> {
+      try {
+        const response = await fetch("/api/billing/usage-suggestion");
+        if (response.ok) {
+          const result = (await response.json()) as SuggestionData;
+          setSuggestion(result);
+        }
+      } catch {
+        // Suggestion is non-critical, silently ignore errors
+      }
+    }
+    fetchSuggestion().catch(() => undefined);
+  }, []);
+
+  return { data, suggestion, loading };
+}
+
+function useBillingPortal(): {
+  portalLoading: boolean;
+  handleManageBilling: () => Promise<void>;
+} {
+  const [portalLoading, setPortalLoading] = useState(false);
 
   async function handleManageBilling(): Promise<void> {
     setPortalLoading(true);
@@ -218,32 +290,46 @@ export function BillingStatus(): React.ReactElement {
     }
   }
 
-  if (loading) {
-    return (
-      <Card className="bg-sidebar">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-6 w-32" />
-            <Skeleton className="h-8 w-28" />
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-3">
-            <Skeleton className="h-8 w-24" />
-            <Skeleton className="h-5 w-36 rounded-full" />
-            <Skeleton className="h-5 w-16 rounded-full" />
-          </div>
-          <Skeleton className="h-4 w-72" />
-        </CardContent>
-      </Card>
-    );
-  }
+  return { portalLoading, handleManageBilling };
+}
 
-  const sub = data?.subscription;
+function BillingStatusSkeleton(): React.ReactElement {
+  return (
+    <Card className="bg-sidebar">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-8 w-28" />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-8 w-24" />
+          <Skeleton className="h-5 w-36 rounded-full" />
+          <Skeleton className="h-5 w-16 rounded-full" />
+        </div>
+        <Skeleton className="h-4 w-72" />
+      </CardContent>
+    </Card>
+  );
+}
+
+function BillingStatusContent({
+  sub,
+  suggestion,
+  portalLoading,
+  onManageBilling,
+}: {
+  sub: SubscriptionData["subscription"] | undefined;
+  suggestion: SuggestionData | null;
+  portalLoading: boolean;
+  onManageBilling: () => void;
+}): React.ReactElement {
   const plan = (sub?.plan ?? "free") as PlanName;
   const planDef = PLANS[plan];
   const tier = sub?.tier as TierKey | null;
   const activeTier = tier ? planDef.tiers.find((t) => t.key === tier) : null;
+  const statusVariant = STATUS_VARIANT[sub?.status ?? "active"] ?? "outline";
 
   const renewalMessage = getRenewalMessage(
     sub?.status ?? "active",
@@ -251,7 +337,50 @@ export function BillingStatus(): React.ReactElement {
     sub?.currentPeriodEnd ?? null
   );
 
-  const statusVariant = STATUS_VARIANT[sub?.status ?? "active"] ?? "outline";
+  return (
+    <CardContent className="space-y-4">
+      {sub?.billingAlert && (
+        <BillingAlertBanner
+          alert={sub.billingAlert}
+          alertUrl={sub.billingAlertUrl ?? null}
+          onManageBilling={onManageBilling}
+          portalLoading={portalLoading}
+        />
+      )}
+
+      {suggestion?.shouldUpgrade && (
+        <UpgradeSuggestionBanner suggestion={suggestion} />
+      )}
+
+      <div className="flex items-center gap-3">
+        <span className="text-2xl font-bold">{planDef.name}</span>
+        {activeTier && (
+          <Badge variant="outline">
+            {activeTier.executions.toLocaleString()} executions
+          </Badge>
+        )}
+        <Badge variant={statusVariant}>{sub?.status ?? "active"}</Badge>
+      </div>
+
+      {renewalMessage && (
+        <p className={`text-sm ${renewalMessage.className}`}>
+          {renewalMessage.text}
+        </p>
+      )}
+    </CardContent>
+  );
+}
+
+export function BillingStatus(): React.ReactElement {
+  const { data, suggestion, loading } = useBillingData();
+  const { portalLoading, handleManageBilling } = useBillingPortal();
+
+  if (loading) {
+    return <BillingStatusSkeleton />;
+  }
+
+  const sub = data?.subscription;
+  const plan = (sub?.plan ?? "free") as PlanName;
 
   return (
     <Card className="bg-sidebar">
@@ -270,32 +399,12 @@ export function BillingStatus(): React.ReactElement {
           )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {sub?.billingAlert && (
-          <BillingAlertBanner
-            alert={sub.billingAlert}
-            alertUrl={sub.billingAlertUrl ?? null}
-            onManageBilling={handleManageBilling}
-            portalLoading={portalLoading}
-          />
-        )}
-
-        <div className="flex items-center gap-3">
-          <span className="text-2xl font-bold">{planDef.name}</span>
-          {activeTier && (
-            <Badge variant="outline">
-              {activeTier.executions.toLocaleString()} executions
-            </Badge>
-          )}
-          <Badge variant={statusVariant}>{sub?.status ?? "active"}</Badge>
-        </div>
-
-        {renewalMessage && (
-          <p className={`text-sm ${renewalMessage.className}`}>
-            {renewalMessage.text}
-          </p>
-        )}
-      </CardContent>
+      <BillingStatusContent
+        onManageBilling={handleManageBilling}
+        portalLoading={portalLoading}
+        sub={sub}
+        suggestion={suggestion}
+      />
     </Card>
   );
 }

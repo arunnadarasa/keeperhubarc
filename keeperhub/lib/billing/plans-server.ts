@@ -108,43 +108,86 @@ export async function checkFeatureAccess(
   return value !== null;
 }
 
+/** Within limits or unlimited plan -- no action needed. */
+export type ExecutionWithinLimits = {
+  allowed: true;
+  isOverage: false;
+};
+
+/** Paid plan exceeded its included limit -- execution proceeds, billed later. */
+export type ExecutionOverageAllowed = {
+  allowed: true;
+  isOverage: true;
+  limit: number;
+  used: number;
+  overageRate: number;
+};
+
+/** Free plan limit exhausted -- execution must be blocked. */
+export type ExecutionLimitExceeded = {
+  allowed: false;
+  limit: number;
+  used: number;
+  plan: PlanName;
+};
+
+export type ExecutionLimitResult =
+  | ExecutionWithinLimits
+  | ExecutionOverageAllowed
+  | ExecutionLimitExceeded;
+
 /**
  * Check if an organization has exceeded its monthly execution limit.
- * Returns { allowed: true } or { allowed: false, limit, used }.
+ *
+ * Returns one of:
+ * - allowed + not overage (within limits or unlimited plan)
+ * - allowed + overage (paid plan with overage enabled, will be billed later)
+ * - not allowed (free plan limit exceeded)
  */
 export async function checkExecutionLimit(
   organizationId: string
-): Promise<
-  { allowed: true } | { allowed: false; limit: number; used: number }
-> {
+): Promise<ExecutionLimitResult> {
   const sub = await getOrgSubscription(organizationId);
   const plan = (sub?.plan ?? "free") as PlanName;
   const tier = (sub?.tier ?? null) as TierKey | null;
   const limits = getPlanLimits(plan, tier);
 
   if (limits.maxExecutionsPerMonth === -1) {
-    return { allowed: true };
-  }
-
-  const planDef = PLANS[plan];
-  if (planDef.overage.enabled && sub?.status === "active") {
-    return { allowed: true };
+    return { allowed: true, isOverage: false };
   }
 
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
   const result = await db.execute<{ count: number }>(
-    sql`SELECT COUNT(*)::int as count FROM workflow_runs
-        WHERE organization_id = ${organizationId}
-        AND created_at >= ${startOfMonth.toISOString()}`
+    sql`SELECT COUNT(*)::int as count
+        FROM workflow_executions we
+        JOIN workflows w ON we.workflow_id = w.id
+        WHERE w.organization_id = ${organizationId}
+        AND we.started_at >= ${startOfMonth.toISOString()}`
   );
 
   const used = result[0]?.count ?? 0;
 
-  if (used >= limits.maxExecutionsPerMonth) {
-    return { allowed: false, limit: limits.maxExecutionsPerMonth, used };
+  if (used < limits.maxExecutionsPerMonth) {
+    return { allowed: true, isOverage: false };
   }
 
-  return { allowed: true };
+  const planDef = PLANS[plan];
+  if (planDef.overage.enabled && sub?.status === "active") {
+    return {
+      allowed: true,
+      isOverage: true,
+      limit: limits.maxExecutionsPerMonth,
+      used,
+      overageRate: planDef.overage.ratePerThousand,
+    };
+  }
+
+  return {
+    allowed: false,
+    limit: limits.maxExecutionsPerMonth,
+    used,
+    plan,
+  };
 }
