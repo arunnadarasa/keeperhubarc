@@ -26,11 +26,11 @@ describe("checkConcurrencyLimit", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRunningCount = 0;
-    process.env.MAX_CONCURRENT_WORKFLOW_EXECUTIONS = undefined;
+    Reflect.deleteProperty(process.env, "MAX_CONCURRENT_WORKFLOW_EXECUTIONS");
   });
 
   afterEach(() => {
-    process.env.MAX_CONCURRENT_WORKFLOW_EXECUTIONS = undefined;
+    Reflect.deleteProperty(process.env, "MAX_CONCURRENT_WORKFLOW_EXECUTIONS");
   });
 
   it("allows execution when running count is below default limit", async () => {
