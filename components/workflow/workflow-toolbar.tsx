@@ -37,6 +37,7 @@ import { GoLiveOverlay } from "@/keeperhub/components/overlays/go-live-overlay";
 import { Switch } from "@/keeperhub/components/ui/switch";
 // start custom keeperhub code //
 import { BUILTIN_NODE_ID } from "@/keeperhub/lib/builtin-variables";
+import { isAnonymousUser } from "@/keeperhub/lib/is-anonymous";
 import { api, type Project, type Tag } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
 import { getCustomLogo } from "@/lib/extension-registry";
@@ -1073,12 +1074,7 @@ function useWorkflowActions(state: ReturnType<typeof useWorkflowState>) {
     }
 
     // When enabling, check if user is logged in (not anonymous)
-    const isAnonymous =
-      !session?.user ||
-      session.user.name === "Anonymous" ||
-      session.user.email?.startsWith("temp-");
-
-    if (isAnonymous) {
+    if (isAnonymousUser(session?.user)) {
       toast.error("Please sign in to activate your workflow");
       return;
     }
@@ -1409,11 +1405,7 @@ function SaveButton({
   handleSave: () => Promise<void>;
 }) {
   // start custom keeperhub code //
-  const isAnonymous =
-    !state.session?.user ||
-    state.session.user.name === "Anonymous" ||
-    state.session.user.email?.startsWith("temp-");
-
+  const isAnonymous = isAnonymousUser(state.session?.user);
   const disabled =
     isAnonymous ||
     !state.currentWorkflowId ||

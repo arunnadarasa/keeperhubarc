@@ -19,6 +19,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { isAnonymousUser } from "@/keeperhub/lib/is-anonymous";
 import { registerSidebarRefetch } from "@/keeperhub/lib/refetch-sidebar";
 import type { Project, SavedWorkflow, Tag } from "@/lib/api-client";
 import { api } from "@/lib/api-client";
@@ -350,16 +351,6 @@ const NAV_ITEMS = [
   },
 ];
 
-function checkIsAnonymous(
-  session: ReturnType<typeof useSession>["data"]
-): boolean {
-  return (
-    !session?.user ||
-    session.user.name === "Anonymous" ||
-    Boolean(session.user.email?.startsWith("temp-"))
-  );
-}
-
 export function NavigationSidebar(): React.ReactNode {
   const isMobile = useIsMobile();
   const { data: session } = useSession();
@@ -420,7 +411,7 @@ export function NavigationSidebar(): React.ReactNode {
     }
   }, [dataLoading, navState.validateSelections, projects, tags]);
 
-  const isAnonymous = checkIsAnonymous(session);
+  const isAnonymous = isAnonymousUser(session?.user);
 
   const visibleWorkflows = workflows.filter((w) => w.name !== "__current__");
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Coins, Info, KeyRound, Wallet, Workflow } from "lucide-react";
+import { Check, Info, KeyRound, Wallet, Workflow } from "lucide-react";
 import { useRef } from "react";
 import { AuthDialog } from "@/components/auth/dialog";
 import { ApiKeysOverlay } from "@/components/overlays/api-keys-overlay";
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/tooltip";
 import { WalletOverlay } from "@/keeperhub/components/overlays/wallet-overlay";
 import { useOnboardingStatus } from "@/keeperhub/lib/hooks/use-onboarding-status";
+import { isAnonymousUser } from "@/keeperhub/lib/is-anonymous";
 import { useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
@@ -51,7 +52,7 @@ function ProgressBar({
 function SkeletonRows(): React.ReactElement {
   return (
     <div className="space-y-0.5 p-1">
-      {Array.from({ length: 4 }, (_, i) => (
+      {Array.from({ length: 3 }, (_, i) => (
         <div
           className="flex items-center gap-2 rounded-sm px-2 py-1.5"
           key={`skeleton-${String(i)}`}
@@ -61,23 +62,6 @@ function SkeletonRows(): React.ReactElement {
         </div>
       ))}
     </div>
-  );
-}
-
-function isAnonymousSession(
-  user: {
-    name?: string | null;
-    email?: string | null;
-  } | null
-): boolean {
-  if (!user) {
-    return true;
-  }
-  return (
-    user.name === "Anonymous" ||
-    Boolean(user.email?.includes("@http://")) ||
-    Boolean(user.email?.includes("@https://")) ||
-    Boolean(user.email?.startsWith("temp-"))
   );
 }
 
@@ -98,7 +82,7 @@ export function GettingStartedChecklist({
   const { data: session } = useSession();
   const authTriggerRef = useRef<HTMLButtonElement>(null);
 
-  const isAnonymous = isAnonymousSession(session?.user ?? null);
+  const isAnonymous = isAnonymousUser(session?.user);
 
   if (allComplete) {
     return null;
@@ -156,7 +140,7 @@ export function GettingStartedChecklist({
               <Info className="size-3.5 text-muted-foreground" />
             </TooltipTrigger>
             <TooltipContent className="max-w-64 text-xs" side="top">
-              Powered by{" "}
+              Non-custodial wallet powered by{" "}
               <a
                 className="underline"
                 href="https://www.getpara.com/"
@@ -165,26 +149,7 @@ export function GettingStartedChecklist({
               >
                 Para
               </a>
-              , enterprise-grade MPC wallet infrastructure
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      ),
-      action: () => openOverlay(WalletOverlay, undefined, { onClose: refetch }),
-    },
-    {
-      id: "fund-wallet",
-      icon: Coins,
-      title: "Fund Wallet",
-      requiresAuth: true,
-      extra: (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Info className="size-3.5 text-muted-foreground" />
-            </TooltipTrigger>
-            <TooltipContent className="text-xs" side="top">
-              Your wallet works across multiple networks
+              . Works across multiple networks.
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>

@@ -40,35 +40,12 @@ function isFulfilledArray(result: PromiseSettledResult<unknown>): boolean {
   );
 }
 
-type ChainBalanceData = {
-  nativeBalance?: string;
-  tokens?: { balance?: string }[];
-};
-
-function chainHasFunds(chain: ChainBalanceData): boolean {
-  if (chain.nativeBalance && chain.nativeBalance !== "0") {
-    return true;
-  }
-  if (!Array.isArray(chain.tokens)) {
-    return false;
-  }
-  return chain.tokens.some((t) => t.balance && t.balance !== "0");
-}
-
-function hasNonZeroBalance(result: PromiseSettledResult<unknown>): boolean {
-  if (result.status !== "fulfilled" || !Array.isArray(result.value)) {
-    return false;
-  }
-  return (result.value as ChainBalanceData[]).some(chainHasFunds);
-}
-
 export function useOnboardingStatus(): OnboardingStatus {
   const { data: session } = useSession();
   const [steps, setSteps] = useState<OnboardingStep[]>([
     { id: "create-workflow", complete: false },
     { id: "generate-api-key", complete: false },
     { id: "create-wallet", complete: false },
-    { id: "fund-wallet", complete: false },
   ]);
   const [isLoading, setIsLoading] = useState(true);
   const [hidden, setHidden] = useState(isDismissed);
@@ -127,27 +104,10 @@ export function useOnboardingStatus(): OnboardingStatus {
         (walletResult.value as { hasWallet?: boolean } | null)?.hasWallet ===
           true;
 
-      // Only check balances if wallet exists
-      let hasFunds = false;
-      if (hasWallet) {
-        const balancesResult = await fetch("/api/user/wallet/balances")
-          .then((r) => r.json())
-          .catch(() => []);
-        hasFunds = hasNonZeroBalance({
-          status: "fulfilled",
-          value: balancesResult,
-        });
-      }
-
-      if (cancelled) {
-        return;
-      }
-
       setSteps([
         { id: "create-workflow", complete: isFulfilledArray(workflowsResult) },
         { id: "generate-api-key", complete: isFulfilledArray(keysResult) },
         { id: "create-wallet", complete: hasWallet },
-        { id: "fund-wallet", complete: hasFunds },
       ]);
       setIsLoading(false);
     }
