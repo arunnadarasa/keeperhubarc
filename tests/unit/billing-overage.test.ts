@@ -177,12 +177,12 @@ describe("billOverageForOrg", () => {
     expect(result).toEqual({
       billed: true,
       overageCount: 1500,
-      totalChargeCents: 400,
+      totalChargeCents: 300,
     });
     expect(mockCreateInvoiceItem).toHaveBeenCalledWith(
       expect.objectContaining({
         customerId: "cus_123",
-        amount: 400,
+        amount: 300,
         currency: "usd",
       })
     );
