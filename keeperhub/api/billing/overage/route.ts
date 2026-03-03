@@ -73,8 +73,9 @@ export async function POST(request: Request): Promise<NextResponse> {
 async function handleScan(): Promise<NextResponse> {
   const now = new Date();
 
-  // Find active subscriptions where the billing period has ended
-  // and no overage record exists for that period
+  // Find subscriptions where the billing period has ended.
+  // Include both active and canceled: a canceled sub may still have unbilled
+  // overage from its final period.
   const subs = await db
     .select({
       organizationId: organizationSubscriptions.organizationId,
@@ -84,7 +85,10 @@ async function handleScan(): Promise<NextResponse> {
     .from(organizationSubscriptions)
     .where(
       and(
-        eq(organizationSubscriptions.status, "active"),
+        or(
+          eq(organizationSubscriptions.status, "active"),
+          eq(organizationSubscriptions.status, "canceled")
+        ),
         lt(organizationSubscriptions.currentPeriodEnd, now)
       )
     );
@@ -130,6 +134,7 @@ async function handleScan(): Promise<NextResponse> {
       )
     );
 
+  let retried = 0;
   for (const record of failedRecords) {
     const key = `${record.organizationId}:${record.periodStart.toISOString()}:${record.periodEnd.toISOString()}`;
     if (processedOrgPeriods.has(key)) {
@@ -140,12 +145,13 @@ async function handleScan(): Promise<NextResponse> {
       record.periodStart,
       record.periodEnd
     );
+    retried += 1;
     results.push({ organizationId: record.organizationId, result });
   }
 
   return NextResponse.json({
     scanned: subs.length,
-    retried: failedRecords.length,
+    retried,
     results,
   });
 }
