@@ -1,17 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
+import { getAdminFetchHeaders } from "./admin-fetch";
 import { getDbConnection } from "./connection";
-
-function getAdminFetchHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${process.env.TEST_API_KEY}`,
-  };
-  if (process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET) {
-    headers["CF-Access-Client-Id"] = process.env.CF_ACCESS_CLIENT_ID;
-    headers["CF-Access-Client-Secret"] = process.env.CF_ACCESS_CLIENT_SECRET;
-  }
-  return headers;
-}
 
 /**
  * Navigate to accept-invite page with retry.
