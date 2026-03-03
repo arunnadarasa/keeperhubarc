@@ -252,6 +252,21 @@ export function ActionGrid({
     });
   };
 
+  const toggleSuperCategory = (groups: PluginGroup[]): void => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      const allCollapsed = groups.every((g) => next.has(g.category));
+      for (const g of groups) {
+        if (allCollapsed) {
+          next.delete(g.category);
+        } else {
+          next.add(g.category);
+        }
+      }
+      return next;
+    });
+  };
+
   const toggleHideGroup = (category: string) => {
     setHiddenGroups((prev) => {
       const next = new Set(prev);
@@ -489,17 +504,20 @@ export function ActionGrid({
           visibleSuperGroups.map((sg, sgIndex) => (
             <div key={sg.superCategory}>
               {/* Super-category header */}
-              <div
+              <button
                 className={cn(
-                  "flex items-center gap-2 px-3 pb-1.5",
+                  "flex w-full items-center gap-2 px-3 pb-1.5 transition-opacity hover:opacity-80",
                   sgIndex === 0 ? "pt-1" : "pt-4"
                 )}
+                onClick={() => toggleSuperCategory(sg.pluginGroups)}
+                type="button"
               >
-                <span className="shrink-0 text-[10px] font-medium uppercase tracking-widest text-muted-foreground/60">
+                <div className="h-px flex-1 bg-border/40" />
+                <span className="shrink-0 text-[10px] font-medium uppercase tracking-widest text-emerald-500/80">
                   {sg.superCategory}
                 </span>
                 <div className="h-px flex-1 bg-border/40" />
-              </div>
+              </button>
 
               {/* Plugin groups within super-category */}
               {sg.pluginGroups.map((group, groupIndex) => {
