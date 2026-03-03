@@ -350,6 +350,9 @@ export async function transferTokenCore(
         };
       }
 
+      // Simulate call first to get decodable revert data on failure
+      await contract.transfer.staticCall(recipientAddress, amountRaw);
+
       // Get nonce from session
       const nonce = nonceManager.getNextNonce(session);
 

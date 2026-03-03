@@ -291,6 +291,10 @@ export async function writeContractCore(
       // Build value override for payable functions (e.g. WETH deposit)
       const valueOverride = parsedEthValue ? { value: parsedEthValue } : {};
 
+      // Simulate call first to get decodable revert data on failure
+      // (eth_call returns revert data reliably, eth_estimateGas often does not)
+      await contract[abiFunction].staticCall(...args, valueOverride);
+
       // Get nonce from session
       const nonce = nonceManager.getNextNonce(session);
 

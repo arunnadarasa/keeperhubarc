@@ -192,6 +192,9 @@ export async function transferFundsCore(
 
       const baseTx = { to: recipientAddress, value: amountInWei };
 
+      // Simulate call first to get decodable revert data on failure
+      await provider.call({ ...baseTx, from: walletAddress });
+
       // Estimate gas
       const estimatedGas = await provider.estimateGas({
         ...baseTx,

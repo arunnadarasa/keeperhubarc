@@ -237,6 +237,9 @@ export async function approveTokenCore(
         }
       }
 
+      // Simulate call first to get decodable revert data on failure
+      await contract.approve.staticCall(spenderAddress, amountRaw);
+
       // Get nonce from session
       const nonce = nonceManager.getNextNonce(session);
 
