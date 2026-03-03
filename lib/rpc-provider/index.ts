@@ -163,7 +163,7 @@ export class RpcProviderManager {
   ): Promise<T> {
     this.metrics.totalRequests += 1;
 
-    // If we've already switched to fallback, use it directly
+    // When in sticky fallback state, try fallback first, then primary as recovery
     if (this.isUsingFallback) {
       const fallbackProvider = this.getFallbackProvider();
       if (fallbackProvider) {
@@ -178,7 +178,7 @@ export class RpcProviderManager {
           return fallbackResult.result as T;
         }
 
-        // Fallback failed - try primary again in case it recovered
+        // Fallback failed - try primary in case it recovered
         console.warn(
           JSON.stringify({
             level: "warn",
@@ -188,9 +188,51 @@ export class RpcProviderManager {
             timestamp: new Date().toISOString(),
           })
         );
+
+        const primaryProvider = this.getPrimaryProvider();
+        const primaryResult = await this.tryProvider(
+          primaryProvider,
+          operation,
+          "primary",
+          this.config.maxRetries
+        );
+
+        if (primaryResult.success) {
+          console.info(
+            JSON.stringify({
+              level: "info",
+              event: "RPC_FAILOVER_RECOVERY",
+              message: `Primary RPC recovered for ${this.config.chainName}, switching back from fallback`,
+              chain: this.config.chainName,
+              previousState: "fallback",
+              newState: "primary",
+              timestamp: new Date().toISOString(),
+            })
+          );
+          this.isUsingFallback = false;
+          this.onFailoverStateChange?.(this.config.chainName, false, "recovery");
+          return primaryResult.result as T;
+        }
+
+        // Both failed -- throw without redundant retry
+        console.error(
+          JSON.stringify({
+            level: "error",
+            event: "RPC_BOTH_ENDPOINTS_FAILED",
+            message: `Both primary and fallback RPC failed for ${this.config.chainName}`,
+            chain: this.config.chainName,
+            fallbackError: fallbackResult.error,
+            primaryError: primaryResult.error,
+            timestamp: new Date().toISOString(),
+          })
+        );
+        throw new Error(
+          `RPC failed on both endpoints. Fallback: ${fallbackResult.error}. Primary: ${primaryResult.error}`
+        );
       }
     }
 
+    // Normal path: try primary first, then fallback
     const primaryProvider = this.getPrimaryProvider();
     const primaryResult = await this.tryProvider(
       primaryProvider,
@@ -200,21 +242,6 @@ export class RpcProviderManager {
     );
 
     if (primaryResult.success) {
-      if (this.isUsingFallback) {
-        console.info(
-          JSON.stringify({
-            level: "info",
-            event: "RPC_FAILOVER_RECOVERY",
-            message: `Primary RPC recovered for ${this.config.chainName}, switching back from fallback`,
-            chain: this.config.chainName,
-            previousState: "fallback",
-            newState: "primary",
-            timestamp: new Date().toISOString(),
-          })
-        );
-        this.isUsingFallback = false;
-        this.onFailoverStateChange?.(this.config.chainName, false, "recovery");
-      }
       return primaryResult.result as T;
     }
 
@@ -231,22 +258,20 @@ export class RpcProviderManager {
       );
 
       if (fallbackResult.success) {
-        if (!this.isUsingFallback) {
-          console.warn(
-            JSON.stringify({
-              level: "warn",
-              event: "RPC_FAILOVER_ACTIVATED",
-              message: `Primary RPC failed for ${this.config.chainName}, switching to fallback`,
-              chain: this.config.chainName,
-              previousState: "primary",
-              newState: "fallback",
-              primaryError: primaryResult.error,
-              timestamp: new Date().toISOString(),
-            })
-          );
-          this.isUsingFallback = true;
-          this.onFailoverStateChange?.(this.config.chainName, true, "failover");
-        }
+        console.warn(
+          JSON.stringify({
+            level: "warn",
+            event: "RPC_FAILOVER_ACTIVATED",
+            message: `Primary RPC failed for ${this.config.chainName}, switching to fallback`,
+            chain: this.config.chainName,
+            previousState: "primary",
+            newState: "fallback",
+            primaryError: primaryResult.error,
+            timestamp: new Date().toISOString(),
+          })
+        );
+        this.isUsingFallback = true;
+        this.onFailoverStateChange?.(this.config.chainName, true, "failover");
         return fallbackResult.result as T;
       }
 

@@ -323,6 +323,42 @@ describe("RpcProviderManager", () => {
       );
     });
 
+    it("should throw without redundant fallback retry when both fail in sticky fallback state", async () => {
+      const manager = new RpcProviderManager({
+        config: {
+          primaryRpcUrl: "https://primary.example.com",
+          fallbackRpcUrl: "https://fallback.example.com",
+          maxRetries: 1,
+          timeoutMs: 100,
+          chainName: "Ethereum",
+        },
+        metricsCollector,
+      });
+
+      // First call: primary fails, fallback succeeds -> sticky fallback
+      const firstOp = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Primary failed"))
+        .mockResolvedValue("fallback ok");
+      await manager.executeWithFailover(firstOp);
+      expect(manager.isCurrentlyUsingFallback()).toBe(true);
+
+      vi.mocked(metricsCollector.recordFallbackAttempt).mockClear();
+      vi.mocked(metricsCollector.recordPrimaryAttempt).mockClear();
+
+      // Second call: both fail. Fallback should be tried once, primary once.
+      // No redundant third attempt on fallback.
+      const secondOp = vi.fn().mockRejectedValue(new Error("down"));
+
+      await expect(manager.executeWithFailover(secondOp)).rejects.toThrow(
+        "RPC failed on both endpoints"
+      );
+
+      // Fallback attempted once, primary attempted once -- no double fallback
+      expect(metricsCollector.recordFallbackAttempt).toHaveBeenCalledTimes(1);
+      expect(metricsCollector.recordPrimaryAttempt).toHaveBeenCalledTimes(1);
+    });
+
     describe("Retry-After handling on 429", () => {
       it("should respect Retry-After header within cap and retry", async () => {
         const manager = new RpcProviderManager({
