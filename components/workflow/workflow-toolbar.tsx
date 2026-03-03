@@ -1408,15 +1408,32 @@ function SaveButton({
   state: ReturnType<typeof useWorkflowState>;
   handleSave: () => Promise<void>;
 }) {
-  return (
+  // start custom keeperhub code //
+  const isAnonymous =
+    !state.session?.user ||
+    state.session.user.name === "Anonymous" ||
+    state.session.user.email?.startsWith("temp-");
+
+  const disabled =
+    isAnonymous ||
+    !state.currentWorkflowId ||
+    state.isGenerating ||
+    state.isSaving;
+  // end keeperhub code //
+
+  const button = (
     <Button
       className="relative border hover:bg-black/5 disabled:opacity-100 dark:hover:bg-white/5 disabled:[&>svg]:text-muted-foreground"
-      disabled={
-        !state.currentWorkflowId || state.isGenerating || state.isSaving
-      }
+      disabled={disabled}
       onClick={handleSave}
       size="icon"
-      title={state.isSaving ? "Saving..." : "Save workflow"}
+      title={
+        isAnonymous
+          ? "Sign in to save workflows"
+          : state.isSaving
+            ? "Saving..."
+            : "Save workflow"
+      }
       variant="secondary"
     >
       {state.isSaving ? (
@@ -1424,11 +1441,26 @@ function SaveButton({
       ) : (
         <Save className="size-4" />
       )}
-      {state.hasUnsavedChanges && !state.isSaving && (
+      {state.hasUnsavedChanges && !state.isSaving && !isAnonymous && (
         <div className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary" />
       )}
     </Button>
   );
+
+  // start custom keeperhub code //
+  if (isAnonymous) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-block">{button}</span>
+        </TooltipTrigger>
+        <TooltipContent>Sign in to save workflows</TooltipContent>
+      </Tooltip>
+    );
+  }
+  // end keeperhub code //
+
+  return button;
 }
 
 // Download Button Component

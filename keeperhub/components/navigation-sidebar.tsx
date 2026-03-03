@@ -124,6 +124,7 @@ function ProjectsPanel({
   selectedProjectId,
   onSelectProject,
   loading,
+  isAnonymous,
 }: {
   projects: Project[];
   ungrouped: WorkflowEntry[];
@@ -132,6 +133,7 @@ function ProjectsPanel({
   selectedProjectId: string | null;
   onSelectProject: (id: string) => void;
   loading: boolean;
+  isAnonymous: boolean;
 }): React.ReactNode {
   if (loading) {
     return (
@@ -146,7 +148,7 @@ function ProjectsPanel({
   if (!hasAny) {
     return (
       <p className="py-4 text-center text-muted-foreground text-sm">
-        No workflows found
+        {isAnonymous ? "Sign in to save workflows" : "No workflows found"}
       </p>
     );
   }
@@ -348,6 +350,16 @@ const NAV_ITEMS = [
   },
 ];
 
+function checkIsAnonymous(
+  session: ReturnType<typeof useSession>["data"]
+): boolean {
+  return (
+    !session?.user ||
+    session.user.name === "Anonymous" ||
+    Boolean(session.user.email?.startsWith("temp-"))
+  );
+}
+
 export function NavigationSidebar(): React.ReactNode {
   const isMobile = useIsMobile();
   const { data: session } = useSession();
@@ -367,9 +379,9 @@ export function NavigationSidebar(): React.ReactNode {
   const fetchData = useCallback(async (): Promise<void> => {
     try {
       const [w, p, t] = await Promise.all([
-        api.workflow.getAll(),
-        api.project.getAll(),
-        api.tag.getAll(),
+        api.workflow.getAll().catch(() => [] as SavedWorkflow[]),
+        api.project.getAll().catch(() => [] as Project[]),
+        api.tag.getAll().catch(() => [] as Tag[]),
       ]);
       setWorkflows(w);
       setProjects(p);
@@ -407,6 +419,8 @@ export function NavigationSidebar(): React.ReactNode {
       );
     }
   }, [dataLoading, navState.validateSelections, projects, tags]);
+
+  const isAnonymous = checkIsAnonymous(session);
 
   const visibleWorkflows = workflows.filter((w) => w.name !== "__current__");
 
@@ -718,6 +732,7 @@ export function NavigationSidebar(): React.ReactNode {
         <ProjectsPanel
           activeWorkflowId={workflowId}
           byProject={byProject}
+          isAnonymous={isAnonymous}
           loading={dataLoading}
           onSelectProject={handleSelectProject}
           projects={projects}

@@ -181,6 +181,41 @@ function getInitialViewMode(): ViewMode {
   }
 }
 
+// start custom keeperhub code //
+// Super-category definitions for the action panel
+const SUPER_CATEGORY_ORDER = ["Web3", "Messaging", "System"] as const;
+type SuperCategory = (typeof SUPER_CATEGORY_ORDER)[number];
+
+const MESSAGING_CATEGORIES: ReadonlySet<string> = new Set([
+  "Discord",
+  "Email",
+  "Slack",
+  "Telegram",
+]);
+const SYSTEM_CATEGORIES: ReadonlySet<string> = new Set([
+  "System",
+  "Code",
+  "Math",
+  "Webhook",
+]);
+
+function getSuperCategory(category: string): SuperCategory {
+  if (SYSTEM_CATEGORIES.has(category)) {
+    return "System";
+  }
+  if (MESSAGING_CATEGORIES.has(category)) {
+    return "Messaging";
+  }
+  return "Web3";
+}
+
+type PluginGroup = { category: string; actions: ActionType[] };
+type SuperCategoryGroup = {
+  superCategory: SuperCategory;
+  pluginGroups: PluginGroup[];
+};
+// end keeperhub code //
+
 export function ActionGrid({
   onSelectAction,
   disabled,
@@ -248,40 +283,56 @@ export function ActionGrid({
     );
   });
 
-  // Group actions by category
-  const groupedActions = useMemo(() => {
-    const groups: Record<string, ActionType[]> = {};
+  // start custom keeperhub code //
+  // Group actions by super-category, then by plugin category within each
+  const superCategoryGroups = useMemo((): SuperCategoryGroup[] => {
+    const categoryMap: Record<string, ActionType[]> = {};
 
     for (const action of filteredActions) {
-      const category = action.category;
-      if (!groups[category]) {
-        groups[category] = [];
+      if (!categoryMap[action.category]) {
+        categoryMap[action.category] = [];
       }
-      groups[category].push(action);
+      categoryMap[action.category].push(action);
     }
 
-    // start custom keeperhub code //
-    // Sort categories: Web3 first, System second, then alphabetically
-    const sortedCategories = Object.keys(groups).sort((a, b) => {
+    const superMap: Record<SuperCategory, PluginGroup[]> = {
+      Web3: [],
+      Messaging: [],
+      System: [],
+    };
+
+    const sortedCategories = Object.keys(categoryMap).sort((a, b) => {
       if (a === "Web3") return -1;
       if (b === "Web3") return 1;
-      if (a === "System") return -1;
-      if (b === "System") return 1;
       return a.localeCompare(b);
     });
-    // end keeperhub code //
 
-    return sortedCategories.map((category) => ({
-      category,
-      actions: groups[category],
-    }));
+    for (const category of sortedCategories) {
+      const sc = getSuperCategory(category);
+      superMap[sc].push({ category, actions: categoryMap[category] });
+    }
+
+    return SUPER_CATEGORY_ORDER.map((sc) => ({
+      superCategory: sc,
+      pluginGroups: superMap[sc],
+    })).filter((g) => g.pluginGroups.length > 0);
   }, [filteredActions]);
 
   // Filter groups based on hidden state
-  const visibleGroups = useMemo(() => {
-    if (showHidden) return groupedActions;
-    return groupedActions.filter((g) => !hiddenGroups.has(g.category));
-  }, [groupedActions, hiddenGroups, showHidden]);
+  const visibleSuperGroups = useMemo((): SuperCategoryGroup[] => {
+    if (showHidden) {
+      return superCategoryGroups;
+    }
+    return superCategoryGroups
+      .map((sg) => ({
+        ...sg,
+        pluginGroups: sg.pluginGroups.filter(
+          (pg) => !hiddenGroups.has(pg.category)
+        ),
+      }))
+      .filter((sg) => sg.pluginGroups.length > 0);
+  }, [superCategoryGroups, hiddenGroups, showHidden]);
+  // end keeperhub code //
 
   const hiddenCount = hiddenGroups.size;
 
@@ -358,14 +409,14 @@ export function ActionGrid({
             No actions found
           </p>
         )}
-        {filteredActions.length > 0 && visibleGroups.length === 0 && (
+        {filteredActions.length > 0 && visibleSuperGroups.length === 0 && (
           <p className="py-4 text-center text-muted-foreground text-sm">
             All groups are hidden
           </p>
         )}
 
         {/* Grid View */}
-        {viewMode === "grid" && visibleGroups.length > 0 && (
+        {viewMode === "grid" && visibleSuperGroups.length > 0 && (
           <div
             className="grid gap-2 p-1"
             style={{
@@ -397,90 +448,148 @@ export function ActionGrid({
           </div>
         )}
 
-        {/* List View */}
+        {/* start custom keeperhub code */}
+        {/* List View - Flat search results (no category headers) */}
         {viewMode === "list" &&
-          visibleGroups.length > 0 &&
-          visibleGroups.map((group, groupIndex) => {
-            const isCollapsed = collapsedGroups.has(group.category);
-            const isHidden = hiddenGroups.has(group.category);
-            return (
-              <div key={group.category}>
-                {groupIndex > 0 && <div className="my-2 h-px bg-border" />}
-                <div
-                  className={cn(
-                    "sticky top-0 z-10 mb-1 flex items-center gap-2 bg-background px-3 py-2 font-medium text-muted-foreground text-xs uppercase tracking-wider",
-                    isHidden && "opacity-50"
+          filter &&
+          filteredActions.length > 0 &&
+          filteredActions
+            .filter(
+              (action) => showHidden || !hiddenGroups.has(action.category)
+            )
+            .map((action) => (
+              <button
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted",
+                  disabled && "pointer-events-none opacity-50"
+                )}
+                data-testid={`action-option-${action.id.toLowerCase().replace(/\s+/g, "-")}`}
+                disabled={disabled}
+                key={action.id}
+                onClick={() => onSelectAction(action.id)}
+                type="button"
+              >
+                <ActionIcon action={action} className="size-4 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="font-medium">{action.label}</span>
+                  {action.description && (
+                    <span className="text-muted-foreground text-xs">
+                      {" "}
+                      - {action.description}
+                    </span>
                   )}
-                >
-                  <button
-                    className="flex flex-1 items-center gap-2 text-left hover:text-foreground"
-                    onClick={() => toggleGroup(group.category)}
-                    type="button"
-                  >
-                    <ChevronRight
+                </span>
+              </button>
+            ))}
+
+        {/* List View - Grouped by super-category */}
+        {viewMode === "list" &&
+          !filter &&
+          visibleSuperGroups.length > 0 &&
+          visibleSuperGroups.map((sg, sgIndex) => (
+            <div key={sg.superCategory}>
+              {/* Super-category header */}
+              <div
+                className={cn(
+                  "flex items-center gap-2 px-3 pb-1.5",
+                  sgIndex === 0 ? "pt-1" : "pt-4"
+                )}
+              >
+                <span className="shrink-0 text-[10px] font-medium uppercase tracking-widest text-muted-foreground/60">
+                  {sg.superCategory}
+                </span>
+                <div className="h-px flex-1 bg-border/40" />
+              </div>
+
+              {/* Plugin groups within super-category */}
+              {sg.pluginGroups.map((group, groupIndex) => {
+                const isCollapsed = collapsedGroups.has(group.category);
+                const isHidden = hiddenGroups.has(group.category);
+                return (
+                  <div key={group.category}>
+                    {groupIndex > 0 && (
+                      <div className="my-2 h-px bg-border" />
+                    )}
+                    <div
                       className={cn(
-                        "size-3.5 transition-transform",
-                        !isCollapsed && "rotate-90"
+                        "sticky top-0 z-10 mb-1 flex items-center gap-2 bg-background px-3 py-2 font-medium text-muted-foreground text-xs uppercase tracking-wider",
+                        isHidden && "opacity-50"
                       )}
-                    />
-                    <GroupIcon group={group} />
-                    {group.category}
-                  </button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
+                    >
                       <button
-                        className="rounded p-0.5 hover:bg-muted hover:text-foreground"
+                        className="flex flex-1 items-center gap-2 text-left hover:text-foreground"
+                        onClick={() => toggleGroup(group.category)}
                         type="button"
                       >
-                        <MoreHorizontal className="size-4" />
+                        <ChevronRight
+                          className={cn(
+                            "size-3.5 transition-transform",
+                            !isCollapsed && "rotate-90"
+                          )}
+                        />
+                        <GroupIcon group={group} />
+                        {group.category}
                       </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() => toggleHideGroup(group.category)}
-                      >
-                        {isHidden ? (
-                          <>
-                            <Eye className="mr-2 size-4" />
-                            Show group
-                          </>
-                        ) : (
-                          <>
-                            <EyeOff className="mr-2 size-4" />
-                            Hide group
-                          </>
-                        )}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                {!isCollapsed &&
-                  group.actions.map((action) => (
-                    <button
-                      className={cn(
-                        "flex w-full items-center rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted",
-                        disabled && "pointer-events-none opacity-50"
-                      )}
-                      data-testid={`action-option-${action.id.toLowerCase().replace(/\s+/g, "-")}`}
-                      disabled={disabled}
-                      key={action.id}
-                      onClick={() => onSelectAction(action.id)}
-                      type="button"
-                    >
-                      <span className="min-w-0 flex-1 truncate">
-                        <span className="font-medium">{action.label}</span>
-                        {action.description && (
-                          <span className="text-muted-foreground text-xs">
-                            {" "}
-                            - {action.description}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            className="rounded p-0.5 hover:bg-muted hover:text-foreground"
+                            type="button"
+                          >
+                            <MoreHorizontal className="size-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => toggleHideGroup(group.category)}
+                          >
+                            {isHidden ? (
+                              <>
+                                <Eye className="mr-2 size-4" />
+                                Show group
+                              </>
+                            ) : (
+                              <>
+                                <EyeOff className="mr-2 size-4" />
+                                Hide group
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    {!isCollapsed &&
+                      group.actions.map((action) => (
+                        <button
+                          className={cn(
+                            "flex w-full items-center rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted",
+                            disabled && "pointer-events-none opacity-50"
+                          )}
+                          data-testid={`action-option-${action.id.toLowerCase().replace(/\s+/g, "-")}`}
+                          disabled={disabled}
+                          key={action.id}
+                          onClick={() => onSelectAction(action.id)}
+                          type="button"
+                        >
+                          <span className="min-w-0 flex-1 truncate">
+                            <span className="font-medium">
+                              {action.label}
+                            </span>
+                            {action.description && (
+                              <span className="text-muted-foreground text-xs">
+                                {" "}
+                                - {action.description}
+                              </span>
+                            )}
                           </span>
-                        )}
-                      </span>
-                    </button>
-                  ))}
-              </div>
-            );
-          })}
+                        </button>
+                      ))}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        {/* end keeperhub code */}
       </div>
     </div>
   );

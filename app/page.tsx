@@ -5,8 +5,11 @@ import { nanoid } from "nanoid";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
+// start custom keeperhub code //
+import { refetchSidebar } from "@/keeperhub/lib/refetch-sidebar";
 import { api } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
+// end keeperhub code //
 import {
   currentWorkflowIdAtom,
   currentWorkflowNameAtom,
@@ -118,6 +121,7 @@ const Home = () => {
         edges: defaultEdges,
       });
 
+      refetchSidebar();
       sessionStorage.setItem("animate-sidebar", "true");
       setIsTransitioningFromHomepage(true);
       router.replace(`/workflows/${newWorkflow.id}`);
