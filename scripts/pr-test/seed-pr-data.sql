@@ -51,7 +51,7 @@ BEGIN
   END;
 
   -------------------------------------------------------------------
-  -- 1. WORKFLOWS (4)
+  -- 1. WORKFLOWS (5)
   -------------------------------------------------------------------
 
   -- Workflow 1: Webhook trigger with HTTP Request action
@@ -133,6 +133,31 @@ BEGIN
     v_1d_ago
   )
   ON CONFLICT (id) DO UPDATE SET
+    nodes = EXCLUDED.nodes,
+    edges = EXCLUDED.edges,
+    updated_at = EXCLUDED.updated_at;
+
+  -- Workflow 5: Aave V3 Supply Pipeline (wrap ETH to Aave WETH -> approve -> read account -> supply)
+  INSERT INTO workflows (id, name, description, user_id, organization_id, is_anonymous, featured, featured_order, nodes, edges, visibility, enabled, created_at, updated_at)
+  VALUES (
+    'pr-test-wf-aave-write',
+    'Aave V3: Wrap + Approve + Supply Pipeline',
+    'Wraps ETH to Aave WETH, approves Pool, reads account data, then supplies WETH on Sepolia',
+    v_user_id,
+    v_org_id,
+    false,
+    false,
+    0,
+    '[{"id":"trigger-1","type":"trigger","position":{"x":100,"y":200},"data":{"type":"trigger","label":"Manual Trigger","config":{"triggerType":"Manual"}}},{"id":"action-1","type":"action","position":{"x":400,"y":200},"data":{"type":"action","label":"Wrap ETH to Aave WETH","config":{"actionType":"web3/write-contract","network":"sepolia","contractAddress":"0xC558DBdd856501FCd9aaF1E62eae57A9F0629a3c","abi":"[{\"inputs\":[],\"name\":\"deposit\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"}]","abiFunction":"deposit","functionArgs":"[]","ethValue":"0.001"}}},{"id":"action-2","type":"action","position":{"x":700,"y":200},"data":{"type":"action","label":"Approve ERC20 Token","config":{"actionType":"web3/approve-token","network":"sepolia","tokenConfig":"{\"mode\":\"custom\",\"customToken\":{\"address\":\"0xC558DBdd856501FCd9aaF1E62eae57A9F0629a3c\",\"symbol\":\"WETH\"}}","spenderAddress":"0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951","amount":"max"}}},{"id":"action-3","type":"action","position":{"x":1000,"y":200},"data":{"type":"action","label":"Aave V3: Get User Account Data","config":{"actionType":"aave/get-user-account-data","network":"11155111","user":"0x4f1089424DCf25B1290631Df483a436B320e51A1","_protocolMeta":"{\"protocolSlug\":\"aave\",\"contractKey\":\"pool\",\"functionName\":\"getUserAccountData\",\"actionType\":\"read\"}"}}},{"id":"action-4","type":"action","position":{"x":1300,"y":200},"data":{"type":"action","label":"Aave V3: Supply Asset","config":{"actionType":"aave/supply","network":"11155111","asset":"0xC558DBdd856501FCd9aaF1E62eae57A9F0629a3c","amount":"1000000000000000","onBehalfOf":"0x4f1089424DCf25B1290631Df483a436B320e51A1","referralCode":"0","_protocolMeta":"{\"protocolSlug\":\"aave\",\"contractKey\":\"pool\",\"functionName\":\"supply\",\"actionType\":\"write\"}"}}}]'::jsonb,
+    '[{"id":"edge-trigger-1-action-1","source":"trigger-1","target":"action-1","type":"default"},{"id":"edge-action-1-action-2","source":"action-1","target":"action-2","type":"default"},{"id":"edge-action-2-action-3","source":"action-2","target":"action-3","type":"default"},{"id":"edge-action-3-action-4","source":"action-3","target":"action-4","type":"default"}]'::jsonb,
+    'private',
+    true,
+    v_1d_ago,
+    v_1d_ago
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    description = EXCLUDED.description,
     nodes = EXCLUDED.nodes,
     edges = EXCLUDED.edges,
     updated_at = EXCLUDED.updated_at;
@@ -342,6 +367,6 @@ BEGIN
   -- Done
   -------------------------------------------------------------------
 
-  RAISE NOTICE 'Seed complete: user=%, org=%, 4 workflows, 1 schedule, 6 executions, 2 logs, 1 org API key (wallet from init container)', v_user_id, v_org_id;
+  RAISE NOTICE 'Seed complete: user=%, org=%, 5 workflows, 1 schedule, 6 executions, 2 logs, 1 org API key (wallet from init container)', v_user_id, v_org_id;
 
 END $$;

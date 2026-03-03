@@ -3,7 +3,10 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { explorerConfigs } from "@/lib/db/schema";
-import { fetchEtherscanAbi } from "@/lib/explorer/etherscan";
+import {
+  fetchEtherscanAbi,
+  fetchEtherscanSourceCode,
+} from "@/lib/explorer/etherscan";
 import { detectProxyViaRpc } from "@/lib/explorer/proxy-detection";
 import { getChainIdFromNetwork } from "@/lib/rpc";
 
@@ -46,12 +49,36 @@ async function fetchAbiFromExplorer(
     throw new Error(`No explorer API configured for chain ${chainId}`);
   }
 
-  const directResult = await fetchEtherscanAbi(
-    explorer.explorerApiUrl,
-    chainId,
-    contractAddress,
-    ETHERSCAN_API_KEY
-  );
+  const [directResult, sourceCodeResult] = await Promise.all([
+    fetchEtherscanAbi(
+      explorer.explorerApiUrl,
+      chainId,
+      contractAddress,
+      ETHERSCAN_API_KEY
+    ),
+    fetchEtherscanSourceCode(
+      explorer.explorerApiUrl,
+      chainId,
+      contractAddress,
+      ETHERSCAN_API_KEY
+    ),
+  ]);
+
+  if (
+    sourceCodeResult.success &&
+    sourceCodeResult.isProxy &&
+    sourceCodeResult.implementationAddress
+  ) {
+    const implResult = await fetchEtherscanAbi(
+      explorer.explorerApiUrl,
+      chainId,
+      sourceCodeResult.implementationAddress,
+      ETHERSCAN_API_KEY
+    );
+    if (implResult.success && implResult.abi) {
+      return JSON.stringify(implResult.abi);
+    }
+  }
 
   if (directResult.success && directResult.abi) {
     const hasFunctions = directResult.abi.some(
@@ -63,7 +90,6 @@ async function fetchAbiFromExplorer(
     if (hasFunctions) {
       return JSON.stringify(directResult.abi);
     }
-    // ABI has no functions (likely a proxy contract) -- fall through to proxy detection
   }
 
   const proxyResult = await detectProxyViaRpc(contractAddress, chainId);
@@ -74,7 +100,6 @@ async function fetchAbiFromExplorer(
       proxyResult.implementationAddress,
       ETHERSCAN_API_KEY
     );
-
     if (implResult.success && implResult.abi) {
       return JSON.stringify(implResult.abi);
     }

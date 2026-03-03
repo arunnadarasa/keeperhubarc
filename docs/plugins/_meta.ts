@@ -4,6 +4,7 @@ export default {
   code: "Code",
   math: "Math",
   safe: "Safe",
+  "aave-v3": "Aave V3",
   ajna: "Ajna",
   cowswap: "CoW Swap",
   morpho: "Morpho",
