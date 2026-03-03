@@ -125,10 +125,11 @@ describe("Morpho Protocol Definition", () => {
     }
   });
 
-  it("morpho contract is available on 2 chains", () => {
-    expect(Object.keys(morphoDef.contracts.morpho.addresses)).toHaveLength(2);
+  it("morpho contract is available on 3 chains", () => {
+    expect(Object.keys(morphoDef.contracts.morpho.addresses)).toHaveLength(3);
     expect(morphoDef.contracts.morpho.addresses["1"]).toBeDefined();
     expect(morphoDef.contracts.morpho.addresses["8453"]).toBeDefined();
+    expect(morphoDef.contracts.morpho.addresses["11155111"]).toBeDefined();
   });
 
   it("registers in the protocol registry and is retrievable", () => {

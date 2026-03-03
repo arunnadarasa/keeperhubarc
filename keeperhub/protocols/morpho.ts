@@ -16,6 +16,8 @@ export default defineProtocol({
         "1": "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
         // Base
         "8453": "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+        // Sepolia
+        "11155111": "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
       },
       // ABI omitted -- resolved automatically via abi-cache
     },

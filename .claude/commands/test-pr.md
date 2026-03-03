@@ -161,6 +161,162 @@ Based on the PR context from Step 5, test the specific changes:
 
 Tailor tests to what actually changed. Do not test unchanged areas in this step.
 
+### Step 7p: Protocol plugin testing (conditional)
+
+**Trigger**: Only run this step if the PR modifies files matching `keeperhub/protocols/*.ts`. Check the file list from Step 5. If no protocol files changed, skip to Step 8.
+
+**7p-a: Read the protocol definition**
+
+Identify changed protocol files from the PR file list (Step 5). Read each protocol `.ts` file locally (it exists on the current branch). Extract:
+- Protocol name, slug, description
+- Contracts: key, label, chain addresses
+- Actions: slug, label, type (read/write), contract, function, inputs (name, type, label), outputs
+
+**7p-b: Build test workflows dynamically**
+
+For each new/modified protocol, construct 1-2 workflows that exercise its actions:
+
+**Read workflow** (`pr-test-wf-<protocolSlug>-read`):
+- Manual Trigger -> read action (no inputs, if one exists) -> read action (with inputs) -> Condition node checking output
+- If the protocol only has read actions with inputs, skip the no-input step
+- If the protocol has no read actions, skip this workflow
+
+**Write workflow** (`pr-test-wf-<protocolSlug>-write`):
+- Manual Trigger -> read action (to get state) -> write action
+- Only build if the protocol has write actions
+
+Use the first available chain ID from the contract's `addresses` keys as the `"network"` value (e.g., if `addresses: { "1": "0x...", "8453": "0x..." }`, use `"network": "1"`). Network values MUST be numeric chain ID strings, never names like "ethereum" or "sepolia".
+
+Construct workflow node JSON following this pattern (from `seed-pr-data.sql`):
+
+```json
+{
+  "id": "action-1", "type": "action",
+  "position": {"x": 400, "y": 200},
+  "data": {
+    "type": "action",
+    "label": "<Protocol Name>: <Action Label>",
+    "config": {
+      "actionType": "<protocolSlug>/<actionSlug>",
+      "network": "1",
+      "<inputName>": "<placeholder>",
+      "_protocolMeta": "{\"protocolSlug\":\"...\",\"contractKey\":\"...\",\"functionName\":\"...\",\"actionType\":\"read|write\"}"
+    }
+  }
+}
+```
+
+Placeholder values by Solidity type:
+- `address`: `0x0000000000000000000000000000000000000000`
+- `bytes` / `bytes32`: `0x0000000000000000000000000000000000000000000000000000000000000000`
+- `uint256` / `int256`: `0`
+- `bool`: `true`
+- `string`: `test`
+
+Node labels must match the format from `protocol-registry.ts`: `${protocolName}: ${actionLabel}`
+
+Edge IDs follow the pattern: `edge-<sourceId>-<targetId>`
+
+**7p-c: Seed the workflows**
+
+Generate INSERT SQL wrapped in a `DO $$ ... END $$` block (same pattern as `seed-pr-data.sql`):
+- Look up `v_user_id` and `v_org_id` from the test user email `pr-test-do-not-delete@techops.services`
+- Use `INSERT INTO workflows (...) VALUES (...) ON CONFLICT (id) DO UPDATE SET nodes = EXCLUDED.nodes, edges = EXCLUDED.edges, updated_at = EXCLUDED.updated_at`
+- Set `is_anonymous = false`, `featured = false`, `featured_order = 0`, `visibility = 'private'`, `enabled = true`
+
+Execute via:
+```bash
+echo "<SQL>" | bash scripts/pr-test/pr-exec-sql.sh $PR_NUMBER
+```
+
+**7p-d: Verify seeded workflows in browser**
+
+Navigate to each seeded workflow URL: `${APP_URL}/workflow/pr-test-wf-<slug>-read` (and `-write` if created).
+
+For each workflow, verify:
+- Canvas renders with the correct number of nodes (trigger + actions)
+- Protocol action nodes show the correct label (matching `<Protocol Name>: <Action Label>`)
+- Protocol action nodes show the protocol icon (not a fallback/generic icon)
+- Click each protocol action node -- the config panel opens and shows:
+  - Correct service name
+  - Correct action name
+  - Chain selector present
+  - `_protocolMeta` field populated
+  - Input fields with correct labels
+
+Take a screenshot of each workflow canvas and at least one open config panel.
+
+**7p-e: Verify action grid completeness**
+
+From any workflow canvas:
+- Click "Add Step" to open the action grid
+- Search for the protocol name
+- Count the number of actions shown -- it should match the total action count from the protocol definition
+- Take a screenshot of the filtered action grid
+
+Record PASS/FAIL for each sub-check (7p-d through 7p-g).
+
+**7p-f: Execute read workflow**
+
+Trigger execution of the seeded read workflow via the API and verify results.
+
+```bash
+# Trigger execution
+curl -s -X POST "${APP_URL}/api/workflow/pr-test-wf-<protocolSlug>-read/execute" \
+  -H "Authorization: Bearer kh_prte_test_api_key_000" \
+  -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
+  -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
+  -H "Content-Type: application/json"
+```
+
+This returns `{ "executionId": "...", "status": "..." }`. Save the `executionId`.
+
+Poll for completion (max 60 seconds, poll every 5 seconds):
+
+```bash
+curl -s "${APP_URL}/api/workflows/executions/${EXECUTION_ID}/status" \
+  -H "Authorization: Bearer kh_prte_test_api_key_000" \
+  -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
+  -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}"
+```
+
+Wait until `status` is `completed` or `failed`. Then fetch logs:
+
+```bash
+curl -s "${APP_URL}/api/workflows/executions/${EXECUTION_ID}/logs" \
+  -H "Authorization: Bearer kh_prte_test_api_key_000" \
+  -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
+  -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}"
+```
+
+Pass/fail logic:
+- Execution completes with output data -> **PASS**
+- Contract reverts on placeholder inputs (e.g., `execution failed` with revert error in logs) -> **PASS** (plumbing works, inputs were fake)
+- RPC connection error, ABI resolution failure, chain not found, or missing protocol meta -> **FAIL** (infrastructure broken)
+
+Record the execution status, any error messages, and which nodes succeeded/failed.
+
+**7p-g: Execute write workflow (best-effort)**
+
+If a write workflow was seeded (`pr-test-wf-<protocolSlug>-write`), trigger it the same way:
+
+```bash
+curl -s -X POST "${APP_URL}/api/workflow/pr-test-wf-<protocolSlug>-write/execute" \
+  -H "Authorization: Bearer kh_prte_test_api_key_000" \
+  -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
+  -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
+  -H "Content-Type: application/json"
+```
+
+Poll and fetch logs using the same pattern as 7p-f.
+
+Pass/fail logic:
+- Reaches the write action step (any outcome including revert, insufficient funds, or gas estimation failure) -> **PASS** (full chain works: protocol meta -> ABI -> wallet -> signer -> tx construction)
+- Fails before the write action step (RPC error, ABI failure, chain resolution error) -> **FAIL** (infrastructure broken)
+- No write workflow was seeded -> **SKIP**
+
+Check `nodeStatuses` in the status response to determine which step failed. If the write action node itself shows the error, the plumbing is working. If a preceding node (trigger, read action) fails, that indicates an infrastructure issue.
+
 ### Step 8: Exploratory testing (browser)
 
 **7a. Workflow creation**
@@ -220,6 +376,14 @@ Generate the test report inline using this format:
 
 ### Feature Tests
 - [PASS/FAIL] <specific tests based on PR changes>
+
+### Protocol Plugin Tests (when applicable)
+- [PASS/FAIL] Protocol workflow seeded and renders on canvas
+- [PASS/FAIL] Action nodes show correct icon, label, and config
+- [PASS/FAIL] Config panel shows correct service/action/chain/inputs
+- [PASS/FAIL] Action grid shows expected action count (<N> actions)
+- [PASS/FAIL/SKIP] Read workflow execution (status: <completed/failed>, nodes: <N>/<total> passed)
+- [PASS/FAIL/SKIP] Write workflow execution (status: <completed/failed>, reached write step: yes/no)
 
 ### Exploratory Tests
 - [PASS/FAIL] Workflow creation flow
