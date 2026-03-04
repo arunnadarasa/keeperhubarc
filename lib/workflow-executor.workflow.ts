@@ -28,6 +28,11 @@ import {
   recordWorkflowComplete,
 } from "@/keeperhub/lib/metrics/instrumentation/workflow";
 import { fallbackCompleteExecution } from "@/keeperhub/lib/execution-fallback";
+import { fetchExecutionLogs } from "@/keeperhub/lib/fetch-execution-logs";
+import {
+  getFailedMaxRetriesNodeIds,
+  reconcileMaxRetriesFailures,
+} from "@/keeperhub/lib/max-retries-reconciler";
 import { ARRAY_SOURCE_RE } from "@/keeperhub/lib/for-each-utils";
 import {
   buildEdgesBySourceHandle,
@@ -1913,6 +1918,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
         }
       }
     } catch (error) {
+      const errorMessage = await getErrorMessageAsync(error);
       logSystemError(
         ErrorCategory.WORKFLOW_ENGINE,
         "[Workflow Executor] Error executing node:",
@@ -1923,7 +1929,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           node_id: nodeId,
         }
       );
-      const errorMessage = await getErrorMessageAsync(error);
       const errorResult = {
         success: false,
         error: errorMessage,
@@ -1950,6 +1955,39 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     // end keeperhub code //
 
     await Promise.all(triggerNodes.map((trigger) => executeNode(trigger.id)));
+
+    // start custom keeperhub code //
+    // KEEP-1541: Reconcile spurious "max retries exceeded" failures.
+    // See max-retries-reconciler.ts for details. Uses HTTP loopback
+    // (same pattern as execution-fallback.ts) to avoid DB imports in
+    // the workflow bundle.
+    if (executionId) {
+      const failedNodeIds = getFailedMaxRetriesNodeIds(results);
+
+      if (failedNodeIds.length > 0) {
+        const executionLogs = await fetchExecutionLogs(
+          executionId,
+          failedNodeIds
+        );
+
+        if (executionLogs) {
+          const { overriddenNodeIds } = reconcileMaxRetriesFailures({
+            results,
+            executionLogs,
+            workflowId,
+            executionId,
+          });
+
+          if (overriddenNodeIds.length > 0) {
+            console.warn(
+              "[Workflow Executor] Reconciled spurious max-retries failures:",
+              overriddenNodeIds
+            );
+          }
+        }
+      }
+    }
+    // end keeperhub code //
 
     const finalSuccess = Object.values(results).every((r) => r.success);
     const duration = Date.now() - workflowStartTime;
