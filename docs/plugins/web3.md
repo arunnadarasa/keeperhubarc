@@ -19,6 +19,8 @@ Interact with EVM-compatible blockchain networks. Read-only actions work without
 | Write Contract | Web3 | Wallet | Execute state-changing contract functions |
 | Transfer Native Token | Web3 | Wallet | Send ETH/MATIC/etc. to a recipient |
 | Transfer ERC20 Token | Web3 | Wallet | Send ERC20 tokens to a recipient |
+| Approve ERC20 Token | Web3 | Wallet | Approve a spender contract to spend tokens on your behalf |
+| Check ERC20 Allowance | Web3 | No | Check the current token spending allowance granted to a spender |
 | Query Contract Events | Web3 | No | Query historical smart contract events across a block range |
 | Query Transaction History | Web3 | No | Query historical transactions by function call with optional argument filtering |
 | Decode Calldata | Security | No | Decode raw calldata into human-readable function calls |
@@ -492,6 +494,56 @@ Send ERC20 tokens from your Para wallet to a recipient address.
 **Gas Configuration:** Optionally set a custom Gas Limit Multiplier in the Advanced section to override the chain default. See [Gas Management](/wallet-management/gas) for details.
 
 **Note:** The `gasUsed` output represents the total transaction cost in wei (gas units × effective gas price), not just the number of gas units consumed.
+
+---
+
+## Approve ERC20 Token
+
+Grant spending permission to a spender contract, allowing it to transfer ERC20 tokens on behalf of your Para wallet. This is required before using DEX aggregators, DeFi protocols, or any contract that needs to move tokens from your wallet.
+
+**Inputs:** Network, Token, Spender Address, Amount, Gas Limit Multiplier (optional, in Advanced section)
+
+**Outputs:** `success`, `transactionHash`, `transactionLink`, `gasUsed` (total gas cost in wei), `approvedAmount` (human-readable or "unlimited"), `spender`, `symbol`, `error`
+
+**When to use:** Enable DeFi interactions (swaps, deposits, lending), automate approval management, set up bot wallets for protocol operations.
+
+**Amount Options:**
+- Exact amount (e.g., "100.50") - approve only the specified amount
+- "max" or "unlimited" - approve unlimited spending (max uint256)
+
+**Gas Configuration:** Optionally set a custom Gas Limit Multiplier in the Advanced section to override the chain default. See [Gas Management](/wallet-management/gas) for details.
+
+**Note:** The `gasUsed` output represents the total transaction cost in wei (gas units × effective gas price), not just the number of gas units consumed.
+
+**Example workflow:**
+```
+Schedule (daily)
+  -> Check ERC20 Allowance: owner={{walletAddress}}, spender={{routerAddress}}
+  -> Condition: allowanceRaw < 1000000000
+  -> Approve ERC20 Token: spender={{routerAddress}}, amount="max"
+  -> Discord: "Router approval refreshed"
+```
+
+---
+
+## Check ERC20 Allowance
+
+Check the current ERC20 token spending allowance that an owner has granted to a spender address. This is a read-only operation that does not require credentials.
+
+**Inputs:** Network, Token, Owner Address, Spender Address
+
+**Outputs:** `success`, `allowance` (human-readable), `allowanceRaw` (wei string), `symbol`, `error`
+
+**When to use:** Monitor approval status before operations, audit token permissions, trigger approval renewals when allowance drops below threshold.
+
+**Example workflow:**
+```
+Schedule (every hour)
+  -> Check ERC20 Allowance: owner={{treasuryWallet}}, spender={{dexRouter}}
+  -> Condition: allowanceRaw < 100000000000000000000
+  -> Approve ERC20 Token: amount="1000"
+  -> SendGrid: "DEX router approval renewed to 1000 tokens"
+```
 
 ---
 
