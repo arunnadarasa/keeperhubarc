@@ -111,7 +111,9 @@ function compareSla(
   } else if (currentSla === null && newSla !== null) {
     direction = "upgrade";
   } else {
-    direction = (newSla ?? "") > (currentSla ?? "") ? "upgrade" : "downgrade";
+    const currentNum = Number.parseFloat(currentSla ?? "0");
+    const newNum = Number.parseFloat(newSla ?? "0");
+    direction = newNum > currentNum ? "upgrade" : "downgrade";
   }
   return {
     label: "SLA",
