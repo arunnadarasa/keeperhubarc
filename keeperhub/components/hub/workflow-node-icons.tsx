@@ -171,7 +171,7 @@ export function WorkflowNodeIcons({ nodes }: WorkflowNodeIconsProps) {
       {visible.map(({ key, label, Icon }) => (
         <Tooltip key={key}>
           <TooltipTrigger asChild>
-            <div className="flex size-10 items-center justify-center rounded-lg bg-[#2a3342] transition-colors hover:bg-[#354155]">
+            <div className="flex size-10 items-center justify-center rounded-lg bg-[var(--color-hub-icon-bg)] transition-colors hover:bg-[var(--color-hub-icon-bg-hover)]">
               <Icon className="size-5 text-slate-400" />
             </div>
           </TooltipTrigger>
@@ -181,7 +181,7 @@ export function WorkflowNodeIcons({ nodes }: WorkflowNodeIconsProps) {
       {overflow > 0 && (
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex size-10 items-center justify-center rounded-lg bg-[#2a3342] transition-colors hover:bg-[#354155]">
+            <div className="flex size-10 items-center justify-center rounded-lg bg-[var(--color-hub-icon-bg)] transition-colors hover:bg-[var(--color-hub-icon-bg-hover)]">
               <span className="font-medium text-slate-400 text-sm">
                 +{overflow}
               </span>

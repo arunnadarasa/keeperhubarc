@@ -73,7 +73,9 @@ export function ProjectSelect({
               <span className="flex items-center gap-2">
                 <span
                   className="inline-block size-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: project.color ?? "#888" }}
+                  style={{
+                    backgroundColor: project.color ?? "var(--color-text-muted)",
+                  }}
                 />
                 {project.name}
               </span>

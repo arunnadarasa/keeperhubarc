@@ -176,7 +176,9 @@ function ProjectsPanel({
           >
             <span
               className="inline-block size-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: project.color ?? "#888" }}
+              style={{
+                backgroundColor: project.color ?? "var(--color-text-muted)",
+              }}
             />
             <span className="truncate">{project.name}</span>
             <span className="ml-auto flex items-center gap-1 text-muted-foreground text-xs">
