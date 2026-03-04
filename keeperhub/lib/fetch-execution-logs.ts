@@ -1,10 +1,5 @@
 import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
-
-type ExecutionLog = {
-  nodeId: string;
-  status: string;
-  output: unknown;
-};
+import type { ExecutionLog } from "@/keeperhub/lib/max-retries-reconciler";
 
 /**
  * KEEP-1541: Fetch execution logs via HTTP loopback to avoid importing DB
