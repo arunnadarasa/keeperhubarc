@@ -42,7 +42,7 @@ These defaults are resolved in order: database chain config > hardcoded chain ov
 
 You can set an absolute gas limit per action node:
 
-1. Open the action node configuration (Transfer Native Token, Transfer ERC20 Token, or Write Contract)
+1. Open the action node configuration (Transfer Native Token, Transfer ERC20 Token, Approve ERC20 Token, or Write Contract)
 2. Expand the **Advanced** section
 3. Set the **Gas Limit** field to an absolute gas unit value (e.g. 500000)
 

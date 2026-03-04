@@ -43,7 +43,7 @@ Actions perform the actual work in your workflow:
 
 | Category | Actions |
 |----------|---------|
-| Web3 | Check Balance, Read Contract, Write Contract, Transfer Funds |
+| Web3 | Check Balance, Read Contract, Write Contract, Transfer Funds, Approve Token |
 | Notifications | Send Email, Send Discord Message, Send Slack Message |
 | Integrations | Send Webhook, Custom HTTP requests |
 
