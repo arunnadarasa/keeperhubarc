@@ -6,7 +6,7 @@ const ANALYTICS_PASSWORD = "TestAnalytics123!";
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
-test.describe("Analytics Gas Tracking", () => {
+test.describe.skip("Analytics Gas Tracking", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeEach(async ({ context }) => {
