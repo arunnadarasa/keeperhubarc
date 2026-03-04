@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { start } from "workflow/api";
 // start custom keeperhub code //
 import { authenticateApiKey } from "@/keeperhub/lib/api-key-auth";
+import { enforceExecutionLimit } from "@/keeperhub/lib/billing/execution-guard";
 import { authenticateInternalService } from "@/keeperhub/lib/internal-service-auth";
 import {
   getMetricsCollector,
@@ -201,6 +202,13 @@ export async function POST(
         { status: 403 }
       );
     }
+
+    // start custom keeperhub code //
+    const executionGuard = await enforceExecutionLimit(workflow.organizationId);
+    if (executionGuard.blocked) {
+      return executionGuard.response;
+    }
+    // end keeperhub code //
 
     // Parse request body
     const body = await request.json().catch(() => ({}));

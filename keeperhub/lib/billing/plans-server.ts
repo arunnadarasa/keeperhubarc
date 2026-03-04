@@ -3,6 +3,7 @@ import "server-only";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { organizationSubscriptions } from "@/lib/db/schema";
+import { getActiveDebtExecutions } from "./execution-debt";
 import {
   type BillingInterval,
   getPlanLimits,
@@ -11,6 +12,8 @@ import {
   type PlanName,
   type TierKey,
 } from "./plans";
+
+const MINIMUM_EXECUTION_FLOOR = 100;
 
 // -- Price ID mapping (server-only, env vars not available in client bundles) --
 
@@ -108,43 +111,135 @@ export async function checkFeatureAccess(
   return value !== null;
 }
 
+/** Within limits or unlimited plan -- no action needed. */
+export type ExecutionWithinLimits = {
+  allowed: true;
+  isOverage: false;
+  debtExecutions: number;
+  effectiveLimit: number;
+};
+
+/** Paid plan exceeded its included limit -- execution proceeds, billed later. */
+export type ExecutionOverageAllowed = {
+  allowed: true;
+  isOverage: true;
+  limit: number;
+  used: number;
+  overageRate: number;
+  debtExecutions: number;
+  effectiveLimit: number;
+};
+
+/** Free plan limit exhausted -- execution must be blocked. */
+export type ExecutionLimitExceeded = {
+  allowed: false;
+  limit: number;
+  used: number;
+  plan: PlanName;
+  debtExecutions: number;
+  effectiveLimit: number;
+};
+
+export type ExecutionLimitResult =
+  | ExecutionWithinLimits
+  | ExecutionOverageAllowed
+  | ExecutionLimitExceeded;
+
 /**
  * Check if an organization has exceeded its monthly execution limit.
- * Returns { allowed: true } or { allowed: false, limit, used }.
+ *
+ * Returns one of:
+ * - allowed + not overage (within limits or unlimited plan)
+ * - allowed + overage (paid plan with overage enabled, will be billed later)
+ * - not allowed (free plan limit exceeded)
+ *
+ * NOTE: This is a point-in-time check (TOCTOU). The caller does not hold a lock,
+ * so concurrent requests may each pass the check before any execution is recorded.
+ * The resulting overshoot is bounded by request concurrency and is acceptable:
+ * paid plans are backstopped by overage billing, free plans by a small bounded excess.
  */
 export async function checkExecutionLimit(
   organizationId: string
-): Promise<
-  { allowed: true } | { allowed: false; limit: number; used: number }
-> {
+): Promise<ExecutionLimitResult> {
   const sub = await getOrgSubscription(organizationId);
   const plan = (sub?.plan ?? "free") as PlanName;
   const tier = (sub?.tier ?? null) as TierKey | null;
   const limits = getPlanLimits(plan, tier);
 
   if (limits.maxExecutionsPerMonth === -1) {
-    return { allowed: true };
+    // Unlimited plans are unaffected by debt -- skip the query intentionally
+    return {
+      allowed: true,
+      isOverage: false,
+      debtExecutions: 0,
+      effectiveLimit: -1,
+    };
   }
 
-  const planDef = PLANS[plan];
-  if (planDef.overage.enabled && sub?.status === "active") {
-    return { allowed: true };
-  }
+  const debtExecutions = await getActiveDebtExecutions(organizationId);
+  const effectiveLimit = Math.max(
+    MINIMUM_EXECUTION_FLOOR,
+    limits.maxExecutionsPerMonth - debtExecutions
+  );
 
   const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfMonth = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+  );
 
   const result = await db.execute<{ count: number }>(
-    sql`SELECT COUNT(*)::int as count FROM workflow_runs
-        WHERE organization_id = ${organizationId}
-        AND created_at >= ${startOfMonth.toISOString()}`
+    sql`SELECT COUNT(*)::int as count
+        FROM workflow_executions we
+        JOIN workflows w ON we.workflow_id = w.id
+        WHERE w.organization_id = ${organizationId}
+        AND we.started_at >= ${startOfMonth.toISOString()}`
   );
 
   const used = result[0]?.count ?? 0;
+  const planDef = PLANS[plan];
 
-  if (used >= limits.maxExecutionsPerMonth) {
-    return { allowed: false, limit: limits.maxExecutionsPerMonth, used };
+  // Paid plans with active debt (unpaid overage past 15-day grace period) are blocked
+  if (debtExecutions > 0 && planDef.overage.enabled) {
+    return {
+      allowed: false,
+      limit: limits.maxExecutionsPerMonth,
+      used,
+      plan,
+      debtExecutions,
+      effectiveLimit,
+    };
   }
 
-  return { allowed: true };
+  // Under limit: always allowed, no overage
+  if (used < limits.maxExecutionsPerMonth) {
+    return {
+      allowed: true,
+      isOverage: false,
+      debtExecutions,
+      effectiveLimit,
+    };
+  }
+
+  // Paid plans over limit: allowed with overage billing
+  if (planDef.overage.enabled && sub?.status === "active") {
+    return {
+      allowed: true,
+      isOverage: true,
+      limit: limits.maxExecutionsPerMonth,
+      used,
+      overageRate: planDef.overage.ratePerThousand,
+      debtExecutions,
+      effectiveLimit,
+    };
+  }
+
+  // Free plans and inactive subscriptions are blocked at the limit
+  return {
+    allowed: false,
+    limit: limits.maxExecutionsPerMonth,
+    used,
+    plan,
+    debtExecutions,
+    effectiveLimit,
+  };
 }

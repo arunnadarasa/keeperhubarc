@@ -25,6 +25,7 @@ export type BillingWebhookEvent = {
   data: {
     providerSubscriptionId?: string;
     providerCustomerId?: string;
+    invoiceId?: string;
     organizationId?: string;
     priceId?: string;
     status?: string;
@@ -65,6 +66,18 @@ export type SubscriptionDetails = {
   cancelAtPeriodEnd: boolean;
   periodStart: Date;
   periodEnd: Date | null;
+};
+
+export type CreateInvoiceItemParams = {
+  customerId: string;
+  amount: number;
+  currency: string;
+  description: string;
+  metadata?: Record<string, string>;
+};
+
+export type CreateInvoiceItemResult = {
+  invoiceItemId: string;
 };
 
 export type ProrationPreview = {
@@ -111,4 +124,16 @@ export interface BillingProvider {
     subscriptionId: string,
     newPriceId: string
   ): Promise<ProrationPreview>;
+
+  createInvoiceItem(
+    params: CreateInvoiceItemParams
+  ): Promise<CreateInvoiceItemResult>;
+
+  getInvoiceStatus(
+    invoiceId: string
+  ): Promise<{ status: string; paid: boolean }>;
+
+  getInvoiceForItem(
+    invoiceItemId: string
+  ): Promise<{ invoiceId: string; status: string; paid: boolean } | undefined>;
 }

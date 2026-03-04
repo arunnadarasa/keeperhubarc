@@ -3,7 +3,15 @@ import { db } from "@/lib/db";
 
 vi.mock("server-only", () => ({}));
 
-(db as any).execute = vi.fn();
+const mockGetActiveDebtExecutions = vi.fn().mockResolvedValue(0);
+
+vi.mock("@/keeperhub/lib/billing/execution-debt", () => ({
+  getActiveDebtExecutions: (...args: unknown[]) =>
+    mockGetActiveDebtExecutions(...args),
+}));
+
+const mockExecute = vi.fn();
+Object.assign(db, { execute: mockExecute });
 
 function mockSelectReturning(rows: Record<string, unknown>[]): void {
   vi.mocked(db.select).mockReturnValue({
@@ -16,18 +24,26 @@ function mockSelectReturning(rows: Record<string, unknown>[]): void {
 }
 
 function mockExecuteReturning(rows: Record<string, unknown>[]): void {
-  vi.mocked((db as any).execute).mockResolvedValue(rows);
+  mockExecute.mockResolvedValue(rows);
 }
 
+import type {
+  BillingInterval,
+  PlanName,
+  TierKey,
+} from "@/keeperhub/lib/billing/plans";
 import {
   checkExecutionLimit,
   checkFeatureAccess,
   getOrgPlan,
   getOrgSubscription,
+  getPriceId,
+  resolvePriceId,
 } from "@/keeperhub/lib/billing/plans-server";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockGetActiveDebtExecutions.mockResolvedValue(0);
 });
 
 describe("getOrgSubscription", () => {
@@ -101,26 +117,58 @@ describe("checkFeatureAccess", () => {
 });
 
 describe("checkExecutionLimit", () => {
-  it("allows unlimited plans", async () => {
+  it("allows unlimited plans (enterprise)", async () => {
     mockSelectReturning([{ plan: "enterprise", tier: null, status: "active" }]);
 
     const result = await checkExecutionLimit("org_1");
-    expect(result).toEqual({ allowed: true });
+    expect(result).toEqual({
+      allowed: true,
+      isOverage: false,
+      debtExecutions: 0,
+      effectiveLimit: -1,
+    });
   });
 
-  it("allows when overage is enabled and subscription is active", async () => {
-    mockSelectReturning([{ plan: "pro", tier: "25k", status: "active" }]);
-
-    const result = await checkExecutionLimit("org_1");
-    expect(result).toEqual({ allowed: true });
-  });
-
-  it("enforces limit on free plan when under limit", async () => {
+  it("allows free plan when under limit", async () => {
     mockSelectReturning([]);
     mockExecuteReturning([{ count: 100 }]);
 
     const result = await checkExecutionLimit("org_1");
-    expect(result).toEqual({ allowed: true });
+    expect(result).toEqual({
+      allowed: true,
+      isOverage: false,
+      debtExecutions: 0,
+      effectiveLimit: 5000,
+    });
+  });
+
+  it("allows pro plan within limits without overage flag", async () => {
+    mockSelectReturning([{ plan: "pro", tier: "25k", status: "active" }]);
+    mockExecuteReturning([{ count: 1000 }]);
+
+    const result = await checkExecutionLimit("org_1");
+    expect(result).toEqual({
+      allowed: true,
+      isOverage: false,
+      debtExecutions: 0,
+      effectiveLimit: 25_000,
+    });
+  });
+
+  it("allows pro plan over limit with overage details", async () => {
+    mockSelectReturning([{ plan: "pro", tier: "25k", status: "active" }]);
+    mockExecuteReturning([{ count: 30_000 }]);
+
+    const result = await checkExecutionLimit("org_1");
+    expect(result).toEqual({
+      allowed: true,
+      isOverage: true,
+      limit: 25_000,
+      used: 30_000,
+      overageRate: 2,
+      debtExecutions: 0,
+      effectiveLimit: 25_000,
+    });
   });
 
   it("blocks free plan when at limit", async () => {
@@ -128,7 +176,14 @@ describe("checkExecutionLimit", () => {
     mockExecuteReturning([{ count: 5000 }]);
 
     const result = await checkExecutionLimit("org_1");
-    expect(result).toEqual({ allowed: false, limit: 5000, used: 5000 });
+    expect(result).toEqual({
+      allowed: false,
+      limit: 5000,
+      used: 5000,
+      plan: "free",
+      debtExecutions: 0,
+      effectiveLimit: 5000,
+    });
   });
 
   it("blocks free plan when over limit", async () => {
@@ -136,14 +191,163 @@ describe("checkExecutionLimit", () => {
     mockExecuteReturning([{ count: 6000 }]);
 
     const result = await checkExecutionLimit("org_1");
-    expect(result).toEqual({ allowed: false, limit: 5000, used: 6000 });
+    expect(result).toEqual({
+      allowed: false,
+      limit: 5000,
+      used: 6000,
+      plan: "free",
+      debtExecutions: 0,
+      effectiveLimit: 5000,
+    });
   });
 
-  it("blocks paid plan with overage disabled (canceled status)", async () => {
+  it("blocks paid plan when canceled (overage disabled)", async () => {
     mockSelectReturning([{ plan: "pro", tier: "25k", status: "canceled" }]);
     mockExecuteReturning([{ count: 30_000 }]);
 
     const result = await checkExecutionLimit("org_1");
-    expect(result).toEqual({ allowed: false, limit: 25_000, used: 30_000 });
+    expect(result).toEqual({
+      allowed: false,
+      limit: 25_000,
+      used: 30_000,
+      plan: "pro",
+      debtExecutions: 0,
+      effectiveLimit: 25_000,
+    });
+  });
+
+  it("reduces effective limit by debt executions", async () => {
+    mockSelectReturning([{ plan: "pro", tier: "25k", status: "active" }]);
+    mockGetActiveDebtExecutions.mockResolvedValue(5000);
+    mockExecuteReturning([{ count: 21_000 }]);
+
+    // 21k is above effectiveLimit (20k) but below plan limit (25k),
+    // so the org is blocked in the debt penalty zone (not overage).
+    const result = await checkExecutionLimit("org_1");
+
+    expect(result).toEqual({
+      allowed: false,
+      limit: 25_000,
+      used: 21_000,
+      plan: "pro",
+      debtExecutions: 5000,
+      effectiveLimit: 20_000,
+    });
+  });
+
+  it("blocks paid plan when active debt exists despite overage support", async () => {
+    mockSelectReturning([{ plan: "pro", tier: "25k", status: "active" }]);
+    mockGetActiveDebtExecutions.mockResolvedValue(5000);
+    mockExecuteReturning([{ count: 26_000 }]);
+
+    const result = await checkExecutionLimit("org_1");
+
+    expect(result).toEqual({
+      allowed: false,
+      limit: 25_000,
+      used: 26_000,
+      plan: "pro",
+      debtExecutions: 5000,
+      effectiveLimit: 20_000,
+    });
+  });
+
+  it("blocks paid plan with large debt even when usage is low", async () => {
+    mockSelectReturning([{ plan: "pro", tier: "25k", status: "active" }]);
+    mockGetActiveDebtExecutions.mockResolvedValue(30_000);
+    mockExecuteReturning([{ count: 50 }]);
+
+    const result = await checkExecutionLimit("org_1");
+
+    expect(result).toEqual({
+      allowed: false,
+      limit: 25_000,
+      used: 50,
+      plan: "pro",
+      debtExecutions: 30_000,
+      effectiveLimit: 100,
+    });
+  });
+
+  it("blocks when usage exceeds debt-reduced limit", async () => {
+    mockSelectReturning([{ plan: "pro", tier: "25k", status: "canceled" }]);
+    mockGetActiveDebtExecutions.mockResolvedValue(10_000);
+    mockExecuteReturning([{ count: 16_000 }]);
+
+    const result = await checkExecutionLimit("org_1");
+
+    expect(result).toEqual({
+      allowed: false,
+      limit: 25_000,
+      used: 16_000,
+      plan: "pro",
+      debtExecutions: 10_000,
+      effectiveLimit: 15_000,
+    });
+  });
+});
+
+const hasStripeEnv = process.env.STRIPE_PRICE_PRO_25K_MONTHLY !== undefined;
+
+describe("resolvePriceId", () => {
+  it.skipIf(!hasStripeEnv)(
+    "resolves a known tiered price ID back to plan, tier, and interval",
+    () => {
+      const priceId = String(process.env.STRIPE_PRICE_PRO_25K_MONTHLY);
+
+      const resolved = resolvePriceId(priceId);
+      expect(resolved).toEqual({
+        plan: "pro",
+        tier: "25k",
+        interval: "monthly",
+      });
+    }
+  );
+
+  it.skipIf(!hasStripeEnv)(
+    "resolves enterprise price ID with null tier",
+    () => {
+      const priceId = String(process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY);
+
+      const resolved = resolvePriceId(priceId);
+      expect(resolved).toEqual({
+        plan: "enterprise",
+        tier: null,
+        interval: "monthly",
+      });
+    }
+  );
+
+  it("returns undefined for unknown price ID", () => {
+    const resolved = resolvePriceId("price_unknown_xyz");
+    expect(resolved).toBeUndefined();
+  });
+
+  it("every getPriceId result can be resolved back (no orphaned keys)", () => {
+    const plans: PlanName[] = ["pro", "business", "enterprise"];
+    const tiers: Array<TierKey | null> = [
+      "25k",
+      "50k",
+      "100k",
+      "250k",
+      "500k",
+      "1m",
+      null,
+    ];
+    const intervals: BillingInterval[] = ["monthly", "yearly"];
+
+    for (const plan of plans) {
+      for (const tier of tiers) {
+        for (const interval of intervals) {
+          const priceId = getPriceId(plan, tier, interval);
+          if (priceId === undefined) {
+            continue;
+          }
+          const resolved = resolvePriceId(priceId);
+          expect(resolved).toBeDefined();
+          expect(resolved?.plan).toBe(plan);
+        }
+      }
+    }
   });
 });

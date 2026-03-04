@@ -1,15 +1,17 @@
 // start custom keeperhub code //
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
+import { enforceExecutionLimit } from "@/keeperhub/lib/billing/execution-guard";
 import { authenticateInternalService } from "@/keeperhub/lib/internal-service-auth";
 import { db } from "@/lib/db";
-import { workflowExecutions } from "@/lib/db/schema";
+import { workflowExecutions, workflows } from "@/lib/db/schema";
 
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<NextResponse> {
   const auth = authenticateInternalService(request);
   if (!auth.authenticated) {
     return NextResponse.json(
-      { error: auth.error || "Unauthorized" },
+      { error: auth.error ?? "Unauthorized" },
       { status: 401 }
     );
   }
@@ -17,12 +19,25 @@ export async function POST(request: Request) {
   const body = await request.json();
   const { workflowId, userId, input } = body;
 
-  // Validate required fields
   if (!(workflowId && userId)) {
     return NextResponse.json(
       { error: "workflowId and userId are required" },
       { status: 400 }
     );
+  }
+
+  const workflow = await db.query.workflows.findFirst({
+    where: eq(workflows.id, workflowId),
+    columns: { organizationId: true },
+  });
+
+  if (!workflow) {
+    return NextResponse.json({ error: "Workflow not found" }, { status: 404 });
+  }
+
+  const executionGuard = await enforceExecutionLimit(workflow.organizationId);
+  if (executionGuard.blocked) {
+    return executionGuard.response;
   }
 
   const [execution] = await db

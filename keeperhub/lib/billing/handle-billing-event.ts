@@ -1,7 +1,12 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { organizationSubscriptions } from "@/lib/db/schema";
+import {
+  organizationSubscriptions,
+  overageBillingRecords,
+} from "@/lib/db/schema";
 import { BILLING_ALERTS } from "./constants";
+import { clearAllDebtForOrg, clearDebtForInvoice } from "./execution-debt";
+import { billOverageForOrg } from "./overage";
 import { resolvePriceId } from "./plans-server";
 import type { BillingProvider, BillingWebhookEvent } from "./provider";
 
@@ -25,12 +30,23 @@ async function findSubscriptionByProviderId(
   return rows[0];
 }
 
+async function findSubscriptionByCustomerId(
+  providerCustomerId: string
+): Promise<SubscriptionRow | undefined> {
+  const rows = await db
+    .select()
+    .from(organizationSubscriptions)
+    .where(eq(organizationSubscriptions.providerCustomerId, providerCustomerId))
+    .limit(1);
+  return rows[0];
+}
+
 export async function handleBillingEvent(
   event: BillingWebhookEvent,
   provider: BillingProvider
 ): Promise<void> {
   const { type, data } = event;
-  console.log(LOG_PREFIX, "Handling event:", type);
+  console.warn(LOG_PREFIX, "Handling event:", type);
 
   switch (type) {
     case "checkout.completed": {
@@ -82,7 +98,7 @@ async function handleCheckoutCompleted(
     return;
   }
 
-  console.log(
+  console.warn(
     LOG_PREFIX,
     "checkout.completed - orgId:",
     organizationId,
@@ -91,7 +107,7 @@ async function handleCheckoutCompleted(
   );
 
   const details = await provider.getSubscriptionDetails(providerSubscriptionId);
-  console.log(
+  console.warn(
     LOG_PREFIX,
     "Subscription details - priceId:",
     details.priceId,
@@ -114,7 +130,7 @@ async function handleCheckoutCompleted(
     return;
   }
   const { plan, tier } = resolved;
-  console.log(
+  console.warn(
     LOG_PREFIX,
     "Resolved plan:",
     plan,
@@ -147,7 +163,7 @@ async function handleCheckoutCompleted(
     );
   }
 
-  console.log(LOG_PREFIX, "Updated subscription for org:", organizationId);
+  console.warn(LOG_PREFIX, "Updated subscription for org:", organizationId);
 }
 
 // Build the DB update payload for a subscription.updated event.
@@ -165,7 +181,7 @@ function buildSubscriptionUpdate(
   const resolved =
     priceChanged && priceId ? resolvePriceId(priceId) : undefined;
 
-  console.log(
+  console.warn(
     LOG_PREFIX,
     "subscription.updated - subId:",
     current.providerSubscriptionId,
@@ -219,6 +235,35 @@ async function handleSubscriptionUpdated(
 
   const update = buildSubscriptionUpdate(data, current);
 
+  // Bill overage BEFORE updating the subscription row so that if billing fails,
+  // the old period data remains on the row for the scan endpoint to pick up.
+  const periodRolled =
+    data.periodStart instanceof Date &&
+    current.currentPeriodStart instanceof Date &&
+    data.periodStart.getTime() !== current.currentPeriodStart.getTime();
+
+  if (
+    periodRolled &&
+    current.currentPeriodStart instanceof Date &&
+    current.currentPeriodEnd instanceof Date
+  ) {
+    try {
+      await billOverageForOrg(
+        current.organizationId,
+        current.currentPeriodStart,
+        current.currentPeriodEnd
+      );
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        LOG_PREFIX,
+        "Failed to bill overage for org (will be retried by scan):",
+        current.organizationId,
+        message
+      );
+    }
+  }
+
   await db
     .update(organizationSubscriptions)
     .set(update)
@@ -248,7 +293,7 @@ async function handleSubscriptionDeleted(
   // keep the plan active but mark status as canceled so the UI shows
   // the cancellation notice. The plan features remain available.
   if (periodEnd !== null && periodEnd !== undefined && periodEnd > now) {
-    console.log(
+    console.warn(
       LOG_PREFIX,
       "subscription.deleted - subId:",
       providerSubscriptionId,
@@ -270,11 +315,17 @@ async function handleSubscriptionDeleted(
           providerSubscriptionId
         )
       );
+
+    // Clear debt even when period is still active -- no further overage
+    // will be billed on a canceled subscription, so debt is moot.
+    if (current) {
+      await clearAllDebtForOrg(current.organizationId);
+    }
     return;
   }
 
   // Period has ended (or no period data) -- fully reset to free
-  console.log(
+  console.warn(
     LOG_PREFIX,
     "subscription.deleted - subId:",
     providerSubscriptionId,
@@ -298,34 +349,93 @@ async function handleSubscriptionDeleted(
         providerSubscriptionId
       )
     );
+
+  // Clear any active debt -- it becomes moot when downgrading to free
+  if (current) {
+    await clearAllDebtForOrg(current.organizationId);
+  }
+}
+
+async function markOverageRecordsPaid(
+  organizationId: string,
+  invoiceId: string
+): Promise<void> {
+  await db
+    .update(overageBillingRecords)
+    .set({ providerInvoiceId: invoiceId })
+    .where(
+      and(
+        eq(overageBillingRecords.organizationId, organizationId),
+        eq(overageBillingRecords.status, "billed"),
+        isNull(overageBillingRecords.providerInvoiceId)
+      )
+    );
 }
 
 async function handleInvoicePaid(
   data: BillingWebhookEvent["data"]
 ): Promise<void> {
-  const { providerSubscriptionId } = data;
+  const { providerSubscriptionId, invoiceId, providerCustomerId } = data;
 
-  if (!providerSubscriptionId) {
-    console.warn(LOG_PREFIX, "invoice.paid - no subscriptionId, skipping");
+  // Clear debt for this invoice regardless of subscription presence
+  if (invoiceId) {
+    await clearDebtForInvoice(invoiceId);
+  }
+
+  if (providerSubscriptionId) {
+    console.warn(LOG_PREFIX, "invoice.paid - subId:", providerSubscriptionId);
+
+    const sub = await findSubscriptionByProviderId(providerSubscriptionId);
+
+    await db
+      .update(organizationSubscriptions)
+      .set({
+        status: "active",
+        billingAlert: null,
+        billingAlertUrl: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        eq(
+          organizationSubscriptions.providerSubscriptionId,
+          providerSubscriptionId
+        )
+      );
+
+    if (sub && invoiceId) {
+      await markOverageRecordsPaid(sub.organizationId, invoiceId);
+    }
     return;
   }
 
-  console.log(LOG_PREFIX, "invoice.paid - subId:", providerSubscriptionId);
+  // Fallback: standalone invoice (e.g. overage) -- find org by customer ID.
+  // Deliberately does NOT set status: "active" because paying an overage invoice
+  // is not the same as renewing a subscription. Only subscription invoices restore status.
+  if (providerCustomerId) {
+    const sub = await findSubscriptionByCustomerId(providerCustomerId);
+    if (sub) {
+      console.warn(
+        LOG_PREFIX,
+        "invoice.paid - no subId, found org via customerId:",
+        providerCustomerId
+      );
 
-  await db
-    .update(organizationSubscriptions)
-    .set({
-      status: "active",
-      billingAlert: null,
-      billingAlertUrl: null,
-      updatedAt: new Date(),
-    })
-    .where(
-      eq(
-        organizationSubscriptions.providerSubscriptionId,
-        providerSubscriptionId
-      )
-    );
+      await db
+        .update(organizationSubscriptions)
+        .set({
+          billingAlert: null,
+          billingAlertUrl: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          eq(organizationSubscriptions.organizationId, sub.organizationId)
+        );
+
+      if (invoiceId) {
+        await markOverageRecordsPaid(sub.organizationId, invoiceId);
+      }
+    }
+  }
 }
 
 async function handleInvoicePaymentFailed(
@@ -341,7 +451,7 @@ async function handleInvoicePaymentFailed(
     return;
   }
 
-  console.log(
+  console.warn(
     LOG_PREFIX,
     "invoice.payment_failed - subId:",
     providerSubscriptionId
@@ -373,7 +483,7 @@ async function handleInvoiceOverdue(
     return;
   }
 
-  console.log(LOG_PREFIX, "invoice.overdue - subId:", providerSubscriptionId);
+  console.warn(LOG_PREFIX, "invoice.overdue - subId:", providerSubscriptionId);
 
   await db
     .update(organizationSubscriptions)
@@ -403,7 +513,7 @@ async function handleInvoicePaymentActionRequired(
     return;
   }
 
-  console.log(
+  console.warn(
     LOG_PREFIX,
     "invoice.payment_action_required - subId:",
     providerSubscriptionId

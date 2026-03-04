@@ -5,7 +5,12 @@ vi.mock("server-only", () => ({}));
 const mockOnConflictDoNothing = vi.fn();
 const mockReturning = vi.fn();
 const mockInsertValues = vi.fn();
-const mockUpdateSet = vi.fn().mockReturnValue({ where: vi.fn() });
+const mockUpdateWhere = vi
+  .fn()
+  .mockReturnValue({ returning: vi.fn().mockResolvedValue([]) });
+const mockUpdateSet = vi.fn().mockReturnValue({ where: mockUpdateWhere });
+
+const mockSelectLimit = vi.fn().mockResolvedValue([]);
 
 vi.mock("@/lib/db", () => ({
   db: {
@@ -15,6 +20,13 @@ vi.mock("@/lib/db", () => ({
     update: vi.fn(() => ({
       set: mockUpdateSet,
     })),
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: mockSelectLimit,
+        })),
+      })),
+    })),
   },
 }));
 
@@ -23,11 +35,22 @@ vi.mock("@/lib/db/schema", () => ({
   organizationSubscriptions: {
     organizationId: "organizationId",
     providerSubscriptionId: "providerSubscriptionId",
+    providerCustomerId: "providerCustomerId",
+  },
+  overageBillingRecords: {
+    organizationId: "organizationId",
+    status: "status",
+    providerInvoiceId: "providerInvoiceId",
   },
 }));
 
 const mockVerifyWebhook = vi.fn();
 const mockGetSubscriptionDetails = vi.fn();
+
+vi.mock("@/keeperhub/lib/billing/execution-debt", () => ({
+  clearDebtForInvoice: vi.fn().mockResolvedValue(0),
+  clearAllDebtForOrg: vi.fn().mockResolvedValue(0),
+}));
 
 vi.mock("@/keeperhub/lib/billing/providers", () => ({
   getBillingProvider: () => ({

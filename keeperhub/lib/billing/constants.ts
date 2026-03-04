@@ -5,6 +5,7 @@ export const BILLING_API = {
   PREVIEW_PRORATION: "/api/billing/preview-proration",
   CHECKOUT: "/api/billing/checkout",
   CANCEL: "/api/billing/cancel",
+  USAGE_SUGGESTION: "/api/billing/usage-suggestion",
 } as const;
 
 export const BILLING_ALERTS = {
