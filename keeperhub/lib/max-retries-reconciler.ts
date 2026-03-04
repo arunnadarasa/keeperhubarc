@@ -42,11 +42,17 @@ type ReconcileOutput = {
   overrides: Record<string, ExecutionResult>;
 };
 
+// SDK error message substring used to identify spurious max-retries failures.
+// If the SDK changes this wording, update this constant.
+export const MAX_RETRIES_ERROR_MARKER = "exceeded max retries";
+
 export function getFailedMaxRetriesNodeIds(
   results: Record<string, ExecutionResult>
 ): string[] {
   return Object.entries(results)
-    .filter(([, r]) => !r.success && r.error?.includes("exceeded max retries"))
+    .filter(
+      ([, r]) => !r.success && r.error?.includes(MAX_RETRIES_ERROR_MARKER)
+    )
     .map(([nodeId]) => nodeId);
 }
 
