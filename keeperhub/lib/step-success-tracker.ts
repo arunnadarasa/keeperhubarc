@@ -5,10 +5,16 @@
  * same Node.js process, so a module-level Map is sufficient. This replaces the
  * HTTP loopback approach that failed silently in production.
  *
+ * Only successes are tracked. The reconciler treats a tracked success as proof
+ * that the step completed, regardless of subsequent SDK retry errors. This is
+ * safe because withStepLogging records success only after the step function
+ * returns without error -- the "max retries exceeded" error originates from
+ * the SDK's durability layer, not from the step itself.
+ *
  * Lifecycle:
  *   1. withStepLogging calls recordStepSuccess() after each successful step
  *   2. The executor calls getSuccessfulSteps() during max-retries reconciliation
- *   3. The executor calls clearExecution() after reconciliation to free memory
+ *   3. The executor calls clearExecution() in a finally block to free memory
  */
 
 const executions = new Map<string, Map<string, unknown>>();

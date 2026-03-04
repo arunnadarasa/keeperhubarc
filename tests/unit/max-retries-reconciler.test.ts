@@ -88,9 +88,7 @@ describe("reconcileMaxRetriesFailures", () => {
       },
     };
 
-    const successfulSteps = new Map<string, unknown>([
-      ["node-1", undefined],
-    ]);
+    const successfulSteps = new Map<string, unknown>([["node-1", undefined]]);
 
     const output = reconcileMaxRetriesFailures({
       results,
