@@ -20,12 +20,14 @@ export const GET = requireOrganization(
       const range = parseTimeRange(params.get("range"));
       const customStart = params.get("customStart") ?? undefined;
       const customEnd = params.get("customEnd") ?? undefined;
+      const projectId = params.get("projectId") ?? undefined;
 
       const summary = await getAnalyticsSummary(
         organizationId,
         range,
         customStart,
-        customEnd
+        customEnd,
+        projectId
       );
 
       return NextResponse.json(summary);

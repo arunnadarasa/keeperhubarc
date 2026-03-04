@@ -105,10 +105,13 @@ export async function getAnalyticsSummary(
   organizationId: string,
   range: TimeRange,
   customStart?: string,
-  customEnd?: string
+  customEnd?: string,
+  projectId?: string
 ): Promise<AnalyticsSummary> {
   const rangeStart = getTimeRangeStart(range, customStart);
   const rangeEnd = customEnd ? new Date(customEnd) : new Date();
+
+  const skipDirect = Boolean(projectId);
 
   const [
     workflowStats,
@@ -118,12 +121,27 @@ export async function getAnalyticsSummary(
     previousPeriod,
     workflowGasWei,
   ] = await Promise.all([
-    getWorkflowCounts(organizationId, rangeStart, rangeEnd),
-    getDirectCounts(organizationId, rangeStart, rangeEnd),
-    getActiveWorkflowCount(organizationId),
-    getActiveDirectCount(organizationId),
-    getPreviousPeriodSummary(organizationId, range, customStart, customEnd),
-    getWorkflowGasTotal(organizationId, rangeStart, rangeEnd),
+    getWorkflowCounts(organizationId, rangeStart, rangeEnd, projectId),
+    skipDirect
+      ? {
+          total: 0,
+          success: 0,
+          error: 0,
+          durationSum: 0,
+          durationCount: 0,
+          totalGasWei: "0",
+        }
+      : getDirectCounts(organizationId, rangeStart, rangeEnd),
+    getActiveWorkflowCount(organizationId, projectId),
+    skipDirect ? 0 : getActiveDirectCount(organizationId),
+    getPreviousPeriodSummary(
+      organizationId,
+      range,
+      customStart,
+      customEnd,
+      projectId
+    ),
+    getWorkflowGasTotal(organizationId, rangeStart, rangeEnd, projectId),
   ]);
 
   const totalRuns = workflowStats.total + directStats.total;
@@ -153,7 +171,8 @@ export async function getAnalyticsSummary(
 async function getWorkflowCounts(
   organizationId: string,
   rangeStart: Date,
-  rangeEnd: Date
+  rangeEnd: Date,
+  projectId?: string
 ): Promise<{
   total: number;
   success: number;
@@ -174,6 +193,7 @@ async function getWorkflowCounts(
     .where(
       and(
         eq(workflows.organizationId, organizationId),
+        projectId ? eq(workflows.projectId, projectId) : undefined,
         gte(workflowExecutions.startedAt, rangeStart),
         lt(workflowExecutions.startedAt, rangeEnd)
       )
@@ -230,7 +250,10 @@ async function getDirectCounts(
   };
 }
 
-function getActiveWorkflowCount(organizationId: string): Promise<number> {
+function getActiveWorkflowCount(
+  organizationId: string,
+  projectId?: string
+): Promise<number> {
   return db
     .select({ count: count() })
     .from(workflowExecutions)
@@ -238,6 +261,7 @@ function getActiveWorkflowCount(organizationId: string): Promise<number> {
     .where(
       and(
         eq(workflows.organizationId, organizationId),
+        projectId ? eq(workflows.projectId, projectId) : undefined,
         sql`${workflowExecutions.status} IN ('pending', 'running')`
       )
     )
@@ -261,14 +285,25 @@ async function getPreviousPeriodSummary(
   organizationId: string,
   range: TimeRange,
   customStart?: string,
-  customEnd?: string
+  customEnd?: string,
+  projectId?: string
 ): Promise<AnalyticsSummary["previousPeriod"]> {
   const { start, end } = getPreviousPeriodStart(range, customStart, customEnd);
+  const skipDirect = Boolean(projectId);
 
   const [workflowStats, directStats, workflowGasWei] = await Promise.all([
-    getWorkflowCounts(organizationId, start, end),
-    getDirectCounts(organizationId, start, end),
-    getWorkflowGasTotal(organizationId, start, end),
+    getWorkflowCounts(organizationId, start, end, projectId),
+    skipDirect
+      ? {
+          total: 0,
+          success: 0,
+          error: 0,
+          durationSum: 0,
+          durationCount: 0,
+          totalGasWei: "0",
+        }
+      : getDirectCounts(organizationId, start, end),
+    getWorkflowGasTotal(organizationId, start, end, projectId),
   ]);
 
   return {
@@ -325,7 +360,8 @@ function logInputField(field: string): ReturnType<typeof sql> {
 async function getWorkflowGasTotal(
   organizationId: string,
   rangeStart: Date,
-  rangeEnd: Date
+  rangeEnd: Date,
+  projectId?: string
 ): Promise<string> {
   const result = await db
     .select({
@@ -340,6 +376,7 @@ async function getWorkflowGasTotal(
     .where(
       and(
         eq(workflows.organizationId, organizationId),
+        projectId ? eq(workflows.projectId, projectId) : undefined,
         gte(workflowExecutionLogs.startedAt, rangeStart),
         lt(workflowExecutionLogs.startedAt, rangeEnd),
         sql`${logOutputField("gasUsed")} IS NOT NULL`
@@ -356,7 +393,8 @@ export async function getTimeSeries(
   organizationId: string,
   range: TimeRange,
   customStart?: string,
-  customEnd?: string
+  customEnd?: string,
+  projectId?: string
 ): Promise<TimeSeriesBucket[]> {
   const rangeStart = getTimeRangeStart(range, customStart);
   const rangeEnd = customEnd ? new Date(customEnd) : new Date();
@@ -376,12 +414,17 @@ export async function getTimeSeries(
     .where(
       and(
         eq(workflows.organizationId, organizationId),
+        projectId ? eq(workflows.projectId, projectId) : undefined,
         gte(workflowExecutions.startedAt, rangeStart),
         lt(workflowExecutions.startedAt, rangeEnd)
       )
     )
     .groupBy(sql`${bucketExpr(workflowExecutions.startedAt)}`)
     .orderBy(sql`${bucketExpr(workflowExecutions.startedAt)} ASC`);
+
+  if (projectId) {
+    return mergeBuckets(workflowBuckets as BucketRow[], []);
+  }
 
   const directBuckets = await db
     .select({
@@ -465,29 +508,39 @@ export async function getNetworkBreakdown(
   organizationId: string,
   range: TimeRange,
   customStart?: string,
-  customEnd?: string
+  customEnd?: string,
+  projectId?: string
 ): Promise<NetworkBreakdown[]> {
   const rangeStart = getTimeRangeStart(range, customStart);
   const rangeEnd = customEnd ? new Date(customEnd) : new Date();
+  const skipDirect = Boolean(projectId);
 
   const [directResult, workflowResult] = await Promise.all([
-    db
-      .select({
-        network: directExecutions.network,
-        totalGasWei: sql<string>`COALESCE(SUM(CAST(${directExecutions.gasUsedWei} AS NUMERIC)), 0)::text`,
-        executionCount: count(),
-        successCount: sql<number>`SUM(CASE WHEN ${directExecutions.status} = 'completed' THEN 1 ELSE 0 END)`,
-        errorCount: sql<number>`SUM(CASE WHEN ${directExecutions.status} = 'failed' THEN 1 ELSE 0 END)`,
-      })
-      .from(directExecutions)
-      .where(
-        and(
-          eq(directExecutions.organizationId, organizationId),
-          gte(directExecutions.createdAt, rangeStart),
-          lt(directExecutions.createdAt, rangeEnd)
-        )
-      )
-      .groupBy(directExecutions.network),
+    skipDirect
+      ? ([] as {
+          network: string;
+          totalGasWei: string;
+          executionCount: number;
+          successCount: number;
+          errorCount: number;
+        }[])
+      : db
+          .select({
+            network: directExecutions.network,
+            totalGasWei: sql<string>`COALESCE(SUM(CAST(${directExecutions.gasUsedWei} AS NUMERIC)), 0)::text`,
+            executionCount: count(),
+            successCount: sql<number>`SUM(CASE WHEN ${directExecutions.status} = 'completed' THEN 1 ELSE 0 END)`,
+            errorCount: sql<number>`SUM(CASE WHEN ${directExecutions.status} = 'failed' THEN 1 ELSE 0 END)`,
+          })
+          .from(directExecutions)
+          .where(
+            and(
+              eq(directExecutions.organizationId, organizationId),
+              gte(directExecutions.createdAt, rangeStart),
+              lt(directExecutions.createdAt, rangeEnd)
+            )
+          )
+          .groupBy(directExecutions.network),
     db
       .select({
         network: sql<string>`${logInputField("network")}`,
@@ -505,6 +558,7 @@ export async function getNetworkBreakdown(
       .where(
         and(
           eq(workflows.organizationId, organizationId),
+          projectId ? eq(workflows.projectId, projectId) : undefined,
           gte(workflowExecutionLogs.startedAt, rangeStart),
           lt(workflowExecutionLogs.startedAt, rangeEnd),
           sql`${logOutputField("gasUsed")} IS NOT NULL`
@@ -576,6 +630,7 @@ export async function getUnifiedRuns(
     source?: RunSource;
     customStart?: string;
     customEnd?: string;
+    projectId?: string;
   } = {}
 ): Promise<{ runs: UnifiedRun[]; nextCursor: string | null; total: number }> {
   const {
@@ -585,10 +640,12 @@ export async function getUnifiedRuns(
     source,
     customStart,
     customEnd,
+    projectId,
   } = options;
   const rangeStart = getTimeRangeStart(range, customStart);
   const rangeEnd = customEnd ? new Date(customEnd) : new Date();
   const pageLimit = Math.min(limit, 100);
+  const skipDirect = Boolean(projectId) || source === "direct";
 
   // Fire run fetches and count queries in parallel
   const [workflowRuns, directRuns, total] = await Promise.all([
@@ -600,9 +657,10 @@ export async function getUnifiedRuns(
           rangeEnd,
           status,
           cursor,
-          pageLimit + 1
+          pageLimit + 1,
+          projectId
         ),
-    source === "workflow"
+    skipDirect || source === "workflow"
       ? ([] as UnifiedRun[])
       : fetchDirectRuns(
           organizationId,
@@ -612,7 +670,14 @@ export async function getUnifiedRuns(
           cursor,
           pageLimit + 1
         ),
-    getUnifiedRunsTotal(organizationId, rangeStart, rangeEnd, status, source),
+    getUnifiedRunsTotal(
+      organizationId,
+      rangeStart,
+      rangeEnd,
+      status,
+      source,
+      projectId
+    ),
   ]);
 
   const allRuns = [...workflowRuns, ...directRuns].sort(
@@ -632,13 +697,19 @@ async function fetchWorkflowRuns(
   rangeEnd: Date,
   status: NormalizedStatus | undefined,
   cursor: string | undefined,
-  limit: number
+  limit: number,
+  projectId?: string
 ): Promise<UnifiedRun[]> {
   // Scope to org's workflows via subquery so leftJoin still enforces org isolation
   const orgWorkflowIds = db
     .select({ id: workflows.id })
     .from(workflows)
-    .where(eq(workflows.organizationId, organizationId));
+    .where(
+      and(
+        eq(workflows.organizationId, organizationId),
+        projectId ? eq(workflows.projectId, projectId) : undefined
+      )
+    );
 
   const conditions = [
     sql`${workflowExecutions.workflowId} IN (${orgWorkflowIds})`,
@@ -808,13 +879,17 @@ async function getWorkflowRunsTotal(
   organizationId: string,
   rangeStart: Date,
   rangeEnd: Date,
-  status: NormalizedStatus | undefined
+  status: NormalizedStatus | undefined,
+  projectId?: string
 ): Promise<number> {
   const conditions = [
     eq(workflows.organizationId, organizationId),
     gte(workflowExecutions.startedAt, rangeStart),
     lt(workflowExecutions.startedAt, rangeEnd),
   ];
+  if (projectId) {
+    conditions.push(eq(workflows.projectId, projectId));
+  }
   if (status) {
     const dbStatuses = status === "error" ? ["error", "cancelled"] : [status];
     conditions.push(
@@ -864,14 +939,23 @@ async function getUnifiedRunsTotal(
   rangeStart: Date,
   rangeEnd: Date,
   status: NormalizedStatus | undefined,
-  source: RunSource | undefined
+  source: RunSource | undefined,
+  projectId?: string
 ): Promise<number> {
+  const skipDirect = Boolean(projectId);
+
   // Run both count queries in parallel
   const [workflowTotal, directTotal] = await Promise.all([
     source === "direct"
       ? 0
-      : getWorkflowRunsTotal(organizationId, rangeStart, rangeEnd, status),
-    source === "workflow"
+      : getWorkflowRunsTotal(
+          organizationId,
+          rangeStart,
+          rangeEnd,
+          status,
+          projectId
+        ),
+    skipDirect || source === "workflow"
       ? 0
       : getDirectRunsTotal(organizationId, rangeStart, rangeEnd, status),
   ]);
