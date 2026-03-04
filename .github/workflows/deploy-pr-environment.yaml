@@ -593,6 +593,9 @@ jobs:
     environment: staging
     env:
       PR_NUMBER: ${{ github.event.pull_request.number }}
+      NAMESPACE: pr-${{ github.event.pull_request.number }}
+      REGION: us-east-2
+      CLUSTER_NAME: maker-staging
       BASE_URL: https://app-pr-${{ github.event.pull_request.number }}.keeperhub.com
 
     steps:
@@ -645,6 +648,43 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: pnpm exec playwright install-deps chromium
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.REGION }}
+
+      - name: Configure kubectl
+        run: |
+          aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.REGION }}
+
+      - name: Port-forward PR database
+        run: |
+          DB_PASSWORD=$(kubectl get secret keeperhub-pr-${{ env.PR_NUMBER }}-db-credentials \
+            -n ${{ env.NAMESPACE }} -o jsonpath='{.data.password}' | base64 -d)
+
+          ENCODED_PASSWORD=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${DB_PASSWORD}', safe=''))")
+
+          kubectl port-forward -n ${{ env.NAMESPACE }} \
+            svc/keeperhub-pr-${{ env.PR_NUMBER }}-db-rw 5432:5432 &
+          PF_PG_PID=$!
+
+          for i in $(seq 1 15); do
+            if pg_isready -h localhost -p 5432 -U keeperhub 2>/dev/null; then
+              echo "PostgreSQL port-forward ready"
+              break
+            fi
+            if [ "$i" -eq 15 ]; then
+              echo "PostgreSQL port-forward did not become ready"
+              exit 1
+            fi
+            sleep 2
+          done
+
+          echo "DATABASE_URL=postgresql://keeperhub:${ENCODED_PASSWORD}@localhost:5432/keeperhub" >> $GITHUB_ENV
+          echo "PF_PG_PID=$PF_PG_PID" >> $GITHUB_ENV
+
       - name: Wait for PR environment to be ready
         run: |
           echo "Waiting for ${{ env.BASE_URL }}/api/health to return 200..."
@@ -675,6 +715,11 @@ jobs:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           CI: true
+
+      - name: Cleanup port-forwards
+        if: always()
+        run: |
+          kill $PF_PG_PID 2>/dev/null || true
 
       - name: Upload Playwright report
         if: failure()
