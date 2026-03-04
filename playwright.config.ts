@@ -85,13 +85,16 @@ export default defineConfig({
       testMatch: [],
     },
   ],
-  // Only start local dev server when not running against deployed environment
-  webServer: isDeployedEnv
-    ? undefined
-    : {
-        command: "pnpm dev",
-        url: "http://localhost:3000",
-        reuseExistingServer: !process.env.CI,
-        timeout: 120_000,
-      },
+  // In CI, the workflow builds and starts the app before running tests.
+  // In deployed environments, tests run against the deployed URL.
+  // Locally, start a dev server if one isn't already running.
+  webServer:
+    isDeployedEnv || process.env.CI
+      ? undefined
+      : {
+          command: "pnpm dev",
+          url: "http://localhost:3000",
+          reuseExistingServer: true,
+          timeout: 120_000,
+        },
 });
