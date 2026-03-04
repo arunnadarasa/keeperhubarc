@@ -46,7 +46,7 @@ export async function handleBillingEvent(
   provider: BillingProvider
 ): Promise<void> {
   const { type, data } = event;
-  console.warn(LOG_PREFIX, "Handling event:", type);
+  console.info(LOG_PREFIX, "Handling event:", type);
 
   switch (type) {
     case "checkout.completed": {
@@ -98,7 +98,7 @@ async function handleCheckoutCompleted(
     return;
   }
 
-  console.warn(
+  console.info(
     LOG_PREFIX,
     "checkout.completed - orgId:",
     organizationId,
@@ -107,7 +107,7 @@ async function handleCheckoutCompleted(
   );
 
   const details = await provider.getSubscriptionDetails(providerSubscriptionId);
-  console.warn(
+  console.info(
     LOG_PREFIX,
     "Subscription details - priceId:",
     details.priceId,
@@ -130,7 +130,7 @@ async function handleCheckoutCompleted(
     return;
   }
   const { plan, tier } = resolved;
-  console.warn(
+  console.info(
     LOG_PREFIX,
     "Resolved plan:",
     plan,
@@ -163,7 +163,7 @@ async function handleCheckoutCompleted(
     );
   }
 
-  console.warn(LOG_PREFIX, "Updated subscription for org:", organizationId);
+  console.info(LOG_PREFIX, "Updated subscription for org:", organizationId);
 }
 
 // Build the DB update payload for a subscription.updated event.
@@ -181,7 +181,7 @@ function buildSubscriptionUpdate(
   const resolved =
     priceChanged && priceId ? resolvePriceId(priceId) : undefined;
 
-  console.warn(
+  console.info(
     LOG_PREFIX,
     "subscription.updated - subId:",
     current.providerSubscriptionId,
@@ -293,7 +293,7 @@ async function handleSubscriptionDeleted(
   // keep the plan active but mark status as canceled so the UI shows
   // the cancellation notice. The plan features remain available.
   if (periodEnd !== null && periodEnd !== undefined && periodEnd > now) {
-    console.warn(
+    console.info(
       LOG_PREFIX,
       "subscription.deleted - subId:",
       providerSubscriptionId,
@@ -325,7 +325,7 @@ async function handleSubscriptionDeleted(
   }
 
   // Period has ended (or no period data) -- fully reset to free
-  console.warn(
+  console.info(
     LOG_PREFIX,
     "subscription.deleted - subId:",
     providerSubscriptionId,
@@ -383,7 +383,7 @@ async function handleInvoicePaid(
   }
 
   if (providerSubscriptionId) {
-    console.warn(LOG_PREFIX, "invoice.paid - subId:", providerSubscriptionId);
+    console.info(LOG_PREFIX, "invoice.paid - subId:", providerSubscriptionId);
 
     const sub = await findSubscriptionByProviderId(providerSubscriptionId);
 
@@ -414,7 +414,7 @@ async function handleInvoicePaid(
   if (providerCustomerId) {
     const sub = await findSubscriptionByCustomerId(providerCustomerId);
     if (sub) {
-      console.warn(
+      console.info(
         LOG_PREFIX,
         "invoice.paid - no subId, found org via customerId:",
         providerCustomerId
@@ -451,7 +451,7 @@ async function handleInvoicePaymentFailed(
     return;
   }
 
-  console.warn(
+  console.info(
     LOG_PREFIX,
     "invoice.payment_failed - subId:",
     providerSubscriptionId
@@ -483,7 +483,7 @@ async function handleInvoiceOverdue(
     return;
   }
 
-  console.warn(LOG_PREFIX, "invoice.overdue - subId:", providerSubscriptionId);
+  console.info(LOG_PREFIX, "invoice.overdue - subId:", providerSubscriptionId);
 
   await db
     .update(organizationSubscriptions)
@@ -513,7 +513,7 @@ async function handleInvoicePaymentActionRequired(
     return;
   }
 
-  console.warn(
+  console.info(
     LOG_PREFIX,
     "invoice.payment_action_required - subId:",
     providerSubscriptionId
