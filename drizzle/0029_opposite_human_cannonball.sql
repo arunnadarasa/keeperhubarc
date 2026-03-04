@@ -16,5 +16,4 @@ CREATE TABLE "overage_billing_records" (
 --> statement-breakpoint
 ALTER TABLE "overage_billing_records" ADD CONSTRAINT "overage_billing_records_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "idx_overage_billing_org" ON "overage_billing_records" USING btree ("organization_id");--> statement-breakpoint
-CREATE INDEX "idx_overage_billing_status" ON "overage_billing_records" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "idx_org_subscriptions_provider_sub" ON "organization_subscriptions" USING btree ("provider_subscription_id");
+CREATE INDEX "idx_overage_billing_status" ON "overage_billing_records" USING btree ("status");
