@@ -199,12 +199,31 @@ async function createSeedWorkflows(
   for (const wf of seedWorkflows) {
     const id = generateId();
     const nodes = JSON.stringify([
-      { id: "trigger-1", type: "trigger", position: { x: 0, y: 0 }, data: {} },
+      {
+        id: "trigger-1",
+        type: "trigger",
+        position: { x: 100, y: 200 },
+        data: {
+          label: "Manual Trigger",
+          type: "trigger",
+          config: { triggerType: "Manual" },
+          status: "idle",
+        },
+      },
       {
         id: "action-1",
-        type: "web3:read-contract",
-        position: { x: 0, y: 100 },
-        data: {},
+        type: "action",
+        position: { x: 350, y: 200 },
+        data: {
+          label: "Check Balance",
+          type: "action",
+          config: {
+            actionType: "web3/check-balance",
+            network: "1",
+            address: "0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe",
+          },
+          status: "idle",
+        },
       },
     ]);
     const edges = JSON.stringify([
