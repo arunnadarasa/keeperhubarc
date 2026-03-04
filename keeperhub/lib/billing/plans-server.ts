@@ -9,11 +9,11 @@ import {
   getPlanLimits,
   isValidPlanName,
   isValidTierKey,
-  parsePlanName,
-  parseTierKey,
   PLANS,
   type PlanLimits,
   type PlanName,
+  parsePlanName,
+  parseTierKey,
   type TierKey,
 } from "./plans";
 
@@ -52,27 +52,35 @@ export function getPriceId(
   return PRICE_IDS[`${plan}_${tier}_${interval}`];
 }
 
-export function resolvePriceId(priceId: string):
-  | {
-      plan: PlanName;
-      tier: TierKey | null;
-      interval: BillingInterval | null;
-    }
-  | undefined {
+type ResolvedPrice = {
+  plan: PlanName;
+  tier: TierKey | null;
+  interval: BillingInterval | null;
+};
+
+function parseInterval(value: string | undefined): BillingInterval | null {
+  return value === "monthly" || value === "yearly" ? value : null;
+}
+
+function parseKeyParts(parts: string[]): ResolvedPrice | undefined {
+  const plan = parts[0];
+  if (!isValidPlanName(plan)) {
+    return undefined;
+  }
+  if (plan === "enterprise") {
+    return { plan, tier: null, interval: parseInterval(parts[1]) };
+  }
+  const tier = isValidTierKey(parts[1]) ? parts[1] : null;
+  return { plan, tier, interval: parseInterval(parts[2]) };
+}
+
+export function resolvePriceId(priceId: string): ResolvedPrice | undefined {
   for (const [key, value] of Object.entries(PRICE_IDS)) {
     if (value === priceId) {
-      const parts = key.split("_");
-      const plan = parts[0];
-      if (!isValidPlanName(plan)) {
-        continue;
+      const result = parseKeyParts(key.split("_"));
+      if (result !== undefined) {
+        return result;
       }
-      if (plan === "enterprise") {
-        const interval = parts[1] === "monthly" || parts[1] === "yearly" ? parts[1] : null;
-        return { plan, tier: null, interval };
-      }
-      const tier = isValidTierKey(parts[1]) ? parts[1] : null;
-      const interval = parts[2] === "monthly" || parts[2] === "yearly" ? parts[2] : null;
-      return { plan, tier, interval };
     }
   }
   return undefined;

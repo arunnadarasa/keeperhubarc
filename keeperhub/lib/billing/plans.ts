@@ -64,7 +64,10 @@ export function isValidTierKey(value: unknown): value is TierKey {
   return typeof value === "string" && VALID_TIER_KEYS.has(value);
 }
 
-export function parsePlanName(value: unknown, fallback: PlanName = "free"): PlanName {
+export function parsePlanName(
+  value: unknown,
+  fallback: PlanName = "free"
+): PlanName {
   return isValidPlanName(value) ? value : fallback;
 }
 
@@ -103,9 +106,24 @@ export const PLANS: Record<PlanName, PlanDefinition> = {
       sla: null,
     },
     tiers: [
-      { key: "25k", executions: 25_000, monthlyPrice: 49, monthlyPriceAnnual: 39 },
-      { key: "50k", executions: 50_000, monthlyPrice: 89, monthlyPriceAnnual: 71 },
-      { key: "100k", executions: 100_000, monthlyPrice: 149, monthlyPriceAnnual: 119 },
+      {
+        key: "25k",
+        executions: 25_000,
+        monthlyPrice: 49,
+        monthlyPriceAnnual: 39,
+      },
+      {
+        key: "50k",
+        executions: 50_000,
+        monthlyPrice: 89,
+        monthlyPriceAnnual: 71,
+      },
+      {
+        key: "100k",
+        executions: 100_000,
+        monthlyPrice: 149,
+        monthlyPriceAnnual: 119,
+      },
     ],
     overage: { enabled: true, ratePerThousand: 2 },
   },

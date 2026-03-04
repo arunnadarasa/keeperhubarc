@@ -6,9 +6,9 @@ import { toast } from "sonner";
 import { BILLING_API } from "@/keeperhub/lib/billing/constants";
 import {
   type BillingInterval,
+  type PlanName,
   parsePlanName,
   parseTierKey,
-  type PlanName,
   type TierKey,
 } from "@/keeperhub/lib/billing/plans";
 import { useOrganization } from "@/keeperhub/lib/hooks/use-organization";
