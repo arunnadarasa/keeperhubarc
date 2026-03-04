@@ -1986,7 +1986,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
         }
       }
 
-      clearExecution(executionId);
     }
     // end keeperhub code //
 
@@ -2113,5 +2112,11 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       outputs,
       error: errorMessage,
     };
+  } finally {
+    // start custom keeperhub code //
+    if (executionId) {
+      clearExecution(executionId);
+    }
+    // end keeperhub code //
   }
 }
