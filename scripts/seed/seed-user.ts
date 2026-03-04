@@ -14,6 +14,7 @@
 
 import "dotenv/config";
 
+import { randomBytes, scrypt } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
@@ -25,12 +26,50 @@ const EMAIL = process.env.SEED_EMAIL ?? "dev@keeperhub.local";
 const PASSWORD = process.env.SEED_PASSWORD ?? "Test1234!";
 const NAME = process.env.SEED_NAME ?? "Dev User";
 
+const SCRYPT_CONFIG = { N: 16_384, r: 16, p: 1, dkLen: 64 } as const;
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function scryptAsync(
+  password: string,
+  salt: string,
+  keylen: number
+): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    scrypt(
+      password,
+      salt,
+      keylen,
+      {
+        N: SCRYPT_CONFIG.N,
+        r: SCRYPT_CONFIG.r,
+        p: SCRYPT_CONFIG.p,
+        maxmem: 128 * SCRYPT_CONFIG.N * SCRYPT_CONFIG.r * 2,
+      },
+      (err, derivedKey) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(derivedKey);
+        }
+      }
+    );
+  });
+}
+
 async function hashPassword(password: string): Promise<string> {
-  const mod = await import(
-    // @ts-ignore -- better-auth internal module has no type declarations
-    "../node_modules/.ignored/better-auth/dist/crypto-DgVHxgLL.mjs"
+  const saltBytes = randomBytes(16);
+  const salt = bytesToHex(saltBytes);
+  const key = await scryptAsync(
+    password.normalize("NFKC"),
+    salt,
+    SCRYPT_CONFIG.dkLen
   );
-  return mod.i(password) as Promise<string>;
+  return `${salt}:${bytesToHex(key)}`;
 }
 
 async function main(): Promise<void> {
