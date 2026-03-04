@@ -442,11 +442,29 @@ function buildFailClosedResult(
 async function stepHandler(
   input: AssessRiskCoreInput
 ): Promise<AssessRiskResult> {
-  if (!input.calldata?.trim()) {
+  const calldata = input.calldata?.trim() ?? "";
+  const isNativeTransfer = !calldata || calldata === "0x";
+
+  if (isNativeTransfer) {
+    const valueFactors = checkValueRisks(input.value);
+    const interactionFactors = checkInteractionRisks(
+      input.contractAddress,
+      null,
+      ""
+    );
+    const factors = [...valueFactors, ...interactionFactors];
+    const assessment = computeRiskFromFactors(factors);
+
     return {
-      success: false,
-      error: "Transaction calldata is required for risk assessment",
-      riskLevel: "critical",
+      success: true,
+      riskLevel: assessment.riskLevel,
+      riskScore: assessment.riskScore,
+      factors:
+        factors.length > 0
+          ? factors.map((f) => f.description)
+          : ["Native ETH transfer with no calldata"],
+      decodedFunction: null,
+      reasoning: "Native value transfer -- no contract interaction",
     };
   }
 

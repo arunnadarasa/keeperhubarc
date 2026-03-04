@@ -11,6 +11,7 @@ import {
   MetricNames,
 } from "@/keeperhub/lib/metrics";
 import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
+import { checkConcurrencyLimit } from "@/keeperhub/api/execute/_lib/concurrency-limit";
 // end keeperhub code //
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -207,6 +208,18 @@ export async function POST(
     const executionGuard = await enforceExecutionLimit(workflow.organizationId);
     if (executionGuard.blocked) {
       return executionGuard.response;
+    }
+
+    const concurrencyCheck = await checkConcurrencyLimit();
+    if (!concurrencyCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: "Too many concurrent workflow executions",
+          running: concurrencyCheck.running,
+          limit: concurrencyCheck.limit,
+        },
+        { status: 429, headers: { "Retry-After": "30" } }
+      );
     }
     // end keeperhub code //
 

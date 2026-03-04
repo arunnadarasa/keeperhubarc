@@ -13,6 +13,7 @@ import {
   EXECUTION_LIMIT_ERROR,
   enforceExecutionLimit,
 } from "@/keeperhub/lib/billing/execution-guard";
+import { checkConcurrencyLimit } from "@/keeperhub/api/execute/_lib/concurrency-limit";
 import { recordWebhookMetrics } from "@/keeperhub/lib/metrics/instrumentation/api";
 import { db } from "@/lib/db";
 import { validateWorkflowIntegrations } from "@/lib/db/integrations";
@@ -248,6 +249,24 @@ export async function POST(
         status: 429,
         headers: corsHeaders,
       });
+    }
+
+    const concurrencyCheck = await checkConcurrencyLimit();
+    if (!concurrencyCheck.allowed) {
+      recordWebhookMetrics({
+        workflowId,
+        durationMs: timer(),
+        statusCode: 429,
+        error: "Too many concurrent workflow executions",
+      });
+      return NextResponse.json(
+        {
+          error: "Too many concurrent workflow executions",
+          running: concurrencyCheck.running,
+          limit: concurrencyCheck.limit,
+        },
+        { status: 429, headers: { ...corsHeaders, "Retry-After": "30" } }
+      );
     }
     // end keeperhub code //
 

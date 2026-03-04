@@ -37,6 +37,7 @@ import {
   expressionToConditionGroup,
   visualConditionToExpression,
 } from "@/keeperhub/lib/condition-builder-utils";
+import { resolveConditionExpression } from "@/keeperhub/lib/condition-resolver";
 // end keeperhub
 import { aiGatewayStatusAtom } from "@/lib/ai-gateway/state";
 import { validateConditionExpressionUI } from "@/lib/condition-validator";
@@ -215,7 +216,8 @@ function ConditionFields({
   onUpdateConfig: (key: string, value: ConfigValue) => void;
   disabled: boolean;
 }) {
-  const conditionValue = (config?.condition as string) || "";
+  const conditionValue =
+    resolveConditionExpression(config ?? {}) ?? "";
   const existingConditionConfig = config?.conditionConfig as
     | { group: ConditionGroup }
     | undefined;
@@ -579,8 +581,6 @@ function CollectFields() {
   );
 }
 
-// end keeperhub code //
-
 // System action fields wrapper - extracts conditional rendering to reduce complexity
 function SystemActionFields({
   actionType,
@@ -772,7 +772,7 @@ export function ActionConfig({
   const globalIntegrations = useAtomValue(integrationsAtom);
   const { push } = useOverlay();
 
-  // start keeperhub - anonymous check for email action restriction
+  // start keeperhub - anonymous check for action restrictions
   const [isAnonymous, setIsAnonymous] = useState(false);
   useEffect(() => {
     let cancelled = false;
@@ -958,7 +958,14 @@ export function ActionConfig({
       {/* start keeperhub - show Connection for plugin actions that require credentials or system actions that use an integration (e.g. Database Query) */}
       {integrationType &&
         isOwner &&
-        (requiresCredentials || SYSTEM_ACTION_INTEGRATIONS[actionType]) && (
+        (requiresCredentials || SYSTEM_ACTION_INTEGRATIONS[actionType]) &&
+        (isAnonymous && requiresCredentials ? (
+          <div className="rounded-lg border bg-muted/50 p-3">
+            <p className="text-muted-foreground text-sm">
+              Please sign in to add a connection.
+            </p>
+          </div>
+        ) : (
           <div className="space-y-2">
             <div className="ml-1 flex items-center justify-between">
               <div className="flex items-center gap-1">
@@ -996,7 +1003,7 @@ export function ActionConfig({
               value={(config?.integrationId as string) || ""}
             />
           </div>
-        )}
+        ))}
       {/* end keeperhub */}
 
       {/* System actions - hardcoded config fields */}
@@ -1008,21 +1015,9 @@ export function ActionConfig({
       />
 
       {/* Plugin actions - declarative config fields */}
-      {/* start custom keeperhub code // */}
       {pluginAction &&
         !SYSTEM_ACTION_IDS.includes(actionType) &&
-        isAnonymous &&
-        pluginAction.integration === "sendgrid" && (
-          <div className="rounded-lg border bg-muted/50 p-3">
-            <p className="text-muted-foreground text-sm">
-              Please sign in to configure email actions.
-            </p>
-          </div>
-        )}
-      {/* end keeperhub code // */}
-      {pluginAction &&
-        !SYSTEM_ACTION_IDS.includes(actionType) &&
-        !(isAnonymous && pluginAction.integration === "sendgrid") && (
+        !(isAnonymous && requiresCredentials) && (
           <ActionConfigRenderer
             config={config}
             disabled={disabled}

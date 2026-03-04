@@ -14,6 +14,7 @@ import {
   analyticsLiveAtom,
   analyticsLoadingAtom,
   analyticsNetworksAtom,
+  analyticsProjectIdAtom,
   analyticsRangeAtom,
   analyticsRunsAtom,
   analyticsSourceFilterAtom,
@@ -84,6 +85,7 @@ export function useAnalytics(): UseAnalyticsReturn {
   const range = useAtomValue(analyticsRangeAtom);
   const statusFilter = useAtomValue(analyticsStatusFilterAtom);
   const sourceFilter = useAtomValue(analyticsSourceFilterAtom);
+  const projectId = useAtomValue(analyticsProjectIdAtom);
   const [live, setLive] = useAtom(analyticsLiveAtom);
   const [loading, setLoading] = useAtom(analyticsLoadingAtom);
   const [error, setError] = useAtom(analyticsErrorAtom);
@@ -106,11 +108,12 @@ export function useAnalytics(): UseAnalyticsReturn {
     setLoading(true);
     setError(null);
 
-    const baseQuery = buildQuery({ range });
+    const baseQuery = buildQuery({ range, projectId: projectId ?? undefined });
     const runsQuery = buildQuery({
       range,
       status: statusFilter,
       source: sourceFilter,
+      projectId: projectId ?? undefined,
     });
 
     const { signal } = controller;
@@ -211,6 +214,7 @@ export function useAnalytics(): UseAnalyticsReturn {
     range,
     statusFilter,
     sourceFilter,
+    projectId,
     setLoading,
     setError,
     setSummary,
@@ -246,7 +250,7 @@ export function useAnalytics(): UseAnalyticsReturn {
   const startSSE = useCallback((): void => {
     cleanupSSE();
 
-    const query = buildQuery({ range });
+    const query = buildQuery({ range, projectId: projectId ?? undefined });
     const source = new EventSource(`/api/analytics/stream?${query}`);
 
     source.onmessage = (event: MessageEvent): void => {
@@ -278,6 +282,7 @@ export function useAnalytics(): UseAnalyticsReturn {
     eventSourceRef.current = source;
   }, [
     range,
+    projectId,
     cleanupSSE,
     setSummary,
     setLastUpdated,

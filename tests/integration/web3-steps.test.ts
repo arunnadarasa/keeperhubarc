@@ -63,13 +63,6 @@ vi.mock("@/lib/rpc", () => ({
       }
     ),
   }),
-  resolveRpcConfig: vi.fn().mockResolvedValue({
-    chainId: 1,
-    chainName: "Ethereum Mainnet",
-    primaryRpcUrl: "https://eth.example.com",
-    fallbackRpcUrl: "https://eth-backup.example.com",
-    source: "default",
-  }),
 }));
 
 // Mock database
@@ -125,7 +118,7 @@ vi.mock("@/lib/utils", () => ({
 
 // Now import the step functions after all mocks are set up
 import { checkBalanceStep } from "@/keeperhub/plugins/web3/steps/check-balance";
-import { getChainIdFromNetwork, resolveRpcConfig } from "@/lib/rpc";
+import { getChainIdFromNetwork, getRpcProvider } from "@/lib/rpc";
 
 // Helper to create test context
 const createTestContext = () => ({
@@ -159,9 +152,11 @@ describe("Web3 Plugin Steps Integration", () => {
         );
       }
 
-      // Verify resolveRpcConfig is called with userId for user RPC preferences
-      // The step uses resolveRpcConfig + new ethers.JsonRpcProvider(), not getRpcProvider
-      expect(resolveRpcConfig).toHaveBeenCalledWith(1, "user_123");
+      // Verify getRpcProvider is called with chainId and userId for user RPC preferences
+      expect(getRpcProvider).toHaveBeenCalledWith({
+        chainId: 1,
+        userId: "user_123",
+      });
     });
 
     it("should successfully check balance on sepolia", async () => {
@@ -212,8 +207,10 @@ describe("Web3 Plugin Steps Integration", () => {
     });
 
     it("should handle RPC provider errors", async () => {
-      // Mock resolveRpcConfig to return null (chain not found/disabled)
-      vi.mocked(resolveRpcConfig).mockResolvedValueOnce(null);
+      // Mock getRpcProvider to reject (chain not found/disabled)
+      vi.mocked(getRpcProvider).mockRejectedValueOnce(
+        new Error("Chain 1 not found or not enabled")
+      );
 
       const input = {
         network: "mainnet",
@@ -230,15 +227,6 @@ describe("Web3 Plugin Steps Integration", () => {
     });
 
     it("should use user RPC preferences when available", async () => {
-      // Mock resolveRpcConfig to return user-configured RPC
-      vi.mocked(resolveRpcConfig).mockResolvedValueOnce({
-        chainId: 1,
-        chainName: "Ethereum Mainnet",
-        primaryRpcUrl: "https://user-custom-rpc.example.com",
-        fallbackRpcUrl: "https://user-backup.example.com",
-        source: "user",
-      });
-
       const input = {
         network: "mainnet",
         address: "0x1234567890123456789012345678901234567890",
@@ -248,51 +236,73 @@ describe("Web3 Plugin Steps Integration", () => {
       const result = await checkBalanceStep(input);
 
       expect(result.success).toBe(true);
-      // Verify user preferences were used
-      expect(resolveRpcConfig).toHaveBeenCalledWith(1, "user_123");
+      // Verify getRpcProvider is called with userId so user preferences are resolved
+      expect(getRpcProvider).toHaveBeenCalledWith({
+        chainId: 1,
+        userId: "user_123",
+      });
     });
   });
 });
 
-describe("Web3 RPC Config Resolution", () => {
+describe("Web3 RPC Provider Resolution", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("should resolve config with user preferences", async () => {
-    vi.mocked(resolveRpcConfig).mockResolvedValueOnce({
-      chainId: 1,
-      chainName: "Ethereum Mainnet",
-      primaryRpcUrl: "https://user-custom-rpc.example.com",
-      fallbackRpcUrl: "https://user-custom-backup.example.com",
-      source: "user",
+  it("should pass userId to getRpcProvider for user preferences", async () => {
+    const result = await checkBalanceStep({
+      network: "mainnet",
+      address: "0x1234567890123456789012345678901234567890",
+      _context: createTestContext(),
     });
 
-    const config = await resolveRpcConfig(1, "user_123");
-
-    expect(config?.source).toBe("user");
-    expect(config?.primaryRpcUrl).toBe("https://user-custom-rpc.example.com");
+    expect(result.success).toBe(true);
+    expect(getRpcProvider).toHaveBeenCalledWith({
+      chainId: 1,
+      userId: "user_123",
+    });
   });
 
-  it("should fall back to defaults when no user preference", async () => {
-    vi.mocked(resolveRpcConfig).mockResolvedValueOnce({
-      chainId: 1,
-      chainName: "Ethereum Mainnet",
-      primaryRpcUrl: "https://default-rpc.example.com",
-      fallbackRpcUrl: "https://default-backup.example.com",
-      source: "default",
+  it("should fail when getRpcProvider rejects for disabled chain", async () => {
+    vi.mocked(getRpcProvider).mockRejectedValueOnce(
+      new Error("Chain 999 not found or not enabled")
+    );
+
+    const result = await checkBalanceStep({
+      network: "mainnet",
+      address: "0x1234567890123456789012345678901234567890",
+      _context: createTestContext(),
     });
 
-    const config = await resolveRpcConfig(1, "user_456");
-
-    expect(config?.source).toBe("default");
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("not found or not enabled");
+    }
   });
 
-  it("should return null for disabled chain", async () => {
-    vi.mocked(resolveRpcConfig).mockResolvedValueOnce(null);
+  it("should use executeWithFailover for balance check", async () => {
+    const mockExecuteWithFailover = vi.fn(
+      async (operation: (provider: unknown) => Promise<unknown>) => {
+        const mockProvider = {
+          getBalance: vi
+            .fn()
+            .mockResolvedValue(BigInt(3_000_000_000_000_000_000)),
+        };
+        return await operation(mockProvider);
+      }
+    );
+    vi.mocked(getRpcProvider).mockResolvedValueOnce({
+      executeWithFailover: mockExecuteWithFailover,
+    } as unknown as Awaited<ReturnType<typeof getRpcProvider>>);
 
-    const config = await resolveRpcConfig(999);
+    const result = await checkBalanceStep({
+      network: "mainnet",
+      address: "0x1234567890123456789012345678901234567890",
+      _context: createTestContext(),
+    });
 
-    expect(config).toBeNull();
+    expect(result.success).toBe(true);
+    expect(mockExecuteWithFailover).toHaveBeenCalledOnce();
   });
 });

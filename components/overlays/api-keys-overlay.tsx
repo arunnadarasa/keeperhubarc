@@ -90,13 +90,20 @@ function CreateApiKeyOverlay({
 
   return (
     <Overlay
-      actions={[{ label: "Create", onClick: handleCreate, loading: creating }]}
+      actions={[
+        {
+          label: "Create",
+          onClick: handleCreate,
+          loading: creating,
+          disabled: !keyName.trim(),
+        },
+      ]}
       overlayId={overlayId}
       title="Create API Key"
     >
       <p className="mb-4 text-muted-foreground text-sm">{description}</p>
       <div className="space-y-2">
-        <Label htmlFor="key-name">Label (optional)</Label>
+        <Label htmlFor="key-name">Label</Label>
         <Input
           id="key-name"
           onChange={(e) => setKeyName(e.target.value)}

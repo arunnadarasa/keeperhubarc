@@ -9,11 +9,17 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
+import { reshapeArgsForAbi } from "@/keeperhub/lib/abi-struct-args";
 import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
+import { formatContractError } from "@/keeperhub/lib/web3/decode-revert-error";
 import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
 import { getAddressUrl } from "@/lib/explorer";
-import { getChainIdFromNetwork, resolveRpcConfig } from "@/lib/rpc";
+import {
+  getChainIdFromNetwork,
+  getRpcProvider,
+  type RpcProviderManager,
+} from "@/lib/rpc";
 import { getErrorMessage } from "@/lib/utils";
 
 export type ReadContractCoreInput = {
@@ -131,7 +137,7 @@ export async function readContractCore(
 
   // Find the selected function in the ABI to get output structure
   const functionAbi = parsedAbi.find(
-    (item: { type: string; name: string }) =>
+    (item: { type: string; name: string; stateMutability?: string }) =>
       item.type === "function" && item.name === abiFunction
   );
 
@@ -180,6 +186,7 @@ export async function readContractCore(
         // Keep empty strings if they're not at the end
         return parsedArgs.slice(index + 1).some((a) => a !== "");
       });
+      args = reshapeArgsForAbi(args, functionAbi);
       console.log("[Read Contract] Function arguments parsed:", args);
     } catch (error) {
       logUserError(
@@ -219,20 +226,10 @@ export async function readContractCore(
     };
   }
 
-  // Resolve RPC config (with user preferences)
-  let rpcUrl: string;
+  // Resolve RPC provider with failover support
+  let rpcManager: RpcProviderManager;
   try {
-    const rpcConfig = await resolveRpcConfig(chainId, userId);
-    if (!rpcConfig) {
-      throw new Error(`Chain ${chainId} not found or not enabled`);
-    }
-    rpcUrl = rpcConfig.primaryRpcUrl;
-    console.log(
-      "[Read Contract] Using RPC URL:",
-      rpcUrl,
-      "source:",
-      rpcConfig.source
-    );
+    rpcManager = await getRpcProvider({ chainId, userId });
   } catch (error) {
     logUserError(
       ErrorCategory.VALIDATION,
@@ -250,27 +247,39 @@ export async function readContractCore(
     };
   }
 
+  // Build interface from parsed ABI for error decoding in catch block
+  const contractInterface = new ethers.Interface(
+    parsedAbi as ethers.InterfaceAbi
+  );
+
   // Call the contract function
   try {
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const isView =
+      functionAbi.stateMutability === "view" ||
+      functionAbi.stateMutability === "pure";
 
-    // Create contract instance
-    const contract = new ethers.Contract(contractAddress, parsedAbi, provider);
-    console.log("[Read Contract] Contract instance created");
+    const result = await rpcManager.executeWithFailover(async (provider) => {
+      const contract = new ethers.Contract(
+        contractAddress,
+        parsedAbi,
+        provider
+      );
 
-    // Check if function exists
-    if (typeof contract[abiFunction] !== "function") {
-      throw new Error(`Function '${abiFunction}' not found in contract ABI`);
-    }
+      if (typeof contract[abiFunction] !== "function") {
+        throw new Error(`Function '${abiFunction}' not found in contract ABI`);
+      }
 
-    console.log(
-      "[Read Contract] Calling function:",
-      abiFunction,
-      "with args:",
-      args
-    );
+      console.log(
+        "[Read Contract] Calling function:",
+        abiFunction,
+        "with args:",
+        args
+      );
 
-    const result = await contract[abiFunction](...args);
+      return isView
+        ? await contract[abiFunction](...args)
+        : await contract[abiFunction].staticCall(...args);
+    });
 
     console.log("[Read Contract] Function call successful, result:", result);
 
@@ -343,7 +352,7 @@ export async function readContractCore(
     );
     return {
       success: false,
-      error: `Contract call failed: ${getErrorMessage(error)}`,
+      error: formatContractError(error, contractInterface),
     };
   }
 }

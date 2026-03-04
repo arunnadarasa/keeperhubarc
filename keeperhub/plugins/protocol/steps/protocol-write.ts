@@ -109,12 +109,18 @@ export async function protocolWriteStep(
   const functionArgs = buildFunctionArgs(input, meta);
 
   // 6. Delegate to writeContractCore
+  const ethValue =
+    typeof input.ethValue === "string" && input.ethValue.trim() !== ""
+      ? input.ethValue.trim()
+      : undefined;
+
   const coreInput: WriteContractCoreInput = {
     contractAddress,
     network: input.network,
     abi: resolvedAbi,
     abiFunction: meta.functionName,
     functionArgs,
+    ethValue,
     _context: input._context
       ? {
           executionId: input._context.executionId,

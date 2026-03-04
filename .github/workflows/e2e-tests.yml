@@ -19,6 +19,12 @@ jobs:
       run-deployed: ${{ steps.check.outputs.run-deployed }}
       pr-number: ${{ steps.check.outputs.pr-number }}
     steps:
+      - name: Checkout code
+        if: github.event_name == 'push'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - name: Check trigger conditions
         id: check
         run: |
@@ -26,6 +32,15 @@ jobs:
           echo "run-e2e=false" >> $GITHUB_OUTPUT
           echo "run-deployed=false" >> $GITHUB_OUTPUT
           echo "pr-number=" >> $GITHUB_OUTPUT
+
+          # Check for [skip e2e] flag in commit message (push events only)
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            MSG=$(git log -1 --format=%B 2>/dev/null || echo "")
+            if [[ "$MSG" == *"[skip e2e]"* ]]; then
+              echo "Skipping E2E tests: [skip e2e] found in commit message"
+              exit 0
+            fi
+          fi
 
           if [[ "${{ github.event_name }}" == "push" ]]; then
             echo "run-e2e=true" >> $GITHUB_OUTPUT
@@ -125,6 +140,15 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**/*.ts', '**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-
+            ${{ runner.os }}-nextjs-
 
       - name: Generate plugin registry
         run: pnpm discover-plugins
@@ -226,13 +250,18 @@ jobs:
             coverage/
           retention-days: 7
 
-  # Playwright E2E tests (browser-based)
-  # Only runs after Vitest E2E tests pass
+  # Playwright E2E tests (browser-based, sharded)
+  # Runs after Vitest to avoid conflicts on shared external test accounts
   e2e-playwright:
     needs: [should-run, e2e-vitest]
     if: needs.should-run.outputs.run-e2e == 'true'
     runs-on: ubuntu-latest
     environment: staging
+    strategy:
+      fail-fast: false
+      matrix:
+        # Increase shard count as the test suite grows
+        shard: [1, 2]
 
     services:
       postgres:
@@ -311,8 +340,8 @@ jobs:
           TEST_PARA_USER_SHARE: ${{ secrets.TEST_PARA_USER_SHARE }}
           WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
 
-      - name: Run Playwright tests
-        run: pnpm test:e2e
+      - name: Run Playwright tests (shard ${{ matrix.shard }}/2)
+        run: pnpm test:e2e --shard=${{ matrix.shard }}/2
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
           PARA_API_KEY: ${{ secrets.TEST_PARA_API_KEY }}
@@ -329,7 +358,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-shard-${{ matrix.shard }}
           path: |
             playwright-report/
             test-results/
@@ -339,7 +368,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-screenshots
+          name: playwright-screenshots-shard-${{ matrix.shard }}
           path: test-results/**/*.png
           retention-days: 7
 

@@ -27,11 +27,17 @@ import {
   detectTriggerType,
   recordWorkflowComplete,
 } from "@/keeperhub/lib/metrics/instrumentation/workflow";
+import { fallbackCompleteExecution } from "@/keeperhub/lib/execution-fallback";
 import { ARRAY_SOURCE_RE } from "@/keeperhub/lib/for-each-utils";
 import {
   buildEdgesBySourceHandle,
   type EdgesBySourceHandle,
 } from "@/keeperhub/lib/edge-handle-utils";
+import { resolveConditionExpression } from "@/keeperhub/lib/condition-resolver";
+import {
+  applyBigIntConversion,
+  needsBigIntMode,
+} from "@/keeperhub/lib/bigint-condition-utils";
 import {
   preValidateConditionExpression,
   validateConditionExpression,
@@ -46,7 +52,6 @@ import type { StepContext } from "./steps/step-handler";
 import { triggerStep } from "./steps/trigger";
 import { deserializeEventTriggerData, getErrorMessageAsync } from "./utils";
 import type { WorkflowEdge, WorkflowNode } from "./workflow-store";
-
 // end keeperhub code //
 
 // System actions that don't have plugins - maps to module import functions
@@ -232,7 +237,7 @@ export function evaluateConditionExpression(
     }
 
     try {
-      const evalContext: Record<string, unknown> = {};
+      let evalContext: Record<string, unknown> = {};
       const resolvedValues: Record<string, unknown> = {};
       let transformedExpression = conditionExpression;
       const templatePattern = /\{\{@([^:]+):([^}]+)\}\}/g;
@@ -263,6 +268,18 @@ export function evaluateConditionExpression(
           `Condition expression validation failed: ${validation.error}. Original: "${conditionExpression}"`
         );
       }
+
+      // start custom keeperhub code //
+      // BigInt-safe conversion for large Web3 values (e.g. token balances in wei)
+      if (needsBigIntMode(transformedExpression, evalContext)) {
+        const converted = applyBigIntConversion(
+          transformedExpression,
+          evalContext
+        );
+        transformedExpression = converted.expression;
+        evalContext = converted.evalContext;
+      }
+      // end keeperhub code //
 
       const varNames = Object.keys(evalContext);
       const varValues = Object.values(evalContext);
@@ -328,7 +345,8 @@ async function executeActionStep(input: {
   if (actionType === "Condition") {
     const systemAction = SYSTEM_ACTIONS.Condition;
     const module = await systemAction.importer();
-    const originalExpression = stepInput.condition;
+    const originalExpression =
+      resolveConditionExpression(stepInput) ?? stepInput.condition;
 
     // KEEP-1284: Catch evaluation errors and pass to step so it gets logged
     let evaluatedCondition = false;
@@ -1084,6 +1102,8 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     const configWithoutSpecial = { ...config };
     const originalCondition = config.condition;
     configWithoutSpecial.condition = undefined;
+    const originalConditionConfig = config.conditionConfig;
+    configWithoutSpecial.conditionConfig = undefined;
     const originalDbQuery = config.dbQuery;
     if (actionType === "Database Query") {
       configWithoutSpecial.dbQuery = undefined;
@@ -1102,6 +1122,9 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
 
     if (originalCondition !== undefined) {
       processedConfig.condition = originalCondition;
+    }
+    if (originalConditionConfig !== undefined) {
+      processedConfig.conditionConfig = originalConditionConfig;
     }
 
     if (
@@ -1661,6 +1684,23 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
               ...triggerData,
               ...deserialized,
             };
+
+            // Enrich event data with explorer links so the execution log UI
+            // can render clickable transaction/address links.
+            // Uses a step function to keep db/schema out of the workflow bundle.
+            if (config.network) {
+              try {
+                const { enrichExplorerLinks } = await import(
+                  "@/keeperhub/lib/steps/enrich-explorer-links"
+                );
+                await enrichExplorerLinks(
+                  triggerData,
+                  config.network as string | number
+                );
+              } catch {
+                // Non-critical: skip explorer links if lookup fails
+              }
+            }
           } else {
             // For other trigger types, use as-is
             triggerData = { ...triggerData, ...triggerInput };
@@ -1674,7 +1714,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
               triggerData.triggeredAt = triggerInput.triggerTime;
             }
           }
-          // end custom keeperhub code //
+          // end keeperhub code //
         }
 
         // Build context for logging
@@ -1956,6 +1996,13 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             ...(executionId ? { execution_id: executionId } : {}),
           }
         );
+        // start custom keeperhub code //
+        await fallbackCompleteExecution({
+          executionId,
+          status: finalSuccess ? "success" : "error",
+          error: Object.values(results).find((r) => !r.success)?.error,
+        });
+        // end keeperhub code //
       }
     }
 
@@ -2011,6 +2058,13 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             ...(executionId ? { execution_id: executionId } : {}),
           }
         );
+        // start custom keeperhub code //
+        await fallbackCompleteExecution({
+          executionId,
+          status: "error",
+          error: errorMessage,
+        });
+        // end keeperhub code //
       }
     }
 

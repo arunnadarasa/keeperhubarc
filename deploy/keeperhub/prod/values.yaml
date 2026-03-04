@@ -127,6 +127,12 @@ env:
   WORKFLOW_TARGET_WORLD:
     type: kv
     value: "@workflow/world-postgres"
+  WORKFLOW_LOCAL_QUEUE_CONCURRENCY:
+    type: kv
+    value: "5000"
+  WORKFLOW_POSTGRES_WORKER_CONCURRENCY:
+    type: kv
+    value: "5"
   NEXT_PUBLIC_API_URL:
     type: kv
     value: "http://localhost:3000"

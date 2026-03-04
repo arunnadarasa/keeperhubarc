@@ -716,6 +716,128 @@ const web3Plugin: IntegrationPlugin = {
       ],
     },
     {
+      slug: "query-transactions",
+      label: "Query Transaction History",
+      description:
+        "Query historical transactions to a contract filtered by function calls and optionally by argument values. Uses block explorer APIs to find transactions when event logs are not available.",
+      category: "Web3",
+      stepFunction: "queryTransactionsStep",
+      stepImportPath: "query-transactions",
+      outputFields: [
+        {
+          field: "success",
+          description: "Whether the query succeeded",
+        },
+        {
+          field: "transactions",
+          description:
+            "Array of decoded transaction objects with hash, from, value, blockNumber, timestamp, functionName, and args",
+        },
+        {
+          field: "fromBlock",
+          description: "Actual start block used",
+        },
+        {
+          field: "toBlock",
+          description: "Actual end block used",
+        },
+        {
+          field: "totalFetched",
+          description:
+            "Total transactions fetched from explorer before filtering",
+        },
+        {
+          field: "matchCount",
+          description:
+            "Number of transactions matching the function and argument filters",
+        },
+        {
+          field: "contractAddressLink",
+          description: "Block explorer link for the contract",
+        },
+        {
+          field: "error",
+          description: "Error message if the query failed",
+        },
+      ],
+      configFields: [
+        {
+          key: "network",
+          label: "Network",
+          type: "chain-select",
+          chainTypeFilter: "evm",
+          placeholder: "Select network",
+          required: true,
+        },
+        {
+          key: "contractAddress",
+          label: "Contract Address",
+          type: "template-input",
+          placeholder: "0x... or {{NodeName.contractAddress}}",
+          example: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+          required: true,
+        },
+        {
+          key: "abi",
+          label: "Contract ABI",
+          type: "abi-with-auto-fetch",
+          contractAddressField: "contractAddress",
+          networkField: "network",
+          rows: 6,
+          required: true,
+        },
+        {
+          key: "abiFunction",
+          label: "Function",
+          type: "abi-function-select",
+          abiField: "abi",
+          functionFilter: "write",
+          placeholder: "Select a function to filter by",
+          required: true,
+        },
+        {
+          key: "functionArgs",
+          label: "Function Arguments",
+          type: "abi-function-args",
+          abiField: "abi",
+          abiFunctionField: "abiFunction",
+          helpTip:
+            "Optional: filter by specific argument values. Leave empty to match all calls to the selected function.",
+        },
+        {
+          type: "group",
+          label: "Block Range",
+          defaultExpanded: true,
+          fields: [
+            {
+              key: "blockCount",
+              label: "Block Lookback",
+              type: "template-input",
+              placeholder: "Number of blocks to look back (default: 6500)",
+              helpTip:
+                "How many blocks to scan backwards from the end block. Default: 6500 (~1 day on Ethereum). Ignored if From Block is set.",
+            },
+            {
+              key: "fromBlock",
+              label: "From Block",
+              type: "template-input",
+              placeholder: "Start block number",
+              helpTip:
+                "Explicit start block. If set, Block Lookback is ignored.",
+            },
+            {
+              key: "toBlock",
+              label: "To Block",
+              type: "template-input",
+              placeholder: "End block number (default: latest)",
+              helpTip:
+                "End block for the query. Defaults to the latest block if left empty.",
+            },
+          ],
+        },
+      ],
+    },
+    {
       slug: "batch-read-contract",
       label: "Batch Read Contract",
       description:
@@ -836,6 +958,162 @@ const web3Plugin: IntegrationPlugin = {
                 "Maximum calls per Multicall3 request. Lower values reduce RPC payload size.",
             },
           ],
+        },
+      ],
+    },
+    {
+      slug: "approve-token",
+      label: "Approve ERC20 Token",
+      description:
+        "Approve a spender contract to spend ERC20 tokens on behalf of your wallet (required before swaps and DeFi interactions)",
+      category: "Web3",
+      requiresCredentials: true,
+      stepFunction: "approveTokenStep",
+      stepImportPath: "approve-token",
+      outputFields: [
+        {
+          field: "success",
+          description: "Whether the approval succeeded",
+        },
+        {
+          field: "transactionHash",
+          description: "The transaction hash of the approval",
+        },
+        {
+          field: "transactionLink",
+          description: "Explorer link to view the transaction",
+        },
+        {
+          field: "gasUsed",
+          description: "Gas cost in wei",
+        },
+        {
+          field: "approvedAmount",
+          description:
+            'The approved amount (human-readable, or "unlimited" for max approval)',
+        },
+        {
+          field: "spender",
+          description: "The spender address that was approved",
+        },
+        {
+          field: "symbol",
+          description: "The token symbol (e.g., USDC)",
+        },
+        {
+          field: "error",
+          description: "Error message if the approval failed",
+        },
+      ],
+      configFields: [
+        {
+          key: "network",
+          label: "Network",
+          type: "chain-select",
+          chainTypeFilter: "evm",
+          placeholder: "Select network",
+          required: true,
+        },
+        {
+          key: "tokenConfig",
+          label: "Token",
+          type: "token-select",
+          networkField: "network",
+          required: true,
+        },
+        {
+          key: "spenderAddress",
+          label: "Spender Address",
+          type: "template-input",
+          placeholder: "0x... or {{NodeName.address}}",
+          example: "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",
+          required: true,
+        },
+        {
+          key: "amount",
+          label: "Amount",
+          type: "template-input",
+          placeholder: '100.50 or "max" for unlimited',
+          example: "max",
+          required: true,
+        },
+        {
+          type: "group",
+          label: "Advanced",
+          defaultExpanded: false,
+          fields: [
+            {
+              key: "gasLimitMultiplier",
+              label: "Gas Limit",
+              type: "gas-limit-multiplier",
+              networkField: "network",
+              actionSlug: "approve-token",
+            },
+          ],
+        },
+      ],
+    },
+    {
+      slug: "check-allowance",
+      label: "Check ERC20 Allowance",
+      description:
+        "Check the current ERC20 token spending allowance granted by an owner to a spender",
+      category: "Web3",
+      stepFunction: "checkAllowanceStep",
+      stepImportPath: "check-allowance",
+      outputFields: [
+        {
+          field: "success",
+          description: "Whether the allowance check succeeded",
+        },
+        {
+          field: "allowance",
+          description: "Current allowance in human-readable format",
+        },
+        {
+          field: "allowanceRaw",
+          description: "Current allowance in raw units (wei string)",
+        },
+        {
+          field: "symbol",
+          description: "The token symbol (e.g., USDC)",
+        },
+        {
+          field: "error",
+          description: "Error message if the check failed",
+        },
+      ],
+      configFields: [
+        {
+          key: "network",
+          label: "Network",
+          type: "chain-select",
+          chainTypeFilter: "evm",
+          placeholder: "Select network",
+          required: true,
+        },
+        {
+          key: "tokenConfig",
+          label: "Token",
+          type: "token-select",
+          networkField: "network",
+          required: true,
+        },
+        {
+          key: "ownerAddress",
+          label: "Owner Address",
+          type: "template-input",
+          placeholder: "0x... or {{NodeName.address}}",
+          example: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
+          required: true,
+        },
+        {
+          key: "spenderAddress",
+          label: "Spender Address",
+          type: "template-input",
+          placeholder: "0x... or {{NodeName.address}}",
+          example: "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",
+          required: true,
         },
       ],
     },

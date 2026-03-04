@@ -6,7 +6,11 @@ import { withPluginMetrics } from "@/keeperhub/lib/metrics/instrumentation/plugi
 import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
 import { getAddressUrl, getTransactionUrl } from "@/lib/explorer";
-import { getChainIdFromNetwork, resolveRpcConfig } from "@/lib/rpc";
+import {
+  getChainIdFromNetwork,
+  getRpcProvider,
+  type RpcProviderManager,
+} from "@/lib/rpc";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import { getErrorMessage } from "@/lib/utils";
 
@@ -84,13 +88,9 @@ async function stepHandler(
     };
   }
 
-  let rpcUrl: string;
+  let rpcManager: RpcProviderManager;
   try {
-    const rpcConfig = await resolveRpcConfig(chainId, userId);
-    if (!rpcConfig) {
-      throw new Error(`Chain ${chainId} not found or not enabled`);
-    }
-    rpcUrl = rpcConfig.primaryRpcUrl;
+    rpcManager = await getRpcProvider({ chainId, userId });
   } catch (error) {
     return {
       success: false,
@@ -99,8 +99,9 @@ async function stepHandler(
   }
 
   try {
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    const tx = await provider.getTransaction(hash);
+    const tx = await rpcManager.executeWithFailover(async (provider) =>
+      provider.getTransaction(hash)
+    );
 
     if (!tx) {
       return {

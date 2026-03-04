@@ -50,6 +50,8 @@ export const GET = requireOrganization(
           ? (sourceParam as RunSource)
           : undefined;
 
+      const projectId = params.get("projectId") ?? undefined;
+
       const result = await getUnifiedRuns(organizationId, range, {
         cursor,
         limit,
@@ -57,6 +59,7 @@ export const GET = requireOrganization(
         source,
         customStart,
         customEnd,
+        projectId,
       });
 
       return NextResponse.json(result);
