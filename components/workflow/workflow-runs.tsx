@@ -1,7 +1,8 @@
 "use client";
 
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import {
+  Ban,
   Check,
   ChevronDown,
   ChevronRight,
@@ -35,6 +36,7 @@ import { getRelativeTime } from "@/lib/utils/time";
 import {
   currentWorkflowIdAtom,
   executionLogsAtom,
+  runsRefreshTriggerAtom,
   selectedExecutionIdAtom,
 } from "@/lib/workflow-store";
 import { Button } from "../ui/button";
@@ -532,6 +534,9 @@ function getProgressBarColor(status: WorkflowExecution["status"]): string {
   if (status === "success") {
     return "bg-green-500";
   }
+  if (status === "cancelled") {
+    return "bg-orange-500";
+  }
   return "bg-red-500";
 }
 
@@ -902,6 +907,9 @@ export function WorkflowRuns({
     selectedExecutionIdAtom
   );
   const [, setExecutionLogs] = useAtom(executionLogsAtom);
+  // start custom keeperhub code //
+  const runsRefreshTrigger = useAtomValue(runsRefreshTriggerAtom);
+  // end keeperhub code //
   const [executions, setExecutions] = useState<WorkflowExecution[]>([]);
   const [logs, setLogs] = useState<Record<string, ExecutionLog[]>>({});
   const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set());
@@ -910,6 +918,11 @@ export function WorkflowRuns({
 
   // Track which execution we've already auto-expanded to prevent loops
   const autoExpandedExecutionRef = useRef<string | null>(null);
+
+  // start custom keeperhub code //
+  // Track terminal executions that have had their final log refresh
+  const finalizedExecutionsRef = useRef<Set<string>>(new Set());
+  // end keeperhub code //
 
   const loadExecutions = useCallback(
     async (showLoading = true) => {
@@ -946,6 +959,15 @@ export function WorkflowRuns({
   useEffect(() => {
     loadExecutions();
   }, [loadExecutions]);
+
+  // start custom keeperhub code //
+  // Immediate refresh when toolbar signals a new execution started
+  useEffect(() => {
+    if (runsRefreshTrigger > 0) {
+      loadExecutions(false);
+    }
+  }, [runsRefreshTrigger, loadExecutions]);
+  // end keeperhub code //
 
   // Clear expanded runs when workflow changes to prevent stale state
   useEffect(() => {
@@ -1092,13 +1114,28 @@ export function WorkflowRuns({
         const data = await api.workflow.getExecutions(currentWorkflowId);
         setExecutions(data as WorkflowExecution[]);
 
-        // Also refresh logs for expanded runs (only if they exist in current executions)
-        const validExecutionIds = new Set(data.map((e) => e.id));
+        // start custom keeperhub code //
+        // Refresh logs for expanded runs: always for running, once more for newly-terminal
+        const terminalStatuses = new Set(["cancelled", "success", "error"]);
+        const executionMap = new Map(data.map((e) => [e.id, e]));
         for (const executionId of expandedRuns) {
-          if (validExecutionIds.has(executionId)) {
+          const execution = executionMap.get(executionId);
+          if (!execution) {
+            continue;
+          }
+          const isTerminal = terminalStatuses.has(execution.status);
+          const alreadyFinalized =
+            finalizedExecutionsRef.current.has(executionId);
+
+          if (!isTerminal) {
             await refreshExecutionLogs(executionId);
+          } else if (!alreadyFinalized) {
+            // One final refresh to pick up cancel cleanup, then stop
+            await refreshExecutionLogs(executionId);
+            finalizedExecutionsRef.current.add(executionId);
           }
         }
+        // end keeperhub code //
       } catch (error) {
         console.error("Failed to poll executions:", error);
       }
@@ -1154,6 +1191,8 @@ export function WorkflowRuns({
         return <X className="h-3 w-3 text-white" />;
       case "running":
         return <Loader2 className="h-3 w-3 animate-spin text-white" />;
+      case "cancelled":
+        return <Ban className="h-3 w-3 text-white" />;
       default:
         return <Clock className="h-3 w-3 text-white" />;
     }
@@ -1167,6 +1206,8 @@ export function WorkflowRuns({
         return "bg-red-600";
       case "running":
         return "bg-blue-600";
+      case "cancelled":
+        return "bg-orange-500";
       default:
         return "bg-muted-foreground";
     }

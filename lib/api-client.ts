@@ -694,6 +694,12 @@ export const workflowApi = {
       }>;
     }>(`/api/workflows/executions/${executionId}/logs`),
 
+  // Cancel a running execution
+  cancelExecution: (executionId: string) =>
+    apiCall<{ success: boolean }>(`/api/executions/${executionId}/cancel`, {
+      method: "POST",
+    }),
+
   // Get execution status
   getExecutionStatus: (executionId: string) =>
     apiCall<{
