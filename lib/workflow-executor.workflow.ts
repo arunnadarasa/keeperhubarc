@@ -1971,12 +1971,16 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
         );
 
         if (executionLogs) {
-          const { overriddenNodeIds } = reconcileMaxRetriesFailures({
+          const { overrides } = reconcileMaxRetriesFailures({
             results,
             executionLogs,
           });
 
+          const overriddenNodeIds = Object.keys(overrides);
           if (overriddenNodeIds.length > 0) {
+            for (const nodeId of overriddenNodeIds) {
+              results[nodeId] = overrides[nodeId];
+            }
             console.warn(
               "[Workflow Executor] Reconciled spurious max-retries failures:",
               overriddenNodeIds

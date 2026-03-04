@@ -31,23 +31,21 @@ describe("getFailedMaxRetriesNodeIds", () => {
 });
 
 describe("reconcileMaxRetriesFailures", () => {
-  it("should return empty when no max-retries failures exist", () => {
+  it("should return empty overrides when no max-retries failures exist", () => {
     const results: Record<string, { success: boolean; error?: string }> = {
       "node-1": { success: true },
       "node-2": { success: false, error: "HTTP 500 Internal Server Error" },
     };
 
-    const output = reconcileMaxRetriesFailures({
+    const { overrides } = reconcileMaxRetriesFailures({
       results,
       executionLogs: [],
-
     });
 
-    expect(output.overriddenNodeIds).toEqual([]);
-    expect(results["node-2"]?.success).toBe(false);
+    expect(overrides).toEqual({});
   });
 
-  it("should override to success when all logs for the node are success", () => {
+  it("should return success override when all logs for the node are success", () => {
     const results: Record<
       string,
       { success: boolean; error?: string; data?: unknown }
@@ -67,16 +65,13 @@ describe("reconcileMaxRetriesFailures", () => {
       },
     ];
 
-    const output = reconcileMaxRetriesFailures({
+    const { overrides } = reconcileMaxRetriesFailures({
       results,
       executionLogs,
-
     });
 
-    expect(output.overriddenNodeIds).toEqual(["node-2"]);
-    expect(results["node-2"]).toEqual({
-      success: true,
-      data: { statusCode: 200, body: "ok" },
+    expect(overrides).toEqual({
+      "node-2": { success: true, data: { statusCode: 200, body: "ok" } },
     });
   });
 
@@ -93,14 +88,12 @@ describe("reconcileMaxRetriesFailures", () => {
       { nodeId: "node-1", status: "error", output: null },
     ];
 
-    const output = reconcileMaxRetriesFailures({
+    const { overrides } = reconcileMaxRetriesFailures({
       results,
       executionLogs,
-
     });
 
-    expect(output.overriddenNodeIds).toEqual([]);
-    expect(results["node-1"]?.success).toBe(false);
+    expect(overrides).toEqual({});
   });
 
   it("should NOT override when there are no logs at all for the node", () => {
@@ -111,14 +104,12 @@ describe("reconcileMaxRetriesFailures", () => {
       },
     };
 
-    const output = reconcileMaxRetriesFailures({
+    const { overrides } = reconcileMaxRetriesFailures({
       results,
       executionLogs: [],
-
     });
 
-    expect(output.overriddenNodeIds).toEqual([]);
-    expect(results["node-1"]?.success).toBe(false);
+    expect(overrides).toEqual({});
   });
 
   it("should handle multiple failed nodes independently", () => {
@@ -143,19 +134,17 @@ describe("reconcileMaxRetriesFailures", () => {
       { nodeId: "node-2", status: "error", output: null },
     ];
 
-    const output = reconcileMaxRetriesFailures({
+    const { overrides } = reconcileMaxRetriesFailures({
       results,
       executionLogs,
-
     });
 
-    expect(output.overriddenNodeIds).toEqual(["node-1"]);
-    expect(results["node-1"]).toEqual({ success: true, data: { sent: true } });
-    expect(results["node-2"]?.success).toBe(false);
-    expect(results["node-3"]?.success).toBe(true);
+    expect(overrides).toEqual({
+      "node-1": { success: true, data: { sent: true } },
+    });
   });
 
-  it("should not touch results for non-max-retries failures", () => {
+  it("should not produce overrides for non-max-retries failures", () => {
     const results: Record<
       string,
       { success: boolean; error?: string; data?: unknown }
@@ -174,14 +163,33 @@ describe("reconcileMaxRetriesFailures", () => {
       { nodeId: "node-1", status: "success", output: { ok: true } },
     ];
 
-    const output = reconcileMaxRetriesFailures({
+    const { overrides } = reconcileMaxRetriesFailures({
       results,
       executionLogs,
-
     });
 
-    expect(output.overriddenNodeIds).toEqual(["node-1"]);
-    expect(results["node-2"]?.success).toBe(false);
-    expect(results["node-2"]?.error).toBe("Connection refused");
+    expect(overrides).toEqual({
+      "node-1": { success: true, data: { ok: true } },
+    });
+  });
+
+  it("should not mutate the input results", () => {
+    const results: Record<
+      string,
+      { success: boolean; error?: string; data?: unknown }
+    > = {
+      "node-1": {
+        success: false,
+        error: 'Step "step//a//webhook" exceeded max retries (0 retries)',
+      },
+    };
+
+    const executionLogs: ExecutionLog[] = [
+      { nodeId: "node-1", status: "success", output: { ok: true } },
+    ];
+
+    reconcileMaxRetriesFailures({ results, executionLogs });
+
+    expect(results["node-1"]?.success).toBe(false);
   });
 });

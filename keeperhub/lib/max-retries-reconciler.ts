@@ -39,7 +39,7 @@ type ReconcileInput = {
 };
 
 type ReconcileOutput = {
-  overriddenNodeIds: string[];
+  overrides: Record<string, ExecutionResult>;
 };
 
 export function getFailedMaxRetriesNodeIds(
@@ -58,10 +58,10 @@ export function reconcileMaxRetriesFailures(
   const failedNodeIds = getFailedMaxRetriesNodeIds(results);
 
   if (failedNodeIds.length === 0) {
-    return { overriddenNodeIds: [] };
+    return { overrides: {} };
   }
 
-  const overriddenNodeIds: string[] = [];
+  const overrides: Record<string, ExecutionResult> = {};
 
   for (const failedNodeId of failedNodeIds) {
     const nodeLogs = executionLogs.filter((l) => l.nodeId === failedNodeId);
@@ -69,13 +69,12 @@ export function reconcileMaxRetriesFailures(
     const successLog = nodeLogs.find((l) => l.status === "success");
 
     if (successLog && !hasAnyErrorLog) {
-      results[failedNodeId] = {
+      overrides[failedNodeId] = {
         success: true,
         data: successLog.output,
       };
-      overriddenNodeIds.push(failedNodeId);
     }
   }
 
-  return { overriddenNodeIds };
+  return { overrides };
 }
