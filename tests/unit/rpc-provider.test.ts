@@ -386,7 +386,7 @@ describe("RpcProviderManager", () => {
           if (callCount === 1) {
             throw makeServerError(429, { "retry-after": "1" });
           }
-          return "ok";
+          return Promise.resolve("ok");
         });
 
         expect(result).toBe("ok");
@@ -411,7 +411,7 @@ describe("RpcProviderManager", () => {
           if (totalCalls === 1) {
             throw makeServerError(429);
           }
-          return "fallback-ok";
+          return Promise.resolve("fallback-ok");
         });
 
         expect(result).toBe("fallback-ok");
@@ -438,7 +438,7 @@ describe("RpcProviderManager", () => {
           if (totalCalls === 1) {
             throw makeServerError(429, { "retry-after": "60" });
           }
-          return "fallback-ok";
+          return Promise.resolve("fallback-ok");
         });
 
         expect(result).toBe("fallback-ok");
@@ -482,7 +482,7 @@ describe("RpcProviderManager", () => {
           if (callCount === 1) {
             throw new Error("connection reset");
           }
-          return "ok";
+          return Promise.resolve("ok");
         });
 
         expect(result).toBe("ok");
@@ -577,7 +577,7 @@ describe("RpcProviderManager", () => {
           if (callCount === 1) {
             throw makeServerError(503);
           }
-          return "ok";
+          return Promise.resolve("ok");
         });
 
         expect(result).toBe("ok");
