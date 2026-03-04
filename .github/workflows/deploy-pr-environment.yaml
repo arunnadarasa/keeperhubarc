@@ -590,6 +590,7 @@ jobs:
       needs.check-labels.outputs.should-test == 'true' &&
       (needs.deploy.result == 'success' || needs.deploy.result == 'skipped')
     runs-on: ubuntu-latest
+    environment: staging
     env:
       PR_NUMBER: ${{ github.event.pull_request.number }}
       BASE_URL: https://app-pr-${{ github.event.pull_request.number }}.keeperhub.com
