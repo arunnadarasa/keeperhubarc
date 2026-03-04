@@ -1,14 +1,16 @@
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 
+type AuthSession = NonNullable<
+  Awaited<ReturnType<typeof auth.api.getSession>>
+>;
+
 /**
  * Extract activeOrganizationId from a better-auth session.
  * The organization plugin adds this field at runtime but the base
  * Session type doesn't include it after the 1.5.x upgrade.
  */
-export function getActiveOrgId(session: {
-  session: Record<string, unknown>;
-}): string | undefined {
+export function getActiveOrgId(session: AuthSession): string | undefined {
   return (
     (session.session as { activeOrganizationId?: string })
       .activeOrganizationId ?? undefined
