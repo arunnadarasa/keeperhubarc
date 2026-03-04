@@ -68,7 +68,7 @@ export function getExecutionsDisplay(
     return "Custom";
   }
   if (planName === "free") {
-    return "5,000";
+    return PLANS.free.features.maxExecutionsPerMonth.toLocaleString();
   }
   if (activeTier) {
     return activeTier.executions.toLocaleString();
