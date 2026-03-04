@@ -1,9 +1,7 @@
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 
-type AuthSession = NonNullable<
-  Awaited<ReturnType<typeof auth.api.getSession>>
->;
+type AuthSession = NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>;
 
 /**
  * Extract activeOrganizationId from a better-auth session.
