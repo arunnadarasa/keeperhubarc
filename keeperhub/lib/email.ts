@@ -132,7 +132,7 @@ type InvitationEmailData = {
 type VerificationOTPData = {
   email: string;
   otp: string;
-  type: "sign-in" | "email-verification" | "forget-password";
+  type: "sign-in" | "email-verification" | "forget-password" | "change-email";
 };
 
 /**
@@ -150,18 +150,21 @@ export async function sendVerificationOTP(
     "sign-in": "Your KeeperHub sign-in code",
     "email-verification": "Verify your email address - KeeperHub",
     "forget-password": "Reset your KeeperHub password",
+    "change-email": "Confirm your new email - KeeperHub",
   };
 
   const actionTextMap = {
     "sign-in": "sign in",
     "email-verification": "verify your email address",
     "forget-password": "reset your password",
+    "change-email": "confirm your new email address",
   };
 
   const actionPromptMap = {
     "sign-in": "Enter this code to sign in:",
     "email-verification": "Enter this code to verify your email address:",
     "forget-password": "Enter this code to reset your password:",
+    "change-email": "Enter this code to confirm your new email:",
   };
 
   const subject = subjectMap[type];

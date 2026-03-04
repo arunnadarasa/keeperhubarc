@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { getActiveOrgId } from "@/keeperhub/lib/middleware/org-context";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { member, sessions } from "@/lib/db/schema";
@@ -118,7 +119,7 @@ export async function POST(
 
       await tx.delete(member).where(eq(member.id, currentMember.id));
 
-      if (session.session?.activeOrganizationId === organizationId) {
+      if (getActiveOrgId(session) === organizationId) {
         await tx
           .update(sessions)
           .set({ activeOrganizationId: null })
