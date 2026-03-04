@@ -109,7 +109,8 @@ export async function addActionNode(
       await unconfiguredAction.click();
     } else {
       // Use the "Add Step" button in toolbar - creates node and selects it
-      const addStepButton = page.getByRole("button", { name: "Add Step" });
+      // exact: true to avoid matching the in-canvas "Add step" (lowercase s) button
+      const addStepButton = page.getByRole("button", { name: "Add Step", exact: true });
       await expect(addStepButton).toBeVisible({ timeout: 5000 });
       await addStepButton.click();
 

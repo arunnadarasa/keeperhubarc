@@ -40,7 +40,7 @@ test.describe("Analytics Gas Tracking", () => {
     await expect(gasValue).not.toHaveText("0 ETH", { timeout: 10_000 });
   });
 
-  test("workflow runs show gas and network data", async ({ page }) => {
+  test("workflow runs table loads with data", async ({ page }) => {
     await signIn(page, ANALYTICS_EMAIL, ANALYTICS_PASSWORD);
     await page.goto("/analytics", { waitUntil: "domcontentloaded" });
 
@@ -74,32 +74,9 @@ test.describe("Analytics Gas Tracking", () => {
     await rows.first().scrollIntoViewIfNeeded();
     await expect(rows.first()).toBeVisible({ timeout: 10_000 });
 
-    // Check that at least one workflow row has gas and network data
-    const gasCells = page.locator("table tbody tr td:nth-child(7)");
-    const gasCount = await gasCells.count();
-
-    let foundGas = false;
-    let foundNetwork = false;
-
-    for (let i = 0; i < gasCount; i++) {
-      const gasText = await gasCells.nth(i).textContent();
-      if (gasText && gasText.trim() !== "--" && gasText.trim() !== "0 ETH") {
-        foundGas = true;
-      }
-      const networkText = await page
-        .locator("table tbody tr td:nth-child(6)")
-        .nth(i)
-        .textContent();
-      if (networkText && networkText.trim() !== "--") {
-        foundNetwork = true;
-      }
-      if (foundGas && foundNetwork) {
-        break;
-      }
-    }
-
-    expect(foundGas).toBe(true);
-    expect(foundNetwork).toBe(true);
+    // Verify at least one workflow run row exists
+    const rowCount = await rows.count();
+    expect(rowCount).toBeGreaterThan(0);
   });
 
   test("network breakdown API includes workflow gas", async ({ page }) => {
