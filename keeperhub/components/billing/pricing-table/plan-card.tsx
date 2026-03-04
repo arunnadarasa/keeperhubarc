@@ -78,7 +78,7 @@ export function PlanCard({
   const price = computeDisplayPrice(planName, activeTier, interval);
 
   const annualTotal =
-    activeTier && interval === "yearly" ? activeTier.yearlyPrice * 12 : null;
+    activeTier && interval === "yearly" ? activeTier.monthlyPriceAnnual * 12 : null;
 
   async function executeCheckout(): Promise<void> {
     setLoading(true);

@@ -16,7 +16,7 @@ export function getTierPrice(
   tier: PlanTierItem,
   interval: BillingInterval
 ): number {
-  return interval === "monthly" ? tier.monthlyPrice : tier.yearlyPrice;
+  return interval === "monthly" ? tier.monthlyPrice : tier.monthlyPriceAnnual;
 }
 
 export function computeDisplayPrice(

@@ -12,7 +12,7 @@ type PlanTier = {
   key: TierKey;
   executions: number;
   monthlyPrice: number;
-  yearlyPrice: number;
+  monthlyPriceAnnual: number;
 };
 
 export type PlanLimits = {
@@ -103,9 +103,9 @@ export const PLANS: Record<PlanName, PlanDefinition> = {
       sla: null,
     },
     tiers: [
-      { key: "25k", executions: 25_000, monthlyPrice: 49, yearlyPrice: 39 },
-      { key: "50k", executions: 50_000, monthlyPrice: 89, yearlyPrice: 71 },
-      { key: "100k", executions: 100_000, monthlyPrice: 149, yearlyPrice: 119 },
+      { key: "25k", executions: 25_000, monthlyPrice: 49, monthlyPriceAnnual: 39 },
+      { key: "50k", executions: 50_000, monthlyPrice: 89, monthlyPriceAnnual: 71 },
+      { key: "100k", executions: 100_000, monthlyPrice: 149, monthlyPriceAnnual: 119 },
     ],
     overage: { enabled: true, ratePerThousand: 2 },
   },
@@ -126,19 +126,19 @@ export const PLANS: Record<PlanName, PlanDefinition> = {
         key: "250k",
         executions: 250_000,
         monthlyPrice: 299,
-        yearlyPrice: 239,
+        monthlyPriceAnnual: 239,
       },
       {
         key: "500k",
         executions: 500_000,
         monthlyPrice: 499,
-        yearlyPrice: 399,
+        monthlyPriceAnnual: 399,
       },
       {
         key: "1m",
         executions: 1_000_000,
         monthlyPrice: 899,
-        yearlyPrice: 719,
+        monthlyPriceAnnual: 719,
       },
     ],
     overage: { enabled: true, ratePerThousand: 1.5 },
