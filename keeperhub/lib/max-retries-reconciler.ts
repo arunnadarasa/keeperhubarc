@@ -53,9 +53,8 @@ export function reconcileMaxRetriesFailures(
   const overriddenNodeIds: string[] = [];
 
   for (const failedNodeId of failedNodeIds) {
-    const successOutput = successfulSteps.get(failedNodeId);
-
-    if (successOutput !== undefined) {
+    if (successfulSteps.has(failedNodeId)) {
+      const successOutput = successfulSteps.get(failedNodeId);
       console.warn(
         "[Workflow Executor] Overriding spurious max-retries failure for node with tracked success:",
         {

@@ -77,6 +77,35 @@ describe("reconcileMaxRetriesFailures", () => {
     });
   });
 
+  it("should override to success when node output is undefined", () => {
+    const results: Record<
+      string,
+      { success: boolean; error?: string; data?: unknown }
+    > = {
+      "node-1": {
+        success: false,
+        error: 'Step "step//abc//sendWebhook" exceeded max retries (0 retries)',
+      },
+    };
+
+    const successfulSteps = new Map<string, unknown>([
+      ["node-1", undefined],
+    ]);
+
+    const output = reconcileMaxRetriesFailures({
+      results,
+      successfulSteps,
+      executionId: "exec-1",
+      workflowId: "wf-1",
+    });
+
+    expect(output.overriddenNodeIds).toEqual(["node-1"]);
+    expect(results["node-1"]).toEqual({
+      success: true,
+      data: undefined,
+    });
+  });
+
   it("should NOT override when node has no tracked success", () => {
     const results: Record<string, { success: boolean; error?: string }> = {
       "node-1": {
