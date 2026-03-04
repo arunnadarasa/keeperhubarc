@@ -3,6 +3,7 @@ import { ethers } from "ethers";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { apiError } from "@/keeperhub/lib/api-error";
+import { getActiveOrgId } from "@/keeperhub/lib/middleware/org-context";
 import {
   getOrganizationWalletAddress,
   initializeParaSigner,
@@ -105,7 +106,7 @@ async function validateUserAndOrganization(request: Request) {
     return { error: "Unauthorized", status: 401 };
   }
 
-  const activeOrgId = session.session.activeOrganizationId;
+  const activeOrgId = getActiveOrgId(session);
 
   if (!activeOrgId) {
     return {
