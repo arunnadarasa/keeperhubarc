@@ -1,6 +1,20 @@
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 
+/**
+ * Extract activeOrganizationId from a better-auth session.
+ * The organization plugin adds this field at runtime but the base
+ * Session type doesn't include it after the 1.5.x upgrade.
+ */
+export function getActiveOrgId(session: {
+  session: Record<string, unknown>;
+}): string | undefined {
+  return (
+    (session.session as { activeOrganizationId?: string })
+      .activeOrganizationId ?? undefined
+  );
+}
+
 type User = {
   id: string;
   email: string;
@@ -48,7 +62,7 @@ export async function getOrgContext(): Promise<OrgContext> {
     };
   }
 
-  const activeOrgId = session.session.activeOrganizationId;
+  const activeOrgId = getActiveOrgId(session);
 
   if (!activeOrgId) {
     // Authenticated user without active organization
