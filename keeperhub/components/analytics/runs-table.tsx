@@ -22,6 +22,7 @@ import {
   analyticsStatusFilterAtom,
 } from "@/keeperhub/lib/atoms/analytics";
 import { cn } from "@/lib/utils";
+import { ProjectDrawer } from "./project-drawer";
 
 function formatDuration(ms: number | null): string {
   if (ms === null) {
@@ -246,12 +247,6 @@ function ExpandableRunRow({ run }: ExpandableRunRowProps): ReactNode {
           <ChevronIcon className="size-4 text-muted-foreground" />
         </td>
         <td className="py-3 pr-3">
-          <StatusBadge status={run.status} />
-        </td>
-        <td className="py-3 pr-3">
-          <SourceBadge source={run.source} />
-        </td>
-        <td className="py-3 pr-3">
           <div className="flex items-center gap-1.5">
             <span
               className={cn(
@@ -279,6 +274,12 @@ function ExpandableRunRow({ run }: ExpandableRunRowProps): ReactNode {
               {run.completedSteps ?? 0}/{run.totalSteps} steps
             </span>
           ) : null}
+        </td>
+        <td className="py-3 pr-3">
+          <StatusBadge status={run.status} />
+        </td>
+        <td className="py-3 pr-3">
+          <SourceBadge source={run.source} />
         </td>
         <td className="whitespace-nowrap py-3 pr-3 text-sm text-muted-foreground">
           {formatDuration(run.durationMs)}
@@ -344,9 +345,9 @@ function RunsTableContent({
           <thead>
             <tr className="border-b text-xs text-muted-foreground">
               <th className="w-8 pb-2 pl-3" />
+              <th className="pb-2 pr-3 font-medium">Name</th>
               <th className="pb-2 pr-3 font-medium">Status</th>
               <th className="pb-2 pr-3 font-medium">Source</th>
-              <th className="pb-2 pr-3 font-medium">Name</th>
               <th className="pb-2 pr-3 font-medium">Duration</th>
               <th className="pb-2 pr-3 font-medium">Network</th>
               <th className="pb-2 pr-3 font-medium">Gas</th>
@@ -450,27 +451,30 @@ export function RunsTable(): ReactNode {
   const isEmpty = runs.length === 0;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span>Runs</span>
-          {runsData ? (
-            <span className="text-sm font-normal text-muted-foreground">
-              {runsData.total.toLocaleString()} total
-            </span>
-          ) : null}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <RunsTableContent
-          handleLoadMore={handleLoadMore}
-          isEmpty={isEmpty}
-          loading={loading}
-          loadingMore={loadingMore}
-          nextCursor={runsData?.nextCursor ?? null}
-          runs={runs}
-        />
-      </CardContent>
-    </Card>
+    <div className="flex gap-0 overflow-hidden rounded-xl border">
+      <ProjectDrawer />
+      <Card className="flex-1 rounded-none border-0">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Workflow Runs</span>
+            {runsData ? (
+              <span className="text-sm font-normal text-muted-foreground">
+                {runsData.total.toLocaleString()} total
+              </span>
+            ) : null}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <RunsTableContent
+            handleLoadMore={handleLoadMore}
+            isEmpty={isEmpty}
+            loading={loading}
+            loadingMore={loadingMore}
+            nextCursor={runsData?.nextCursor ?? null}
+            runs={runs}
+          />
+        </CardContent>
+      </Card>
+    </div>
   );
 }

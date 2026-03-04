@@ -24,13 +24,15 @@ async function fetchAndEmit(
   organizationId: string,
   range: ReturnType<typeof parseTimeRange>,
   customStart: string | undefined,
-  customEnd: string | undefined
+  customEnd: string | undefined,
+  projectId: string | undefined
 ): Promise<void> {
   const summary = await getAnalyticsSummary(
     organizationId,
     range,
     customStart,
-    customEnd
+    customEnd,
+    projectId
   );
 
   const event: AnalyticsStreamEvent = {
@@ -56,6 +58,7 @@ export const GET = requireOrganization(
       const range = parseTimeRange(params.get("range"));
       const customStart = params.get("customStart") ?? undefined;
       const customEnd = params.get("customEnd") ?? undefined;
+      const projectId = params.get("projectId") ?? undefined;
 
       let lastChecksum = "";
       let lastEventTime = 0;
@@ -104,7 +107,8 @@ export const GET = requireOrganization(
                 organizationId,
                 range,
                 customStart,
-                customEnd
+                customEnd,
+                projectId
               );
             } catch {
               cleanup();
