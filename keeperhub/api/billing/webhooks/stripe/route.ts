@@ -4,6 +4,7 @@ import { handleBillingEvent } from "@/keeperhub/lib/billing/handle-billing-event
 import type { BillingWebhookEvent } from "@/keeperhub/lib/billing/provider";
 import { getBillingProvider } from "@/keeperhub/lib/billing/providers";
 import { UnknownEventTypeError } from "@/keeperhub/lib/billing/providers/stripe";
+import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { billingEvents } from "@/lib/db/schema";
 
@@ -26,7 +27,6 @@ async function claimEvent(
 }
 
 async function markProcessed(providerEventId: string): Promise<void> {
-  const { eq } = await import("drizzle-orm");
   await db
     .update(billingEvents)
     .set({ processed: true })
