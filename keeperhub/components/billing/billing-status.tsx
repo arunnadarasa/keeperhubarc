@@ -460,7 +460,7 @@ function OverageChargesSection({
     return `${s} - ${e}`;
   };
 
-  const pendingTotal = charges
+  const pendingTotal = visibleCharges
     .filter((c) => c.status === "pending")
     .reduce((sum, c) => sum + c.totalChargeCents, 0);
 
