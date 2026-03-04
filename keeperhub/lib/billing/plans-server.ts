@@ -7,6 +7,10 @@ import { getActiveDebtExecutions } from "./execution-debt";
 import {
   type BillingInterval,
   getPlanLimits,
+  isValidPlanName,
+  isValidTierKey,
+  parsePlanName,
+  parseTierKey,
   PLANS,
   type PlanLimits,
   type PlanName,
@@ -58,13 +62,16 @@ export function resolvePriceId(priceId: string):
   for (const [key, value] of Object.entries(PRICE_IDS)) {
     if (value === priceId) {
       const parts = key.split("_");
-      const plan = parts[0] as PlanName;
+      const plan = parts[0];
+      if (!isValidPlanName(plan)) {
+        continue;
+      }
       if (plan === "enterprise") {
-        const interval = (parts[1] as BillingInterval) ?? null;
+        const interval = parts[1] === "monthly" || parts[1] === "yearly" ? parts[1] : null;
         return { plan, tier: null, interval };
       }
-      const tier = parts[1] as TierKey;
-      const interval = (parts[2] as BillingInterval) ?? null;
+      const tier = isValidTierKey(parts[1]) ? parts[1] : null;
+      const interval = parts[2] === "monthly" || parts[2] === "yearly" ? parts[2] : null;
       return { plan, tier, interval };
     }
   }
@@ -87,7 +94,7 @@ export async function getOrgPlan(organizationId: string): Promise<PlanName> {
   if (!sub) {
     return "free";
   }
-  return sub.plan as PlanName;
+  return parsePlanName(sub.plan);
 }
 
 export async function checkFeatureAccess(
@@ -95,8 +102,8 @@ export async function checkFeatureAccess(
   feature: keyof PlanLimits
 ): Promise<boolean> {
   const sub = await getOrgSubscription(organizationId);
-  const plan = (sub?.plan ?? "free") as PlanName;
-  const limits = getPlanLimits(plan, sub?.tier as TierKey | null);
+  const plan = parsePlanName(sub?.plan);
+  const limits = getPlanLimits(plan, parseTierKey(sub?.tier));
 
   const value = limits[feature];
   if (typeof value === "boolean") {
@@ -162,8 +169,8 @@ export async function checkExecutionLimit(
   organizationId: string
 ): Promise<ExecutionLimitResult> {
   const sub = await getOrgSubscription(organizationId);
-  const plan = (sub?.plan ?? "free") as PlanName;
-  const tier = (sub?.tier ?? null) as TierKey | null;
+  const plan = parsePlanName(sub?.plan);
+  const tier = parseTierKey(sub?.tier);
   const limits = getPlanLimits(plan, tier);
 
   if (limits.maxExecutionsPerMonth === -1) {

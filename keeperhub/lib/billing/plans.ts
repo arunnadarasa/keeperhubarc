@@ -40,6 +40,38 @@ type PlanDefinition = {
 
 export type BillingInterval = "monthly" | "yearly";
 
+const VALID_PLAN_NAMES: ReadonlySet<string> = new Set<PlanName>([
+  "free",
+  "pro",
+  "business",
+  "enterprise",
+]);
+
+const VALID_TIER_KEYS: ReadonlySet<string> = new Set<TierKey>([
+  "25k",
+  "50k",
+  "100k",
+  "250k",
+  "500k",
+  "1m",
+]);
+
+export function isValidPlanName(value: unknown): value is PlanName {
+  return typeof value === "string" && VALID_PLAN_NAMES.has(value);
+}
+
+export function isValidTierKey(value: unknown): value is TierKey {
+  return typeof value === "string" && VALID_TIER_KEYS.has(value);
+}
+
+export function parsePlanName(value: unknown, fallback: PlanName = "free"): PlanName {
+  return isValidPlanName(value) ? value : fallback;
+}
+
+export function parseTierKey(value: unknown): TierKey | null {
+  return isValidTierKey(value) ? value : null;
+}
+
 // -- Plan definitions --
 
 export const PLANS: Record<PlanName, PlanDefinition> = {

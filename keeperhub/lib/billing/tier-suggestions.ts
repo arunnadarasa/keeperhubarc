@@ -2,7 +2,7 @@ import "server-only";
 
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { getPlanLimits, PLANS, type PlanName, type TierKey } from "./plans";
+import { getPlanLimits, parsePlanName, parseTierKey, PLANS, type PlanName, type TierKey } from "./plans";
 import { getOrgSubscription } from "./plans-server";
 
 export type UpgradeSuggestion =
@@ -31,8 +31,8 @@ export async function getUpgradeSuggestion(
   organizationId: string
 ): Promise<UpgradeSuggestion> {
   const sub = await getOrgSubscription(organizationId);
-  const plan = (sub?.plan ?? "free") as PlanName;
-  const tier = (sub?.tier ?? null) as TierKey | null;
+  const plan = parsePlanName(sub?.plan);
+  const tier = parseTierKey(sub?.tier);
   const limits = getPlanLimits(plan, tier);
 
   if (limits.maxExecutionsPerMonth === -1) {

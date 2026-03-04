@@ -4,8 +4,8 @@ import { NextResponse } from "next/server";
 import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
 import {
   getPlanLimits,
-  type PlanName,
-  type TierKey,
+  parsePlanName,
+  parseTierKey,
 } from "@/keeperhub/lib/billing/plans";
 import {
   getOrgSubscription,
@@ -38,8 +38,8 @@ export async function GET(): Promise<NextResponse> {
     }
 
     const sub = await getOrgSubscription(activeOrgId);
-    const plan = (sub?.plan ?? "free") as PlanName;
-    const tier = (sub?.tier ?? null) as TierKey | null;
+    const plan = parsePlanName(sub?.plan);
+    const tier = parseTierKey(sub?.tier);
     const limits = getPlanLimits(plan, tier);
     const resolved = sub?.providerPriceId
       ? resolvePriceId(sub.providerPriceId)

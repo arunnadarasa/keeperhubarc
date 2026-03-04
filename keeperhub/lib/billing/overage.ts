@@ -6,7 +6,7 @@ import {
   organizationSubscriptions,
   overageBillingRecords,
 } from "@/lib/db/schema";
-import { getPlanLimits, PLANS, type PlanName, type TierKey } from "./plans";
+import { getPlanLimits, parsePlanName, parseTierKey, PLANS } from "./plans";
 import { getBillingProvider } from "./providers";
 
 const LOG_PREFIX = "[Overage Billing]";
@@ -34,8 +34,8 @@ export async function billOverageForOrg(
     return { billed: false, reason: "no subscription" };
   }
 
-  const plan = sub.plan as PlanName;
-  const tier = (sub.tier ?? null) as TierKey | null;
+  const plan = parsePlanName(sub.plan);
+  const tier = parseTierKey(sub.tier);
   const planDef = PLANS[plan];
 
   if (!planDef.overage.enabled) {
