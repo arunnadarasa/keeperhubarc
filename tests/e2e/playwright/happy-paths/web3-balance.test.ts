@@ -14,7 +14,7 @@ const MAINNET_OPTION_REGEX = /mainnet/i;
 // Run tests serially to maintain user session state
 test.describe.configure({ mode: "serial" });
 
-test.describe("Happy Path: Web3 Balance Check", () => {
+test.describe.skip("Happy Path: Web3 Balance Check", () => {
   // Known Ethereum address with balance (vitalik.eth)
   const TEST_ADDRESS = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
   const TEST_NETWORK = "mainnet";

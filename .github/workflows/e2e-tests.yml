@@ -208,6 +208,7 @@ jobs:
         run: pnpm build
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
 
       - name: Start application
         run: |
@@ -226,11 +227,13 @@ jobs:
           done
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
 
       - name: Run E2E Vitest tests
         run: pnpm test:e2e:vitest
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
           WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
           PARA_API_KEY: ${{ secrets.TEST_PARA_API_KEY }}
           PARA_ENVIRONMENT: beta
@@ -340,10 +343,45 @@ jobs:
           TEST_PARA_USER_SHARE: ${{ secrets.TEST_PARA_USER_SHARE }}
           WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
 
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**/*.ts', '**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-
+            ${{ runner.os }}-nextjs-
+
+      - name: Build application
+        run: pnpm build
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+
+      - name: Start application
+        run: |
+          pnpm start &
+          # Wait for app to be ready (max 60s)
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000 > /dev/null 2>&1; then
+              echo "App is ready"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "App did not start in 60s"
+              exit 1
+            fi
+            sleep 2
+          done
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+
       - name: Run Playwright tests (shard ${{ matrix.shard }}/2)
         run: pnpm test:e2e --shard=${{ matrix.shard }}/2
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
           PARA_API_KEY: ${{ secrets.TEST_PARA_API_KEY }}
           PARA_ENVIRONMENT: beta
           WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
