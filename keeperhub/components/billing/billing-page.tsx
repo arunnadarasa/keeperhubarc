@@ -4,10 +4,12 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { BILLING_API } from "@/keeperhub/lib/billing/constants";
-import type {
-  BillingInterval,
-  PlanName,
-  TierKey,
+import {
+  type BillingInterval,
+  parsePlanName,
+  parseTierKey,
+  type PlanName,
+  type TierKey,
 } from "@/keeperhub/lib/billing/plans";
 import { useOrganization } from "@/keeperhub/lib/hooks/use-organization";
 import { BillingHistory } from "./billing-history";
@@ -48,10 +50,13 @@ export function BillingPage(): React.ReactElement {
       const response = await fetch(BILLING_API.SUBSCRIPTION);
       if (response.ok) {
         const data = (await response.json()) as SubscriptionResponse;
-        setCurrentPlan((data.subscription.plan ?? "free") as PlanName);
-        setCurrentTier((data.subscription.tier ?? null) as TierKey | null);
+        setCurrentPlan(parsePlanName(data.subscription.plan));
+        setCurrentTier(parseTierKey(data.subscription.tier));
         setCurrentInterval(
-          (data.subscription.interval ?? null) as BillingInterval | null
+          data.subscription.interval === "monthly" ||
+            data.subscription.interval === "yearly"
+            ? data.subscription.interval
+            : null
         );
       }
     } catch (error) {
