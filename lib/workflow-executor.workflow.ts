@@ -29,6 +29,10 @@ import {
 } from "@/keeperhub/lib/metrics/instrumentation/workflow";
 import { fallbackCompleteExecution } from "@/keeperhub/lib/execution-fallback";
 import { fetchExecutionLogs } from "@/keeperhub/lib/fetch-execution-logs";
+import {
+  getFailedMaxRetriesNodeIds,
+  reconcileMaxRetriesFailures,
+} from "@/keeperhub/lib/max-retries-reconciler";
 import { ARRAY_SOURCE_RE } from "@/keeperhub/lib/for-each-utils";
 import {
   buildEdgesBySourceHandle,
@@ -1958,11 +1962,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     // (same pattern as execution-fallback.ts) to avoid DB imports in
     // the workflow bundle.
     if (executionId) {
-      const failedNodeIds = Object.entries(results)
-        .filter(
-          ([, r]) => !r.success && r.error?.includes("exceeded max retries")
-        )
-        .map(([nodeId]) => nodeId);
+      const failedNodeIds = getFailedMaxRetriesNodeIds(results);
 
       if (failedNodeIds.length > 0) {
         const executionLogs = await fetchExecutionLogs(
@@ -1971,34 +1971,12 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
         );
 
         if (executionLogs) {
-          const overriddenNodeIds: string[] = [];
-
-          for (const failedNodeId of failedNodeIds) {
-            const nodeLogs = executionLogs.filter(
-              (l) => l.nodeId === failedNodeId
-            );
-            const hasAnyErrorLog = nodeLogs.some(
-              (l) => l.status === "error"
-            );
-            const successLog = nodeLogs.find((l) => l.status === "success");
-
-            if (successLog && !hasAnyErrorLog) {
-              console.warn(
-                "[Workflow Executor] Overriding spurious max-retries failure:",
-                {
-                  error: results[failedNodeId]?.error,
-                  ...(workflowId ? { workflow_id: workflowId } : {}),
-                  execution_id: executionId,
-                  node_id: failedNodeId,
-                }
-              );
-              results[failedNodeId] = {
-                success: true,
-                data: successLog.output,
-              };
-              overriddenNodeIds.push(failedNodeId);
-            }
-          }
+          const { overriddenNodeIds } = reconcileMaxRetriesFailures({
+            results,
+            executionLogs,
+            workflowId,
+            executionId,
+          });
 
           if (overriddenNodeIds.length > 0) {
             console.warn(
