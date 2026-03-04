@@ -13,7 +13,5 @@ export default {
   "ai-tools": "AI Tools",
   guides: "Guides",
   FAQ: "FAQ",
-  api: {
-    display: "hidden",
-  },
+  api: "API",
 };

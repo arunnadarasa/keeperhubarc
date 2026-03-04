@@ -1,6 +1,7 @@
 import { ethers } from "ethers";
 import { NextResponse } from "next/server";
 import { apiError } from "@/keeperhub/lib/api-error";
+import { getActiveOrgId } from "@/keeperhub/lib/middleware/org-context";
 import { getOrganizationWalletAddress } from "@/keeperhub/lib/para/wallet-helpers";
 import { getChainGasDefaults } from "@/keeperhub/lib/web3/gas-defaults";
 import { auth } from "@/lib/auth";
@@ -180,7 +181,7 @@ async function validateRequest(request: Request): Promise<
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const activeOrgId = session.session.activeOrganizationId;
+  const activeOrgId = getActiveOrgId(session);
   if (!activeOrgId) {
     return badRequest("No active organization");
   }

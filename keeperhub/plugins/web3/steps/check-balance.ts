@@ -7,7 +7,11 @@ import { withPluginMetrics } from "@/keeperhub/lib/metrics/instrumentation/plugi
 import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
 import { getAddressUrl } from "@/lib/explorer";
-import { getChainIdFromNetwork, resolveRpcConfig } from "@/lib/rpc";
+import {
+  getChainIdFromNetwork,
+  getRpcProvider,
+  type RpcProviderManager,
+} from "@/lib/rpc";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import { getErrorMessage } from "@/lib/utils";
 
@@ -108,20 +112,10 @@ async function stepHandler(
     };
   }
 
-  // Resolve RPC config (with user preferences)
-  let rpcUrl: string;
+  // Resolve RPC provider with failover support
+  let rpcManager: RpcProviderManager;
   try {
-    const rpcConfig = await resolveRpcConfig(chainId, userId);
-    if (!rpcConfig) {
-      throw new Error(`Chain ${chainId} not found or not enabled`);
-    }
-    rpcUrl = rpcConfig.primaryRpcUrl;
-    console.log(
-      "[Check Balance] Using RPC URL:",
-      rpcUrl,
-      "source:",
-      rpcConfig.source
-    );
+    rpcManager = await getRpcProvider({ chainId, userId });
   } catch (error) {
     logUserError(
       ErrorCategory.VALIDATION,
@@ -141,10 +135,11 @@ async function stepHandler(
 
   // Check balance
   try {
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
     console.log("[Check Balance] Checking balance for address:", address);
 
-    const balance = await provider.getBalance(address);
+    const balance = await rpcManager.executeWithFailover(async (provider) =>
+      provider.getBalance(address)
+    );
     const balanceEth = ethers.formatEther(balance);
 
     console.log("[Check Balance] Balance retrieved successfully:", {

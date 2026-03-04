@@ -1,16 +1,14 @@
 "use client";
 
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { ChevronLeft, ChevronRight, LayoutTemplate, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Globe, Plus } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useOverlay } from "@/components/overlays/overlay-provider";
 import { Button } from "@/components/ui/button";
 import { NodeConfigPanel } from "@/components/workflow/node-config-panel";
 import { useIsMobile } from "@/hooks/use-mobile";
 // start custom keeperhub code //
-import { FeaturedOverlay } from "@/keeperhub/components/overlays/featured-overlay";
 import {
   getPendingClaim,
   useClaimWorkflow,
@@ -176,7 +174,6 @@ const WorkflowEditor = ({ params }: WorkflowPageProps) => {
   const setGlobalIntegrations = useSetAtom(integrationsAtom);
   const setIntegrationsLoaded = useSetAtom(integrationsLoadedAtom);
   const integrationsVersion = useAtomValue(integrationsVersionAtom);
-  const { open: openOverlay } = useOverlay();
   const { data: session } = useSession();
 
   // Helper to create anonymous session if needed
@@ -830,13 +827,11 @@ const WorkflowEditor = ({ params }: WorkflowPageProps) => {
               </Button>
               <Button
                 className="gap-2"
-                onClick={() =>
-                  openOverlay(FeaturedOverlay, {}, { size: "full" })
-                }
+                onClick={() => router.push("/hub")}
                 variant="outline"
               >
-                <LayoutTemplate className="size-4" />
-                Explore Workflows
+                <Globe className="size-4" />
+                Browse Templates
               </Button>
             </div>
           </div>

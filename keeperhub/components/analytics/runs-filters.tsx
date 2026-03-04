@@ -96,6 +96,16 @@ export function RunsFilters(): ReactNode {
 
   return (
     <div className="flex flex-wrap items-center gap-4">
+      <div className="relative w-56">
+        <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          className="h-8 pl-9 text-sm"
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search runs..."
+          value={search}
+        />
+      </div>
+      <div className="h-5 w-px bg-border" />
       <FilterGroup
         current={statusFilter}
         label="Status"
@@ -109,15 +119,6 @@ export function RunsFilters(): ReactNode {
         onChange={handleSourceChange}
         options={SOURCE_OPTIONS}
       />
-      <div className="relative ml-auto w-56">
-        <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          className="h-8 pl-9 text-sm"
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search runs..."
-          value={search}
-        />
-      </div>
     </div>
   );
 }

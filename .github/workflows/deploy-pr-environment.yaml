@@ -22,8 +22,94 @@ jobs:
             echo "labeled=false" >> $GITHUB_OUTPUT
           fi
 
-  deploy:
+  build-images:
     needs: check-label
+    if: needs.check-label.outputs.should-deploy == 'true'
+    runs-on: ubuntu-latest
+    environment: staging
+    strategy:
+      fail-fast: true
+      matrix:
+        image:
+          - name: app
+            target: runner
+            tag_prefix: app
+            build_args: true
+            cache_key: cache-app
+          - name: migrator
+            target: migrator
+            tag_prefix: migrator
+            build_args: false
+            cache_key: cache-migrator
+          - name: scheduler
+            target: scheduler
+            tag_prefix: scheduler
+            build_args: false
+            cache_key: cache-scheduler
+          - name: workflow-runner
+            target: workflow-runner
+            tag_prefix: workflow-runner
+            build_args: false
+            cache_key: cache-workflow-runner
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      REGION: us-east-2
+      AWS_ECR_NAME: keeperhub-staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.REGION }}
+
+      - name: Login to AWS ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract commit hash
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Check if image exists
+        id: check-image
+        run: |
+          IMAGE_TAG="${{ steps.vars.outputs.sha_short }}"
+          if aws ecr describe-images \
+            --repository-name ${{ env.AWS_ECR_NAME }} \
+            --image-ids imageTag=${{ matrix.image.tag_prefix }}-${IMAGE_TAG} \
+            --region ${{ env.REGION }} >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push image
+        if: steps.check-image.outputs.exists != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: ${{ matrix.image.target }}
+          push: true
+          build-args: ${{ matrix.image.build_args == true && format('NEXT_PUBLIC_AUTH_PROVIDERS={0}\nNEXT_PUBLIC_GITHUB_CLIENT_ID={1}\nNEXT_PUBLIC_GOOGLE_CLIENT_ID={2}', vars.NEXT_PUBLIC_AUTH_PROVIDERS, vars.NEXT_PUBLIC_GITHUB_CLIENT_ID, vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID) || '' }}
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:${{ matrix.image.tag_prefix }}-${{ steps.vars.outputs.sha_short }}
+          cache-from: |
+            type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-app
+            type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:${{ matrix.image.cache_key }}
+          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:${{ matrix.image.cache_key }},mode=max
+
+  deploy:
+    needs: [check-label, build-images]
     if: needs.check-label.outputs.should-deploy == 'true'
     runs-on: ubuntu-latest
     environment: staging
@@ -52,109 +138,10 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Extract commit hash
         id: vars
         run: |
           echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Check if images exist or need rebuild
-        id: check-images
-        run: |
-          ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
-          IMAGE_TAG="${{ steps.vars.outputs.sha_short }}"
-
-          # Check if app image exists
-          if aws ecr describe-images --repository-name ${{ env.AWS_ECR_NAME }} --image-ids imageTag=app-${IMAGE_TAG} --region ${{ env.REGION }} >/dev/null 2>&1; then
-            echo "app-exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "app-exists=false" >> $GITHUB_OUTPUT
-          fi
-
-          # Check if migrator image exists
-          if aws ecr describe-images --repository-name ${{ env.AWS_ECR_NAME }} --image-ids imageTag=migrator-${IMAGE_TAG} --region ${{ env.REGION }} >/dev/null 2>&1; then
-            echo "migrator-exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "migrator-exists=false" >> $GITHUB_OUTPUT
-          fi
-
-          # Check if scheduler image exists
-          if aws ecr describe-images --repository-name ${{ env.AWS_ECR_NAME }} --image-ids imageTag=scheduler-${IMAGE_TAG} --region ${{ env.REGION }} >/dev/null 2>&1; then
-            echo "scheduler-exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "scheduler-exists=false" >> $GITHUB_OUTPUT
-          fi
-
-          # Check if workflow-runner image exists
-          if aws ecr describe-images --repository-name ${{ env.AWS_ECR_NAME }} --image-ids imageTag=workflow-runner-${IMAGE_TAG} --region ${{ env.REGION }} >/dev/null 2>&1; then
-            echo "workflow-runner-exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "workflow-runner-exists=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Build and push app image
-        if: steps.check-images.outputs.app-exists != 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          target: runner
-          push: true
-          build-args: |
-            NEXT_PUBLIC_AUTH_PROVIDERS=${{ vars.NEXT_PUBLIC_AUTH_PROVIDERS }}
-            NEXT_PUBLIC_GITHUB_CLIENT_ID=${{ vars.NEXT_PUBLIC_GITHUB_CLIENT_ID }}
-            NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:app-${{ steps.vars.outputs.sha_short }}
-          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-app
-          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-app,mode=max
-
-      - name: Build and push migrator image
-        if: steps.check-images.outputs.migrator-exists != 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          target: migrator
-          push: true
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:migrator-${{ steps.vars.outputs.sha_short }}
-          cache-from: |
-            type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-app
-            type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-migrator
-          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-migrator,mode=max
-
-      - name: Build and push scheduler image
-        if: steps.check-images.outputs.scheduler-exists != 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          target: scheduler
-          push: true
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:scheduler-${{ steps.vars.outputs.sha_short }}
-          cache-from: |
-            type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-app
-            type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-scheduler
-          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-scheduler,mode=max
-
-      - name: Build and push workflow-runner image
-        if: steps.check-images.outputs.workflow-runner-exists != 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          target: workflow-runner
-          push: true
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:workflow-runner-${{ steps.vars.outputs.sha_short }}
-          cache-from: |
-            type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-app
-            type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-workflow-runner
-          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:cache-workflow-runner,mode=max
 
       - name: Configure kubectl
         run: |
@@ -179,56 +166,75 @@ jobs:
           echo "::add-mask::$DB_PASSWORD"
           echo "password=$DB_PASSWORD" >> $GITHUB_OUTPUT
 
-      - name: Deploy PostgreSQL cluster
+      - name: Deploy infrastructure (parallel)
         env:
           DB_PASSWORD: ${{ steps.db-password.outputs.password }}
           PG_VERSION: ${{ env.PG_VERSION }}
         run: |
-          envsubst < deploy/pr-environment/postgres-cluster.template.yaml | kubectl apply -f -
+          set -euo pipefail
+          LOGDIR=$(mktemp -d)
 
-      - name: Wait for PostgreSQL to be ready
-        run: |
-          echo "Waiting for PostgreSQL cluster to be ready..."
-          kubectl wait --for=condition=ready cluster/keeperhub-pr-${{ env.PR_NUMBER }}-db \
-            -n ${{ env.NAMESPACE }} \
-            --timeout=10m || {
-            echo "PostgreSQL cluster failed to become ready. Checking status:"
-            kubectl describe cluster keeperhub-pr-${{ env.PR_NUMBER }}-db -n ${{ env.NAMESPACE }}
+          # PostgreSQL
+          (
+            envsubst < deploy/pr-environment/postgres-cluster.template.yaml | kubectl apply -f -
+            echo "Waiting for PostgreSQL..."
+            kubectl wait --for=condition=ready cluster/keeperhub-pr-${PR_NUMBER}-db \
+              -n ${NAMESPACE} --timeout=10m || {
+              echo "PostgreSQL failed:"
+              kubectl describe cluster keeperhub-pr-${PR_NUMBER}-db -n ${NAMESPACE}
+              exit 1
+            }
+            echo "PostgreSQL ready."
+          ) > "${LOGDIR}/postgres.log" 2>&1 &
+          PG_PID=$!
+
+          # LocalStack
+          (
+            kubectl delete job create-sqs-queue -n ${NAMESPACE} --ignore-not-found
+            envsubst '$PR_NUMBER' < deploy/pr-environment/localstack.template.yaml | kubectl apply -f -
+            echo "Waiting for LocalStack..."
+            kubectl wait --for=condition=ready pod -l app=localstack,pr=pr-${PR_NUMBER} \
+              -n ${NAMESPACE} --timeout=5m || {
+              echo "LocalStack failed:"
+              kubectl get pods -l app=localstack -n ${NAMESPACE}
+              exit 1
+            }
+            echo "LocalStack ready."
+          ) > "${LOGDIR}/localstack.log" 2>&1 &
+          LS_PID=$!
+
+          # Redis
+          (
+            envsubst '$PR_NUMBER' < deploy/pr-environment/redis.template.yaml | kubectl apply -f -
+            echo "Waiting for Redis..."
+            kubectl wait --for=condition=ready pod -l app=redis,pr=pr-${PR_NUMBER} \
+              -n ${NAMESPACE} --timeout=3m || {
+              echo "Redis failed:"
+              kubectl get pods -l app=redis -n ${NAMESPACE}
+              exit 1
+            }
+            echo "Redis ready."
+          ) > "${LOGDIR}/redis.log" 2>&1 &
+          REDIS_PID=$!
+
+          # Wait for all three, print logs for failures
+          FAILED=0
+          for COMPONENT in postgres:$PG_PID localstack:$LS_PID redis:$REDIS_PID; do
+            NAME="${COMPONENT%%:*}"
+            PID="${COMPONENT##*:}"
+            if wait "$PID"; then
+              echo "${NAME}: OK"
+            else
+              echo "=== ${NAME} FAILED ==="
+              cat "${LOGDIR}/${NAME}.log"
+              FAILED=1
+            fi
+          done
+
+          if [ $FAILED -ne 0 ]; then
             exit 1
-          }
-
-      - name: Deploy LocalStack
-        run: |
-          kubectl delete job create-sqs-queue -n ${{ env.NAMESPACE }} --ignore-not-found
-          envsubst '$PR_NUMBER' < deploy/pr-environment/localstack.template.yaml | kubectl apply -f -
-
-      - name: Wait for LocalStack to be ready
-        run: |
-          echo "Waiting for LocalStack to be ready..."
-          kubectl wait --for=condition=ready pod -l app=localstack,pr=pr-${{ env.PR_NUMBER }} \
-            -n ${{ env.NAMESPACE }} \
-            --timeout=5m || {
-            echo "LocalStack failed to become ready. Checking status:"
-            kubectl get pods -l app=localstack -n ${{ env.NAMESPACE }}
-            kubectl logs -l app=localstack -n ${{ env.NAMESPACE }} --tail=50
-            exit 1
-          }
-
-      - name: Deploy Redis
-        run: |
-          envsubst '$PR_NUMBER' < deploy/pr-environment/redis.template.yaml | kubectl apply -f -
-
-      - name: Wait for Redis to be ready
-        run: |
-          echo "Waiting for Redis to be ready..."
-          kubectl wait --for=condition=ready pod -l app=redis,pr=pr-${{ env.PR_NUMBER }} \
-            -n ${{ env.NAMESPACE }} \
-            --timeout=3m || {
-            echo "Redis failed to become ready. Checking status:"
-            kubectl get pods -l app=redis -n ${{ env.NAMESPACE }}
-            kubectl logs -l app=redis -n ${{ env.NAMESPACE }} --tail=50
-            exit 1
-          }
+          fi
+          echo "All infrastructure components ready."
 
       - name: Prepare Helm values
         env:
@@ -236,6 +242,7 @@ jobs:
           IMAGE_TAG: ${{ steps.vars.outputs.sha_short }}
           DB_PASSWORD: ${{ steps.db-password.outputs.password }}
           SERVICE_ACCOUNT_ROLE_ARN: ${{ vars.KEEPERHUB_STAGING_SERVICE_ACCOUNT_ROLE_ARN }}
+          TEST_PARA_USER_SHARE: ${{ secrets.TEST_PARA_USER_SHARE }}
         run: |
           envsubst < deploy/pr-environment/values.template.yaml > ${{ github.workspace }}/values-pr-${{ env.PR_NUMBER }}.yaml
           envsubst < deploy/pr-environment/scheduler-dispatcher.template.yaml > ${{ github.workspace }}/scheduler-dispatcher-pr-${{ env.PR_NUMBER }}.yaml
@@ -250,70 +257,75 @@ jobs:
             helm uninstall "$release" -n ${{ env.NAMESPACE }} --no-hooks 2>/dev/null || true
           done
 
+      - name: Add Helm repository
+        run: |
+          helm repo add techops-services https://techops-services.github.io/helm-charts
+          helm repo update
+
       - name: Deploy Keeperhub application with Helm
-        uses: bitovi/github-actions-deploy-eks-helm@v1.2.10
-        with:
-          cluster-name: ${{ env.CLUSTER_NAME }}
-          config-files: ${{ github.workspace }}/values-pr-${{ env.PR_NUMBER }}.yaml
-          chart-path: techops-services/common
-          namespace: ${{ env.NAMESPACE }}
-          timeout: 10m0s
-          name: keeperhub-pr-${{ env.PR_NUMBER }}
-          chart-repository: https://techops-services.github.io/helm-charts
-          version: 0.2.1
-          atomic: true
+        run: |
+          set -euo pipefail
+          helm upgrade --install keeperhub-pr-${PR_NUMBER} \
+            techops-services/common \
+            -f ${GITHUB_WORKSPACE}/values-pr-${PR_NUMBER}.yaml \
+            --namespace "${NAMESPACE}" --timeout 10m0s --atomic --version 0.2.1
 
-      - name: Deploy Scheduler Dispatcher with Helm
-        uses: bitovi/github-actions-deploy-eks-helm@v1.2.10
-        with:
-          cluster-name: ${{ env.CLUSTER_NAME }}
-          config-files: ${{ github.workspace }}/scheduler-dispatcher-pr-${{ env.PR_NUMBER }}.yaml
-          chart-path: techops-services/common
-          namespace: ${{ env.NAMESPACE }}
-          timeout: 5m0s
-          name: scheduler-dispatcher-pr-${{ env.PR_NUMBER }}
-          chart-repository: https://techops-services.github.io/helm-charts
-          version: 0.2.1
-          atomic: true
+      - name: Deploy satellite services (parallel)
+        run: |
+          set -euo pipefail
+          COMMON_ARGS=(--namespace "${NAMESPACE}" --timeout 5m0s --atomic --version 0.2.1)
+          LOGDIR=$(mktemp -d)
 
-      - name: Deploy Scheduler Executor with Helm
-        uses: bitovi/github-actions-deploy-eks-helm@v1.2.10
-        with:
-          cluster-name: ${{ env.CLUSTER_NAME }}
-          config-files: ${{ github.workspace }}/scheduler-executor-pr-${{ env.PR_NUMBER }}.yaml
-          chart-path: techops-services/common
-          namespace: ${{ env.NAMESPACE }}
-          timeout: 5m0s
-          name: scheduler-executor-pr-${{ env.PR_NUMBER }}
-          chart-repository: https://techops-services.github.io/helm-charts
-          version: 0.2.1
-          atomic: true
+          (
+            helm upgrade --install scheduler-dispatcher-pr-${PR_NUMBER} \
+              techops-services/common \
+              -f ${GITHUB_WORKSPACE}/scheduler-dispatcher-pr-${PR_NUMBER}.yaml \
+              "${COMMON_ARGS[@]}"
+          ) > "${LOGDIR}/scheduler-dispatcher.log" 2>&1 &
+          PID1=$!
 
-      - name: Deploy SC Event Worker with Helm
-        uses: bitovi/github-actions-deploy-eks-helm@v1.2.10
-        with:
-          cluster-name: ${{ env.CLUSTER_NAME }}
-          config-files: ${{ github.workspace }}/sc-event-worker-pr-${{ env.PR_NUMBER }}.yaml
-          chart-path: techops-services/common
-          namespace: ${{ env.NAMESPACE }}
-          timeout: 5m0s
-          name: events-worker-pr-${{ env.PR_NUMBER }}
-          chart-repository: https://techops-services.github.io/helm-charts
-          version: 0.2.1
-          atomic: true
+          (
+            helm upgrade --install scheduler-executor-pr-${PR_NUMBER} \
+              techops-services/common \
+              -f ${GITHUB_WORKSPACE}/scheduler-executor-pr-${PR_NUMBER}.yaml \
+              "${COMMON_ARGS[@]}"
+          ) > "${LOGDIR}/scheduler-executor.log" 2>&1 &
+          PID2=$!
 
-      - name: Deploy SC Event Tracker with Helm
-        uses: bitovi/github-actions-deploy-eks-helm@v1.2.10
-        with:
-          cluster-name: ${{ env.CLUSTER_NAME }}
-          config-files: ${{ github.workspace }}/sc-event-tracker-pr-${{ env.PR_NUMBER }}.yaml
-          chart-path: techops-services/common
-          namespace: ${{ env.NAMESPACE }}
-          timeout: 5m0s
-          name: events-tracker-pr-${{ env.PR_NUMBER }}
-          chart-repository: https://techops-services.github.io/helm-charts
-          version: 0.2.1
-          atomic: true
+          (
+            helm upgrade --install events-worker-pr-${PR_NUMBER} \
+              techops-services/common \
+              -f ${GITHUB_WORKSPACE}/sc-event-worker-pr-${PR_NUMBER}.yaml \
+              "${COMMON_ARGS[@]}"
+          ) > "${LOGDIR}/events-worker.log" 2>&1 &
+          PID3=$!
+
+          (
+            helm upgrade --install events-tracker-pr-${PR_NUMBER} \
+              techops-services/common \
+              -f ${GITHUB_WORKSPACE}/sc-event-tracker-pr-${PR_NUMBER}.yaml \
+              "${COMMON_ARGS[@]}"
+          ) > "${LOGDIR}/events-tracker.log" 2>&1 &
+          PID4=$!
+
+          FAILED=0
+          for COMPONENT in scheduler-dispatcher:$PID1 scheduler-executor:$PID2 events-worker:$PID3 events-tracker:$PID4; do
+            NAME="${COMPONENT%%:*}"
+            PID="${COMPONENT##*:}"
+            if wait "$PID"; then
+              echo "${NAME}: OK"
+            else
+              echo "=== ${NAME} FAILED ==="
+              cat "${LOGDIR}/${NAME}.log"
+              FAILED=1
+            fi
+          done
+
+          if [ $FAILED -ne 0 ]; then
+            helm list -n ${NAMESPACE}
+            exit 1
+          fi
+          echo "All satellite services deployed successfully."
 
       - name: Get deployment status
         if: always()

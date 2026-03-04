@@ -146,4 +146,4 @@ export async function GET(request: Request) {
   }
 }
 
-// end custom keeperhub code //
+// end keeperhub code //

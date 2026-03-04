@@ -64,7 +64,8 @@ export function createManualTriggerNode(): WorkflowNode {
  */
 export function createActionNode(
   id = "action-1",
-  actionType = "HTTP Request"
+  actionType = "HTTP Request",
+  endpoint = "https://httpbin.org/post"
 ): WorkflowNode {
   return {
     id,
@@ -75,7 +76,7 @@ export function createActionNode(
       label: "HTTP Request",
       config: {
         actionType,
-        endpoint: "https://httpbin.org/post",
+        endpoint,
         httpMethod: "POST",
         httpHeaders: "{}",
         httpBody: "{}",
@@ -109,6 +110,27 @@ export function createScheduledWorkflow(
 ): { nodes: WorkflowNode[]; edges: WorkflowEdge[] } {
   const triggerNode = createScheduleTriggerNode(cronExpression, timezone);
   const actionNode = createActionNode();
+  const edge = createEdge(triggerNode.id, actionNode.id);
+
+  return {
+    nodes: [triggerNode, actionNode],
+    edges: [edge],
+  };
+}
+
+/**
+ * Creates a complete workflow with manual trigger
+ */
+export function createManualWorkflow(actionEndpoint?: string): {
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+} {
+  const triggerNode = createManualTriggerNode();
+  const actionNode = createActionNode(
+    "action-1",
+    "HTTP Request",
+    actionEndpoint
+  );
   const edge = createEdge(triggerNode.id, actionNode.id);
 
   return {

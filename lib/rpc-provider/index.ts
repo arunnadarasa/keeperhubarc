@@ -1,4 +1,18 @@
-import { ethers } from "ethers";
+import { type EthersError, ethers, isError } from "ethers";
+
+/**
+ * Ethers error codes that indicate a permanent failure -- retrying on the same
+ * or a different provider will never succeed. These are re-thrown immediately,
+ * bypassing both the retry loop and the failover logic.
+ */
+const NON_RETRYABLE_ERROR_CODES: ReadonlySet<string> = new Set([
+  "CALL_EXCEPTION", // contract revert, out-of-gas, function not found
+  "INVALID_ARGUMENT", // bad parameter types/values
+  "MISSING_ARGUMENT",
+  "UNEXPECTED_ARGUMENT",
+  "NUMERIC_FAULT", // overflow, division by zero
+  "BAD_DATA", // malformed ABI encoding that won't decode on any provider
+]);
 
 /**
  * Interface for metrics collection - allows dependency injection
@@ -96,6 +110,7 @@ export class RpcProviderManager {
 
   private static readonly DEFAULT_MAX_RETRIES = 3;
   private static readonly DEFAULT_TIMEOUT_MS = 30_000;
+  private static readonly RETRY_AFTER_CAP_SECONDS = 30;
 
   constructor(options: RpcProviderManagerOptions) {
     const {
@@ -162,7 +177,7 @@ export class RpcProviderManager {
   ): Promise<T> {
     this.metrics.totalRequests += 1;
 
-    // If we've already switched to fallback, use it directly
+    // When in sticky fallback state, try fallback first, then primary as recovery
     if (this.isUsingFallback) {
       const fallbackProvider = this.getFallbackProvider();
       if (fallbackProvider) {
@@ -177,7 +192,7 @@ export class RpcProviderManager {
           return fallbackResult.result as T;
         }
 
-        // Fallback failed - try primary again in case it recovered
+        // Fallback failed - try primary in case it recovered
         console.warn(
           JSON.stringify({
             level: "warn",
@@ -187,9 +202,55 @@ export class RpcProviderManager {
             timestamp: new Date().toISOString(),
           })
         );
+
+        const primaryProvider = this.getPrimaryProvider();
+        const primaryResult = await this.tryProvider(
+          primaryProvider,
+          operation,
+          "primary",
+          this.config.maxRetries
+        );
+
+        if (primaryResult.success) {
+          console.info(
+            JSON.stringify({
+              level: "info",
+              event: "RPC_FAILOVER_RECOVERY",
+              message: `Primary RPC recovered for ${this.config.chainName}, switching back from fallback`,
+              chain: this.config.chainName,
+              previousState: "fallback",
+              newState: "primary",
+              timestamp: new Date().toISOString(),
+            })
+          );
+          this.isUsingFallback = false;
+          this.onFailoverStateChange?.(
+            this.config.chainName,
+            false,
+            "recovery"
+          );
+          return primaryResult.result as T;
+        }
+
+        // Both failed -- throw without redundant retry
+        console.error(
+          JSON.stringify({
+            level: "error",
+            event: "RPC_BOTH_ENDPOINTS_FAILED",
+            message: `Both primary and fallback RPC failed for ${this.config.chainName}`,
+            chain: this.config.chainName,
+            fallbackError: fallbackResult.error,
+            primaryError: primaryResult.error,
+            timestamp: new Date().toISOString(),
+          })
+        );
+        throw new Error(
+          `RPC failed on both endpoints. Fallback: ${fallbackResult.error}. Primary: ${primaryResult.error}`
+        );
       }
     }
 
+    // Normal path: try primary first, then fallback
     const primaryProvider = this.getPrimaryProvider();
     const primaryResult = await this.tryProvider(
       primaryProvider,
@@ -199,21 +260,6 @@ export class RpcProviderManager {
     );
 
     if (primaryResult.success) {
-      if (this.isUsingFallback) {
-        console.info(
-          JSON.stringify({
-            level: "info",
-            event: "RPC_FAILOVER_RECOVERY",
-            message: `Primary RPC recovered for ${this.config.chainName}, switching back from fallback`,
-            chain: this.config.chainName,
-            previousState: "fallback",
-            newState: "primary",
-            timestamp: new Date().toISOString(),
-          })
-        );
-        this.isUsingFallback = false;
-        this.onFailoverStateChange?.(this.config.chainName, false, "recovery");
-      }
       return primaryResult.result as T;
     }
 
@@ -230,22 +276,20 @@ export class RpcProviderManager {
       );
 
       if (fallbackResult.success) {
-        if (!this.isUsingFallback) {
-          console.warn(
-            JSON.stringify({
-              level: "warn",
-              event: "RPC_FAILOVER_ACTIVATED",
-              message: `Primary RPC failed for ${this.config.chainName}, switching to fallback`,
-              chain: this.config.chainName,
-              previousState: "primary",
-              newState: "fallback",
-              primaryError: primaryResult.error,
-              timestamp: new Date().toISOString(),
-            })
-          );
-          this.isUsingFallback = true;
-          this.onFailoverStateChange?.(this.config.chainName, true, "failover");
-        }
+        console.warn(
+          JSON.stringify({
+            level: "warn",
+            event: "RPC_FAILOVER_ACTIVATED",
+            message: `Primary RPC failed for ${this.config.chainName}, switching to fallback`,
+            chain: this.config.chainName,
+            previousState: "primary",
+            newState: "fallback",
+            primaryError: primaryResult.error,
+            timestamp: new Date().toISOString(),
+          })
+        );
+        this.isUsingFallback = true;
+        this.onFailoverStateChange?.(this.config.chainName, true, "failover");
         return fallbackResult.result as T;
       }
 
@@ -268,6 +312,73 @@ export class RpcProviderManager {
     throw new Error(`RPC failed on primary endpoint: ${primaryResult.error}`);
   }
 
+  private recordAttempt(providerType: "primary" | "fallback"): void {
+    if (providerType === "primary") {
+      this.metrics.primaryAttempts += 1;
+      this.metricsCollector.recordPrimaryAttempt(this.config.chainName);
+    } else {
+      this.metrics.fallbackAttempts += 1;
+      this.metricsCollector.recordFallbackAttempt(this.config.chainName);
+    }
+  }
+
+  private recordFailure(providerType: "primary" | "fallback"): void {
+    if (providerType === "primary") {
+      this.metrics.primaryFailures += 1;
+      this.metricsCollector.recordPrimaryFailure(this.config.chainName);
+    } else {
+      this.metrics.fallbackFailures += 1;
+      this.metricsCollector.recordFallbackFailure(this.config.chainName);
+    }
+  }
+
+  /**
+   * Compute how long to wait before retrying, or return null to stop retrying.
+   * Handles 429 Retry-After headers and exponential backoff for other errors.
+   */
+  private getRetryDelayMs(error: unknown, attempt: number): number | null {
+    if (isError(error, "SERVER_ERROR") && error.response?.statusCode === 429) {
+      const retryAfterHeader = error.response.getHeader("retry-after");
+      const retryAfterSeconds = retryAfterHeader
+        ? Number.parseInt(retryAfterHeader, 10)
+        : Number.NaN;
+
+      if (
+        !Number.isNaN(retryAfterSeconds) &&
+        retryAfterSeconds > 0 &&
+        retryAfterSeconds <= RpcProviderManager.RETRY_AFTER_CAP_SECONDS
+      ) {
+        return retryAfterSeconds * 1000;
+      }
+
+      return null;
+    }
+
+    return Math.min(1000 * 2 ** attempt, 5000);
+  }
+
+  /**
+   * Evaluate a caught error and decide what to do next.
+   * Throws for non-retryable errors, returns null to stop retrying,
+   * or returns the delay in ms before the next attempt.
+   */
+  private evaluateRetryAction(
+    error: unknown,
+    wrappedError: Error,
+    attempt: number,
+    maxRetries: number
+  ): number | null {
+    if (this.isNonRetryableError(error)) {
+      throw wrappedError;
+    }
+
+    if (attempt === maxRetries - 1) {
+      return null;
+    }
+
+    return this.getRetryDelayMs(error, attempt);
+  }
+
   private async tryProvider<T>(
     provider: ethers.JsonRpcProvider,
     operation: (p: ethers.JsonRpcProvider) => Promise<T>,
@@ -278,13 +389,7 @@ export class RpcProviderManager {
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        if (providerType === "primary") {
-          this.metrics.primaryAttempts += 1;
-          this.metricsCollector.recordPrimaryAttempt(this.config.chainName);
-        } else {
-          this.metrics.fallbackAttempts += 1;
-          this.metricsCollector.recordFallbackAttempt(this.config.chainName);
-        }
+        this.recordAttempt(providerType);
 
         const result = await this.withTimeout(
           operation(provider),
@@ -294,20 +399,19 @@ export class RpcProviderManager {
         return { success: true, result };
       } catch (error: unknown) {
         lastError = error instanceof Error ? error : new Error(String(error));
+        this.recordFailure(providerType);
 
-        if (providerType === "primary") {
-          this.metrics.primaryFailures += 1;
-          this.metricsCollector.recordPrimaryFailure(this.config.chainName);
-        } else {
-          this.metrics.fallbackFailures += 1;
-          this.metricsCollector.recordFallbackFailure(this.config.chainName);
-        }
-
-        if (attempt === maxRetries - 1) {
+        const delayMs = this.evaluateRetryAction(
+          error,
+          lastError,
+          attempt,
+          maxRetries
+        );
+        if (delayMs === null) {
           break;
         }
 
-        await this.delay(Math.min(1000 * 2 ** attempt, 5000));
+        await this.delay(delayMs);
       }
     }
 
@@ -333,6 +437,13 @@ export class RpcProviderManager {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  private isNonRetryableError(error: unknown): boolean {
+    if (typeof error !== "object" || error === null || !("code" in error)) {
+      return false;
+    }
+    return NON_RETRYABLE_ERROR_CODES.has((error as EthersError).code as string);
+  }
+
   getMetrics(): Readonly<RpcProviderMetrics> {
     return { ...this.metrics };
   }
@@ -351,6 +462,28 @@ export class RpcProviderManager {
    */
   setFailoverStateChangeCallback(callback: FailoverStateChangeCallback): void {
     this.onFailoverStateChange = callback;
+  }
+
+  /**
+   * Get the currently-active RPC URL, respecting cached failover state.
+   * Does NOT probe the endpoint -- use resolveActiveRpcUrl() for write
+   * operations where you need to verify the endpoint is reachable first.
+   */
+  getCurrentRpcUrl(): string {
+    return this.isUsingFallback && this.config.fallbackRpcUrl
+      ? this.config.fallbackRpcUrl
+      : this.config.primaryRpcUrl;
+  }
+
+  /**
+   * Probe the RPC endpoint with a lightweight getBlockNumber call via
+   * executeWithFailover, then return the URL of whichever provider responded.
+   * Use this for write operations that need a raw URL for signer construction
+   * but should still benefit from failover if the primary is unreachable.
+   */
+  async resolveActiveRpcUrl(): Promise<string> {
+    await this.executeWithFailover((provider) => provider.getBlockNumber());
+    return this.getCurrentRpcUrl();
   }
 
   /**

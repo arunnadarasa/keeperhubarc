@@ -25,7 +25,7 @@ export function remapTemplateRefsInString(
     return `{{@${newId}:${rest}}}`;
   });
 }
-// end custom keeperhub code //
+// end keeperhub code //
 
 export type NodeOutputs = {
   [nodeId: string]: {

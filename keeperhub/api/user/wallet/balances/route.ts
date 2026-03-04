@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
 import { NextResponse } from "next/server";
 import { apiError } from "@/keeperhub/lib/api-error";
+import { getActiveOrgId } from "@/keeperhub/lib/middleware/org-context";
 import { getOrganizationWallet } from "@/keeperhub/lib/para/wallet-helpers";
 import { auth } from "@/lib/auth";
 import { ERC20_ABI } from "@/lib/contracts";
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const activeOrgId = session.session.activeOrganizationId;
+    const activeOrgId = getActiveOrgId(session);
 
     if (!activeOrgId) {
       return NextResponse.json(

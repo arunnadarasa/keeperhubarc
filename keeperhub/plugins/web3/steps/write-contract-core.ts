@@ -9,11 +9,13 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
+import { reshapeArgsForAbi } from "@/keeperhub/lib/abi-struct-args";
 import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
 import {
   getOrganizationWalletAddress,
   initializeParaSigner,
 } from "@/keeperhub/lib/para/wallet-helpers";
+import { formatContractError } from "@/keeperhub/lib/web3/decode-revert-error";
 import { resolveGasLimitOverrides } from "@/keeperhub/lib/web3/gas-defaults";
 import { getGasStrategy } from "@/keeperhub/lib/web3/gas-strategy";
 import { getNonceManager } from "@/keeperhub/lib/web3/nonce-manager";
@@ -25,7 +27,7 @@ import {
 import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
 import { getTransactionUrl } from "@/lib/explorer";
-import { getChainIdFromNetwork, resolveRpcConfig } from "@/lib/rpc";
+import { getChainIdFromNetwork, getRpcProvider } from "@/lib/rpc";
 import { getErrorMessage } from "@/lib/utils";
 
 export type WriteContractCoreInput = {
@@ -34,6 +36,7 @@ export type WriteContractCoreInput = {
   abi: string;
   abiFunction: string;
   functionArgs?: string;
+  ethValue?: string;
   gasLimitMultiplier?: string;
   _context?: {
     executionId?: string;
@@ -67,6 +70,7 @@ export async function writeContractCore(
     abi,
     abiFunction,
     functionArgs,
+    ethValue,
     gasLimitMultiplier,
     _context,
   } = input;
@@ -134,6 +138,7 @@ export async function writeContractCore(
         // Keep empty strings if they're not at the end
         return parsedArgs.slice(index + 1).some((a) => a !== "");
       });
+      args = reshapeArgsForAbi(args, functionAbi);
     } catch (error) {
       return {
         success: false,
@@ -153,25 +158,16 @@ export async function writeContractCore(
   }
   const { organizationId, userId } = orgCtx;
 
-  // Get chain ID and resolve RPC config (with user preferences)
+  // Get chain ID and resolve RPC config (with user preferences + failover)
   let chainId: number;
   let rpcUrl: string;
   try {
     chainId = getChainIdFromNetwork(network);
     console.log("[Write Contract] Resolved chain ID:", chainId);
 
-    const rpcConfig = await resolveRpcConfig(chainId, userId);
-    if (!rpcConfig) {
-      throw new Error(`Chain ${chainId} not found or not enabled`);
-    }
-
-    rpcUrl = rpcConfig.primaryRpcUrl;
-    console.log(
-      "[Write Contract] Using RPC URL:",
-      rpcUrl,
-      "source:",
-      rpcConfig.source
-    );
+    const rpcManager = await getRpcProvider({ chainId, userId });
+    rpcUrl = await rpcManager.resolveActiveRpcUrl();
+    console.log("[Write Contract] Using RPC URL:", rpcUrl);
   } catch (error) {
     logUserError(
       ErrorCategory.VALIDATION,
@@ -212,6 +208,19 @@ export async function writeContractCore(
       workflowId = execution?.workflowId ?? undefined;
     } catch {
       // Non-critical - workflowId is optional for tracking
+    }
+  }
+
+  // Parse ethValue early so we fail fast with a friendly message
+  let parsedEthValue: bigint | undefined;
+  if (ethValue) {
+    try {
+      parsedEthValue = ethers.parseEther(ethValue);
+    } catch {
+      return {
+        success: false,
+        error: `Invalid ETH value "${ethValue}" -- expected a decimal string like "0.1" or "1.5"`,
+      };
     }
   }
 
@@ -270,11 +279,21 @@ export async function writeContractCore(
         };
       }
 
+      // Build value override for payable functions (e.g. WETH deposit)
+      const valueOverride = parsedEthValue ? { value: parsedEthValue } : {};
+
+      // Simulate call first to get decodable revert data on failure
+      // (eth_call returns revert data reliably, eth_estimateGas often does not)
+      await contract[abiFunction].staticCall(...args, valueOverride);
+
       // Get nonce from session
       const nonce = nonceManager.getNextNonce(session);
 
       // Estimate gas for the contract call
-      const estimatedGas = await contract[abiFunction].estimateGas(...args);
+      const estimatedGas = await contract[abiFunction].estimateGas(
+        ...args,
+        valueOverride
+      );
 
       // Get gas configuration from strategy
       const provider = signer.provider;
@@ -305,6 +324,7 @@ export async function writeContractCore(
         gasLimit: txGasConfig.gasLimit,
         maxFeePerGas: txGasConfig.maxFeePerGas,
         maxPriorityFeePerGas: txGasConfig.maxPriorityFeePerGas,
+        ...valueOverride,
       });
 
       // Record pending transaction
@@ -360,7 +380,7 @@ export async function writeContractCore(
       );
       return {
         success: false,
-        error: `Contract call failed: ${getErrorMessage(error)}`,
+        error: formatContractError(error, contract.interface),
       };
     }
   });

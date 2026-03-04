@@ -15,9 +15,13 @@ Plugins provide the actions available in your workflows. Each plugin adds one or
 | [Code](/plugins/code) | Code | Execute custom JavaScript in a sandboxed VM | None |
 | [Math](/plugins/math) | Math | Aggregation operations (sum, count, average, median, min, max, product) | None |
 | [Safe](/plugins/safe) | Protocol | Safe multisig owners, threshold, nonce, module status, pending transactions | API key (for pending txs) |
+| [Aave V3](/plugins/aave-v3) | Protocol | Supply, borrow, repay, collateral management, health factor monitoring | Wallet (for writes) |
 | [Ajna](/plugins/ajna) | Protocol | Liquidation keeper operations, vault rebalancing, buffer management | Wallet (for writes) |
+| [CoW Swap](/plugins/cowswap) | Protocol | Order pre-signing, fill monitoring, conditional orders, order cancellation | Wallet (for writes) |
+| [Morpho](/plugins/morpho) | Protocol | Supply, borrow, repay, liquidate, collateral management, position tracking, market monitoring | Wallet (for writes) |
 | [Pendle](/plugins/pendle) | Protocol | Yield tokenization, market data, PT/YT/SY balances, mint/redeem | Wallet (for writes) |
 | [Sky](/plugins/sky) | Protocol | USDS savings, token balances, approvals, DAI/MKR converters | Wallet (for writes) |
+| [Uniswap](/plugins/uniswap) | Protocol | Pool discovery, LP position details, position NFT management | Wallet (for writes) |
 | [Discord](/plugins/discord) | Notifications | Send messages to channels | Webhook URL |
 | [Telegram](/plugins/telegram) | Notifications | Send messages to chats | Bot token |
 | [SendGrid](/plugins/sendgrid) | Notifications | Send emails | API key |

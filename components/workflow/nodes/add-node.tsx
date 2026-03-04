@@ -1,11 +1,11 @@
 "use client";
 
 import type { NodeProps } from "@xyflow/react";
-import { LayoutTemplate, Plus } from "lucide-react";
 // start custom keeperhub code //
-import { useOverlay } from "@/components/overlays/overlay-provider";
+import { Globe, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { FeaturedOverlay } from "@/keeperhub/components/overlays/featured-overlay";
+import { GettingStartedChecklist } from "@/keeperhub/components/onboarding/getting-started-checklist";
 // end keeperhub code //
 import { getAppName, getCustomLogo } from "@/lib/extension-registry";
 
@@ -17,51 +17,18 @@ export function AddNode({ data }: NodeProps & { data?: AddNodeData }) {
   const CustomLogo = getCustomLogo();
   const appName = getAppName();
   // start custom keeperhub code //
-  const { open } = useOverlay();
-
-  const handleOpenFeatured = () => {
-    open(FeaturedOverlay, {}, { size: "full" });
-  };
+  const router = useRouter();
   // end keeperhub code //
 
   return (
     <div className="flex flex-col items-center justify-center gap-8 rounded-lg border border-border border-dashed bg-background/50 p-8 backdrop-blur-sm">
-      <div className="text-center">
-        <h1 className="mb-2 flex items-center justify-center gap-2 font-bold text-3xl">
-          {CustomLogo && <CustomLogo className="size-10" />} {appName}
-        </h1>
-        <p className="text-muted-foreground">
-          Automate anything onchain
-          {/* ,{" "}
-          <a
-            className="underline underline-offset-2 transition duration-200 ease-out hover:text-foreground"
-            href="https://ai-sdk.dev/"
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            AI SDK
-          </a>
-          ,{" "}
-          <a
-            className="underline underline-offset-2 transition duration-200 ease-out hover:text-foreground"
-            href="https://vercel.com/ai-gateway"
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            AI Gateway
-          </a>{" "}
-          and{" "}
-          <a
-            className="underline underline-offset-2 transition duration-200 ease-out hover:text-foreground"
-            href="https://ai-sdk.dev/elements"
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            AI Elements
-          </a> */}
-        </p>
+      <div className="flex flex-col items-center text-center">
+        {CustomLogo && <CustomLogo className="mb-2 size-10" />}
+        <h1 className="mb-1 font-bold text-3xl">{appName}</h1>
+        <p className="text-muted-foreground">Automate anything onchain</p>
       </div>
       {/* start custom keeperhub code */}
+      <GettingStartedChecklist onCreateWorkflow={data.onClick} />
       <div className="flex gap-3">
         <Button
           className="gap-2 shadow-lg"
@@ -73,12 +40,12 @@ export function AddNode({ data }: NodeProps & { data?: AddNodeData }) {
         </Button>
         <Button
           className="gap-2 shadow-lg"
-          onClick={handleOpenFeatured}
+          onClick={() => router.push("/hub")}
           size="default"
           variant="outline"
         >
-          <LayoutTemplate className="size-4" />
-          Explore Workflows
+          <Globe className="size-4" />
+          Browse Templates
         </Button>
       </div>
       {/* end keeperhub code */}

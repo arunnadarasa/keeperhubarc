@@ -10,23 +10,15 @@ import "dotenv/config";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { getDatabaseUrl } from "../lib/db/connection-utils";
-import {
-  member,
-  organization,
-  sessions,
-  users,
-  workflows,
-} from "../lib/db/schema";
-import { generateId } from "../lib/utils/id";
+import { getDatabaseUrl } from "../../lib/db/connection-utils";
+import { member, users, workflows } from "../../lib/db/schema";
+import { generateId } from "../../lib/utils/id";
 
 const connectionString = getDatabaseUrl();
 const client = postgres(connectionString, { max: 1 });
 const db = drizzle(client);
 
-const USER_ID = "test-user-001";
-const ORG_ID = "test-org-001";
-const SESSION_TOKEN = "test-session-token";
+const DEV_EMAIL = process.env.SEED_EMAIL ?? "dev@keeperhub.local";
 
 // Known mainnet transactions for testing
 const USDT_TRANSFER_CALLDATA =
@@ -401,76 +393,39 @@ async function seed(): Promise<void> {
 
   const now = new Date();
 
-  // 1. User -- find existing or create
+  // 1. Look up existing dev user
   const existingUser = await db
     .select({ id: users.id })
     .from(users)
-    .where(eq(users.email, "test@keeperhub.local"))
+    .where(eq(users.email, DEV_EMAIL))
     .limit(1);
 
-  const userId = existingUser[0]?.id ?? USER_ID;
-
-  if (existingUser[0]) {
-    console.log(`  + User: test@keeperhub.local (exists as ${userId})`);
-  } else {
-    await db.insert(users).values({
-      id: userId,
-      name: "Test User",
-      email: "test@keeperhub.local",
-      emailVerified: true,
-      createdAt: now,
-      updatedAt: now,
-    });
-    console.log("  + User: test@keeperhub.local (created)");
+  if (!existingUser[0]) {
+    console.error(
+      `User "${DEV_EMAIL}" not found. Run seed-user.ts first, or set SEED_EMAIL.`
+    );
+    process.exit(1);
   }
 
-  // 2. Session
-  await db
-    .insert(sessions)
-    .values({
-      id: generateId(),
-      token: SESSION_TOKEN,
-      userId,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      createdAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoNothing();
-  console.log("  + Session created (30 day expiry)");
+  const userId = existingUser[0].id;
+  console.log(`  + User: ${DEV_EMAIL} (${userId})`);
 
-  // 3. Organization -- find existing or create
-  const existingOrg = await db
-    .select({ id: organization.id })
-    .from(organization)
-    .where(eq(organization.slug, "test-org"))
+  // 2. Look up user's organization
+  const existingMember = await db
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .where(eq(member.userId, userId))
     .limit(1);
 
-  const orgId = existingOrg[0]?.id ?? ORG_ID;
-
-  if (existingOrg[0]) {
-    console.log(`  + Organization: Test Org (exists as ${orgId})`);
-  } else {
-    await db.insert(organization).values({
-      id: orgId,
-      name: "Test Org",
-      slug: "test-org",
-      createdAt: now,
-    });
-    console.log("  + Organization: Test Org (created)");
+  if (!existingMember[0]) {
+    console.error(
+      `User "${DEV_EMAIL}" has no organization. Sign in via the UI first to auto-create one.`
+    );
+    process.exit(1);
   }
 
-  // 4. Membership
-  await db
-    .insert(member)
-    .values({
-      id: generateId(),
-      organizationId: orgId,
-      userId,
-      role: "owner",
-      createdAt: now,
-    })
-    .onConflictDoNothing();
-  console.log("  + Member: owner role\n");
+  const orgId = existingMember[0].organizationId;
+  console.log(`  + Organization: ${orgId}\n`);
 
   // 5. Workflows
   const workflowDefs = buildWorkflows();

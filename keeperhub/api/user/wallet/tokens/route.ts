@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { normalizeAddressForStorage } from "@/keeperhub/lib/address-utils";
 import { apiError } from "@/keeperhub/lib/api-error";
+import { getActiveOrgId } from "@/keeperhub/lib/middleware/org-context";
 import { organizationHasWallet } from "@/keeperhub/lib/para/wallet-helpers";
 import { auth } from "@/lib/auth";
 import { ERC20_ABI } from "@/lib/contracts";
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const activeOrgId = session.session.activeOrganizationId;
+    const activeOrgId = getActiveOrgId(session);
 
     if (!activeOrgId) {
       return NextResponse.json(
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const activeOrgId = session.session.activeOrganizationId;
+    const activeOrgId = getActiveOrgId(session);
 
     if (!activeOrgId) {
       return NextResponse.json(
@@ -234,7 +235,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const activeOrgId = session.session.activeOrganizationId;
+    const activeOrgId = getActiveOrgId(session);
 
     if (!activeOrgId) {
       return NextResponse.json(

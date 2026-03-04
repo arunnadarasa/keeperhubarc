@@ -14,6 +14,7 @@ import {
   getOrganizationWalletAddress,
   initializeParaSigner,
 } from "@/keeperhub/lib/para/wallet-helpers";
+import { formatContractError } from "@/keeperhub/lib/web3/decode-revert-error";
 import { resolveGasLimitOverrides } from "@/keeperhub/lib/web3/gas-defaults";
 import { getGasStrategy } from "@/keeperhub/lib/web3/gas-strategy";
 import { getNonceManager } from "@/keeperhub/lib/web3/nonce-manager";
@@ -25,7 +26,7 @@ import {
 import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
 import { getTransactionUrl } from "@/lib/explorer";
-import { getChainIdFromNetwork, resolveRpcConfig } from "@/lib/rpc";
+import { getChainIdFromNetwork, getRpcProvider } from "@/lib/rpc";
 import { getErrorMessage } from "@/lib/utils";
 
 export type TransferFundsCoreInput = {
@@ -55,7 +56,6 @@ export type TransferFundsResult =
  * Shared between the web3 transfer-funds step and the direct execution API.
  * When _context.organizationId is provided, skips workflowExecutions lookup.
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Transfer handler with comprehensive validation and error handling
 export async function transferFundsCore(
   input: TransferFundsCoreInput
 ): Promise<TransferFundsResult> {
@@ -107,17 +107,14 @@ export async function transferFundsCore(
 
   const { organizationId, userId } = orgCtx;
 
-  // Get chain ID and resolve RPC config
+  // Get chain ID and resolve RPC config (with failover)
   let chainId: number;
   let rpcUrl: string;
   try {
     chainId = getChainIdFromNetwork(network);
 
-    const rpcConfig = await resolveRpcConfig(chainId, userId);
-    if (!rpcConfig) {
-      throw new Error(`Chain ${chainId} not found or not enabled`);
-    }
-    rpcUrl = rpcConfig.primaryRpcUrl;
+    const rpcManager = await getRpcProvider({ chainId, userId });
+    rpcUrl = await rpcManager.resolveActiveRpcUrl();
   } catch (error) {
     logUserError(
       ErrorCategory.VALIDATION,
@@ -190,6 +187,9 @@ export async function transferFundsCore(
       }
 
       const baseTx = { to: recipientAddress, value: amountInWei };
+
+      // Simulate call first to get decodable revert data on failure
+      await provider.call({ ...baseTx, from: walletAddress });
 
       // Estimate gas
       const estimatedGas = await provider.estimateGas({
@@ -268,7 +268,7 @@ export async function transferFundsCore(
       );
       return {
         success: false,
-        error: `Transaction failed: ${getErrorMessage(error)}`,
+        error: formatContractError(error, undefined, "Transaction failed"),
       };
     }
   });
