@@ -28,11 +28,14 @@ import {
   recordWorkflowComplete,
 } from "@/keeperhub/lib/metrics/instrumentation/workflow";
 import { fallbackCompleteExecution } from "@/keeperhub/lib/execution-fallback";
-import { fetchExecutionLogs } from "@/keeperhub/lib/fetch-execution-logs";
 import {
   getFailedMaxRetriesNodeIds,
   reconcileMaxRetriesFailures,
 } from "@/keeperhub/lib/max-retries-reconciler";
+import {
+  clearExecution,
+  getSuccessfulSteps,
+} from "@/keeperhub/lib/step-success-tracker";
 import { ARRAY_SOURCE_RE } from "@/keeperhub/lib/for-each-utils";
 import {
   buildEdgesBySourceHandle,
@@ -1958,22 +1961,18 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
 
     // start custom keeperhub code //
     // KEEP-1541: Reconcile spurious "max retries exceeded" failures.
-    // See max-retries-reconciler.ts for details. Uses HTTP loopback
-    // (same pattern as execution-fallback.ts) to avoid DB imports in
-    // the workflow bundle.
+    // See max-retries-reconciler.ts for details. Uses in-memory tracker
+    // populated by withStepLogging (step-handler.ts).
     if (executionId) {
       const failedNodeIds = getFailedMaxRetriesNodeIds(results);
 
       if (failedNodeIds.length > 0) {
-        const executionLogs = await fetchExecutionLogs(
-          executionId,
-          failedNodeIds
-        );
+        const successfulSteps = getSuccessfulSteps(executionId);
 
-        if (executionLogs) {
+        if (successfulSteps) {
           const { overriddenNodeIds } = reconcileMaxRetriesFailures({
             results,
-            executionLogs,
+            successfulSteps,
             workflowId,
             executionId,
           });
@@ -1986,6 +1985,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           }
         }
       }
+
     }
     // end keeperhub code //
 
@@ -2112,5 +2112,11 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       outputs,
       error: errorMessage,
     };
+  } finally {
+    // start custom keeperhub code //
+    if (executionId) {
+      clearExecution(executionId);
+    }
+    // end keeperhub code //
   }
 }
