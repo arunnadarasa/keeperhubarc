@@ -251,10 +251,12 @@ function useBillingData(): {
   data: SubscriptionData | null;
   suggestion: SuggestionData | null;
   loading: boolean;
+  error: boolean;
 } {
   const [data, setData] = useState<SubscriptionData | null>(null);
   const [suggestion, setSuggestion] = useState<SuggestionData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     async function fetchSubscription(): Promise<void> {
@@ -263,9 +265,11 @@ function useBillingData(): {
         if (response.ok) {
           const result = (await response.json()) as SubscriptionData;
           setData(result);
+        } else {
+          setError(true);
         }
       } catch {
-        // Subscription fetch failed -- loading state handles UX
+        setError(true);
       } finally {
         setLoading(false);
       }
@@ -288,7 +292,7 @@ function useBillingData(): {
     fetchSuggestion().catch(() => undefined);
   }, []);
 
-  return { data, suggestion, loading };
+  return { data, suggestion, loading, error };
 }
 
 function useBillingPortal(): {
@@ -576,11 +580,26 @@ function BillingStatusContent({
 }
 
 export function BillingStatus(): React.ReactElement {
-  const { data, suggestion, loading } = useBillingData();
+  const { data, suggestion, loading, error } = useBillingData();
   const { portalLoading, handleManageBilling } = useBillingPortal();
 
   if (loading) {
     return <BillingStatusSkeleton />;
+  }
+
+  if (error && !data) {
+    return (
+      <Card className="bg-sidebar">
+        <CardHeader>
+          <CardTitle>Current Plan</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Unable to load billing information. Please try refreshing the page.
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   const sub = data?.subscription;
