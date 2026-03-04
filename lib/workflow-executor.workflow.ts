@@ -1974,8 +1974,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           const { overriddenNodeIds } = reconcileMaxRetriesFailures({
             results,
             executionLogs,
-            workflowId,
-            executionId,
           });
 
           if (overriddenNodeIds.length > 0) {

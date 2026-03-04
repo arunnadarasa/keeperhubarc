@@ -40,8 +40,7 @@ describe("reconcileMaxRetriesFailures", () => {
     const output = reconcileMaxRetriesFailures({
       results,
       executionLogs: [],
-      executionId: "exec-1",
-      workflowId: "wf-1",
+
     });
 
     expect(output.overriddenNodeIds).toEqual([]);
@@ -71,8 +70,7 @@ describe("reconcileMaxRetriesFailures", () => {
     const output = reconcileMaxRetriesFailures({
       results,
       executionLogs,
-      executionId: "exec-1",
-      workflowId: "wf-1",
+
     });
 
     expect(output.overriddenNodeIds).toEqual(["node-2"]);
@@ -98,8 +96,7 @@ describe("reconcileMaxRetriesFailures", () => {
     const output = reconcileMaxRetriesFailures({
       results,
       executionLogs,
-      executionId: "exec-1",
-      workflowId: "wf-1",
+
     });
 
     expect(output.overriddenNodeIds).toEqual([]);
@@ -117,8 +114,7 @@ describe("reconcileMaxRetriesFailures", () => {
     const output = reconcileMaxRetriesFailures({
       results,
       executionLogs: [],
-      executionId: "exec-1",
-      workflowId: "wf-1",
+
     });
 
     expect(output.overriddenNodeIds).toEqual([]);
@@ -150,8 +146,7 @@ describe("reconcileMaxRetriesFailures", () => {
     const output = reconcileMaxRetriesFailures({
       results,
       executionLogs,
-      executionId: "exec-1",
-      workflowId: "wf-1",
+
     });
 
     expect(output.overriddenNodeIds).toEqual(["node-1"]);
@@ -182,8 +177,7 @@ describe("reconcileMaxRetriesFailures", () => {
     const output = reconcileMaxRetriesFailures({
       results,
       executionLogs,
-      executionId: "exec-1",
-      workflowId: "wf-1",
+
     });
 
     expect(output.overriddenNodeIds).toEqual(["node-1"]);

@@ -36,8 +36,6 @@ type ExecutionResult = {
 type ReconcileInput = {
   results: Record<string, ExecutionResult>;
   executionLogs: ExecutionLog[];
-  workflowId: string | undefined;
-  executionId: string | undefined;
 };
 
 type ReconcileOutput = {
@@ -55,7 +53,7 @@ export function getFailedMaxRetriesNodeIds(
 export function reconcileMaxRetriesFailures(
   input: ReconcileInput
 ): ReconcileOutput {
-  const { results, executionLogs, workflowId, executionId } = input;
+  const { results, executionLogs } = input;
 
   const failedNodeIds = getFailedMaxRetriesNodeIds(results);
 
@@ -71,15 +69,6 @@ export function reconcileMaxRetriesFailures(
     const successLog = nodeLogs.find((l) => l.status === "success");
 
     if (successLog && !hasAnyErrorLog) {
-      console.warn(
-        "[Workflow Executor] Overriding spurious max-retries failure for node with all-success logs:",
-        {
-          error: results[failedNodeId]?.error,
-          ...(workflowId ? { workflow_id: workflowId } : {}),
-          ...(executionId ? { execution_id: executionId } : {}),
-          node_id: failedNodeId,
-        }
-      );
       results[failedNodeId] = {
         success: true,
         data: successLog.output,
