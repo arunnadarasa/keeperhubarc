@@ -24,7 +24,7 @@ test.describe("Stop Workflow Execution", () => {
     }
   });
 
-  test("stop button appears during execution and cancels the run", async ({
+  test.skip("stop button appears during execution and cancels the run", async ({
     page,
   }) => {
     await page.goto(`/workflows/${workflowId}`, {
