@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 // start custom keeperhub code //
+import { isAnonymousUser } from "@/keeperhub/lib/is-anonymous";
 import { refetchSidebar } from "@/keeperhub/lib/refetch-sidebar";
 import { api } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
@@ -109,15 +110,17 @@ const Home = () => {
     try {
       await ensureSession();
 
-      const existing = await api.workflow.getAll();
-      if (existing.length > 0) {
-        const latest = existing.sort(
-          (a, b) =>
-            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-        )[0];
-        setIsTransitioningFromHomepage(true);
-        router.replace(`/workflows/${latest.id}`);
-        return;
+      if (isAnonymousUser(session?.user)) {
+        const existing = await api.workflow.getAll();
+        if (existing.length > 0) {
+          const latest = existing.sort(
+            (a, b) =>
+              new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          )[0];
+          setIsTransitioningFromHomepage(true);
+          router.replace(`/workflows/${latest.id}`);
+          return;
+        }
       }
 
       const { nodes: defaultNodes, edges: defaultEdges } = createDefaultNodes();
@@ -141,6 +144,7 @@ const Home = () => {
       hasCreatedWorkflowRef.current = false;
     }
   }, [
+    session,
     setNodes,
     setEdges,
     ensureSession,

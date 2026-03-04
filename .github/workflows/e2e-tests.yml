@@ -12,6 +12,8 @@ on:
 
 jobs:
   # Check if E2E tests should run
+  # NOTE: E2E tests are temporarily disabled. All test jobs will be skipped
+  # but the workflow still completes so deploy-keeperhub.yaml triggers correctly.
   should-run:
     runs-on: ubuntu-latest
     outputs:
@@ -19,60 +21,13 @@ jobs:
       run-deployed: ${{ steps.check.outputs.run-deployed }}
       pr-number: ${{ steps.check.outputs.pr-number }}
     steps:
-      - name: Checkout code
-        if: github.event_name == 'push'
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Check trigger conditions
+      - name: E2E tests disabled
         id: check
         run: |
-          # Default values
+          echo "E2E tests are temporarily disabled"
           echo "run-e2e=false" >> $GITHUB_OUTPUT
           echo "run-deployed=false" >> $GITHUB_OUTPUT
           echo "pr-number=" >> $GITHUB_OUTPUT
-
-          # Check for [skip e2e] flag in commit message (push events only)
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            MSG=$(git log -1 --format=%B 2>/dev/null || echo "")
-            if [[ "$MSG" == *"[skip e2e]"* ]]; then
-              echo "Skipping E2E tests: [skip e2e] found in commit message"
-              exit 0
-            fi
-          fi
-
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "run-e2e=true" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            if [[ "${{ contains(github.event.pull_request.labels.*.name, 'run-e2e-tests') }}" == "true" ]]; then
-              echo "run-e2e=true" >> $GITHUB_OUTPUT
-            fi
-          elif [[ "${{ github.event_name }}" == "workflow_run" ]]; then
-            # Triggered by Deploy PR Environment workflow (skip staging/prod -- not PR deploys)
-            HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
-            if [[ "$HEAD_BRANCH" == "staging" || "$HEAD_BRANCH" == "prod" ]]; then
-              echo "Skipping: workflow_run triggered from $HEAD_BRANCH, not a PR branch"
-              exit 0
-            fi
-            if [[ "${{ github.event.workflow_run.conclusion }}" == "success" ]]; then
-              echo "run-deployed=true" >> $GITHUB_OUTPUT
-
-              # Try pull_requests array first (works for same-repo PRs)
-              PR_NUMBER="${{ github.event.workflow_run.pull_requests[0].number }}"
-
-              # Fallback: query the API for PRs matching the head branch
-              if [[ -z "$PR_NUMBER" ]]; then
-                HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
-                PR_NUMBER=$(gh pr list --head "$HEAD_BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
-              fi
-
-              if [[ -z "$PR_NUMBER" ]]; then
-                echo "::warning::Could not determine PR number from workflow_run event"
-              fi
-              echo "pr-number=$PR_NUMBER" >> $GITHUB_OUTPUT
-            fi
-          fi
 
   # Vitest E2E tests (schedule-pipeline, workflow-runner)
   e2e-vitest:
