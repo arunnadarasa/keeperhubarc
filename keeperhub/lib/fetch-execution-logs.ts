@@ -44,7 +44,7 @@ export async function fetchExecutionLogs(
     return logs;
   } catch (error) {
     logSystemError(
-      ErrorCategory.DATABASE,
+      ErrorCategory.EXTERNAL_SERVICE,
       "[Workflow Executor] Failed to fetch execution logs for reconciliation:",
       error,
       { execution_id: executionId }
