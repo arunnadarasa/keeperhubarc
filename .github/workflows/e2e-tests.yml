@@ -208,6 +208,7 @@ jobs:
         run: pnpm build
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
 
       - name: Start application
         run: |
@@ -226,11 +227,13 @@ jobs:
           done
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
 
       - name: Run E2E Vitest tests
         run: pnpm test:e2e:vitest
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
           WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
           PARA_API_KEY: ${{ secrets.TEST_PARA_API_KEY }}
           PARA_ENVIRONMENT: beta
