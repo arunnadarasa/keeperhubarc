@@ -130,14 +130,12 @@ test.describe("Billing", () => {
       ? proCard.getByRole("button", { name: GET_STARTED_OR_UPGRADE_RE })
       : page.getByRole("button", { name: GET_STARTED_RE }).first();
 
-    // Only assert checkout was called if the button was clickable
-    if (await upgradeButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await upgradeButton.click();
+    await expect(upgradeButton).toBeVisible({ timeout: 5000 });
+    await upgradeButton.click();
 
-      // Verify checkout request was made with correct plan
-      if (checkoutRequestBody) {
-        expect(checkoutRequestBody.plan).toBe("pro");
-      }
+    // Verify checkout request was made with correct plan
+    if (checkoutRequestBody) {
+      expect(checkoutRequestBody.plan).toBe("pro");
     }
   });
 
@@ -189,21 +187,15 @@ test.describe("Billing", () => {
     const cancelButton = page.getByRole("button", {
       name: CANCEL_OR_DOWNGRADE_RE,
     });
-    if (
-      await cancelButton
-        .first()
-        .isVisible({ timeout: 5000 })
-        .catch(() => false)
-    ) {
-      await cancelButton.first().click();
+    await expect(cancelButton.first()).toBeVisible({ timeout: 5000 });
+    await cancelButton.first().click();
 
-      // Confirm dialog if present
-      const confirmButton = page.getByRole("button", {
-        name: CONFIRM_OR_YES_RE,
-      });
-      if (await confirmButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await confirmButton.click();
-      }
+    // Confirm dialog if present
+    const confirmButton = page.getByRole("button", {
+      name: CONFIRM_OR_YES_RE,
+    });
+    if (await confirmButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await confirmButton.click();
     }
   });
 
