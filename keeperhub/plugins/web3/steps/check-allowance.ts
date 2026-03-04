@@ -6,7 +6,11 @@ import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
 import { ERC20_ABI } from "@/lib/contracts";
 import { db } from "@/lib/db";
 import { workflowExecutions } from "@/lib/db/schema";
-import { getChainIdFromNetwork, resolveRpcConfig } from "@/lib/rpc";
+import {
+  getChainIdFromNetwork,
+  getRpcProvider,
+  type RpcProviderManager,
+} from "@/lib/rpc";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import { getErrorMessage } from "@/lib/utils";
 import { parseTokenAddress } from "./transfer-token-core";
@@ -96,14 +100,10 @@ async function stepHandler(
   // Get userId from execution context (for user RPC preferences)
   const userId = await getUserIdFromExecution(_context?.executionId);
 
-  // Resolve RPC config
-  let rpcUrl: string;
+  // Resolve RPC provider with failover support
+  let rpcManager: RpcProviderManager;
   try {
-    const rpcConfig = await resolveRpcConfig(chainId, userId);
-    if (!rpcConfig) {
-      throw new Error(`Chain ${chainId} not found or not enabled`);
-    }
-    rpcUrl = rpcConfig.primaryRpcUrl;
+    rpcManager = await getRpcProvider({ chainId, userId });
   } catch (error) {
     logUserError(
       ErrorCategory.VALIDATION,
@@ -119,14 +119,15 @@ async function stepHandler(
   }
 
   try {
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    const contract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
-
-    const [allowanceRaw, decimals, symbol] = await Promise.all([
-      contract.allowance(ownerAddress, spenderAddress) as Promise<bigint>,
-      contract.decimals() as Promise<bigint>,
-      contract.symbol() as Promise<string>,
-    ]);
+    const [allowanceRaw, decimals, symbol] =
+      await rpcManager.executeWithFailover((provider) => {
+        const contract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+        return Promise.all([
+          contract.allowance(ownerAddress, spenderAddress) as Promise<bigint>,
+          contract.decimals() as Promise<bigint>,
+          contract.symbol() as Promise<string>,
+        ]);
+      });
 
     const decimalsNum = Number(decimals);
     const allowance = ethers.formatUnits(allowanceRaw, decimalsNum);

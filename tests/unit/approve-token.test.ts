@@ -54,12 +54,12 @@ vi.mock("drizzle-orm", () => ({
 
 // Mock RPC resolution
 const mockGetChainIdFromNetwork = vi.fn();
-const mockResolveRpcConfig = vi.fn();
+const mockGetRpcProvider = vi.fn();
 
 vi.mock("@/lib/rpc", () => ({
   getChainIdFromNetwork: (...args: unknown[]) =>
     mockGetChainIdFromNetwork(...args),
-  resolveRpcConfig: (...args: unknown[]) => mockResolveRpcConfig(...args),
+  getRpcProvider: (...args: unknown[]) => mockGetRpcProvider(...args),
 }));
 
 // Mock explorer
@@ -172,8 +172,8 @@ function makeInput(
 
 function setupMocks(): void {
   mockGetChainIdFromNetwork.mockReturnValue(1);
-  mockResolveRpcConfig.mockResolvedValue({
-    primaryRpcUrl: "https://rpc.example.com",
+  mockGetRpcProvider.mockResolvedValue({
+    resolveActiveRpcUrl: () => Promise.resolve("https://rpc.example.com"),
   });
   mockResolveOrgContext.mockResolvedValue({
     success: true,

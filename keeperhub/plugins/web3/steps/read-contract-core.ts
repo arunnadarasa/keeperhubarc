@@ -15,7 +15,11 @@ import { formatContractError } from "@/keeperhub/lib/web3/decode-revert-error";
 import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
 import { getAddressUrl } from "@/lib/explorer";
-import { getChainIdFromNetwork, resolveRpcConfig } from "@/lib/rpc";
+import {
+  getChainIdFromNetwork,
+  getRpcProvider,
+  type RpcProviderManager,
+} from "@/lib/rpc";
 import { getErrorMessage } from "@/lib/utils";
 
 export type ReadContractCoreInput = {
@@ -222,20 +226,10 @@ export async function readContractCore(
     };
   }
 
-  // Resolve RPC config (with user preferences)
-  let rpcUrl: string;
+  // Resolve RPC provider with failover support
+  let rpcManager: RpcProviderManager;
   try {
-    const rpcConfig = await resolveRpcConfig(chainId, userId);
-    if (!rpcConfig) {
-      throw new Error(`Chain ${chainId} not found or not enabled`);
-    }
-    rpcUrl = rpcConfig.primaryRpcUrl;
-    console.log(
-      "[Read Contract] Using RPC URL:",
-      rpcUrl,
-      "source:",
-      rpcConfig.source
-    );
+    rpcManager = await getRpcProvider({ chainId, userId });
   } catch (error) {
     logUserError(
       ErrorCategory.VALIDATION,
@@ -260,31 +254,32 @@ export async function readContractCore(
 
   // Call the contract function
   try {
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-
-    // Create contract instance
-    const contract = new ethers.Contract(contractAddress, parsedAbi, provider);
-    console.log("[Read Contract] Contract instance created");
-
-    // Check if function exists
-    if (typeof contract[abiFunction] !== "function") {
-      throw new Error(`Function '${abiFunction}' not found in contract ABI`);
-    }
-
-    console.log(
-      "[Read Contract] Calling function:",
-      abiFunction,
-      "with args:",
-      args
-    );
-
     const isView =
       functionAbi.stateMutability === "view" ||
       functionAbi.stateMutability === "pure";
 
-    const result = isView
-      ? await contract[abiFunction](...args)
-      : await contract[abiFunction].staticCall(...args);
+    const result = await rpcManager.executeWithFailover(async (provider) => {
+      const contract = new ethers.Contract(
+        contractAddress,
+        parsedAbi,
+        provider
+      );
+
+      if (typeof contract[abiFunction] !== "function") {
+        throw new Error(`Function '${abiFunction}' not found in contract ABI`);
+      }
+
+      console.log(
+        "[Read Contract] Calling function:",
+        abiFunction,
+        "with args:",
+        args
+      );
+
+      return isView
+        ? await contract[abiFunction](...args)
+        : await contract[abiFunction].staticCall(...args);
+    });
 
     console.log("[Read Contract] Function call successful, result:", result);
 

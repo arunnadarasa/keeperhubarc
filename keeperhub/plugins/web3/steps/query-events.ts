@@ -6,7 +6,11 @@ import { withPluginMetrics } from "@/keeperhub/lib/metrics/instrumentation/plugi
 import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
 import { getAddressUrl } from "@/lib/explorer";
-import { getChainIdFromNetwork, resolveRpcConfig } from "@/lib/rpc";
+import {
+  getChainIdFromNetwork,
+  getRpcProvider,
+  type RpcProviderManager,
+} from "@/lib/rpc";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import { getErrorMessage } from "@/lib/utils";
 
@@ -277,29 +281,10 @@ async function stepHandler(
   }
 
   const userId = await getUserIdFromExecution(_context?.executionId);
-  const rpcConfig = await resolveRpcConfig(chainId, userId);
-  if (!rpcConfig) {
-    return {
-      success: false,
-      error: `Chain ${chainId} not found or not enabled`,
-    };
-  }
 
-  console.log(
-    "[Query Events] Using RPC URL:",
-    rpcConfig.primaryRpcUrl,
-    "source:",
-    rpcConfig.source
-  );
-
-  const provider = new ethers.JsonRpcProvider(rpcConfig.primaryRpcUrl);
-  const contract = new ethers.Contract(
-    contractAddress,
-    abiResult.parsed,
-    provider
-  );
-
-  const eventFragment = contract.interface.getEvent(eventName);
+  // Validate event exists in ABI using ethers Interface (no provider needed)
+  const iface = new ethers.Interface(abiResult.parsed);
+  const eventFragment = iface.getEvent(eventName);
   if (!eventFragment) {
     return {
       success: false,
@@ -307,11 +292,25 @@ async function stepHandler(
     };
   }
 
-  const blockRangeResult = await resolveBlockRange(
-    provider,
-    input.fromBlock,
-    input.toBlock,
-    input.blockCount
+  let rpcManager: RpcProviderManager;
+  try {
+    rpcManager = await getRpcProvider({ chainId, userId });
+  } catch (error) {
+    return {
+      success: false,
+      error: getErrorMessage(error),
+    };
+  }
+
+  // Resolve block range (uses RPC for latest block number)
+  const blockRangeResult = await rpcManager.executeWithFailover(
+    async (provider) =>
+      resolveBlockRange(
+        provider,
+        input.fromBlock,
+        input.toBlock,
+        input.blockCount
+      )
   );
   if (!blockRangeResult.success) {
     return { success: false, error: blockRangeResult.error };
@@ -328,23 +327,35 @@ async function stepHandler(
     };
   }
 
+  // Query events (uses RPC for log fetching)
   try {
-    const events = await queryEventBatches(
-      contract,
-      eventName,
-      eventFragment,
-      range
-    );
+    return await rpcManager.executeWithFailover(async (provider) => {
+      const contract = new ethers.Contract(
+        contractAddress,
+        abiResult.parsed,
+        provider
+      );
 
-    console.log("[Query Events] Query complete. Events found:", events.length);
+      const events = await queryEventBatches(
+        contract,
+        eventName,
+        eventFragment,
+        range
+      );
 
-    return {
-      success: true,
-      events,
-      fromBlock: range.fromBlock,
-      toBlock: range.toBlock,
-      eventCount: events.length,
-    };
+      console.log(
+        "[Query Events] Query complete. Events found:",
+        events.length
+      );
+
+      return {
+        success: true as const,
+        events,
+        fromBlock: range.fromBlock,
+        toBlock: range.toBlock,
+        eventCount: events.length,
+      };
+    });
   } catch (error) {
     return {
       success: false,

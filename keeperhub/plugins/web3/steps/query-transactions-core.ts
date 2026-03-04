@@ -10,7 +10,11 @@ import {
   getTransactionUrl,
   type NormalizedTransaction,
 } from "@/lib/explorer";
-import { getChainIdFromNetwork, resolveRpcConfig } from "@/lib/rpc";
+import {
+  getChainIdFromNetwork,
+  getRpcProvider,
+  type RpcProviderManager,
+} from "@/lib/rpc";
 import { getErrorMessage } from "@/lib/utils";
 
 const DEFAULT_BLOCK_LOOKBACK = 6500;
@@ -416,21 +420,25 @@ export async function queryTransactionsCore(
   const { iface, functionFragment, chainId } = validation.data;
 
   const userId = await getUserIdFromExecution(input._context?.executionId);
-  const rpcConfig = await resolveRpcConfig(chainId, userId);
-  if (!rpcConfig) {
+
+  let rpcManager: RpcProviderManager;
+  try {
+    rpcManager = await getRpcProvider({ chainId, userId });
+  } catch (error) {
     return {
       success: false,
-      error: `Chain ${chainId} not found or not enabled`,
+      error: getErrorMessage(error),
     };
   }
 
-  const provider = new ethers.JsonRpcProvider(rpcConfig.primaryRpcUrl);
-
-  const blockRangeResult = await resolveBlockRange(
-    provider,
-    input.fromBlock,
-    input.toBlock,
-    input.blockCount
+  const blockRangeResult = await rpcManager.executeWithFailover(
+    async (provider) =>
+      resolveBlockRange(
+        provider,
+        input.fromBlock,
+        input.toBlock,
+        input.blockCount
+      )
   );
   if (!blockRangeResult.success) {
     return { success: false, error: blockRangeResult.error };

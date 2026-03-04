@@ -7,7 +7,8 @@ import { withPluginMetrics } from "@/keeperhub/lib/metrics/instrumentation/plugi
 import { MULTICALL3_ABI, MULTICALL3_ADDRESS } from "@/lib/contracts";
 import { db } from "@/lib/db";
 import { workflowExecutions } from "@/lib/db/schema";
-import { getChainIdFromNetwork, resolveRpcConfig } from "@/lib/rpc";
+import type { RpcProviderManager } from "@/lib/rpc";
+import { getChainIdFromNetwork, getRpcProvider } from "@/lib/rpc";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import { getErrorMessage } from "@/lib/utils";
 
@@ -487,17 +488,10 @@ function decodeCallResult(
  */
 async function executeMulticallBatches(
   encodedCalls: EncodedCallWithMeta[],
-  rpcUrl: string,
+  rpcManager: RpcProviderManager,
   batchSize: number,
   chainId: number
 ): Promise<{ results: CallResult[]; error?: string }> {
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
-  const multicall = new ethers.Contract(
-    MULTICALL3_ADDRESS,
-    MULTICALL3_ABI,
-    provider
-  );
-
   const results: CallResult[] = [];
   const totalBatches = Math.ceil(encodedCalls.length / batchSize);
 
@@ -513,8 +507,16 @@ async function executeMulticallBatches(
     }));
 
     try {
-      const batchResults: [boolean, string][] =
-        await multicall.aggregate3.staticCall(multicallInput);
+      const batchResults = await rpcManager.executeWithFailover((provider) => {
+        const multicall = new ethers.Contract(
+          MULTICALL3_ADDRESS,
+          MULTICALL3_ABI,
+          provider
+        );
+        return multicall.aggregate3.staticCall(multicallInput) as Promise<
+          [boolean, string][]
+        >;
+      });
 
       for (const [i, batchResult] of batchResults.entries()) {
         const [callSuccess, returnData] = batchResult;
@@ -543,14 +545,14 @@ async function executeMulticallBatches(
 }
 
 /**
- * Resolve chain ID and RPC URL for a network
+ * Resolve chain ID and RPC provider manager for a network
  */
 async function resolveChainRpc(
   network: string,
   userId: string | undefined
 ): Promise<
-  | { chainId: number; rpcUrl: string; error?: undefined }
-  | { chainId?: undefined; rpcUrl?: undefined; error: string }
+  | { chainId: number; rpcManager: RpcProviderManager; error?: undefined }
+  | { chainId?: undefined; rpcManager?: undefined; error: string }
 > {
   let chainId: number;
   try {
@@ -566,11 +568,8 @@ async function resolveChainRpc(
   }
 
   try {
-    const rpcConfig = await resolveRpcConfig(chainId, userId);
-    if (!rpcConfig) {
-      throw new Error(`Chain ${chainId} not found or not enabled`);
-    }
-    return { chainId, rpcUrl: rpcConfig.primaryRpcUrl };
+    const rpcManager = await getRpcProvider({ chainId, userId });
+    return { chainId, rpcManager };
   } catch (rpcError) {
     logUserError(
       ErrorCategory.VALIDATION,
@@ -667,7 +666,7 @@ async function executeUniformMode(
 
   const { results, error: batchError } = await executeMulticallBatches(
     encodeResult.encoded,
-    chainRpc.rpcUrl,
+    chainRpc.rpcManager,
     parseBatchSize(input.batchSize),
     chainRpc.chainId
   );
@@ -760,7 +759,7 @@ async function executeMixedMode(
 
       const batchResult = await executeMulticallBatches(
         group,
-        chainRpc.rpcUrl,
+        chainRpc.rpcManager,
         batchSize,
         chainRpc.chainId
       );

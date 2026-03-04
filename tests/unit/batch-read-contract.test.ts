@@ -37,12 +37,12 @@ vi.mock("drizzle-orm", () => ({
 
 // Mock RPC resolution
 const mockGetChainIdFromNetwork = vi.fn();
-const mockResolveRpcConfig = vi.fn();
+const mockGetRpcProvider = vi.fn();
 
 vi.mock("@/lib/rpc", () => ({
   getChainIdFromNetwork: (...args: unknown[]) =>
     mockGetChainIdFromNetwork(...args),
-  resolveRpcConfig: (...args: unknown[]) => mockResolveRpcConfig(...args),
+  getRpcProvider: (...args: unknown[]) => mockGetRpcProvider(...args),
 }));
 
 // Mock ethers with enough fidelity for encoding/decoding tests
@@ -197,8 +197,9 @@ beforeEach(() => {
 
 function setupRpcMocks(chainId = 1): void {
   mockGetChainIdFromNetwork.mockReturnValue(chainId);
-  mockResolveRpcConfig.mockResolvedValue({
-    primaryRpcUrl: "https://rpc.example.com",
+  mockGetRpcProvider.mockResolvedValue({
+    executeWithFailover: (fn: (provider: unknown) => unknown) =>
+      fn(new (class MockProvider {})()),
   });
 }
 
@@ -486,9 +487,11 @@ describe("batch-read-contract - uniform mode execution", () => {
     expect(result.error).toContain("Unknown network");
   });
 
-  it("fails when RPC config is not found", async () => {
+  it("fails when RPC provider resolution fails", async () => {
     mockGetChainIdFromNetwork.mockReturnValue(99_999);
-    mockResolveRpcConfig.mockResolvedValue(null);
+    mockGetRpcProvider.mockRejectedValue(
+      new Error("RPC config for chain 99999 not found or not enabled")
+    );
 
     const result = await expectFailure({
       inputMode: "uniform",
@@ -867,8 +870,9 @@ describe("batch-read-contract - mixed mode execution", () => {
       }
       throw new Error(`Unknown network: ${network}`);
     });
-    mockResolveRpcConfig.mockResolvedValue({
-      primaryRpcUrl: "https://rpc.example.com",
+    mockGetRpcProvider.mockResolvedValue({
+      executeWithFailover: (fn: (provider: unknown) => unknown) =>
+        fn(new (class MockProvider {})()),
     });
 
     // Ethereum batch (calls 0 and 2)
