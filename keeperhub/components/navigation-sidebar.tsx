@@ -250,6 +250,11 @@ function TagsPanel({
 
   return (
     <div className="flex flex-col gap-0.5">
+      {projectTags.length > 0 && (
+        <p className="px-2 pt-1 pb-1.5 font-medium text-muted-foreground text-xs uppercase tracking-wider">
+          Tags
+        </p>
+      )}
       {projectTags.map((tag) => {
         const isActive = tag.id === selectedTagId;
         return (
@@ -334,13 +339,131 @@ function WorkflowsPanel({
   );
 }
 
+function SidebarHeader({
+  expanded,
+  onToggle,
+  onNewWorkflow,
+}: {
+  expanded: boolean;
+  onToggle: () => void;
+  onNewWorkflow: () => void;
+}): React.ReactNode {
+  return (
+    <div
+      className={cn(
+        "flex items-center overflow-hidden border-b",
+        expanded ? "px-3 py-2" : "relative justify-center pr-0.5 pt-3 pb-2"
+      )}
+    >
+      <button
+        aria-label="New Workflow"
+        className={cn(
+          expanded
+            ? "group/new flex items-center gap-1.5 whitespace-nowrap rounded-md border border-keeperhub-green/20 bg-keeperhub-green/10 px-2 py-1 text-keeperhub-green text-sm font-medium transition-all duration-200 hover:border-keeperhub-green/40 hover:bg-keeperhub-green/15 hover:shadow-[0_0_8px_rgba(0,255,100,0.08)] active:scale-[0.97]"
+            : "z-20 flex items-center justify-center text-keeperhub-green transition-colors hover:text-keeperhub-green-dark"
+        )}
+        data-testid="nav-new"
+        onClick={onNewWorkflow}
+        type="button"
+      >
+        <Plus
+          className={cn(
+            expanded
+              ? "size-3.5 transition-transform duration-150 group-hover/new:rotate-90"
+              : "size-4"
+          )}
+        />
+        {expanded && <span>New Workflow</span>}
+      </button>
+      <button
+        aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
+        className={cn(
+          "shrink-0 transition-colors",
+          expanded
+            ? "ml-auto rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            : "absolute right-0.5 z-20 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+        )}
+        onClick={onToggle}
+        type="button"
+      >
+        {expanded ? (
+          <ChevronLeft className="size-4" />
+        ) : (
+          <ChevronRight className="size-3.5" />
+        )}
+      </button>
+    </div>
+  );
+}
+
+function NavItem({
+  item,
+  active,
+  showLabels,
+  onClick,
+}: {
+  item: { id: string; icon: typeof Plus; label: string; href: string | null };
+  active: boolean;
+  showLabels: boolean;
+  onClick: () => void;
+}): React.ReactNode {
+  const disabled = item.href === null && item.id !== "workflows";
+  const layoutClass = showLabels ? "gap-3 px-2" : "justify-center";
+
+  if (disabled) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            aria-label={item.label}
+            className={cn(
+              "flex h-9 w-full cursor-default items-center rounded-md text-muted-foreground transition-colors",
+              layoutClass
+            )}
+            data-testid={`nav-${item.id}`}
+            type="button"
+          >
+            <item.icon className="size-4 shrink-0" />
+            {showLabels && (
+              <span className="truncate text-sm">{item.label}</span>
+            )}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right">Coming Soon</TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  const button = (
+    <button
+      aria-label={item.label}
+      className={cn(
+        "flex h-9 w-full items-center rounded-md transition-colors hover:bg-muted",
+        layoutClass,
+        active && "bg-muted"
+      )}
+      data-testid={`nav-${item.id}`}
+      onClick={onClick}
+      type="button"
+    >
+      <item.icon className="size-4 shrink-0" />
+      {showLabels && <span className="truncate text-sm">{item.label}</span>}
+    </button>
+  );
+
+  if (showLabels) {
+    return button;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent side="right">{item.label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 const NAV_ITEMS = [
-  {
-    id: "new",
-    icon: Plus,
-    label: "New Workflow",
-    href: null as string | null,
-  },
   {
     id: "workflows",
     icon: List,
@@ -356,6 +479,7 @@ const NAV_ITEMS = [
   },
 ];
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: large component with many panel interactions, further extraction would hurt readability
 export function NavigationSidebar(): React.ReactNode {
   const isMobile = useIsMobile();
   const { data: session } = useSession();
@@ -473,6 +597,11 @@ export function NavigationSidebar(): React.ReactNode {
     navState.state.panels.tags !== "closed" ||
     navState.state.panels.workflows !== "closed";
 
+  const anyPanelExpanded =
+    navState.state.panels.projects === "open" ||
+    navState.state.panels.tags === "open" ||
+    navState.state.panels.workflows === "open";
+
   useEffect(() => {
     if (!anyPanelOpen) {
       return;
@@ -500,7 +629,7 @@ export function NavigationSidebar(): React.ReactNode {
     );
   }, [currentWidth]);
 
-  if (isMobile) {
+  if (isMobile || !navState.hasMounted) {
     return null;
   }
 
@@ -534,9 +663,6 @@ export function NavigationSidebar(): React.ReactNode {
   const offsets = computePanelOffsets(currentWidth, navState.state.panels);
 
   function isActive(id: string): boolean {
-    if (id === "new") {
-      return false;
-    }
     if (id === "workflows") {
       return navState.state.panels.projects !== "closed";
     }
@@ -600,12 +726,6 @@ export function NavigationSidebar(): React.ReactNode {
       }
       return;
     }
-    if (id === "new") {
-      handleNewWorkflow().catch(() => {
-        router.push("/");
-      });
-      return;
-    }
     navState.closeAll();
     if (href) {
       router.push(href);
@@ -644,73 +764,6 @@ export function NavigationSidebar(): React.ReactNode {
     navState.setPanelState("workflows", "open");
   }
 
-  function renderNavItem(item: {
-    id: string;
-    icon: typeof Plus;
-    label: string;
-    href: string | null;
-  }): React.ReactNode {
-    const disabled =
-      item.href === null && item.id !== "workflows" && item.id !== "new";
-    const layoutClass = showLabels ? "gap-3 px-2" : "justify-center";
-
-    if (disabled) {
-      return (
-        <Tooltip key={item.id}>
-          <TooltipTrigger asChild>
-            <button
-              aria-label={item.label}
-              className={cn(
-                "flex h-9 w-full cursor-default items-center rounded-md text-muted-foreground transition-colors",
-                layoutClass
-              )}
-              data-testid={`nav-${item.id}`}
-              key={item.id}
-              type="button"
-            >
-              <item.icon className="size-4 shrink-0" />
-              {showLabels && (
-                <span className="truncate text-sm">{item.label}</span>
-              )}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="right">Coming Soon</TooltipContent>
-        </Tooltip>
-      );
-    }
-
-    const active = isActive(item.id);
-
-    const button = (
-      <button
-        aria-label={item.label}
-        className={cn(
-          "flex h-9 w-full items-center rounded-md transition-colors hover:bg-muted",
-          layoutClass,
-          active && "bg-muted"
-        )}
-        data-testid={`nav-${item.id}`}
-        key={item.id}
-        onClick={() => handleNavClick(item.id, item.href)}
-        type="button"
-      >
-        <item.icon className="size-4 shrink-0" />
-        {showLabels && <span className="truncate text-sm">{item.label}</span>}
-      </button>
-    );
-
-    if (showLabels) {
-      return button;
-    }
-
-    return (
-      <Tooltip key={item.id}>
-        <TooltipTrigger asChild>{button}</TooltipTrigger>
-        <TooltipContent side="right">{item.label}</TooltipContent>
-      </Tooltip>
-    );
-  }
-
   const navItems = NAV_ITEMS.filter(
     (item) => item.id !== "analytics" || !isAnonymous
   );
@@ -725,12 +778,30 @@ export function NavigationSidebar(): React.ReactNode {
         ref={sidebarRef}
         style={{ width: currentWidth }}
       >
+        <SidebarHeader
+          expanded={expanded}
+          onNewWorkflow={() => {
+            handleNewWorkflow().catch(() => {
+              router.push("/");
+            });
+          }}
+          onToggle={() => setExpanded(!expanded)}
+        />
+
         <nav
           aria-label="Main navigation"
           className="flex flex-1 flex-col gap-1 overflow-hidden px-2.5 pt-3"
           data-testid="navigation-sidebar"
         >
-          {navItems.map(renderNavItem)}
+          {navItems.map((item) => (
+            <NavItem
+              active={isActive(item.id)}
+              item={item}
+              key={item.id}
+              onClick={() => handleNavClick(item.id, item.href)}
+              showLabels={showLabels}
+            />
+          ))}
         </nav>
 
         {/* Resize handle */}
@@ -743,31 +814,16 @@ export function NavigationSidebar(): React.ReactNode {
           role="separator"
           tabIndex={0}
         >
-          <div className="absolute inset-y-0 right-0 w-px bg-border transition-colors group-hover:w-1 group-hover:bg-blue-500 group-active:w-1 group-active:bg-blue-600" />
-          {dragWidth === null && (
-            <button
-              aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
-              className="-translate-y-1/2 absolute top-1/2 right-0 flex size-6 translate-x-1/2 items-center justify-center rounded-full border bg-background opacity-0 shadow-sm transition-opacity hover:bg-muted group-hover:opacity-100"
-              onClick={(e) => {
-                e.stopPropagation();
-                setExpanded(!expanded);
-              }}
-              onMouseDown={(e) => e.stopPropagation()}
-              type="button"
-            >
-              {expanded ? (
-                <ChevronLeft className="size-4" />
-              ) : (
-                <ChevronRight className="size-4" />
-              )}
-            </button>
-          )}
+          <div className="absolute inset-y-0 right-0 w-px bg-border" />
         </div>
       </div>
 
       {/* Panel 1: Projects */}
       <FlyoutPanel
-        collapsedLabel="Projects"
+        accentColor={selectedProject?.color ?? undefined}
+        collapsedLabel={
+          selectedProject ? `Projects - ${selectedProject.name}` : "Projects"
+        }
         leftOffset={offsets.projects}
         onCollapse={() => navState.setPanelState("projects", "collapsed")}
         onExpand={() => navState.setPanelState("projects", "open")}
@@ -788,7 +844,7 @@ export function NavigationSidebar(): React.ReactNode {
 
       {/* Panel 2: Tags */}
       <FlyoutPanel
-        collapsedLabel={selectedProject?.name}
+        collapsedLabel={selectedTag ? `Tags - ${selectedTag.name}` : "Tags"}
         leftOffset={offsets.tags}
         onCollapse={() => navState.setPanelState("tags", "collapsed")}
         onExpand={() => navState.setPanelState("tags", "open")}
@@ -807,7 +863,10 @@ export function NavigationSidebar(): React.ReactNode {
 
       {/* Panel 3: Workflows */}
       <FlyoutPanel
-        collapsedLabel={selectedTag?.name}
+        collapsedLabel={(() => {
+          const wf = tagWorkflows.find((w) => w.id === workflowId);
+          return wf ? `Workflows - ${wf.name}` : "Workflows";
+        })()}
         leftOffset={offsets.workflows}
         onCollapse={() => navState.setPanelState("workflows", "collapsed")}
         onExpand={() => navState.setPanelState("workflows", "open")}
@@ -821,21 +880,23 @@ export function NavigationSidebar(): React.ReactNode {
         />
       </FlyoutPanel>
 
-      {/* Close-all button outside the rightmost panel */}
+      {/* Fold/Close button outside the rightmost panel */}
       {anyPanelOpen && (
         <Tooltip>
           <TooltipTrigger asChild>
             <button
-              className="pointer-events-auto fixed top-[68px] z-40 flex size-6 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm transition-[left] duration-200 ease-out hover:bg-muted hover:text-foreground"
+              className="pointer-events-auto fixed top-[62px] z-40 rounded-md p-1.5 text-muted-foreground transition-[left,colors] duration-200 ease-out hover:bg-muted hover:text-foreground"
               data-flyout
-              onClick={navState.closeAll}
-              style={{ left: offsets.rightEdge + 6 }}
+              onClick={anyPanelExpanded ? navState.foldAll : navState.closeAll}
+              style={{ left: offsets.rightEdge + 4 }}
               type="button"
             >
-              <X className="size-3.5" />
+              <X className="size-4" />
             </button>
           </TooltipTrigger>
-          <TooltipContent side="right">Close menu</TooltipContent>
+          <TooltipContent side="right">
+            {anyPanelExpanded ? "Fold menu" : "Close menu"}
+          </TooltipContent>
         </Tooltip>
       )}
     </>

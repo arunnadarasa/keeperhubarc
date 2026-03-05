@@ -149,6 +149,12 @@ const SEED_PROJECTS = [
   { name: "Trading Bots", color: "#7B61FF" },
 ] as const;
 
+const SEED_TAGS = [
+  { name: "Production", color: "#22C55E" },
+  { name: "Alerts", color: "#F59E0B" },
+  { name: "DeFi", color: "#8B5CF6" },
+] as const;
+
 async function ensureSeedProjects(
   sql: Db,
   userId: string,
@@ -181,16 +187,49 @@ async function ensureSeedProjects(
   return projectIds;
 }
 
+async function ensureSeedTags(
+  sql: Db,
+  userId: string,
+  orgId: string
+): Promise<string[]> {
+  const tagIds: string[] = [];
+  const now = new Date();
+
+  for (const tag of SEED_TAGS) {
+    const existing = await sql`
+      SELECT id FROM tags
+      WHERE organization_id = ${orgId} AND name = ${tag.name}
+      LIMIT 1
+    `;
+    if (existing.length > 0) {
+      tagIds.push(existing[0].id as string);
+      console.log(`  Tag already exists: ${tag.name} (${existing[0].id})`);
+    } else {
+      const id = generateId();
+      await sql.unsafe(
+        `INSERT INTO tags (id, name, color, organization_id, user_id, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [id, tag.name, tag.color, orgId, userId, now, now]
+      );
+      tagIds.push(id);
+      console.log(`  Created tag: ${tag.name} (${id})`);
+    }
+  }
+
+  return tagIds;
+}
+
 async function createSeedWorkflows(
   sql: Db,
   userId: string,
   orgId: string,
-  projectIds: string[]
+  projectIds: string[],
+  tagIds: string[]
 ): Promise<string[]> {
   const seedWorkflows = [
-    { name: `${SEED_PREFIX} USDC Monitor`, projectId: projectIds[0] },
-    { name: `${SEED_PREFIX} ETH Price Alert`, projectId: projectIds[0] },
-    { name: `${SEED_PREFIX} LP Rebalancer`, projectId: projectIds[1] },
+    { name: `${SEED_PREFIX} USDC Monitor`, projectId: projectIds[0], tagId: tagIds[0] },
+    { name: `${SEED_PREFIX} ETH Price Alert`, projectId: projectIds[0], tagId: tagIds[1] },
+    { name: `${SEED_PREFIX} LP Rebalancer`, projectId: projectIds[1], tagId: tagIds[2] },
   ];
 
   const workflowIds: string[] = [];
@@ -233,11 +272,11 @@ async function createSeedWorkflows(
     await sql.unsafe(
       `INSERT INTO workflows (
         id, name, description, user_id, organization_id, is_anonymous,
-        nodes, edges, visibility, enabled, created_at, updated_at, project_id
+        nodes, edges, visibility, enabled, created_at, updated_at, project_id, tag_id
       ) VALUES (
-        $1, $2, $3, $4, $5, false, $6::jsonb, $7::jsonb, 'private', true, $8, $9, $10
+        $1, $2, $3, $4, $5, false, $6::jsonb, $7::jsonb, 'private', true, $8, $9, $10, $11
       )`,
-      [id, wf.name, "Seeded for analytics testing", userId, orgId, nodes, edges, now, now, wf.projectId ?? null]
+      [id, wf.name, "Seeded for analytics testing", userId, orgId, nodes, edges, now, now, wf.projectId ?? null, wf.tagId ?? null]
     );
 
     workflowIds.push(id);
@@ -555,7 +594,8 @@ async function seedAnalyticsData(): Promise<void> {
     console.log("Seeding analytics data...");
 
     const projectIds = await ensureSeedProjects(sql, userId, orgId);
-    const workflowIds = await createSeedWorkflows(sql, userId, orgId, projectIds);
+    const tagIds = await ensureSeedTags(sql, userId, orgId);
+    const workflowIds = await createSeedWorkflows(sql, userId, orgId, projectIds, tagIds);
     await createWorkflowExecutions(sql, userId, workflowIds);
     await createDirectExecutions(sql, orgId);
     await createSpendCap(sql, orgId);
