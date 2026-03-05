@@ -309,7 +309,7 @@ export const workflowExecutionLogs = pgTable("workflow_execution_logs", {
   nodeType: text("node_type").notNull(),
   status: text("status")
     .notNull()
-    .$type<"pending" | "running" | "success" | "error">(),
+    .$type<"pending" | "running" | "success" | "error" | "cancelled">(),
   // biome-ignore lint/suspicious/noExplicitAny: JSONB type - structure validated at application level
   input: jsonb("input").$type<any>(),
   // biome-ignore lint/suspicious/noExplicitAny: JSONB type - structure validated at application level

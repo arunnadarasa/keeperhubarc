@@ -12,7 +12,7 @@ import { workflowExecutionLogs, workflowExecutions } from "@/lib/db/schema";
 
 type NodeStatus = {
   nodeId: string;
-  status: "pending" | "running" | "success" | "error";
+  status: "pending" | "running" | "success" | "error" | "cancelled";
 };
 
 export async function GET(

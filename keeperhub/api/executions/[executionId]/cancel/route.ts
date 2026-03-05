@@ -88,7 +88,7 @@ export async function POST(
     await db
       .update(workflowExecutionLogs)
       .set({
-        status: "error",
+        status: "cancelled",
         error: "Cancelled by user",
         completedAt: now,
       })
