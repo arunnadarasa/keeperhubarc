@@ -841,7 +841,7 @@ const WorkflowEditor = ({ params }: WorkflowPageProps) => {
       {/* Expand button when panel is collapsed - only show if trigger exists */}
       {!isMobile && hasTriggerNode && panelCollapsed && (
         <button
-          className="-translate-y-1/2 pointer-events-auto absolute top-1/2 right-0 z-20 flex size-6 items-center justify-center rounded-l-full border border-r-0 bg-background shadow-sm transition-colors hover:bg-muted"
+          className="pointer-events-auto absolute top-[calc(60px+0.75rem)] right-0 z-20 flex size-6 items-center justify-center rounded-l-full border border-r-0 bg-background text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground"
           onClick={() => {
             setIsPanelAnimating(true);
             setPanelCollapsed(false);
@@ -875,12 +875,10 @@ const WorkflowEditor = ({ params }: WorkflowPageProps) => {
             role="separator"
             tabIndex={0}
           >
-            {/* Hover indicator */}
-            <div className="absolute inset-y-0 left-0 w-1 bg-transparent transition-colors group-hover:bg-blue-500 group-active:bg-blue-600" />
-            {/* Collapse button - hidden while resizing */}
+            <div className="absolute inset-y-0 left-0 w-px bg-border" />
             {!(isDraggingResize || panelCollapsed) && (
               <button
-                className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-0 flex size-6 items-center justify-center rounded-full border bg-background opacity-0 shadow-sm transition-opacity hover:bg-muted group-hover:opacity-100"
+                className="-translate-x-1/2 absolute top-3 left-0 flex size-6 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground"
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsPanelAnimating(true);
@@ -890,7 +888,7 @@ const WorkflowEditor = ({ params }: WorkflowPageProps) => {
                 onMouseDown={(e) => e.stopPropagation()}
                 type="button"
               >
-                <ChevronRight className="size-4" />
+                <ChevronRight className="size-3.5" />
               </button>
             )}
           </div>
