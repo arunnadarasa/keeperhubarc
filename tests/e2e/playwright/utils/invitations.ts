@@ -56,6 +56,7 @@ async function getInvitationIdViaApi(
 ): Promise<string> {
   const url = `${baseUrl}/api/admin/test/invitation?email=${encodeURIComponent(email)}`;
 
+  const baseDelay = 500;
   for (let i = 0; i < maxRetries; i++) {
     const response = await fetch(url, { headers: getAdminFetchHeaders() });
     if (response.ok) {
@@ -68,7 +69,8 @@ async function getInvitationIdViaApi(
         `Admin invitation API returned ${response.status}: ${body}`
       );
     }
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    const delay = Math.min(baseDelay * 2 ** i, 4000);
+    await new Promise((resolve) => setTimeout(resolve, delay));
   }
   throw new Error(
     `No invitation found for ${email} after ${maxRetries} retries via API`
