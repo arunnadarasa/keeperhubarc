@@ -8,10 +8,18 @@
  * then causes finalSuccess to be false -- marking the entire workflow as
  * "error" despite all steps completing successfully.
  *
- * Fix: after all nodes finish, cross-reference failed results that have
- * "max retries exceeded" errors against the in-memory success tracker.
- * If a failed node has a recorded success in the tracker, the SDK error
- * was spurious and we override the result to success.
+ * Fix: after all nodes finish, cross-reference failed results against the
+ * in-memory success tracker. If a failed node has a recorded success in the
+ * tracker, the SDK error was spurious and we override the result to success.
+ *
+ * Two reconciliation passes:
+ *   1. reconcileMaxRetriesFailures - targets "exceeded max retries" errors
+ *      specifically (original KEEP-1541 fix)
+ *   2. reconcileSdkFailures - catches ANY remaining failed node whose step
+ *      was recorded as successful by withStepLogging. This covers SDK errors
+ *      that surface with different messages in branching/parallel workflows
+ *      (e.g., event log corruption, unexpected event types, state replay
+ *      mismatches during condition node branching).
  */
 
 type ExecutionResult = {
@@ -63,6 +71,51 @@ export function reconcileMaxRetriesFailures(
       const successOutput = successfulSteps.get(failedNodeId);
       console.warn(
         "[Workflow Executor] Overriding spurious max-retries failure for node with tracked success:",
+        {
+          error: results[failedNodeId]?.error,
+          ...(workflowId ? { workflow_id: workflowId } : {}),
+          ...(executionId ? { execution_id: executionId } : {}),
+          node_id: failedNodeId,
+        }
+      );
+      results[failedNodeId] = {
+        success: true,
+        data: successOutput,
+      };
+      overriddenNodeIds.push(failedNodeId);
+    }
+  }
+
+  return { overriddenNodeIds };
+}
+
+/**
+ * General SDK error reconciliation: any node that failed in results but was
+ * recorded as successful by withStepLogging must have encountered a post-
+ * completion SDK error (state replay mismatch, event log conflict, etc.).
+ * Override these to success using the tracked output.
+ *
+ * This runs AFTER reconcileMaxRetriesFailures to catch SDK errors with
+ * different/unexpected error messages.
+ */
+export function reconcileSdkFailures(input: ReconcileInput): ReconcileOutput {
+  const { results, successfulSteps, workflowId, executionId } = input;
+
+  const failedNodeIds = Object.entries(results)
+    .filter(([, r]) => !r.success)
+    .map(([nodeId]) => nodeId);
+
+  if (failedNodeIds.length === 0) {
+    return { overriddenNodeIds: [] };
+  }
+
+  const overriddenNodeIds: string[] = [];
+
+  for (const failedNodeId of failedNodeIds) {
+    if (successfulSteps.has(failedNodeId)) {
+      const successOutput = successfulSteps.get(failedNodeId);
+      console.warn(
+        "[Workflow Executor] Overriding SDK-induced failure for node with tracked success:",
         {
           error: results[failedNodeId]?.error,
           ...(workflowId ? { workflow_id: workflowId } : {}),

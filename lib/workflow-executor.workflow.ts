@@ -31,6 +31,7 @@ import { fallbackCompleteExecution } from "@/keeperhub/lib/execution-fallback";
 import {
   getFailedMaxRetriesNodeIds,
   reconcileMaxRetriesFailures,
+  reconcileSdkFailures,
 } from "@/keeperhub/lib/max-retries-reconciler";
 import {
   clearExecution,
@@ -2015,16 +2016,21 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     await Promise.all(triggerNodes.map((trigger) => executeNode(trigger.id)));
 
     // start custom keeperhub code //
-    // KEEP-1541: Reconcile spurious "max retries exceeded" failures.
-    // See max-retries-reconciler.ts for details. Uses in-memory tracker
-    // populated by withStepLogging (step-handler.ts).
+    // KEEP-1541: Reconcile spurious SDK failures.
+    // The Workflow DevKit's durability layer can throw errors (e.g. "exceeded
+    // max retries", event log corruption, state replay mismatches) AFTER
+    // withStepLogging has already recorded a success. Two passes:
+    //   1. reconcileMaxRetriesFailures - targets known "max retries" errors
+    //   2. reconcileSdkFailures - catches any remaining SDK-induced failures
+    // See max-retries-reconciler.ts for details.
     if (executionId) {
-      const failedNodeIds = getFailedMaxRetriesNodeIds(results);
+      const successfulSteps = getSuccessfulSteps(executionId);
 
-      if (failedNodeIds.length > 0) {
-        const successfulSteps = getSuccessfulSteps(executionId);
+      if (successfulSteps) {
+        // Pass 1: targeted max-retries reconciliation
+        const failedNodeIds = getFailedMaxRetriesNodeIds(results);
 
-        if (successfulSteps) {
+        if (failedNodeIds.length > 0) {
           const { overriddenNodeIds } = reconcileMaxRetriesFailures({
             results,
             successfulSteps,
@@ -2039,8 +2045,22 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             );
           }
         }
-      }
 
+        // Pass 2: general SDK error reconciliation for remaining failures
+        const { overriddenNodeIds: sdkOverrides } = reconcileSdkFailures({
+          results,
+          successfulSteps,
+          workflowId,
+          executionId,
+        });
+
+        if (sdkOverrides.length > 0) {
+          console.warn(
+            "[Workflow Executor] Reconciled SDK-induced failures:",
+            sdkOverrides
+          );
+        }
+      }
     }
 
     // Branch-aware finalSuccess: exclude nodes on dead (not-taken) condition branches
