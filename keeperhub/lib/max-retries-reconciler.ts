@@ -9,23 +9,10 @@
  * "error" despite all steps completing successfully.
  *
  * Fix: after all nodes finish, cross-reference failed results that have
- * "max retries exceeded" errors against the actual execution logs in the DB.
- * If every log entry for that node is status: "success" (no error logs at
- * all), the SDK error was spurious and we override the result to success.
- * If there is ANY error log for the node, we keep the failure -- this
- * prevents masking real failures where a retry legitimately failed.
- *
- * Architecture: the workflow executor (.workflow.ts) cannot import DB modules
- * (the bundler rejects Node.js modules like nanoid). It fetches logs via HTTP
- * loopback to /api/internal/execution-logs (same pattern as execution-fallback.ts).
- * This module contains only pure reconciliation logic used by tests.
+ * "max retries exceeded" errors against the in-memory success tracker.
+ * If a failed node has a recorded success in the tracker, the SDK error
+ * was spurious and we override the result to success.
  */
-
-export type ExecutionLog = {
-  nodeId: string;
-  status: string;
-  output: unknown;
-};
 
 type ExecutionResult = {
   success: boolean;
@@ -35,7 +22,7 @@ type ExecutionResult = {
 
 type ReconcileInput = {
   results: Record<string, ExecutionResult>;
-  executionLogs: ExecutionLog[];
+  successfulSteps: Map<string, unknown>;
   workflowId: string | undefined;
   executionId: string | undefined;
 };
@@ -55,7 +42,7 @@ export function getFailedMaxRetriesNodeIds(
 export function reconcileMaxRetriesFailures(
   input: ReconcileInput
 ): ReconcileOutput {
-  const { results, executionLogs, workflowId, executionId } = input;
+  const { results, successfulSteps, workflowId, executionId } = input;
 
   const failedNodeIds = getFailedMaxRetriesNodeIds(results);
 
@@ -66,13 +53,10 @@ export function reconcileMaxRetriesFailures(
   const overriddenNodeIds: string[] = [];
 
   for (const failedNodeId of failedNodeIds) {
-    const nodeLogs = executionLogs.filter((l) => l.nodeId === failedNodeId);
-    const hasAnyErrorLog = nodeLogs.some((l) => l.status === "error");
-    const successLog = nodeLogs.find((l) => l.status === "success");
-
-    if (successLog && !hasAnyErrorLog) {
+    if (successfulSteps.has(failedNodeId)) {
+      const successOutput = successfulSteps.get(failedNodeId);
       console.warn(
-        "[Workflow Executor] Overriding spurious max-retries failure for node with all-success logs:",
+        "[Workflow Executor] Overriding spurious max-retries failure for node with tracked success:",
         {
           error: results[failedNodeId]?.error,
           ...(workflowId ? { workflow_id: workflowId } : {}),
@@ -82,7 +66,7 @@ export function reconcileMaxRetriesFailures(
       );
       results[failedNodeId] = {
         success: true,
-        data: successLog.output,
+        data: successOutput,
       };
       overriddenNodeIds.push(failedNodeId);
     }

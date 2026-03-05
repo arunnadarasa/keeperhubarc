@@ -23,7 +23,7 @@ import { isAnonymousUser } from "@/keeperhub/lib/is-anonymous";
 import { registerSidebarRefetch } from "@/keeperhub/lib/refetch-sidebar";
 import type { Project, SavedWorkflow, Tag } from "@/lib/api-client";
 import { api } from "@/lib/api-client";
-import { useSession } from "@/lib/auth-client";
+import { authClient, useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import type { NavPanelStates } from "../lib/hooks/use-persisted-nav-state";
 import { usePersistedNavState } from "../lib/hooks/use-persisted-nav-state";
@@ -206,6 +206,11 @@ function ProjectsPanel({
           ))}
         </>
       )}
+      {isAnonymous && hasAny && (
+        <p className="mt-2 border-t px-2 pt-2 text-center text-muted-foreground/70 text-xs">
+          Sign in to create more
+        </p>
+      )}
     </div>
   );
 }
@@ -334,7 +339,7 @@ const NAV_ITEMS = [
     id: "new",
     icon: Plus,
     label: "New Workflow",
-    href: "/" as string | null,
+    href: null as string | null,
   },
   {
     id: "workflows",
@@ -530,7 +535,7 @@ export function NavigationSidebar(): React.ReactNode {
 
   function isActive(id: string): boolean {
     if (id === "new") {
-      return !(workflowId || isHubPage || isAnalyticsPage);
+      return false;
     }
     if (id === "workflows") {
       return navState.state.panels.projects !== "closed";
@@ -544,6 +549,48 @@ export function NavigationSidebar(): React.ReactNode {
     return false;
   }
 
+  async function handleNewWorkflow(): Promise<void> {
+    if (isAnonymous) {
+      if (!session) {
+        await authClient.signIn.anonymous();
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      const existing = await api.workflow
+        .getAll()
+        .catch(() => [] as SavedWorkflow[]);
+      const visible = existing.filter((w) => w.name !== "__current__");
+      if (visible.length > 0) {
+        const latest = visible.sort(
+          (a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        )[0];
+        router.push(`/workflows/${latest.id}`);
+        return;
+      }
+      const newWorkflow = await api.workflow.create({
+        name: "Untitled Workflow",
+        description: "",
+        nodes: [],
+        edges: [],
+      });
+      await fetchData();
+      navState.setPanelState("projects", "open");
+      sessionStorage.setItem("animate-sidebar", "true");
+      router.push(`/workflows/${newWorkflow.id}`);
+      return;
+    }
+    const newWorkflow = await api.workflow.create({
+      name: "Untitled Workflow",
+      description: "",
+      nodes: [],
+      edges: [],
+    });
+    await fetchData();
+    navState.setPanelState("projects", "open");
+    sessionStorage.setItem("animate-sidebar", "true");
+    router.push(`/workflows/${newWorkflow.id}`);
+  }
+
   function handleNavClick(id: string, href: string | null): void {
     if (id === "workflows") {
       if (navState.state.panels.projects !== "closed") {
@@ -551,6 +598,12 @@ export function NavigationSidebar(): React.ReactNode {
       } else {
         navState.setPanelState("projects", "open");
       }
+      return;
+    }
+    if (id === "new") {
+      handleNewWorkflow().catch(() => {
+        router.push("/");
+      });
       return;
     }
     navState.closeAll();
@@ -597,7 +650,8 @@ export function NavigationSidebar(): React.ReactNode {
     label: string;
     href: string | null;
   }): React.ReactNode {
-    const disabled = item.href === null && item.id !== "workflows";
+    const disabled =
+      item.href === null && item.id !== "workflows" && item.id !== "new";
     const layoutClass = showLabels ? "gap-3 px-2" : "justify-center";
 
     if (disabled) {
@@ -658,7 +712,7 @@ export function NavigationSidebar(): React.ReactNode {
   }
 
   const navItems = NAV_ITEMS.filter(
-    (item) => item.id !== "analytics" || session
+    (item) => item.id !== "analytics" || !isAnonymous
   );
 
   return (

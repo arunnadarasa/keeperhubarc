@@ -7,6 +7,7 @@ import "server-only";
 
 // start custom keeperhub code //
 import { recordStepMetrics } from "@/keeperhub/lib/metrics/instrumentation/workflow";
+import { recordStepSuccess } from "@/keeperhub/lib/step-success-tracker";
 import { redactSensitiveData } from "../utils/redact";
 import {
   incrementCompletedSteps,
@@ -228,6 +229,10 @@ export async function withStepLogging<TInput extends StepInput, TOutput>(
       await logStepComplete(logInfo, "success", result);
 
       // start custom keeperhub code //
+      if (context?.executionId && context.nodeId) {
+        recordStepSuccess(context.executionId, context.nodeId, result);
+      }
+
       recordStepMetrics({
         executionId: context?.executionId,
         nodeId: context?.nodeId || "",

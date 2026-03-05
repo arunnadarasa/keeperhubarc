@@ -122,11 +122,15 @@ export const autosaveAtom = atom(
 
     const saveFunc = async () => {
       try {
+        set(isSavingAtom, true);
         await api.workflow.update(workflowId, { nodes, edges });
         // Clear the unsaved changes indicator after successful save
         set(hasUnsavedChangesAtom, false);
       } catch (error) {
         console.warn("Autosave failed:", error);
+      } finally {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        set(isSavingAtom, false);
       }
     };
 
