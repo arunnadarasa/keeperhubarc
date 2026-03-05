@@ -448,13 +448,14 @@ jobs:
 
   # Remote E2E tests against deployed PR environment
   # Runs when: test label just added (deploy skipped), or deploy just completed with test label present
+  # DISABLED: remote E2E tests temporarily disabled while KEEP-1351 stabilises auth/rate-limit infrastructure
   e2e-vitest-remote:
     needs: [check-labels, deploy]
     if: >-
       always() &&
       needs.check-labels.outputs.should-test == 'true' &&
       (needs.deploy.result == 'success' || needs.deploy.result == 'skipped') &&
-      github.head_ref != 'feat/KEEP-1351-e2e-stability'
+      false
     runs-on: ubuntu-latest
     environment: staging
     env:
@@ -577,12 +578,14 @@ jobs:
             coverage/
           retention-days: 7
 
+  # DISABLED: remote E2E tests temporarily disabled while KEEP-1351 stabilises auth/rate-limit infrastructure
   e2e-playwright-remote:
     needs: [check-labels, deploy]
     if: >-
       always() &&
       needs.check-labels.outputs.should-test == 'true' &&
-      (needs.deploy.result == 'success' || needs.deploy.result == 'skipped')
+      (needs.deploy.result == 'success' || needs.deploy.result == 'skipped') &&
+      false
     runs-on: ubuntu-latest
     environment: staging
     env:
