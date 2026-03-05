@@ -14,6 +14,7 @@ import {
   Redo2,
   Save,
   Settings2,
+  Square,
   Trash2,
   Undo2,
 } from "lucide-react";
@@ -49,6 +50,7 @@ import {
   canRedoAtom,
   canUndoAtom,
   clearWorkflowAtom,
+  currentExecutionIdAtom,
   currentWorkflowIdAtom,
   currentWorkflowNameAtom,
   currentWorkflowPublicTagsAtom,
@@ -65,6 +67,7 @@ import {
   nodesAtom,
   propertiesPanelActiveTabAtom,
   redoAtom,
+  runsRefreshTriggerAtom,
   selectedEdgeAtom,
   selectedExecutionIdAtom,
   selectedNodeAtom,
@@ -428,6 +431,10 @@ type ExecuteTestWorkflowParams = {
   pollingIntervalRef: React.MutableRefObject<NodeJS.Timeout | null>;
   setIsExecuting: (value: boolean) => void;
   setSelectedExecutionId: (value: string | null) => void;
+  setCurrentExecutionId: (value: string | null) => void;
+  // start custom keeperhub code //
+  onExecutionStarted?: () => void;
+  // end keeperhub code //
 };
 
 async function executeTestWorkflow({
@@ -437,6 +444,10 @@ async function executeTestWorkflow({
   pollingIntervalRef,
   setIsExecuting,
   setSelectedExecutionId,
+  setCurrentExecutionId,
+  // start custom keeperhub code //
+  onExecutionStarted,
+  // end keeperhub code //
 }: ExecuteTestWorkflowParams) {
   // Set all nodes to idle first
   updateNodesStatus(nodes, updateNodeData, "idle");
@@ -464,15 +475,31 @@ async function executeTestWorkflow({
 
     const result = await response.json();
 
-    // Select the new execution
+    // Select the new execution and track its ID for cancel support
     setSelectedExecutionId(result.executionId);
+    setCurrentExecutionId(result.executionId);
+
+    // start custom keeperhub code //
+    // Signal the Runs panel to refresh immediately
+    onExecutionStarted?.();
+    // end keeperhub code //
 
     // Poll for execution status updates
     const pollInterval = setInterval(async () => {
+      // Skip if polling was cancelled (e.g. user clicked Stop)
+      if (!pollingIntervalRef.current) {
+        return;
+      }
+
       try {
         const statusData = await api.workflow.getExecutionStatus(
           result.executionId
         );
+
+        // Skip update if cancelled while fetch was in-flight
+        if (!pollingIntervalRef.current) {
+          return;
+        }
 
         // Update node statuses based on the execution logs
         for (const nodeStatus of statusData.nodeStatuses) {
@@ -496,9 +523,14 @@ async function executeTestWorkflow({
           }
 
           setIsExecuting(false);
+          setCurrentExecutionId(null);
 
-          // Don't reset node statuses - let them show the final state
-          // The user can click another run or deselect to reset
+          // start custom keeperhub code //
+          // Reset nodes to idle when cancelled (steps may show stale "success" from runtime)
+          if (statusData.status === "cancelled") {
+            updateNodesStatus(nodes, updateNodeData, "idle");
+          }
+          // end keeperhub code //
         }
       } catch (error) {
         console.error("Failed to poll execution status:", error);
@@ -513,6 +545,7 @@ async function executeTestWorkflow({
     );
     updateNodesStatus(nodes, updateNodeData, "error");
     setIsExecuting(false);
+    setCurrentExecutionId(null);
   }
 }
 
@@ -534,6 +567,8 @@ type WorkflowHandlerParams = {
   setEdges: (edges: WorkflowEdge[]) => void;
   setSelectedNodeId: (id: string | null) => void;
   setSelectedExecutionId: (id: string | null) => void;
+  currentExecutionId: string | null;
+  setCurrentExecutionId: (id: string | null) => void;
   userIntegrations: Array<{ id: string; type: IntegrationType }>;
 };
 
@@ -551,10 +586,15 @@ function useWorkflowHandlers({
   setEdges,
   setSelectedNodeId,
   setSelectedExecutionId,
+  currentExecutionId,
+  setCurrentExecutionId,
   userIntegrations,
 }: WorkflowHandlerParams) {
   const { open: openOverlay } = useOverlay();
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // start custom keeperhub code //
+  const setRunsRefreshTrigger = useSetAtom(runsRefreshTriggerAtom);
+  // end keeperhub code //
 
   // Cleanup polling interval on unmount
   useEffect(
@@ -605,8 +645,37 @@ function useWorkflowHandlers({
       pollingIntervalRef,
       setIsExecuting,
       setSelectedExecutionId,
+      setCurrentExecutionId,
+      // start custom keeperhub code //
+      onExecutionStarted: () => setRunsRefreshTrigger((c) => c + 1),
+      // end keeperhub code //
     });
     // Don't set executing to false here - let polling handle it
+  };
+
+  const handleCancel = async (): Promise<void> => {
+    // Best-effort cancel via API (may fail if execution already completed)
+    if (currentExecutionId) {
+      try {
+        await api.workflow.cancelExecution(currentExecutionId);
+      } catch {
+        // Execution may have already completed
+      }
+    }
+
+    // Stop polling
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
+    setIsExecuting(false);
+    setCurrentExecutionId(null);
+
+    // Reset all node statuses to idle
+    updateNodesStatus(nodes, updateNodeData, "idle");
+
+    toast.success("Workflow execution cancelled");
   };
 
   const handleGoToStep = (nodeId: string, fieldKey?: string) => {
@@ -687,6 +756,7 @@ function useWorkflowHandlers({
   return {
     handleSave,
     handleExecute,
+    handleCancel,
     validateAndProceed,
     handleGoToStep,
   };
@@ -727,6 +797,9 @@ function useWorkflowState() {
   const setSelectedExecutionId = useSetAtom(selectedExecutionIdAtom);
   const userIntegrations = useAtomValue(integrationsAtom);
   const [triggerExecute, setTriggerExecute] = useAtom(triggerExecuteAtom);
+  const [currentExecutionId, setCurrentExecutionId] = useAtom(
+    currentExecutionIdAtom
+  );
 
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
@@ -811,6 +884,8 @@ function useWorkflowState() {
     userIntegrations,
     triggerExecute,
     setTriggerExecute,
+    currentExecutionId,
+    setCurrentExecutionId,
     isEnabled,
     setIsEnabled,
   };
@@ -844,6 +919,8 @@ function useWorkflowActions(state: ReturnType<typeof useWorkflowState>) {
     setEdges,
     setSelectedNodeId,
     setSelectedExecutionId,
+    currentExecutionId,
+    setCurrentExecutionId,
     userIntegrations,
     triggerExecute,
     setTriggerExecute,
@@ -851,8 +928,8 @@ function useWorkflowActions(state: ReturnType<typeof useWorkflowState>) {
     session,
   } = state;
 
-  const { handleSave, handleExecute, validateAndProceed } = useWorkflowHandlers(
-    {
+  const { handleSave, handleExecute, handleCancel, validateAndProceed } =
+    useWorkflowHandlers({
       currentWorkflowId,
       nodes,
       edges,
@@ -866,9 +943,10 @@ function useWorkflowActions(state: ReturnType<typeof useWorkflowState>) {
       setEdges,
       setSelectedNodeId,
       setSelectedExecutionId,
+      currentExecutionId,
+      setCurrentExecutionId,
       userIntegrations,
-    }
-  );
+    });
 
   // Listen for execute trigger from keyboard shortcut
   useEffect(() => {
@@ -1116,6 +1194,7 @@ function useWorkflowActions(state: ReturnType<typeof useWorkflowState>) {
   return {
     handleSave,
     handleExecute,
+    handleCancel,
     handleClearWorkflow,
     handleDeleteWorkflow,
     handleDownload,
@@ -1506,6 +1585,21 @@ function RunButtonGroup({
     isNonManualTrigger;
   // end keeperhub code //
 
+  // Show Stop button while executing
+  if (state.isExecuting) {
+    return (
+      <Button
+        className="min-w-20 bg-destructive text-white hover:bg-destructive/90"
+        onClick={() => actions.handleCancel()}
+        title="Stop Execution"
+      >
+        <div className="flex items-center gap-2">
+          <Square className="size-3.5 fill-current" /> Stop
+        </div>
+      </Button>
+    );
+  }
+
   const button = (
     <Button
       className="min-w-20 bg-keeperhub-green hover:bg-keeperhub-green-dark disabled:opacity-70 disabled:[&>svg]:text-muted-foreground"
@@ -1513,13 +1607,9 @@ function RunButtonGroup({
       onClick={() => actions.handleExecute()}
       title="Run Workflow"
     >
-      {state.isExecuting ? (
-        <Loader2 className="size-4 animate-spin" />
-      ) : (
-        <div className="flex items-center gap-2">
-          <Play className="size-4" /> Run
-        </div>
-      )}
+      <div className="flex items-center gap-2">
+        <Play className="size-4" /> Run
+      </div>
     </Button>
   );
 

@@ -1,5 +1,5 @@
 // start custom keeperhub code //
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import { authenticateInternalService } from "@/keeperhub/lib/internal-service-auth";
@@ -35,14 +35,19 @@ export async function PATCH(
 
   const typedStatus = status as ExecutionStatus;
 
-  // Check execution exists
+  // Check execution exists and is not already cancelled
   const existing = await db.query.workflowExecutions.findFirst({
     where: eq(workflowExecutions.id, executionId),
-    columns: { id: true },
+    columns: { id: true, status: true },
   });
 
   if (!existing) {
     return NextResponse.json({ error: "Execution not found" }, { status: 404 });
+  }
+
+  // Don't overwrite cancelled status (user already stopped this execution)
+  if (existing.status === "cancelled") {
+    return NextResponse.json({ success: true });
   }
 
   // Build update payload
@@ -62,7 +67,12 @@ export async function PATCH(
   await db
     .update(workflowExecutions)
     .set(updateData)
-    .where(eq(workflowExecutions.id, executionId));
+    .where(
+      and(
+        eq(workflowExecutions.id, executionId),
+        ne(workflowExecutions.status, "cancelled")
+      )
+    );
 
   return NextResponse.json({ success: true });
 }

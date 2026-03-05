@@ -20,7 +20,12 @@ export type UnifiedStatus =
   | "completed"
   | "failed";
 
-export type NormalizedStatus = "pending" | "running" | "success" | "error";
+export type NormalizedStatus =
+  | "pending"
+  | "running"
+  | "success"
+  | "error"
+  | "cancelled";
 
 export type UnifiedRun = {
   id: string;
@@ -43,6 +48,7 @@ export type AnalyticsSummary = {
   totalRuns: number;
   successCount: number;
   errorCount: number;
+  cancelledCount: number;
   successRate: number;
   avgDurationMs: number | null;
   totalGasWei: string;
@@ -51,6 +57,7 @@ export type AnalyticsSummary = {
     totalRuns: number;
     successCount: number;
     errorCount: number;
+    cancelledCount: number;
     avgDurationMs: number | null;
     totalGasWei: string;
   } | null;
@@ -60,6 +67,7 @@ export type TimeSeriesBucket = {
   timestamp: string;
   success: number;
   error: number;
+  cancelled: number;
   pending: number;
   running: number;
 };

@@ -55,4 +55,6 @@ export async function writeContractStep(
   );
 }
 
+writeContractStep.maxRetries = 0;
+
 export const _integrationType = "web3";

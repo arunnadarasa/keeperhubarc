@@ -1,0 +1,340 @@
+# Type: reusable | Called by ci-pipeline.yml
+name: E2E Tests Ephemeral
+
+on:
+  workflow_call:
+    inputs:
+      caller_event:
+        description: 'Event name from the calling workflow (push, pull_request)'
+        type: string
+        required: false
+        default: ''
+      caller_action:
+        description: 'Event action from the calling workflow (labeled, synchronize)'
+        type: string
+        required: false
+        default: ''
+      has_e2e_label:
+        description: 'Whether the PR has the run-e2e-tests-ephemeral label'
+        type: boolean
+        required: false
+        default: false
+      label_name:
+        description: 'Name of the label that was just added (for labeled events)'
+        type: string
+        required: false
+        default: ''
+  workflow_dispatch: {}
+
+jobs:
+  should-run:
+    runs-on: ubuntu-latest
+    outputs:
+      run-e2e: ${{ steps.check.outputs.run-e2e }}
+    steps:
+      - name: Checkout code
+        if: inputs.caller_event == 'push' || github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Check trigger conditions
+        id: check
+        env:
+          EFFECTIVE_EVENT: ${{ inputs.caller_event || github.event_name }}
+        run: |
+          echo "run-e2e=false" >> $GITHUB_OUTPUT
+          echo "run-deployed=false" >> $GITHUB_OUTPUT
+          echo "pr-number=" >> $GITHUB_OUTPUT
+
+          # Check for [skip e2e] flag in commit message (push events only)
+          if [[ "$EFFECTIVE_EVENT" == "push" ]]; then
+            MSG=$(git log -1 --format=%B 2>/dev/null || echo "")
+            if [[ "$MSG" == *"[skip e2e]"* ]]; then
+              echo "Skipping E2E tests: [skip e2e] found in commit message"
+              exit 0
+            fi
+          fi
+
+          if [[ "$EFFECTIVE_EVENT" == "push" || "$EFFECTIVE_EVENT" == "workflow_dispatch" ]]; then
+            echo "run-e2e=true" >> $GITHUB_OUTPUT
+          elif [[ "$EFFECTIVE_EVENT" == "pull_request" ]]; then
+            if [[ "${{ inputs.caller_action }}" == "labeled" ]]; then
+              # Only run when the run-e2e-tests-ephemeral label was the one just added
+              if [[ "${{ inputs.label_name }}" == "run-e2e-tests-ephemeral" ]]; then
+                echo "run-e2e=true" >> $GITHUB_OUTPUT
+              fi
+            elif [[ "${{ inputs.caller_action }}" == "synchronize" ]]; then
+              # On new commits, re-run if the label is already present
+              if [[ "${{ inputs.has_e2e_label }}" == "true" ]]; then
+                echo "run-e2e=true" >> $GITHUB_OUTPUT
+              fi
+            fi
+          fi
+
+  # DISABLED: ephemeral E2E tests temporarily disabled while KEEP-1351 stabilises auth/rate-limit infrastructure
+  e2e-vitest-ephemeral:
+    needs: should-run
+    if: ${{ needs.should-run.outputs.run-e2e == 'true' && vars.ENABLE_E2E_EPHEMERAL_TESTS == 'true' }}
+    runs-on: ubuntu-latest
+    environment: staging
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: keeperhub_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      localstack:
+        image: localstack/localstack:latest
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: sqs
+          DEBUG: 0
+          EAGER_SERVICE_LOADING: 1
+        options: >-
+          --health-cmd "curl -sf http://localhost:4566/_localstack/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 15s
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          discover-plugins: "true"
+
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**/*.ts', '**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-
+            ${{ runner.os }}-nextjs-
+
+      - name: Wait for services
+        run: |
+          # Wait for PostgreSQL (max 60s)
+          retries=0
+          until pg_isready -h localhost -p 5432 -U postgres; do
+            retries=$((retries + 1))
+            if [ $retries -ge 30 ]; then
+              echo "PostgreSQL did not become ready in 60s"
+              exit 1
+            fi
+            echo "Waiting for PostgreSQL..."
+            sleep 2
+          done
+
+          # Wait for LocalStack SQS (max 90s)
+          retries=0
+          until curl -s http://localhost:4566/_localstack/health | grep -qE '"sqs":\s*"(available|running)"'; do
+            retries=$((retries + 1))
+            if [ $retries -ge 45 ]; then
+              echo "LocalStack SQS did not become ready in 90s"
+              echo "Health response:"
+              curl -s http://localhost:4566/_localstack/health || true
+              exit 1
+            fi
+            echo "Waiting for LocalStack SQS..."
+            sleep 2
+          done
+          echo "LocalStack SQS is ready"
+
+      - name: Create SQS queue
+        run: |
+          aws --endpoint-url=http://localhost:4566 sqs create-queue \
+            --queue-name keeperhub-workflow-queue \
+            --attributes '{"VisibilityTimeout":"300","MessageRetentionPeriod":"86400","ReceiveMessageWaitTimeSeconds":"20"}'
+          echo "Created SQS queue: keeperhub-workflow-queue"
+        env:
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_DEFAULT_REGION: us-east-1
+
+      - name: Setup database
+        run: |
+          pnpm db:setup-workflow
+          pnpm db:migrate
+          pnpm db:seed
+          pnpm db:seed-test-wallet
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          TEST_PARA_USER_SHARE: ${{ secrets.TEST_PARA_USER_SHARE }}
+          WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
+
+      - name: Build application
+        run: pnpm build
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+
+      - name: Start application
+        run: |
+          pnpm start &
+          # Wait for app to be ready (max 60s)
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000 > /dev/null 2>&1; then
+              echo "App is ready"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "App did not start in 60s"
+              exit 1
+            fi
+            sleep 2
+          done
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+
+      - name: Run E2E Vitest tests
+        run: pnpm test:e2e:vitest
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
+          PARA_API_KEY: ${{ secrets.TEST_PARA_API_KEY }}
+          PARA_ENVIRONMENT: beta
+          WORKFLOW_TARGET_WORLD: "@workflow/world-postgres"
+          AWS_ENDPOINT_URL: http://localhost:4566
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_REGION: us-east-1
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-e2e-results
+          path: |
+            test-results/
+            coverage/
+          retention-days: 7
+
+  # Playwright E2E tests (browser-based, single worker, serial)
+  # Runs after Vitest to avoid conflicts on shared external test accounts
+  # DISABLED: ephemeral E2E tests temporarily disabled while KEEP-1351 stabilises auth/rate-limit infrastructure
+  e2e-playwright-ephemeral:
+    needs: [should-run, e2e-vitest-ephemeral]
+    if: ${{ always() && needs.should-run.outputs.run-e2e == 'true' && !failure() && vars.ENABLE_E2E_EPHEMERAL_TESTS == 'true' }}
+    runs-on: ubuntu-latest
+    environment: staging
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: keeperhub_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js, pnpm, and Playwright
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          install-playwright: "true"
+          discover-plugins: "true"
+
+      - name: Setup database
+        run: |
+          pnpm db:setup-workflow
+          pnpm db:migrate
+          pnpm db:seed
+          pnpm db:seed-test-wallet
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          TEST_PARA_USER_SHARE: ${{ secrets.TEST_PARA_USER_SHARE }}
+          WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
+
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**/*.ts', '**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-
+            ${{ runner.os }}-nextjs-
+
+      - name: Build application
+        run: pnpm build
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+
+      - name: Start application
+        run: |
+          pnpm start &
+          # Wait for app to be ready (max 60s)
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000 > /dev/null 2>&1; then
+              echo "App is ready"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "App did not start in 60s"
+              exit 1
+            fi
+            sleep 2
+          done
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+
+      - name: Run Playwright tests
+        run: pnpm test:e2e
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          PARA_API_KEY: ${{ secrets.TEST_PARA_API_KEY }}
+          PARA_ENVIRONMENT: beta
+          WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
+          INTEGRATION_ENCRYPTION_KEY: ${{ secrets.TEST_INTEGRATION_ENCRYPTION_KEY }}
+          PARA_PORTAL_ORG_ID: ${{ secrets.PARA_PORTAL_ORG_ID }}
+          PARA_PORTAL_PROJECT_ID: ${{ secrets.PARA_PORTAL_PROJECT_ID }}
+          PARA_PORTAL_KEY_ID: ${{ secrets.PARA_PORTAL_KEY_ID }}
+          PARA_PORTAL_API_KEY: ${{ secrets.PARA_PORTAL_API_KEY }}
+          CI: true
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-ephemeral
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+      - name: Upload screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-screenshots-ephemeral
+          path: test-results/**/*.png
+          retention-days: 7

@@ -1,41 +1,74 @@
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
+import { getAdminFetchHeaders } from "./admin-fetch";
 import { getDbConnection } from "./connection";
 
 /**
- * Navigate to accept-invite page with retry.
- * Next.js 16 has a hydration race condition that can occasionally redirect
- * away from the accept-invite page during initial load when a session is
- * active. Waiting for network idle and retrying resolves this reliably.
+ * Navigate to accept-invite page and wait for it to render.
+ * Uses the data-page-state attribute to deterministically wait for the page
+ * to hydrate and compute its state, replacing the previous retry loop.
  */
 export async function gotoAcceptInvite(
   page: Page,
   invitationId: string
 ): Promise<void> {
   const url = `/accept-invite/${invitationId}`;
-  for (let attempt = 0; attempt < 5; attempt++) {
-    await page.goto(url, { waitUntil: "networkidle" });
-    const is404 = await page
-      .locator("text=This page could not be found")
-      .isVisible()
-      .catch(() => false);
-    if (page.url().includes("accept-invite") && !is404) {
-      return;
-    }
-    await page.waitForTimeout(1000);
-  }
-  throw new Error(
-    `Failed to navigate to ${url} after 5 attempts (kept redirecting to ${page.url()} or got 404)`
-  );
+  await page.goto(url, { waitUntil: "domcontentloaded" });
+  await expect(page.locator("[data-page-state]")).toBeAttached({
+    timeout: 15_000,
+  });
 }
 
 /**
  * Query the invitation table for the invite ID sent to an email.
- * Polls with retries since the invitation may not be committed yet.
+ * Uses admin API when TEST_API_KEY + BASE_URL are set (remote/deployed mode).
+ * Falls back to direct DB query with retry polling (local mode).
  */
 export async function getInvitationIdFromDb(
   email: string,
   maxRetries = 10
+): Promise<string> {
+  const adminKey = process.env.TEST_API_KEY;
+  const baseUrl = process.env.BASE_URL;
+
+  if (adminKey && baseUrl) {
+    return await getInvitationIdViaApi(email, baseUrl, maxRetries);
+  }
+
+  return await getInvitationIdViaDb(email, maxRetries);
+}
+
+async function getInvitationIdViaApi(
+  email: string,
+  baseUrl: string,
+  maxRetries: number
+): Promise<string> {
+  const url = `${baseUrl}/api/admin/test/invitation?email=${encodeURIComponent(email)}`;
+
+  const baseDelay = 500;
+  for (let i = 0; i < maxRetries; i++) {
+    const response = await fetch(url, { headers: getAdminFetchHeaders() });
+    if (response.ok) {
+      const data = (await response.json()) as { invitationId: string };
+      return data.invitationId;
+    }
+    if (response.status !== 404) {
+      const body = await response.text();
+      throw new Error(
+        `Admin invitation API returned ${response.status}: ${body}`
+      );
+    }
+    const delay = Math.min(baseDelay * 2 ** i, 4000);
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+  throw new Error(
+    `No invitation found for ${email} after ${maxRetries} retries via API`
+  );
+}
+
+async function getInvitationIdViaDb(
+  email: string,
+  maxRetries: number
 ): Promise<string> {
   const sql = getDbConnection();
   try {

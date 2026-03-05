@@ -399,4 +399,6 @@ export async function queryEventsStep(
   );
 }
 
+queryEventsStep.maxRetries = 0;
+
 export const _integrationType = "web3";
