@@ -20,7 +20,7 @@ export function getTestHeaders(): Record<string, string> {
  * Use this for all E2E vitest requests to ensure rate limit bypass
  * and Cloudflare Access work in deployed environments.
  */
-export async function testFetch(
+export function testFetch(
   url: string,
   options?: RequestInit
 ): Promise<Response> {

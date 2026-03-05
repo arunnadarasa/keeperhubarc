@@ -435,12 +435,16 @@ export const auth = betterAuth({
   rateLimit: {
     enabled: !(process.env.CI || process.env.NODE_ENV === "test"),
     customRules: {
-      "/*": (req) => {
+      "/*": (req: Request, currentRule: { window: number; max: number }) => {
         const testApiKey = process.env.TEST_API_KEY;
-        if (!testApiKey) return undefined;
+        if (!testApiKey) {
+          return currentRule;
+        }
         const authHeader = req.headers.get("X-Test-API-Key");
-        if (authHeader && authHeader === testApiKey) return false;
-        return undefined;
+        if (authHeader && authHeader === testApiKey) {
+          return false;
+        }
+        return currentRule;
       },
     },
   },

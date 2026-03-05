@@ -211,7 +211,6 @@ test.describe("Organization Management", () => {
 });
 
 test.describe("Para Wallet Management", () => {
-  // biome-ignore lint/suspicious/noSkippedTests: Para beta API is unreliable in ephemeral CI environments
   test.skip(!!process.env.CI, "Para beta API unreliable in CI");
 
   test.beforeEach(async ({ context }) => {
