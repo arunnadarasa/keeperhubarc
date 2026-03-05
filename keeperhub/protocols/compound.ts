@@ -18,10 +18,6 @@ export default defineProtocol({
       addresses: {
         // Ethereum Mainnet (USDC market)
         "1": "0xc3d688B66703497DAA19211EEdff47f25384cdc3",
-        // Base (USDC market)
-        "8453": "0xb125E6687d4313864e53df431d5425969c15Eb2F",
-        // Arbitrum One (USDC market)
-        "42161": "0x9c4ec768c28520B50860ea7a15bd7213a9fF58bf",
       },
     },
   },
@@ -83,7 +79,7 @@ export default defineProtocol({
         "Get the collateral balance of a specific asset for an account in a Comet market",
       type: "read",
       contract: "comet",
-      function: "collateralBalanceOf",
+      function: "userCollateral",
       inputs: [
         { name: "account", type: "address", label: "Account Address" },
         { name: "asset", type: "address", label: "Collateral Asset Address" },
@@ -91,8 +87,13 @@ export default defineProtocol({
       outputs: [
         {
           name: "balance",
-          type: "uint256",
+          type: "uint128",
           label: "Collateral Balance",
+        },
+        {
+          name: "_reserved",
+          type: "uint128",
+          label: "Reserved",
         },
       ],
     },
@@ -111,6 +112,143 @@ export default defineProtocol({
           type: "uint256",
           label: "Borrow Balance",
           decimals: 6,
+        },
+      ],
+    },
+
+    // Market analytics
+
+    {
+      slug: "get-utilization",
+      label: "Get Utilization",
+      description:
+        "Get the current utilization rate of a Comet market (ratio of borrows to supply, scaled to 1e18)",
+      type: "read",
+      contract: "comet",
+      function: "getUtilization",
+      inputs: [],
+      outputs: [
+        {
+          name: "utilization",
+          type: "uint256",
+          label: "Utilization Rate",
+          decimals: 18,
+        },
+      ],
+    },
+    {
+      slug: "get-supply-rate",
+      label: "Get Supply Rate",
+      description:
+        "Get the per-second supply rate for a given utilization level. Multiply by seconds in a year (31536000) for APR.",
+      type: "read",
+      contract: "comet",
+      function: "getSupplyRate",
+      inputs: [
+        {
+          name: "utilization",
+          type: "uint256",
+          label: "Utilization (from Get Utilization)",
+        },
+      ],
+      outputs: [
+        {
+          name: "rate",
+          type: "uint64",
+          label: "Supply Rate Per Second",
+        },
+      ],
+    },
+    {
+      slug: "get-borrow-rate",
+      label: "Get Borrow Rate",
+      description:
+        "Get the per-second borrow rate for a given utilization level. Multiply by seconds in a year (31536000) for APR.",
+      type: "read",
+      contract: "comet",
+      function: "getBorrowRate",
+      inputs: [
+        {
+          name: "utilization",
+          type: "uint256",
+          label: "Utilization (from Get Utilization)",
+        },
+      ],
+      outputs: [
+        {
+          name: "rate",
+          type: "uint64",
+          label: "Borrow Rate Per Second",
+        },
+      ],
+    },
+    {
+      slug: "get-total-supply",
+      label: "Get Total Supply",
+      description:
+        "Get the total base asset supplied to a Comet market across all users",
+      type: "read",
+      contract: "comet",
+      function: "totalSupply",
+      inputs: [],
+      outputs: [
+        {
+          name: "totalSupply",
+          type: "uint256",
+          label: "Total Supply",
+          decimals: 6,
+        },
+      ],
+    },
+    {
+      slug: "get-total-borrow",
+      label: "Get Total Borrow",
+      description:
+        "Get the total base asset borrowed from a Comet market across all users",
+      type: "read",
+      contract: "comet",
+      function: "totalBorrow",
+      inputs: [],
+      outputs: [
+        {
+          name: "totalBorrow",
+          type: "uint256",
+          label: "Total Borrow",
+          decimals: 6,
+        },
+      ],
+    },
+    {
+      slug: "is-liquidatable",
+      label: "Is Liquidatable",
+      description:
+        "Check if an account is currently liquidatable in a Comet market",
+      type: "read",
+      contract: "comet",
+      function: "isLiquidatable",
+      inputs: [{ name: "account", type: "address", label: "Account Address" }],
+      outputs: [
+        {
+          name: "isLiquidatable",
+          type: "bool",
+          label: "Is Liquidatable",
+        },
+      ],
+    },
+    {
+      slug: "get-num-assets",
+      label: "Get Number of Assets",
+      description:
+        "Get the number of collateral assets supported by a Comet market",
+      type: "read",
+      contract: "comet",
+      function: "numAssets",
+      inputs: [],
+      outputs: [
+        {
+          name: "numAssets",
+          type: "uint8",
+          label: "Number of Collateral Assets",
         },
       ],
     },
