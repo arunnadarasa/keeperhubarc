@@ -182,14 +182,13 @@ export async function signIn(
  * Sign out the current user.
  */
 export async function signOut(page: Page): Promise<void> {
-  // Look for user menu or sign out button
   const userMenu = page.locator('[data-testid="user-menu"]');
-  if (await userMenu.isVisible()) {
-    await userMenu.click();
-    const signOutButton = page.locator('button:has-text("Sign out")');
-    await signOutButton.click();
-    await expect(signOutButton).not.toBeVisible({ timeout: 5000 });
-  }
+  await expect(userMenu).toBeVisible({ timeout: 5000 });
+  await userMenu.click();
+  const signOutButton = page.locator('button:has-text("Sign out")');
+  await expect(signOutButton).toBeVisible({ timeout: 5000 });
+  await signOutButton.click();
+  await expect(signOutButton).not.toBeVisible({ timeout: 5000 });
 }
 
 /**
