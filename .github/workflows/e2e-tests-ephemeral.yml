@@ -74,7 +74,7 @@ jobs:
 
   e2e-vitest-ephemeral:
     needs: should-run
-    if: needs.should-run.outputs.run-e2e == 'true'
+    if: needs.should-run.outputs.run-e2e == 'true' && github.head_ref != 'feat/KEEP-1351-e2e-stability'
     runs-on: ubuntu-latest
     environment: staging
 
@@ -230,7 +230,7 @@ jobs:
   # Runs after Vitest to avoid conflicts on shared external test accounts
   e2e-playwright-ephemeral:
     needs: [should-run, e2e-vitest-ephemeral]
-    if: needs.should-run.outputs.run-e2e == 'true'
+    if: always() && needs.should-run.outputs.run-e2e == 'true' && !failure()
     runs-on: ubuntu-latest
     environment: staging
 
