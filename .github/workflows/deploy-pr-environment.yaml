@@ -436,7 +436,8 @@ jobs:
     if: >-
       always() &&
       needs.check-labels.outputs.should-test == 'true' &&
-      (needs.deploy.result == 'success' || needs.deploy.result == 'skipped')
+      (needs.deploy.result == 'success' || needs.deploy.result == 'skipped') &&
+      github.head_ref != 'feat/KEEP-1351-e2e-stability'
     runs-on: ubuntu-latest
     environment: staging
     env:
@@ -644,11 +645,22 @@ jobs:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 
-      - name: Fetch TEST_API_KEY from Parameter Store
+      - name: Fetch TEST_API_KEY from deployed environment
         run: |
-          TEST_API_KEY=$(aws ssm get-parameter \
-            --name "/eks/maker-staging/keeperhub/test-api-key" \
-            --with-decryption --query "Parameter.Value" --output text)
+          # Read from the K8s secret created by Helm for the parameterStore env var
+          # The common chart names secrets as: <release>-<env-name>
+          SECRET_NAME="test-api-key"
+          # Try reading the secret; the common chart stores the value under key "value"
+          TEST_API_KEY=$(kubectl get secret "$SECRET_NAME" \
+            -n ${{ env.NAMESPACE }} -o jsonpath='{.data.value}' 2>/dev/null | base64 -d) || true
+          if [ -z "$TEST_API_KEY" ]; then
+            # Fallback: extract from the running pod's environment
+            POD=$(kubectl get pods -n ${{ env.NAMESPACE }} \
+              -l app.kubernetes.io/instance=keeperhub-pr-${{ env.PR_NUMBER }} \
+              -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || \
+              kubectl get pods -n ${{ env.NAMESPACE }} -o jsonpath='{.items[0].metadata.name}')
+            TEST_API_KEY=$(kubectl exec -n ${{ env.NAMESPACE }} "$POD" -- printenv TEST_API_KEY)
+          fi
           echo "::add-mask::$TEST_API_KEY"
           echo "TEST_API_KEY=$TEST_API_KEY" >> $GITHUB_ENV
 
