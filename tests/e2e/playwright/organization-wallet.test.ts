@@ -211,7 +211,6 @@ test.describe("Organization Management", () => {
 });
 
 test.describe("Para Wallet Management", () => {
-
   test.beforeEach(async ({ context }) => {
     await context.clearCookies();
   });

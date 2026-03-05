@@ -73,7 +73,7 @@ test.describe("Analytics Gas Tracking", () => {
     const rows = page.locator("table tbody tr");
     await expect(rows.first()).toBeAttached({ timeout: 10_000 });
     await rows.first().scrollIntoViewIfNeeded();
-    await expect(rows.first()).toBeVisible({ timeout: 5_000 });
+    await expect(rows.first()).toBeVisible({ timeout: 5000 });
 
     // Verify at least one workflow run row exists
     const rowCount = await rows.count();
