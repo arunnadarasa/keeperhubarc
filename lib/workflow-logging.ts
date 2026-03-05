@@ -4,9 +4,25 @@
  */
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { workflowExecutionLogs, workflowExecutions } from "@/lib/db/schema";
+
+// start custom keeperhub code //
+const TERMINAL_STATUSES = new Set(["cancelled", "success", "error"]);
+
+/**
+ * Check if an execution has been cancelled (or otherwise terminated).
+ * Used as a guard to prevent stale writes from the runtime after cancellation.
+ */
+async function isExecutionTerminal(executionId: string): Promise<boolean> {
+  const execution = await db.query.workflowExecutions.findFirst({
+    where: eq(workflowExecutions.id, executionId),
+    columns: { status: true },
+  });
+  return !execution || TERMINAL_STATUSES.has(execution.status);
+}
+// end keeperhub code //
 
 export type LogStepStartParams = {
   executionId: string;
@@ -31,6 +47,13 @@ export type LogStepStartResult = {
 export async function logStepStartDb(
   params: LogStepStartParams
 ): Promise<LogStepStartResult> {
+  // start custom keeperhub code //
+  // Guard: skip if execution was cancelled (runtime continues after cancel)
+  if (await isExecutionTerminal(params.executionId)) {
+    return { logId: "", startTime: Date.now() };
+  }
+  // end keeperhub code //
+
   const [log] = await db
     .insert(workflowExecutionLogs)
     .values({
@@ -60,6 +83,9 @@ export type LogStepCompleteParams = {
   status: "success" | "error";
   output?: unknown;
   error?: string;
+  // start custom keeperhub code //
+  executionId?: string;
+  // end keeperhub code //
 };
 
 /**
@@ -68,6 +94,13 @@ export type LogStepCompleteParams = {
 export async function logStepCompleteDb(
   params: LogStepCompleteParams
 ): Promise<void> {
+  // start custom keeperhub code //
+  // Guard: skip if execution was cancelled (runtime continues after cancel)
+  if (params.executionId && (await isExecutionTerminal(params.executionId))) {
+    return;
+  }
+  // end keeperhub code //
+
   const duration = Date.now() - params.startTime;
 
   await db
@@ -110,7 +143,12 @@ export async function logWorkflowCompleteDb(
       currentNodeId: null,
       currentNodeName: null,
     })
-    .where(eq(workflowExecutions.id, params.executionId));
+    .where(
+      and(
+        eq(workflowExecutions.id, params.executionId),
+        ne(workflowExecutions.status, "cancelled")
+      )
+    );
 }
 
 // ============================================================================
@@ -162,7 +200,14 @@ export async function updateCurrentStep(
       currentNodeId: params.currentNodeId,
       currentNodeName: params.currentNodeName,
     })
-    .where(eq(workflowExecutions.id, params.executionId));
+    .where(
+      // start custom keeperhub code //
+      and(
+        eq(workflowExecutions.id, params.executionId),
+        ne(workflowExecutions.status, "cancelled")
+      )
+      // end keeperhub code //
+    );
 }
 
 export type IncrementCompletedStepsParams = {
@@ -187,6 +232,13 @@ export async function incrementCompletedSteps(
   if (!execution) {
     return;
   }
+
+  // start custom keeperhub code //
+  // Guard: skip if execution was cancelled (runtime continues after cancel)
+  if (TERMINAL_STATUSES.has(execution.status)) {
+    return;
+  }
+  // end keeperhub code //
 
   const completedSteps =
     Number.parseInt(execution.completedSteps || "0", 10) + 1;
