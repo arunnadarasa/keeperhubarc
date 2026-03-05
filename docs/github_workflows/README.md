@@ -87,6 +87,21 @@ release-pipeline.yml
 | `keeperhub-daily-main-sync-with-upstream.yml` | Sync fork with upstream template | Daily cron |
 | `keeperhub-daily-merge-staging.yml` | Merge staging into main | Daily cron |
 
+## Composite Actions
+
+| Action | Path | Purpose |
+|--------|------|---------|
+| `setup-node-pnpm` | `.github/actions/setup-node-pnpm/action.yml` | Installs Node.js 22, pnpm 9, caches dependencies, optionally installs Playwright browsers and runs plugin discovery |
+
+### `setup-node-pnpm` Inputs
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `install-playwright` | `"false"` | Install and cache Playwright Chromium browsers |
+| `discover-plugins` | `"false"` | Run `pnpm discover-plugins` after install |
+
+Used by: `e2e-tests-ephemeral.yml`, `deploy-keeperhub.yaml`, `deploy-pr-environment.yaml`
+
 ## Design Decisions
 
 ### Why orchestrators instead of `workflow_run`?

@@ -27,7 +27,7 @@ Browser-based tests that validate the full user experience: authentication flows
 
 ## Test Contexts
 
-### Local
+### Ephemeral
 
 Tests run against services spun up inside the CI runner:
 - PostgreSQL container on `localhost:5432`
@@ -88,9 +88,9 @@ graph TD
 graph TD
     subgraph "PR + deploy-pr-environment + run-e2e-tests-pr-deploy labels"
         A[PR Push] --> B[deploy-pr-environment.yaml]
-        B --> C[build-images]
-        C --> D[deploy]
-        D --> E[check-e2e-label]
+        B --> C[check-labels]
+        C --> D[build-images]
+        D --> E[deploy]
         E --> F[e2e-vitest-remote]
         E --> G[e2e-playwright-remote]
     end
@@ -116,7 +116,7 @@ graph TD
 
 | File | Trigger | Jobs |
 |---|---|---|
-| `e2e-tests-ephemeral.yml` | Push to staging/prod, PR with `run-e2e-tests-ephemeral` label | `e2e-vitest-ephemeral`, `e2e-playwright-ephemeral` |
+| `e2e-tests-ephemeral.yml` | `workflow_call` from `ci-pipeline.yml` (push to staging/prod, PR with label) | `e2e-vitest-ephemeral`, `e2e-playwright-ephemeral` |
 | `deploy-pr-environment.yaml` | PR with `deploy-pr-environment` label | `build-images`, `deploy`, `e2e-vitest-remote`, `e2e-playwright-remote` (remote tests gated by `run-e2e-tests-pr-deploy` label) |
 | `deploy-keeperhub.yaml` | `workflow_call` from `ci-pipeline.yml` (staging/prod push) | `build-and-deploy`, `e2e-playwright-remote` |
 
@@ -186,7 +186,7 @@ When vitest runs remotely against a PR environment, two test files are excluded:
 - **`full-pipeline.test.ts`** -- Uses `child_process.spawn` to run `workflow-runner` locally and sends SQS messages expecting local consumption. In a PR environment, workflow execution happens in K8s pods, not on the CI runner.
 - **`write-contract-workflow.test.ts`** -- Depends on the wallet encryption key matching the exact seeded data. The PR environment seeds wallet data during its deploy pipeline, and the CI runner may not have a compatible key.
 
-The remaining 10 vitest files (114+ tests) run successfully against PR environments via `kubectl port-forward`.
+The remaining 10 vitest files (~130 tests) run successfully against PR environments via `kubectl port-forward`.
 
 ### Admin test API endpoints (TEST_API_KEY)
 
