@@ -1,38 +1,31 @@
+# Type: reusable | Called by ci-pipeline.yml
 on:
-  workflow_run:
-    workflows: ["E2E Tests Ephemeral"]
-    types: [completed]
-    branches:
-      - staging
-      - prod
-  workflow_dispatch:
+  workflow_call: {}
+  workflow_dispatch: {}
 
 name: deploy-keeperhub
 jobs:
   build-and-deploy:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
-    environment: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && 'prod' || 'staging' }}
+    environment: ${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
     runs-on: ubuntu-latest
     env:
-      HELM_FILE: deploy/keeperhub/${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && 'prod' || 'staging' }}/values.yaml
-      REGION: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && 'us-east-1' || 'us-east-2' }}
-      CLUSTER_NAME: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && 'maker-prod' || 'maker-staging' }}
-      ENVIRONMENT_TAG: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && 'prod' || 'staging' }}
+      HELM_FILE: deploy/keeperhub/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/values.yaml
+      REGION: ${{ github.ref_name == 'prod' && 'us-east-1' || 'us-east-2' }}
+      CLUSTER_NAME: ${{ github.ref_name == 'prod' && 'maker-prod' || 'maker-staging' }}
+      ENVIRONMENT_TAG: ${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
       NAMESPACE: keeperhub
       SERVICE_NAME: keeperhub
-      AWS_ECR_NAME: keeperhub-${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && 'prod' || 'staging' }}
+      AWS_ECR_NAME: keeperhub-${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
       SERVICE_ACCOUNT_ROLE_ARN: ${{ vars.SERVICE_ACCOUNT_ROLE_ARN }}
       # Auth provider build args (selected by deployment branch: prod vs staging)
-      NEXT_PUBLIC_AUTH_PROVIDERS: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && vars.NEXT_PUBLIC_AUTH_PROVIDERS_PROD || vars.NEXT_PUBLIC_AUTH_PROVIDERS_STAGING }}
-      NEXT_PUBLIC_GITHUB_CLIENT_ID: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && vars.NEXT_PUBLIC_GITHUB_CLIENT_ID_PROD || vars.NEXT_PUBLIC_GITHUB_CLIENT_ID_STAGING }}
-      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID_PROD || vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID_STAGING }}
+      NEXT_PUBLIC_AUTH_PROVIDERS: ${{ github.ref_name == 'prod' && vars.NEXT_PUBLIC_AUTH_PROVIDERS_PROD || vars.NEXT_PUBLIC_AUTH_PROVIDERS_STAGING }}
+      NEXT_PUBLIC_GITHUB_CLIENT_ID: ${{ github.ref_name == 'prod' && vars.NEXT_PUBLIC_GITHUB_CLIENT_ID_PROD || vars.NEXT_PUBLIC_GITHUB_CLIENT_ID_STAGING }}
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ github.ref_name == 'prod' && vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID_PROD || vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID_STAGING }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 1
 
       - name: Check commit message for skip flags
@@ -118,7 +111,7 @@ jobs:
       - name: Apply RBAC for Job Spawner
         if: steps.skip.outputs.skip_deploy != 'true'
         run: |
-          kubectl apply -f deploy/keeperhub/${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && 'prod' || 'staging' }}/rbac.yaml
+          kubectl apply -f deploy/keeperhub/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/rbac.yaml
 
       - name: Deploying Service to Kubernetes with Helm
         id: deploy
@@ -138,15 +131,15 @@ jobs:
   e2e-playwright-remote:
     needs: build-and-deploy
     runs-on: ubuntu-latest
-    environment: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && 'prod' || 'staging' }}
+    environment: ${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
     env:
-      BASE_URL: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && 'https://app.keeperhub.com' || 'https://app-staging.keeperhub.com' }}
+      BASE_URL: ${{ github.ref_name == 'prod' && 'https://app.keeperhub.com' || 'https://app-staging.keeperhub.com' }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 1
 
       - name: Setup Node.js

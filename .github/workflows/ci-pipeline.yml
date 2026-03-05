@@ -1,0 +1,24 @@
+# Type: orchestrator | Coordinates e2e-tests-ephemeral -> deploy
+name: CI Pipeline
+
+on:
+  push:
+    branches: [staging, prod]
+  pull_request:
+    types: [labeled, synchronize]
+
+jobs:
+  e2e-tests:
+    uses: ./.github/workflows/e2e-tests-ephemeral.yml
+    with:
+      caller_event: ${{ github.event_name }}
+      caller_action: ${{ github.event.action }}
+      has_e2e_label: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-e2e-tests-ephemeral') || false }}
+      label_name: ${{ github.event.label.name || '' }}
+    secrets: inherit
+
+  deploy:
+    needs: e2e-tests
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/deploy-keeperhub.yaml
+    secrets: inherit

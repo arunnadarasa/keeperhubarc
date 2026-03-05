@@ -1,10 +1,30 @@
+# Type: reusable | Called by ci-pipeline.yml
 name: E2E Tests Ephemeral
 
 on:
-  push:
-    branches: [staging, prod]
-  pull_request:
-    types: [labeled, synchronize]
+  workflow_call:
+    inputs:
+      caller_event:
+        description: 'Event name from the calling workflow (push, pull_request)'
+        type: string
+        required: false
+        default: ''
+      caller_action:
+        description: 'Event action from the calling workflow (labeled, synchronize)'
+        type: string
+        required: false
+        default: ''
+      has_e2e_label:
+        description: 'Whether the PR has the run-e2e-tests-ephemeral label'
+        type: boolean
+        required: false
+        default: false
+      label_name:
+        description: 'Name of the label that was just added (for labeled events)'
+        type: string
+        required: false
+        default: ''
+  workflow_dispatch: {}
 
 jobs:
   should-run:
@@ -12,15 +32,23 @@ jobs:
     outputs:
       run-e2e: ${{ steps.check.outputs.run-e2e }}
     steps:
-      - name: E2E tests disabled
+      - name: Checkout code
+        if: inputs.caller_event == 'push' || github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Check trigger conditions
         id: check
+        env:
+          EFFECTIVE_EVENT: ${{ inputs.caller_event || github.event_name }}
         run: |
           echo "run-e2e=false" >> $GITHUB_OUTPUT
           echo "run-deployed=false" >> $GITHUB_OUTPUT
           echo "pr-number=" >> $GITHUB_OUTPUT
 
           # Check for [skip e2e] flag in commit message (push events only)
-          if [[ "${{ github.event_name }}" == "push" ]]; then
+          if [[ "$EFFECTIVE_EVENT" == "push" ]]; then
             MSG=$(git log -1 --format=%B 2>/dev/null || echo "")
             if [[ "$MSG" == *"[skip e2e]"* ]]; then
               echo "Skipping E2E tests: [skip e2e] found in commit message"
@@ -28,17 +56,17 @@ jobs:
             fi
           fi
 
-          if [[ "${{ github.event_name }}" == "push" ]]; then
+          if [[ "$EFFECTIVE_EVENT" == "push" || "$EFFECTIVE_EVENT" == "workflow_dispatch" ]]; then
             echo "run-e2e=true" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            if [[ "${{ github.event.action }}" == "labeled" ]]; then
+          elif [[ "$EFFECTIVE_EVENT" == "pull_request" ]]; then
+            if [[ "${{ inputs.caller_action }}" == "labeled" ]]; then
               # Only run when the run-e2e-tests-ephemeral label was the one just added
-              if [[ "${{ github.event.label.name }}" == "run-e2e-tests-ephemeral" ]]; then
+              if [[ "${{ inputs.label_name }}" == "run-e2e-tests-ephemeral" ]]; then
                 echo "run-e2e=true" >> $GITHUB_OUTPUT
               fi
-            elif [[ "${{ github.event.action }}" == "synchronize" ]]; then
+            elif [[ "${{ inputs.caller_action }}" == "synchronize" ]]; then
               # On new commits, re-run if the label is already present
-              if [[ "${{ contains(github.event.pull_request.labels.*.name, 'run-e2e-tests-ephemeral') }}" == "true" ]]; then
+              if [[ "${{ inputs.has_e2e_label }}" == "true" ]]; then
                 echo "run-e2e=true" >> $GITHUB_OUTPUT
               fi
             fi
