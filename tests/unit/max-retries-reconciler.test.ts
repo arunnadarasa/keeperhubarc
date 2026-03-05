@@ -2,11 +2,36 @@ import { describe, expect, it } from "vitest";
 
 import {
   getFailedMaxRetriesNodeIds,
+  isSdkRetryError,
   reconcileMaxRetriesFailures,
 } from "@/keeperhub/lib/max-retries-reconciler";
 
+describe("isSdkRetryError", () => {
+  it("should match 'exceeded max retries' error format", () => {
+    expect(
+      isSdkRetryError(
+        'Step "step//abc//sendWebhook" exceeded max retries (0 retries)'
+      )
+    ).toBe(true);
+  });
+
+  it("should match 'failed after N retries' error format", () => {
+    expect(
+      isSdkRetryError(
+        'Step "step//abc//checkBalance" failed after 3 retries: Error: step_completed event failed'
+      )
+    ).toBe(true);
+  });
+
+  it("should not match unrelated errors", () => {
+    expect(isSdkRetryError("HTTP 500 Internal Server Error")).toBe(false);
+    expect(isSdkRetryError("Connection refused")).toBe(false);
+    expect(isSdkRetryError(undefined)).toBe(false);
+  });
+});
+
 describe("getFailedMaxRetriesNodeIds", () => {
-  it("should return node IDs with max-retries errors", () => {
+  it("should return node IDs with exceeded-max-retries errors", () => {
     const results = {
       "node-1": { success: true },
       "node-2": {
@@ -19,7 +44,20 @@ describe("getFailedMaxRetriesNodeIds", () => {
     expect(getFailedMaxRetriesNodeIds(results)).toEqual(["node-2"]);
   });
 
-  it("should return empty array when no max-retries errors", () => {
+  it("should return node IDs with failed-after-retries errors", () => {
+    const results = {
+      "node-1": { success: true },
+      "node-2": {
+        success: false,
+        error:
+          'Step "step//abc//checkBalance" failed after 3 retries: step_completed event failed',
+      },
+    };
+
+    expect(getFailedMaxRetriesNodeIds(results)).toEqual(["node-2"]);
+  });
+
+  it("should return empty array when no retry errors", () => {
     const results = {
       "node-1": { success: true },
       "node-2": { success: false, error: "Connection refused" },
@@ -30,7 +68,7 @@ describe("getFailedMaxRetriesNodeIds", () => {
 });
 
 describe("reconcileMaxRetriesFailures", () => {
-  it("should return empty overrides when no max-retries failures exist", () => {
+  it("should return empty overrides when no retry failures exist", () => {
     const results: Record<string, { success: boolean; error?: string }> = {
       "node-1": { success: true },
       "node-2": { success: false, error: "HTTP 500 Internal Server Error" },
@@ -46,7 +84,7 @@ describe("reconcileMaxRetriesFailures", () => {
     expect(overriddenNodeIds).toEqual([]);
   });
 
-  it("should override to success when node has a tracked success", () => {
+  it("should override exceeded-max-retries failure with tracked success", () => {
     const results: Record<
       string,
       { success: boolean; error?: string; data?: unknown }
@@ -73,6 +111,36 @@ describe("reconcileMaxRetriesFailures", () => {
     expect(results["node-2"]).toEqual({
       success: true,
       data: { statusCode: 200, body: "ok" },
+    });
+  });
+
+  it("should override failed-after-retries failure with tracked success", () => {
+    const results: Record<
+      string,
+      { success: boolean; error?: string; data?: unknown }
+    > = {
+      "node-1": {
+        success: false,
+        error:
+          'Step "step//abc//checkBalance" failed after 0 retries: step_completed event failed',
+      },
+    };
+
+    const successfulSteps = new Map<string, unknown>([
+      ["node-1", { balance: "1.5" }],
+    ]);
+
+    const { overriddenNodeIds } = reconcileMaxRetriesFailures({
+      results,
+      successfulSteps,
+      executionId: "exec-1",
+      workflowId: "wf-1",
+    });
+
+    expect(overriddenNodeIds).toEqual(["node-1"]);
+    expect(results["node-1"]).toEqual({
+      success: true,
+      data: { balance: "1.5" },
     });
   });
 
@@ -132,7 +200,8 @@ describe("reconcileMaxRetriesFailures", () => {
       },
       "node-2": {
         success: false,
-        error: 'Step "step//b//condition" exceeded max retries (0 retries)',
+        error:
+          'Step "step//b//checkBalance" failed after 3 retries: state conflict',
       },
       "node-3": { success: true },
     };
@@ -155,7 +224,7 @@ describe("reconcileMaxRetriesFailures", () => {
     });
   });
 
-  it("should not produce overrides for non-max-retries failures", () => {
+  it("should not produce overrides for non-retry failures", () => {
     const results: Record<
       string,
       { success: boolean; error?: string; data?: unknown }

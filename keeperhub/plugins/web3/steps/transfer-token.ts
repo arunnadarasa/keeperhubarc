@@ -51,4 +51,6 @@ export async function transferTokenStep(
   return withStepLogging(enrichedInput, () => transferTokenCore(input));
 }
 
+transferTokenStep.maxRetries = 0;
+
 export const _integrationType = "web3";
