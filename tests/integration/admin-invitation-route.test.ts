@@ -102,7 +102,7 @@ describe("GET /api/admin/test/invitation", () => {
       const response = await GET(createRequest(TEST_EMAIL, TEST_KEY));
       expect(response.status).toBe(500);
       const data = await response.json();
-      expect(data.error).toBe("DB connection failed");
+      expect(data.error).toBe("Internal server error");
     });
   });
 });
