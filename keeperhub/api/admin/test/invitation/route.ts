@@ -49,9 +49,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   } catch (error) {
     console.error("Admin invitation lookup failed:", error);
     return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Internal server error",
-      },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
