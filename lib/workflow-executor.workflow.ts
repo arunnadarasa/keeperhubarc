@@ -41,6 +41,11 @@ import {
   buildEdgesBySourceHandle,
   type EdgesBySourceHandle,
 } from "@/keeperhub/lib/edge-handle-utils";
+import {
+  collectAllSkippedTargets,
+  collectSkippedTargets,
+  type ConditionDecision,
+} from "@/keeperhub/lib/skipped-branch-utils";
 import { resolveConditionExpression } from "@/keeperhub/lib/condition-resolver";
 import {
   applyBigIntConversion,
@@ -124,13 +129,28 @@ function replaceTemplateVariable(
   rest: string,
   outputs: NodeOutputs,
   evalContext: Record<string, unknown>,
-  varCounter: { value: number }
+  varCounter: { value: number },
+  // start custom keeperhub code //
+  nodeMap?: ReadonlyMap<string, unknown>,
+  executionResults?: Record<string, ExecutionResult>
+  // end keeperhub code //
 ): string {
   const sanitizedNodeId = nodeId.replace(/[^a-zA-Z0-9]/g, "_");
   const output = outputs[sanitizedNodeId];
 
   // KEEP-1284: Throw error when referenced node output doesn't exist
   if (!output) {
+    // start custom keeperhub code //
+    // Dead-branch grace: if the node exists in the workflow graph but was never
+    // executed (it sits on a branch that a condition did not take), return
+    // undefined instead of throwing so the condition evaluates gracefully.
+    if (nodeMap?.has(nodeId) && executionResults && !(nodeId in executionResults)) {
+      const varName = `__v${varCounter.value}`;
+      varCounter.value += 1;
+      evalContext[varName] = undefined;
+      return varName;
+    }
+    // end keeperhub code //
     throw new Error(
       `Condition references node "${nodeId}" but no output was found. The referenced node may not have executed or produced output.`
     );
@@ -219,7 +239,11 @@ type ConditionEvalResult = {
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: KEEP-1284 validation requires comprehensive error checking
 export function evaluateConditionExpression(
   conditionExpression: unknown,
-  outputs: NodeOutputs
+  outputs: NodeOutputs,
+  // start custom keeperhub code //
+  nodeMap?: ReadonlyMap<string, unknown>,
+  executionResults?: Record<string, ExecutionResult>
+  // end keeperhub code //
 ): ConditionEvalResult {
   console.log("[Condition] Original expression:", conditionExpression);
 
@@ -260,7 +284,11 @@ export function evaluateConditionExpression(
             rest,
             outputs,
             evalContext,
-            varCounter
+            varCounter,
+            // start custom keeperhub code //
+            nodeMap,
+            executionResults
+            // end keeperhub code //
           );
           // Store the resolved value with a readable key (the display text from the template)
           resolvedValues[rest] = evalContext[varName];
@@ -339,6 +367,10 @@ async function executeActionStep(input: {
   config: Record<string, unknown>;
   outputs: NodeOutputs;
   context: StepContext;
+  // start custom keeperhub code //
+  nodeMap?: ReadonlyMap<string, unknown>;
+  executionResults?: Record<string, ExecutionResult>;
+  // end keeperhub code //
 }) {
   const { actionType, config, outputs, context } = input;
 
@@ -362,7 +394,14 @@ async function executeActionStep(input: {
     let evaluationError: string | undefined;
 
     try {
-      const result = evaluateConditionExpression(originalExpression, outputs);
+      // start custom keeperhub code //
+      const result = evaluateConditionExpression(
+        originalExpression,
+        outputs,
+        input.nodeMap,
+        input.executionResults
+      );
+      // end keeperhub code //
       evaluatedCondition = result.result;
       resolvedValues = result.resolvedValues;
     } catch (error) {
@@ -1035,6 +1074,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
   const edgesBySource = new Map<string, string[]>();
   // start custom keeperhub code //
   const edgesBySourceHandle = buildEdgesBySourceHandle(edges);
+  const conditionDecisions = new Map<string, ConditionDecision>();
   // end keeperhub code //
   for (const edge of edges) {
     const targets = edgesBySource.get(edge.source) || [];
@@ -1789,6 +1829,10 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           config: processedConfig,
           outputs,
           context: stepContext,
+          // start custom keeperhub code //
+          nodeMap,
+          executionResults: results,
+          // end keeperhub code //
         });
 
         console.log("[Workflow Executor] Step result received:", {
@@ -1889,7 +1933,18 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           if (handleMap) {
             // Handle-aware routing: use sourceHandle to determine targets
             const handleId = conditionResult === true ? "true" : "false";
+            const notTakenHandle = conditionResult === true ? "false" : "true";
             const handleTargets = handleMap.get(handleId) ?? [];
+
+            // Record decision for branch-aware finalSuccess
+            conditionDecisions.set(nodeId, {
+              taken: handleId,
+              skippedTargets: collectSkippedTargets(
+                nodeId,
+                notTakenHandle,
+                edgesBySourceHandle
+              ),
+            });
             await Promise.all(
               handleTargets.map((nextNodeId) =>
                 executeNode(nextNodeId, visited)
@@ -1987,12 +2042,34 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       }
 
     }
-    // end keeperhub code //
 
-    const finalSuccess = Object.values(results).every((r) => r.success);
+    // Branch-aware finalSuccess: exclude nodes on dead (not-taken) condition branches
+    const allSkippedTargets = collectAllSkippedTargets(conditionDecisions);
+    const finalSuccess = Object.entries(results).every(
+      ([nodeId, r]) => r.success || allSkippedTargets.has(nodeId)
+    );
+    // end keeperhub code //
     const duration = Date.now() - workflowStartTime;
 
     // start custom keeperhub code //
+    // Diagnostic logging for branching workflow failures
+    if (!finalSuccess && conditionDecisions.size > 0) {
+      const failedNodes = Object.entries(results)
+        .filter(([, r]) => !r.success)
+        .map(([id, r]) => ({ id, error: r.error }));
+      const unexecutedNodes = [...nodeMap.keys()].filter(
+        (id) => !(id in results)
+      );
+      console.log("[Workflow Executor] Branch-aware finalSuccess=false diagnostic:", {
+        failedNodes,
+        conditionDecisions: [...conditionDecisions.entries()].map(
+          ([id, d]) => ({ id, ...d })
+        ),
+        skippedTargets: [...allSkippedTargets],
+        unexecutedNodes,
+      });
+    }
+
     recordWorkflowComplete({
       workflowId,
       executionId,
