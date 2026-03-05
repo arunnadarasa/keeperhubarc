@@ -1,6 +1,15 @@
 "use client";
 
-import { Check, Info, KeyRound, Wallet, Workflow } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Info,
+  KeyRound,
+  Wallet,
+  Workflow,
+  X,
+} from "lucide-react";
 import { useRef } from "react";
 import { AuthDialog } from "@/components/auth/dialog";
 import { ApiKeysOverlay } from "@/components/overlays/api-keys-overlay";
@@ -111,17 +120,37 @@ function SkeletonRows(): React.ReactElement {
   );
 }
 
+const ICON_BTN =
+  "rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground";
+
+function DismissButton({
+  onClick,
+}: {
+  onClick: () => void;
+}): React.ReactElement {
+  return (
+    <button
+      className={ICON_BTN}
+      onClick={onClick}
+      title="Dismiss"
+      type="button"
+    >
+      <X className="size-4" />
+    </button>
+  );
+}
+
 export function GettingStartedChecklist({
   onCreateWorkflow,
 }: GettingStartedChecklistProps): React.ReactElement | null {
   const {
     steps,
     isLoading,
-    allComplete,
     completedCount,
-    hidden,
-    hide,
-    show,
+    guideState,
+    collapse,
+    expand,
+    dismiss,
     refetch,
   } = useOnboardingStatus();
   const { open: openOverlay } = useOverlay();
@@ -130,8 +159,22 @@ export function GettingStartedChecklist({
 
   const isAnonymous = isAnonymousUser(session?.user);
 
-  if (allComplete) {
-    return null;
+  const docsLink = (
+    <p className="mt-1.5 text-center text-base tracking-wide text-muted-foreground/40">
+      Need help?{" "}
+      <a
+        className="underline decoration-muted-foreground/20 underline-offset-2 transition-colors hover:text-muted-foreground hover:decoration-muted-foreground/40"
+        href="https://docs.keeperhub.com/"
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        View docs
+      </a>
+    </p>
+  );
+
+  if (guideState === "dismissed") {
+    return <div className="w-full min-w-[14rem] max-w-[16rem]">{docsLink}</div>;
   }
 
   const promptSignIn = (): void => {
@@ -158,14 +201,14 @@ export function GettingStartedChecklist({
               <Info className="size-3.5 text-muted-foreground" />
             </TooltipTrigger>
             <TooltipContent className="text-xs" side="top">
-              See{" "}
+              Connect KeeperHub to your AI tools.{" "}
               <a
                 className="underline"
                 href="https://docs.keeperhub.com/ai-tools/mcp-server"
                 rel="noopener noreferrer"
                 target="_blank"
               >
-                MCP docs
+                Learn more
               </a>
             </TooltipContent>
           </Tooltip>
@@ -204,39 +247,56 @@ export function GettingStartedChecklist({
     },
   ];
 
-  return (
-    <div className="w-full min-w-[14rem] max-w-[16rem]">
-      {hidden ? (
-        <button
-          className="flex w-full items-center gap-2 px-3 py-1.5 transition-opacity hover:opacity-80"
-          onClick={show}
-          type="button"
-        >
-          <div className="h-px flex-1 bg-border/40" />
-          <span className="shrink-0 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
-            Setup Guide
+  if (guideState === "collapsed") {
+    return (
+      <div className="w-full min-w-[14rem] max-w-[16rem]">
+        <div className="flex items-center rounded-md border bg-popover px-2 py-1.5 shadow-md">
+          <span className="font-medium text-sm">Setup Guide</span>
+          <span className="ml-2 text-xs text-muted-foreground">
+            {completedCount}/{steps.length}
           </span>
-          <div className="h-px flex-1 bg-border/40" />
-        </button>
-      ) : (
-        <div className="rounded-md border bg-popover p-1 shadow-md">
-          <AuthDialog>
-            <button className="hidden" ref={authTriggerRef} type="button" />
-          </AuthDialog>
-
-          <div className="flex items-center justify-between px-2 py-1.5">
-            <span className="font-medium text-sm">Setup Guide</span>
+          <div className="ml-auto flex items-center gap-0.5">
             <button
-              className="text-muted-foreground text-xs transition-colors hover:text-foreground"
-              onClick={hide}
+              className={ICON_BTN}
+              onClick={expand}
+              title="Expand"
               type="button"
             >
-              Hide
+              <ChevronDown className="size-4" />
             </button>
+            <DismissButton onClick={dismiss} />
           </div>
+        </div>
+        {docsLink}
+      </div>
+    );
+  }
 
-          <div className="-mx-1 my-1 h-px bg-border" />
+  return (
+    <div className="w-full min-w-[14rem] max-w-[16rem]">
+      <div className="rounded-md border bg-popover shadow-md">
+        <AuthDialog>
+          <button className="hidden" ref={authTriggerRef} type="button" />
+        </AuthDialog>
 
+        <div className="flex items-center px-2 py-1.5">
+          <span className="font-medium text-sm">Setup Guide</span>
+          <div className="ml-auto flex items-center gap-0.5">
+            <button
+              className={ICON_BTN}
+              onClick={collapse}
+              title="Collapse"
+              type="button"
+            >
+              <ChevronUp className="size-4" />
+            </button>
+            <DismissButton onClick={dismiss} />
+          </div>
+        </div>
+
+        <div className="my-1 h-px bg-border" />
+
+        <div className="px-1">
           {isLoading ? (
             <SkeletonRows />
           ) : (
@@ -260,30 +320,19 @@ export function GettingStartedChecklist({
               })}
             </div>
           )}
-
-          <div className="-mx-1 my-1 h-px bg-border" />
-
-          <div className="px-2 py-1.5">
-            {isLoading ? (
-              <div className="h-1 w-full animate-pulse rounded-full bg-muted" />
-            ) : (
-              <ProgressBar completed={completedCount} total={steps.length} />
-            )}
-          </div>
         </div>
-      )}
 
-      <p className="mt-1.5 text-center text-base tracking-wide text-muted-foreground/40">
-        Read{" "}
-        <a
-          className="underline decoration-muted-foreground/20 underline-offset-2 transition-colors hover:text-muted-foreground hover:decoration-muted-foreground/40"
-          href="https://docs.keeperhub.com/"
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          docs
-        </a>
-      </p>
+        <div className="my-1 h-px bg-border" />
+
+        <div className="px-2 py-1.5">
+          {isLoading ? (
+            <div className="h-1 w-full animate-pulse rounded-full bg-muted" />
+          ) : (
+            <ProgressBar completed={completedCount} total={steps.length} />
+          )}
+        </div>
+      </div>
+      {docsLink}
     </div>
   );
 }
