@@ -644,11 +644,19 @@ jobs:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 
+      - name: Fetch TEST_API_KEY from Parameter Store
+        run: |
+          TEST_API_KEY=$(aws ssm get-parameter \
+            --name "/eks/maker-staging/keeperhub/test-api-key" \
+            --with-decryption --query "Parameter.Value" --output text)
+          echo "::add-mask::$TEST_API_KEY"
+          echo "TEST_API_KEY=$TEST_API_KEY" >> $GITHUB_ENV
+
       - name: Run Playwright tests against deployed environment
         run: pnpm exec playwright test --grep-invert "happy-paths"
         env:
           BASE_URL: ${{ env.BASE_URL }}
-          TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
+          TEST_API_KEY: ${{ env.TEST_API_KEY }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           CI: true
