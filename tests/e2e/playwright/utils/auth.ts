@@ -63,7 +63,8 @@ export async function getOtpFromDb(email: string): Promise<string> {
 
 async function getOtpViaApi(email: string, baseUrl: string): Promise<string> {
   const url = `${baseUrl}/api/admin/test/otp?email=${encodeURIComponent(email)}`;
-  const maxRetries = 10;
+  const maxRetries = 8;
+  const baseDelay = 500;
 
   for (let i = 0; i < maxRetries; i++) {
     const response = await fetch(url, { headers: getAdminFetchHeaders() });
@@ -75,7 +76,8 @@ async function getOtpViaApi(email: string, baseUrl: string): Promise<string> {
       const body = await response.text();
       throw new Error(`Admin OTP API returned ${response.status}: ${body}`);
     }
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    const delay = Math.min(baseDelay * 2 ** i, 4000);
+    await new Promise((resolve) => setTimeout(resolve, delay));
   }
   throw new Error(
     `No OTP found for ${email} after ${maxRetries} retries via API`
