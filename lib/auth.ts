@@ -433,7 +433,11 @@ export const auth = betterAuth({
   },
   // start custom keeperhub code //
   rateLimit: {
-    enabled: !(process.env.CI || process.env.NODE_ENV === "test"),
+    enabled: !(
+      process.env.CI ||
+      process.env.NODE_ENV === "test" ||
+      process.env.DISABLE_AUTH_RATE_LIMIT === "true"
+    ),
   },
   // end keeperhub code //
   advanced: {
