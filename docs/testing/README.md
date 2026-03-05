@@ -118,7 +118,7 @@ graph TD
 |---|---|---|
 | `e2e-tests-ephemeral.yml` | Push to staging/prod, PR with `run-e2e-tests-ephemeral` label | `e2e-vitest-ephemeral`, `e2e-playwright-ephemeral` |
 | `deploy-pr-environment.yaml` | PR with `deploy-pr-environment` label | `build-images`, `deploy`, `e2e-vitest-remote`, `e2e-playwright-remote` (remote tests gated by `run-e2e-tests-pr-deploy` label) |
-| `deploy-keeperhub.yaml` | `workflow_run` after E2E Tests Ephemeral passes on staging/prod | `build-and-deploy`, `e2e-playwright-remote` |
+| `deploy-keeperhub.yaml` | `workflow_call` from `ci-pipeline.yml` (staging/prod push) | `build-and-deploy`, `e2e-playwright-remote` |
 
 ---
 
