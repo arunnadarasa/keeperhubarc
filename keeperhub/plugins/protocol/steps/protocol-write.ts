@@ -132,4 +132,6 @@ export async function protocolWriteStep(
   return await withStepLogging(input, () => writeContractCore(coreInput));
 }
 
+protocolWriteStep.maxRetries = 0;
+
 export const _integrationType = "protocol";

@@ -487,4 +487,6 @@ export async function checkTokenBalanceStep(
   return withStepLogging(input, () => stepHandler(input));
 }
 
+checkTokenBalanceStep.maxRetries = 0;
+
 export const _integrationType = "web3";

@@ -38,3 +38,5 @@ export async function enrichExplorerLinks(
     );
   }
 }
+
+enrichExplorerLinks.maxRetries = 0;
