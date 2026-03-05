@@ -452,34 +452,10 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
         with:
-          node-version: "22"
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Generate plugin registry
-        run: pnpm discover-plugins
+          discover-plugins: "true"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v5
@@ -604,49 +580,10 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Node.js, pnpm, and Playwright
+        uses: ./.github/actions/setup-node-pnpm
         with:
-          node-version: "22"
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Get Playwright version
-        run: echo "PW_VERSION=$(pnpm exec playwright --version | awk '{print $2}')" >> $GITHUB_ENV
-
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ env.PW_VERSION }}
-
-      - name: Install Playwright browsers
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install --with-deps chromium
-
-      - name: Install Playwright system deps
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium
+          install-playwright: "true"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v5
