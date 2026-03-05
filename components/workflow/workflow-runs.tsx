@@ -47,7 +47,7 @@ type ExecutionLog = {
   nodeId: string;
   nodeName: string;
   nodeType: string;
-  status: "pending" | "running" | "success" | "error";
+  status: "pending" | "running" | "success" | "error" | "cancelled";
   startedAt: Date;
   completedAt: Date | null;
   duration: string | null;
@@ -125,7 +125,7 @@ function createExecutionLogsMap(logs: ExecutionLog[]): Record<
     nodeId: string;
     nodeName: string;
     nodeType: string;
-    status: "pending" | "running" | "success" | "error";
+    status: "pending" | "running" | "success" | "error" | "cancelled";
     output?: unknown;
   }
 > {
@@ -135,7 +135,7 @@ function createExecutionLogsMap(logs: ExecutionLog[]): Record<
       nodeId: string;
       nodeName: string;
       nodeType: string;
-      status: "pending" | "running" | "success" | "error";
+      status: "pending" | "running" | "success" | "error" | "cancelled";
       output?: unknown;
     }
   > = {};
@@ -984,7 +984,7 @@ export function WorkflowRuns({
         nodeId: string;
         nodeName: string;
         nodeType: string;
-        status: "pending" | "running" | "success" | "error";
+        status: "pending" | "running" | "success" | "error" | "cancelled";
         input: unknown;
         output: unknown;
         error: string | null;
