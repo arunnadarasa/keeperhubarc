@@ -431,6 +431,11 @@ export const auth = betterAuth({
       enabled: !!process.env.GOOGLE_CLIENT_ID,
     },
   },
+  // start custom keeperhub code //
+  rateLimit: {
+    enabled: !(process.env.CI || process.env.NODE_ENV === "test"),
+  },
+  // end keeperhub code //
   advanced: {
     // Use secure cookies in production (HTTPS only)
     useSecureCookies: process.env.NODE_ENV === "production",
