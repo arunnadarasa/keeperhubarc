@@ -131,7 +131,7 @@ jobs:
   # DISABLED: remote E2E tests temporarily disabled while KEEP-1351 stabilises auth/rate-limit infrastructure
   e2e-playwright-remote:
     needs: build-and-deploy
-    if: false
+    if: ${{ vars.ENABLE_E2E_REMOTE_TESTS == 'true' }}
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
     env:

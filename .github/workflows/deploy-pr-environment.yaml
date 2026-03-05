@@ -455,7 +455,7 @@ jobs:
       always() &&
       needs.check-labels.outputs.should-test == 'true' &&
       (needs.deploy.result == 'success' || needs.deploy.result == 'skipped') &&
-      false
+      vars.ENABLE_E2E_REMOTE_TESTS == 'true'
     runs-on: ubuntu-latest
     environment: staging
     env:
@@ -585,7 +585,7 @@ jobs:
       always() &&
       needs.check-labels.outputs.should-test == 'true' &&
       (needs.deploy.result == 'success' || needs.deploy.result == 'skipped') &&
-      false
+      vars.ENABLE_E2E_REMOTE_TESTS == 'true'
     runs-on: ubuntu-latest
     environment: staging
     env:

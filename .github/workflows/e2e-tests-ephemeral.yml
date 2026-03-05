@@ -75,7 +75,7 @@ jobs:
   # DISABLED: ephemeral E2E tests temporarily disabled while KEEP-1351 stabilises auth/rate-limit infrastructure
   e2e-vitest-ephemeral:
     needs: should-run
-    if: false
+    if: ${{ needs.should-run.outputs.run-e2e == 'true' && vars.ENABLE_E2E_EPHEMERAL_TESTS == 'true' }}
     runs-on: ubuntu-latest
     environment: staging
 
@@ -232,7 +232,7 @@ jobs:
   # DISABLED: ephemeral E2E tests temporarily disabled while KEEP-1351 stabilises auth/rate-limit infrastructure
   e2e-playwright-ephemeral:
     needs: [should-run, e2e-vitest-ephemeral]
-    if: false
+    if: ${{ always() && needs.should-run.outputs.run-e2e == 'true' && !failure() && vars.ENABLE_E2E_EPHEMERAL_TESTS == 'true' }}
     runs-on: ubuntu-latest
     environment: staging
 
