@@ -128,9 +128,6 @@ env:
   NODE_ENV:
     type: kv
     value: "development"
-  DISABLE_AUTH_RATE_LIMIT:
-    type: kv
-    value: "true"
   HOSTNAME:
     type: kv
     value: "0.0.0.0"

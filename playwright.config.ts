@@ -43,15 +43,19 @@ export default defineConfig({
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     navigationTimeout: 60_000,
-    // Cloudflare Access headers for deployed PR environments
-    ...(isDeployedEnv &&
-      process.env.CF_ACCESS_CLIENT_ID &&
-      process.env.CF_ACCESS_CLIENT_SECRET && {
-        extraHTTPHeaders: {
+    extraHTTPHeaders: {
+      // Bypass auth rate limiting for test requests
+      ...(process.env.TEST_API_KEY && {
+        "X-Test-API-Key": process.env.TEST_API_KEY,
+      }),
+      // Cloudflare Access headers for deployed PR environments
+      ...(isDeployedEnv &&
+        process.env.CF_ACCESS_CLIENT_ID &&
+        process.env.CF_ACCESS_CLIENT_SECRET && {
           "CF-Access-Client-Id": process.env.CF_ACCESS_CLIENT_ID,
           "CF-Access-Client-Secret": process.env.CF_ACCESS_CLIENT_SECRET,
-        },
-      }),
+        }),
+    },
   },
   projects: [
     {

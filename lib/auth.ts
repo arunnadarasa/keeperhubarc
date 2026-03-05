@@ -433,11 +433,16 @@ export const auth = betterAuth({
   },
   // start custom keeperhub code //
   rateLimit: {
-    enabled: !(
-      process.env.CI ||
-      process.env.NODE_ENV === "test" ||
-      process.env.DISABLE_AUTH_RATE_LIMIT === "true"
-    ),
+    enabled: !(process.env.CI || process.env.NODE_ENV === "test"),
+    customRules: {
+      "/*": (req) => {
+        const testApiKey = process.env.TEST_API_KEY;
+        if (!testApiKey) return undefined;
+        const authHeader = req.headers.get("X-Test-API-Key");
+        if (authHeader && authHeader === testApiKey) return false;
+        return undefined;
+      },
+    },
   },
   // end keeperhub code //
   advanced: {
