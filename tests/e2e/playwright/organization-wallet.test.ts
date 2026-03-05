@@ -75,7 +75,9 @@ async function openWalletOverlay(page: Page): Promise<void> {
 async function createWalletViaOverlay(page: Page): Promise<void> {
   await page.locator('button:has-text("Create Organization Wallet")').click();
 
-  const createBtn = page.locator('button:has-text("Create Wallet")');
+  const createBtn = page.locator(
+    'button[data-slot="button"]:has-text("Create Wallet")'
+  );
   await expect(createBtn).toBeEnabled({ timeout: 5000 });
   await createBtn.click();
 
@@ -208,10 +210,7 @@ test.describe("Organization Management", () => {
   });
 });
 
-test.describe.skip("Para Wallet Management", () => {
-  // Para beta environment has a max user limit that CI always hits
-  // since each test run creates fresh users. Skip in CI.
-  // Also flaky locally due to signUpAndVerify timing issues.
+test.describe("Para Wallet Management", () => {
 
   test.beforeEach(async ({ context }) => {
     await context.clearCookies();
@@ -245,7 +244,9 @@ test.describe.skip("Para Wallet Management", () => {
       await expect(emailInput).toHaveValue(email);
 
       // Submit the form
-      const createBtn = overlay.locator('button:has-text("Create Wallet")');
+      const createBtn = overlay.locator(
+        'button[data-slot="button"]:has-text("Create Wallet")'
+      );
       await expect(createBtn).toBeEnabled({ timeout: 5000 });
       await createBtn.click();
 
@@ -317,7 +318,9 @@ test.describe.skip("Para Wallet Management", () => {
       await emailInput.clear();
 
       // Create button should be disabled when email is empty
-      const createButton = overlay.locator('button:has-text("Create Wallet")');
+      const createButton = overlay.locator(
+        'button[data-slot="button"]:has-text("Create Wallet")'
+      );
       await expect(createButton).toBeDisabled();
     });
   });

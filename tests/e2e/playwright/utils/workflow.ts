@@ -5,6 +5,7 @@ import { expect } from "@playwright/test";
 const WORKFLOW_ID_REGEX = /\/workflows?\/([a-zA-Z0-9_-]+)/;
 const SAVE_WORKFLOW_REGEX = /Save workflow/i;
 const WEBHOOK_OPTION_REGEX = /webhook/i;
+const WORKFLOW_URL_REGEX = /workflow/;
 
 /**
  * Wait for workflow canvas to be ready.
@@ -201,7 +202,7 @@ export async function saveWorkflow(page: Page): Promise<void> {
     });
 
   // Wait for post-save redirect (new workflows get assigned an ID in the URL)
-  await page.waitForURL(/workflow/, { timeout: 10_000 }).catch(() => {
+  await page.waitForURL(WORKFLOW_URL_REGEX, { timeout: 10_000 }).catch(() => {
     // URL may already contain workflow ID, that's OK
   });
 }

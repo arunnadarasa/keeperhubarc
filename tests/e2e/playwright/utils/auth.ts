@@ -177,7 +177,9 @@ export async function signIn(
   await expect(dialog).not.toBeVisible({ timeout: 15_000 });
 
   // Wait for org switcher to appear (indicates session and org are resolved)
-  await expect(page.locator('[data-testid="org-switcher"]')).toBeVisible({
+  // Use role selector -- data-testid only exists on the "ready" render branch,
+  // but role="combobox" achieves the same: only the resolved org switcher has it.
+  await expect(page.locator('button[role="combobox"]')).toBeVisible({
     timeout: 15_000,
   });
 }

@@ -15,13 +15,12 @@ Server-side tests that validate backend functionality: database operations, API 
 
 ### Playwright E2E
 
-Browser-based tests that validate the full user experience: authentication flows, workflow creation, UI interactions, and end-to-end user journeys. Runs headless Chromium via Playwright, sharded across 2 runners.
+Browser-based tests that validate the full user experience: authentication flows, workflow creation, UI interactions, and end-to-end user journeys. Runs headless Chromium via Playwright, single worker, serial execution.
 
 **Test files:** `tests/e2e/playwright/`
 
 **Key commands:**
 - `pnpm test:e2e` -- all playwright tests
-- `pnpm test:e2e --shard=1/2` -- first shard only
 
 ---
 
@@ -164,6 +163,25 @@ Only Playwright runs post-deploy on staging/prod. Vitest is not run remotely aga
 
 ## Design Decisions
 
+### Playwright stability
+
+Playwright tests run with `fullyParallel: false`, `workers: 1`, and `retries: 2`.
+
+**Serial execution:** All Playwright tests share a single persistent test user session via `storageState`. Parallel execution caused shared-state conflicts (org mutations, workflow saves affecting other tests mid-assertion). Serial execution eliminates this class of flakiness entirely.
+
+**Retries:** Handles environmental flakiness (network jitter, slow container startup, Para API variability). A test that fails 3 consecutive times is a real failure.
+
+**No sharding:** Previously used 2 shards in CI. Removed because sharding adds CI resource cost (two runners, two DB setups) without meaningful speed gain given serial execution. A single runner completes the full suite in ~6 minutes.
+
+**Deterministic waits:** App components expose data attributes that tests wait on instead of `waitForTimeout()` or `networkidle`:
+- `data-ready` on workflow canvas (replaces 60s opacity-based visibility guess)
+- `data-state` on org switcher (`switching`, `loading`, `ready`)
+- `data-page-state` on accept-invite page (replaces 5-retry hydration workaround)
+
+Tests use `expect(locator).toBeVisible({ timeout })` with auto-retry instead of hardcoded sleeps. The `networkidle` wait strategy is avoided because background polling (org data, wallet status) prevents the network from ever going idle.
+
+**Reporter:** `github` in CI (annotates failures directly on PRs), `list` locally (real-time terminal output). HTML report generated in CI but set to `open: "never"`.
+
 ### No vitest-remote on staging/prod
 
 Vitest E2E tests are not run against staging/prod after deployment. Only Playwright runs as a post-deploy verification step.
@@ -217,7 +235,7 @@ Playwright's `global-setup.ts` runs preflight validation before any tests execut
 | Job name | Where | What |
 |---|---|---|
 | `e2e-vitest-ephemeral` | `e2e-tests-ephemeral.yml` | Vitest against ephemeral CI postgres + localstack |
-| `e2e-playwright-ephemeral` | `e2e-tests-ephemeral.yml` | Playwright against ephemeral CI app (sharded) |
+| `e2e-playwright-ephemeral` | `e2e-tests-ephemeral.yml` | Playwright against ephemeral CI app (serial, single worker) |
 | `e2e-vitest-remote` | `deploy-pr-environment.yaml` | Vitest against deployed PR env via kubectl port-forward |
 | `e2e-playwright-remote` | `deploy-pr-environment.yaml`, `deploy-keeperhub.yaml` | Playwright against deployed env via admin API |
 
