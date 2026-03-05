@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  type ExecutionLog,
   getFailedMaxRetriesNodeIds,
   reconcileMaxRetriesFailures,
 } from "@/keeperhub/lib/max-retries-reconciler";
@@ -37,15 +36,17 @@ describe("reconcileMaxRetriesFailures", () => {
       "node-2": { success: false, error: "HTTP 500 Internal Server Error" },
     };
 
-    const { overrides } = reconcileMaxRetriesFailures({
+    const { overriddenNodeIds } = reconcileMaxRetriesFailures({
       results,
-      executionLogs: [],
+      successfulSteps: new Map(),
+      executionId: "exec-1",
+      workflowId: "wf-1",
     });
 
-    expect(overrides).toEqual({});
+    expect(overriddenNodeIds).toEqual([]);
   });
 
-  it("should return success override when all logs for the node are success", () => {
+  it("should override to success when node has a tracked success", () => {
     const results: Record<
       string,
       { success: boolean; error?: string; data?: unknown }
@@ -57,46 +58,52 @@ describe("reconcileMaxRetriesFailures", () => {
       },
     };
 
-    const executionLogs: ExecutionLog[] = [
-      {
-        nodeId: "node-2",
-        status: "success",
-        output: { statusCode: 200, body: "ok" },
-      },
-    ];
+    const successfulSteps = new Map<string, unknown>([
+      ["node-2", { statusCode: 200, body: "ok" }],
+    ]);
 
-    const { overrides } = reconcileMaxRetriesFailures({
+    const { overriddenNodeIds } = reconcileMaxRetriesFailures({
       results,
-      executionLogs,
+      successfulSteps,
+      executionId: "exec-1",
+      workflowId: "wf-1",
     });
 
-    expect(overrides).toEqual({
-      "node-2": { success: true, data: { statusCode: 200, body: "ok" } },
+    expect(overriddenNodeIds).toEqual(["node-2"]);
+    expect(results["node-2"]).toEqual({
+      success: true,
+      data: { statusCode: 200, body: "ok" },
     });
   });
 
-  it("should NOT override when there is an error log for the node", () => {
-    const results: Record<string, { success: boolean; error?: string }> = {
+  it("should override to success when node output is undefined", () => {
+    const results: Record<
+      string,
+      { success: boolean; error?: string; data?: unknown }
+    > = {
       "node-1": {
         success: false,
-        error: 'Step "step//abc//sendWebhook" exceeded max retries (1 retry)',
+        error: 'Step "step//abc//sendWebhook" exceeded max retries (0 retries)',
       },
     };
 
-    const executionLogs: ExecutionLog[] = [
-      { nodeId: "node-1", status: "success", output: { statusCode: 200 } },
-      { nodeId: "node-1", status: "error", output: null },
-    ];
+    const successfulSteps = new Map<string, unknown>([["node-1", undefined]]);
 
-    const { overrides } = reconcileMaxRetriesFailures({
+    const { overriddenNodeIds } = reconcileMaxRetriesFailures({
       results,
-      executionLogs,
+      successfulSteps,
+      executionId: "exec-1",
+      workflowId: "wf-1",
     });
 
-    expect(overrides).toEqual({});
+    expect(overriddenNodeIds).toEqual(["node-1"]);
+    expect(results["node-1"]).toEqual({
+      success: true,
+      data: undefined,
+    });
   });
 
-  it("should NOT override when there are no logs at all for the node", () => {
+  it("should NOT override when node has no tracked success", () => {
     const results: Record<string, { success: boolean; error?: string }> = {
       "node-1": {
         success: false,
@@ -104,12 +111,14 @@ describe("reconcileMaxRetriesFailures", () => {
       },
     };
 
-    const { overrides } = reconcileMaxRetriesFailures({
+    const { overriddenNodeIds } = reconcileMaxRetriesFailures({
       results,
-      executionLogs: [],
+      successfulSteps: new Map(),
+      executionId: "exec-1",
+      workflowId: "wf-1",
     });
 
-    expect(overrides).toEqual({});
+    expect(overriddenNodeIds).toEqual([]);
   });
 
   it("should handle multiple failed nodes independently", () => {
@@ -128,19 +137,21 @@ describe("reconcileMaxRetriesFailures", () => {
       "node-3": { success: true },
     };
 
-    const executionLogs: ExecutionLog[] = [
-      { nodeId: "node-1", status: "success", output: { sent: true } },
-      { nodeId: "node-2", status: "success", output: { result: true } },
-      { nodeId: "node-2", status: "error", output: null },
-    ];
+    const successfulSteps = new Map<string, unknown>([
+      ["node-1", { sent: true }],
+    ]);
 
-    const { overrides } = reconcileMaxRetriesFailures({
+    const { overriddenNodeIds } = reconcileMaxRetriesFailures({
       results,
-      executionLogs,
+      successfulSteps,
+      executionId: "exec-1",
+      workflowId: "wf-1",
     });
 
-    expect(overrides).toEqual({
-      "node-1": { success: true, data: { sent: true } },
+    expect(overriddenNodeIds).toEqual(["node-1"]);
+    expect(results["node-1"]).toEqual({
+      success: true,
+      data: { sent: true },
     });
   });
 
@@ -159,37 +170,21 @@ describe("reconcileMaxRetriesFailures", () => {
       },
     };
 
-    const executionLogs: ExecutionLog[] = [
-      { nodeId: "node-1", status: "success", output: { ok: true } },
-    ];
+    const successfulSteps = new Map<string, unknown>([
+      ["node-1", { ok: true }],
+    ]);
 
-    const { overrides } = reconcileMaxRetriesFailures({
+    const { overriddenNodeIds } = reconcileMaxRetriesFailures({
       results,
-      executionLogs,
+      successfulSteps,
+      executionId: "exec-1",
+      workflowId: "wf-1",
     });
 
-    expect(overrides).toEqual({
-      "node-1": { success: true, data: { ok: true } },
+    expect(overriddenNodeIds).toEqual(["node-1"]);
+    expect(results["node-1"]).toEqual({
+      success: true,
+      data: { ok: true },
     });
-  });
-
-  it("should not mutate the input results", () => {
-    const results: Record<
-      string,
-      { success: boolean; error?: string; data?: unknown }
-    > = {
-      "node-1": {
-        success: false,
-        error: 'Step "step//a//webhook" exceeded max retries (0 retries)',
-      },
-    };
-
-    const executionLogs: ExecutionLog[] = [
-      { nodeId: "node-1", status: "success", output: { ok: true } },
-    ];
-
-    reconcileMaxRetriesFailures({ results, executionLogs });
-
-    expect(results["node-1"]?.success).toBe(false);
   });
 });

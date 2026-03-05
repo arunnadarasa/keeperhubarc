@@ -21,7 +21,7 @@ const STORAGE_KEY = "keeperhub-nav-state";
 const LEGACY_KEY = "keeperhub-sidebar-expanded";
 
 const DEFAULT_STATE: PersistedNavState = {
-  sidebar: false,
+  sidebar: true,
   panels: { projects: "closed", tags: "closed", workflows: "closed" },
   selectedProjectId: null,
   selectedTagId: null,

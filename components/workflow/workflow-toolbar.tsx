@@ -1254,20 +1254,6 @@ function ToolbarActions({
 
   return (
     <>
-      {/* Add Step - Mobile Vertical */}
-      <ButtonGroup className="flex lg:hidden" orientation="vertical">
-        <Button
-          className="border hover:bg-black/5 disabled:opacity-100 dark:hover:bg-white/5 disabled:[&>svg]:text-muted-foreground"
-          disabled={state.isGenerating}
-          onClick={handleAddStep}
-          size="icon"
-          title="Add Step"
-          variant="secondary"
-        >
-          <Plus className="size-4" />
-        </Button>
-      </ButtonGroup>
-
       {/* Properties - Mobile Vertical (always visible) */}
       <ButtonGroup className="flex lg:hidden" orientation="vertical">
         <Button
@@ -1293,68 +1279,6 @@ function ToolbarActions({
         )}
       </ButtonGroup>
 
-      {/* Add Step - Desktop Horizontal */}
-      <ButtonGroup className="hidden lg:flex" orientation="horizontal">
-        <Button
-          className="border hover:bg-black/5 disabled:opacity-100 dark:hover:bg-white/5 disabled:[&>svg]:text-muted-foreground"
-          disabled={state.isGenerating}
-          onClick={handleAddStep}
-          size="icon"
-          title="Add Step"
-          variant="secondary"
-        >
-          <Plus className="size-4" />
-        </Button>
-      </ButtonGroup>
-
-      {/* Undo/Redo - Mobile Vertical */}
-      <ButtonGroup className="flex lg:hidden" orientation="vertical">
-        <Button
-          className="border hover:bg-black/5 disabled:opacity-100 dark:hover:bg-white/5 disabled:[&>svg]:text-muted-foreground"
-          disabled={!state.canUndo || state.isGenerating}
-          onClick={() => state.undo()}
-          size="icon"
-          title="Undo"
-          variant="secondary"
-        >
-          <Undo2 className="size-4" />
-        </Button>
-        <Button
-          className="border hover:bg-black/5 disabled:opacity-100 dark:hover:bg-white/5 disabled:[&>svg]:text-muted-foreground"
-          disabled={!state.canRedo || state.isGenerating}
-          onClick={() => state.redo()}
-          size="icon"
-          title="Redo"
-          variant="secondary"
-        >
-          <Redo2 className="size-4" />
-        </Button>
-      </ButtonGroup>
-
-      {/* Undo/Redo - Desktop Horizontal */}
-      <ButtonGroup className="hidden lg:flex" orientation="horizontal">
-        <Button
-          className="border hover:bg-black/5 disabled:opacity-100 dark:hover:bg-white/5 disabled:[&>svg]:text-muted-foreground"
-          disabled={!state.canUndo || state.isGenerating}
-          onClick={() => state.undo()}
-          size="icon"
-          title="Undo"
-          variant="secondary"
-        >
-          <Undo2 className="size-4" />
-        </Button>
-        <Button
-          className="border hover:bg-black/5 disabled:opacity-100 dark:hover:bg-white/5 disabled:[&>svg]:text-muted-foreground"
-          disabled={!state.canRedo || state.isGenerating}
-          onClick={() => state.redo()}
-          size="icon"
-          title="Redo"
-          variant="secondary"
-        >
-          <Redo2 className="size-4" />
-        </Button>
-      </ButtonGroup>
-
       {/* Save/Download - Mobile Vertical */}
       <div className="flex flex-col gap-1 lg:hidden">
         <SaveButton handleSave={actions.handleSave} state={state} />
@@ -1362,7 +1286,13 @@ function ToolbarActions({
       </div>
 
       {/* Save/Download - Desktop Horizontal */}
-      <div className="hidden gap-1 lg:flex">
+      <div className="hidden items-center gap-1 lg:flex">
+        {state.isSaving && !isAnonymousUser(state.session?.user) && (
+          <span className="flex items-center gap-1 text-muted-foreground text-xs">
+            <Loader2 className="size-3 animate-spin" />
+            Saving...
+          </span>
+        )}
         <SaveButton handleSave={actions.handleSave} state={state} />
         <DownloadButton actions={actions} state={state} />
       </div>
@@ -1428,11 +1358,7 @@ function SaveButton({
       }
       variant="secondary"
     >
-      {state.isSaving ? (
-        <Loader2 className="size-4 animate-spin" />
-      ) : (
-        <Save className="size-4" />
-      )}
+      <Save className="size-4" />
       {state.hasUnsavedChanges && !state.isSaving && !isAnonymous && (
         <div className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary" />
       )}
