@@ -32,26 +32,30 @@ export default defineConfig({
   globalTeardown: "./tests/e2e/playwright/global-teardown.ts",
   testDir: "./tests/e2e/playwright",
   testMatch: "**/*.test.ts",
-  fullyParallel: true,
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
-  reporter: "html",
+  retries: 2,
+  workers: 1,
+  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   timeout: 60_000,
   use: {
     baseURL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     navigationTimeout: 60_000,
-    // Cloudflare Access headers for deployed PR environments
-    ...(isDeployedEnv &&
-      process.env.CF_ACCESS_CLIENT_ID &&
-      process.env.CF_ACCESS_CLIENT_SECRET && {
-        extraHTTPHeaders: {
+    extraHTTPHeaders: {
+      // Bypass auth rate limiting for test requests
+      ...(process.env.TEST_API_KEY && {
+        "X-Test-API-Key": process.env.TEST_API_KEY,
+      }),
+      // Cloudflare Access headers for deployed PR environments
+      ...(isDeployedEnv &&
+        process.env.CF_ACCESS_CLIENT_ID &&
+        process.env.CF_ACCESS_CLIENT_SECRET && {
           "CF-Access-Client-Id": process.env.CF_ACCESS_CLIENT_ID,
           "CF-Access-Client-Secret": process.env.CF_ACCESS_CLIENT_SECRET,
-        },
-      }),
+        }),
+    },
   },
   projects: [
     {

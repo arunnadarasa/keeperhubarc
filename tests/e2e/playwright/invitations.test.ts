@@ -441,9 +441,5 @@ test.describe("Organization Invitations", () => {
           .filter({ hasText: `Left ${orgNameToLeave}` })
       ).toBeVisible({ timeout: 10_000 });
     });
-
-    // biome-ignore lint/suspicious/noSkippedTests: Remove member UI (members-list.tsx) is not wired into any page yet
-    // biome-ignore lint/suspicious/noEmptyBlockStatements: placeholder for unimplemented UI
-    test.skip("ORG-4: admin can remove a member from org", () => {});
   });
 });

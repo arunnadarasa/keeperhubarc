@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 import postgres from "postgres";
+import { getAdminFetchHeaders } from "./admin-fetch";
 
 /**
  * Sign up a new user and navigate to verification view.
@@ -45,13 +46,48 @@ export async function signUp(
 }
 
 /**
- * Get OTP from database for a given email.
- * Requires DATABASE_URL environment variable.
+ * Get OTP for a given email.
+ * Uses admin API when TEST_API_KEY + BASE_URL are set (remote/deployed mode).
+ * Falls back to direct DB query when DATABASE_URL is available (local mode).
  */
 export async function getOtpFromDb(email: string): Promise<string> {
+  const adminKey = process.env.TEST_API_KEY;
+  const baseUrl = process.env.BASE_URL;
+
+  if (adminKey && baseUrl) {
+    return await getOtpViaApi(email, baseUrl);
+  }
+
+  return await getOtpViaDb(email);
+}
+
+async function getOtpViaApi(email: string, baseUrl: string): Promise<string> {
+  const url = `${baseUrl}/api/admin/test/otp?email=${encodeURIComponent(email)}`;
+  const maxRetries = 8;
+  const baseDelay = 500;
+
+  for (let i = 0; i < maxRetries; i++) {
+    const response = await fetch(url, { headers: getAdminFetchHeaders() });
+    if (response.ok) {
+      const data = (await response.json()) as { otp: string };
+      return data.otp;
+    }
+    if (response.status !== 404) {
+      const body = await response.text();
+      throw new Error(`Admin OTP API returned ${response.status}: ${body}`);
+    }
+    const delay = Math.min(baseDelay * 2 ** i, 4000);
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+  throw new Error(
+    `No OTP found for ${email} after ${maxRetries} retries via API`
+  );
+}
+
+async function getOtpViaDb(email: string): Promise<string> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
-    throw new Error("DATABASE_URL environment variable is required");
+    throw new Error("DATABASE_URL or TEST_API_KEY+BASE_URL is required");
   }
 
   const sql = postgres(databaseUrl, { max: 1 });
@@ -74,7 +110,6 @@ export async function getOtpFromDb(email: string): Promise<string> {
       throw new Error(`No OTP found for email: ${email}`);
     }
 
-    // Value format is "OTP:attempts", extract just the OTP
     const otp = rawValue.split(":")[0];
     return otp;
   } finally {
@@ -141,22 +176,25 @@ export async function signIn(
   // Wait for dialog to close (successful sign in)
   await expect(dialog).not.toBeVisible({ timeout: 15_000 });
 
-  // Wait for post-auth redirects to settle
-  await page.waitForLoadState("networkidle");
+  // Wait for org switcher to appear (indicates session and org are resolved)
+  // Use role selector -- data-testid only exists on the "ready" render branch,
+  // but role="combobox" achieves the same: only the resolved org switcher has it.
+  await expect(page.locator('button[role="combobox"]')).toBeVisible({
+    timeout: 15_000,
+  });
 }
 
 /**
  * Sign out the current user.
  */
 export async function signOut(page: Page): Promise<void> {
-  // Look for user menu or sign out button
   const userMenu = page.locator('[data-testid="user-menu"]');
-  if (await userMenu.isVisible()) {
-    await userMenu.click();
-    const signOutButton = page.locator('button:has-text("Sign out")');
-    await signOutButton.click();
-    await expect(signOutButton).not.toBeVisible({ timeout: 5000 });
-  }
+  await expect(userMenu).toBeVisible({ timeout: 5000 });
+  await userMenu.click();
+  const signOutButton = page.locator('button:has-text("Sign out")');
+  await expect(signOutButton).toBeVisible({ timeout: 5000 });
+  await signOutButton.click();
+  await expect(signOutButton).not.toBeVisible({ timeout: 5000 });
 }
 
 /**

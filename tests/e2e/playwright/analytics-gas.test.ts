@@ -6,7 +6,7 @@ const ANALYTICS_PASSWORD = "TestAnalytics123!";
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
-test.describe.skip("Analytics Gas Tracking", () => {
+test.describe("Analytics Gas Tracking", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeEach(async ({ context }) => {
@@ -69,10 +69,11 @@ test.describe.skip("Analytics Gas Tracking", () => {
       workflowFilter.click(),
     ]);
 
-    // Table rows (may need scrolling into view)
+    // Table rows (wait for attachment before scrolling)
     const rows = page.locator("table tbody tr");
+    await expect(rows.first()).toBeAttached({ timeout: 10_000 });
     await rows.first().scrollIntoViewIfNeeded();
-    await expect(rows.first()).toBeVisible({ timeout: 10_000 });
+    await expect(rows.first()).toBeVisible({ timeout: 5000 });
 
     // Verify at least one workflow run row exists
     const rowCount = await rows.count();

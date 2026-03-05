@@ -431,6 +431,24 @@ export const auth = betterAuth({
       enabled: !!process.env.GOOGLE_CLIENT_ID,
     },
   },
+  // start custom keeperhub code //
+  rateLimit: {
+    enabled: !(process.env.CI || process.env.NODE_ENV === "test"),
+    customRules: {
+      "/*": (req: Request, currentRule: { window: number; max: number }) => {
+        const testApiKey = process.env.TEST_API_KEY;
+        if (!testApiKey) {
+          return currentRule;
+        }
+        const authHeader = req.headers.get("X-Test-API-Key");
+        if (authHeader && authHeader === testApiKey) {
+          return false;
+        }
+        return currentRule;
+      },
+    },
+  },
+  // end keeperhub code //
   advanced: {
     // Use secure cookies in production (HTTPS only)
     useSecureCookies: process.env.NODE_ENV === "production",
