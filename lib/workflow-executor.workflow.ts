@@ -1921,7 +1921,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
         }
       }
     } catch (error) {
-      const errorMessage = await getErrorMessageAsync(error);
       logSystemError(
         ErrorCategory.WORKFLOW_ENGINE,
         "[Workflow Executor] Error executing node:",
@@ -1932,6 +1931,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           node_id: nodeId,
         }
       );
+      const errorMessage = await getErrorMessageAsync(error);
       const errorResult = {
         success: false,
         error: errorMessage,
