@@ -1,4 +1,4 @@
-# Type: orchestrator | Coordinates e2e-tests-ephemeral -> deploy
+# Type: orchestrator | Coordinates build-images -> e2e-tests-ephemeral -> deploy
 name: CI Pipeline
 
 on:
@@ -8,17 +8,33 @@ on:
     types: [labeled, synchronize]
 
 jobs:
+  # Build Docker images once for push events (staging/prod).
+  # Outputs image tag and ECR coordinates for downstream jobs.
+  # Skipped for PRs -- e2e falls back to bare-metal build.
+  build-images:
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/build-images.yml
+    secrets: inherit
+
   e2e-tests:
+    needs: [build-images]
+    if: ${{ !failure() && !cancelled() }}
     uses: ./.github/workflows/e2e-tests-ephemeral.yml
     with:
       caller_event: ${{ github.event_name }}
       caller_action: ${{ github.event.action }}
       has_e2e_label: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-e2e-tests-ephemeral') || false }}
       label_name: ${{ github.event.label.name || '' }}
+      image_tag: ${{ needs.build-images.outputs.image_tag || '' }}
+      ecr_registry: ${{ needs.build-images.outputs.ecr_registry || '' }}
+      ecr_repo: ${{ needs.build-images.outputs.ecr_repo || '' }}
     secrets: inherit
 
   deploy:
-    needs: e2e-tests
+    needs: [build-images, e2e-tests]
     if: github.event_name == 'push'
     uses: ./.github/workflows/deploy-keeperhub.yaml
+    with:
+      skip_build: true
+      image_tag: ${{ needs.build-images.outputs.image_tag }}
     secrets: inherit
