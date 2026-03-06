@@ -62,8 +62,13 @@ jobs:
       - name: Extract commit hash and ECR coordinates
         id: vars
         run: |
+          SHA=$(git rev-parse --short HEAD)
+          if [[ -z "$SHA" || ${#SHA} -lt 7 ]]; then
+            echo "::error::Failed to resolve commit SHA (got '${SHA}')"
+            exit 1
+          fi
           {
-            echo "sha_short=$(git rev-parse --short HEAD)"
+            echo "sha_short=${SHA}"
             echo "ecr_repo=${AWS_ECR_NAME}"
             echo "ecr_region=${REGION}"
           } >> "$GITHUB_OUTPUT"
