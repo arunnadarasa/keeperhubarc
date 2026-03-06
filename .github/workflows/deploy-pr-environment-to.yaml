@@ -61,31 +61,41 @@ jobs:
         image:
           - name: app
             target: runner
+            dockerfile: "./Dockerfile"
+            context: "."
             tag_prefix: app
             build_args: true
             cache_key: cache-app
           - name: migrator
             target: migrator
+            dockerfile: "./Dockerfile"
+            context: "."
             tag_prefix: migrator
             build_args: false
             cache_key: cache-migrator
           - name: scheduler
             target: scheduler
+            dockerfile: "./Dockerfile"
+            context: "."
             tag_prefix: scheduler
             build_args: false
             cache_key: cache-scheduler
           - name: workflow-runner
             target: workflow-runner
+            dockerfile: "./Dockerfile"
+            context: "."
             tag_prefix: workflow-runner
             build_args: false
             cache_key: cache-workflow-runner
           - name: sc-event-tracker
+            target: ""
             dockerfile: keeperhub-events/sc-event-tracker/Dockerfile
             context: keeperhub-events/sc-event-tracker
             tag_prefix: event-tracker
             build_args: false
             cache_key: cache-event-tracker
           - name: sc-event-worker
+            target: ""
             dockerfile: keeperhub-events/sc-event-worker/Dockerfile
             context: keeperhub-events/sc-event-worker
             tag_prefix: event-worker
@@ -137,9 +147,9 @@ jobs:
         if: steps.check-image.outputs.exists != 'true'
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.image.context || '.' }}
-          file: ${{ matrix.image.dockerfile || './Dockerfile' }}
-          target: ${{ matrix.image.target || '' }}
+          context: ${{ matrix.image.context }}
+          file: ${{ matrix.image.dockerfile }}
+          target: ${{ matrix.image.target }}
           push: true
           build-args: ${{ matrix.image.build_args == true && format('NEXT_PUBLIC_AUTH_PROVIDERS={0}\nNEXT_PUBLIC_GITHUB_CLIENT_ID={1}\nNEXT_PUBLIC_GOOGLE_CLIENT_ID={2}', vars.NEXT_PUBLIC_AUTH_PROVIDERS, vars.NEXT_PUBLIC_GITHUB_CLIENT_ID, vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID) || '' }}
           tags: |
