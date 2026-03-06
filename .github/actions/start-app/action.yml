@@ -35,6 +35,10 @@ inputs:
   better_auth_secret:
     description: 'BetterAuth secret'
     required: true
+  test_api_key:
+    description: 'TEST_API_KEY for rate limit bypass via X-Test-API-Key header'
+    required: false
+    default: ''
 
 runs:
   using: composite
@@ -61,6 +65,7 @@ runs:
         ECR_REPO: ${{ inputs.ecr_repo }}
         IMAGE_TAG: ${{ inputs.image_tag }}
         DATABASE_URL: ${{ inputs.database_url }}
+        TEST_API_KEY: ${{ inputs.test_api_key }}
       run: |
         IMAGE="${ECR_REGISTRY}/${ECR_REPO}:app-${IMAGE_TAG}"
         echo "Pulling ${IMAGE}..."
@@ -71,6 +76,8 @@ runs:
           "BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}" \
           "NODE_ENV=production" \
           "HOSTNAME=0.0.0.0" \
+          "CI=true" \
+          "TEST_API_KEY=${TEST_API_KEY}" \
           > /tmp/keeperhub-app.env
 
         docker run -d --name keeperhub-app --network host \
