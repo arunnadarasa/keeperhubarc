@@ -1,6 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 // start custom keeperhub code //
+import { authenticateApiKey } from "@/keeperhub/lib/api-key-auth";
 import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
 // end keeperhub code //
@@ -14,15 +15,29 @@ export async function GET(
 ) {
   try {
     const { workflowId } = await context.params;
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
     // start custom keeperhub code //
+    // Try API key authentication first, then fall back to session
+    let userId: string | null = null;
+    let organizationId: string | null = null;
+
+    const apiKeyAuth = await authenticateApiKey(request);
+    if (apiKeyAuth.authenticated) {
+      organizationId = apiKeyAuth.organizationId || null;
+    } else {
+      const session = await auth.api.getSession({
+        headers: request.headers,
+      });
+
+      if (!session?.user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      userId = session.user.id;
+      const orgContext = await getOrgContext();
+      organizationId = orgContext.organization?.id || null;
+    }
+
     // Verify workflow access (owner or org member)
     const workflow = await db.query.workflows.findFirst({
       where: eq(workflows.id, workflowId),
@@ -35,12 +50,11 @@ export async function GET(
       );
     }
 
-    const isOwner = session.user.id === workflow.userId;
-    const orgContext = await getOrgContext();
+    const isOwner = userId !== null && userId === workflow.userId;
     const isSameOrg =
       !workflow.isAnonymous &&
       workflow.organizationId &&
-      orgContext.organization?.id === workflow.organizationId;
+      organizationId === workflow.organizationId;
 
     if (!(isOwner || isSameOrg)) {
       return NextResponse.json(
@@ -79,15 +93,29 @@ export async function DELETE(
 ) {
   try {
     const { workflowId } = await context.params;
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
     // start custom keeperhub code //
+    // Try API key authentication first, then fall back to session
+    let userId: string | null = null;
+    let organizationId: string | null = null;
+
+    const apiKeyAuth = await authenticateApiKey(request);
+    if (apiKeyAuth.authenticated) {
+      organizationId = apiKeyAuth.organizationId || null;
+    } else {
+      const session = await auth.api.getSession({
+        headers: request.headers,
+      });
+
+      if (!session?.user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      userId = session.user.id;
+      const orgContext = await getOrgContext();
+      organizationId = orgContext.organization?.id || null;
+    }
+
     // Verify workflow access (owner or org member)
     const workflow = await db.query.workflows.findFirst({
       where: eq(workflows.id, workflowId),
@@ -100,12 +128,11 @@ export async function DELETE(
       );
     }
 
-    const isOwner = session.user.id === workflow.userId;
-    const orgContext = await getOrgContext();
+    const isOwner = userId !== null && userId === workflow.userId;
     const isSameOrg =
       !workflow.isAnonymous &&
       workflow.organizationId &&
-      orgContext.organization?.id === workflow.organizationId;
+      organizationId === workflow.organizationId;
 
     if (!(isOwner || isSameOrg)) {
       return NextResponse.json(
