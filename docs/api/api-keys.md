@@ -7,6 +7,13 @@ description: "KeeperHub API Keys - create and manage API keys for programmatic a
 
 Manage API keys for programmatic access to the KeeperHub API.
 
+## Key Types
+
+| Prefix | Scope | Used for |
+|--------|-------|----------|
+| `kh_` | Organization | REST API, MCP server, Claude Code plugin |
+| `wfb_` | User | Webhook triggers |
+
 ## List API Keys
 
 ```http
@@ -21,7 +28,7 @@ GET /api/api-keys
     {
       "id": "key_123",
       "name": "Production Key",
-      "keyPrefix": "wfb_abc",
+      "keyPrefix": "kh_abc",
       "createdAt": "2024-01-01T00:00:00Z",
       "lastUsedAt": "2024-01-15T12:00:00Z"
     }
@@ -51,8 +58,8 @@ POST /api/api-keys
 {
   "id": "key_123",
   "name": "My API Key",
-  "key": "wfb_full_api_key_here",
-  "keyPrefix": "wfb_ful",
+  "key": "kh_full_api_key_here",
+  "keyPrefix": "kh_full_",
   "createdAt": "2024-01-01T00:00:00Z"
 }
 ```
@@ -74,14 +81,6 @@ Revokes the API key. This action cannot be undone.
   "success": true
 }
 ```
-
-## Key Format
-
-API keys follow the format:
-- Prefix: `wfb_`
-- Random string: 32 characters
-
-Example: `wfb_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6`
 
 ## Security Notes
 

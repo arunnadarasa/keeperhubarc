@@ -246,7 +246,7 @@ function HubPageContent(): React.ReactElement {
               </div>
             </div>
             <div className="bg-white/[0.03] py-6 relative">
-              <div className="absolute top-0 h-full bg-[#171f2e] w-full" />
+              <div className="absolute top-0 h-full bg-[var(--color-hub-overlay)] w-full" />
               <div className="container mx-auto px-4">
                 <FeaturedCarousel workflows={featuredWorkflows} />
               </div>
@@ -265,7 +265,7 @@ function HubPageContent(): React.ReactElement {
             )}
 
             <div className="relative pt-6 pb-8">
-              <div className="absolute inset-0 bg-[#171f2e]" />
+              <div className="absolute inset-0 bg-[var(--color-hub-overlay)]" />
               <div className="relative container mx-auto px-4">
                 <h2 className="mb-4 font-bold text-2xl">Community Workflows</h2>
                 <div className="grid grid-cols-[1fr_3fr] items-start gap-8">

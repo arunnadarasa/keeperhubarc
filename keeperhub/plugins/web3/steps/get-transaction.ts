@@ -184,4 +184,6 @@ export async function getTransactionStep(
   );
 }
 
+getTransactionStep.maxRetries = 0;
+
 export const _integrationType = "web3";

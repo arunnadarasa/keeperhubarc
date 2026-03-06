@@ -66,7 +66,7 @@ function ChainBadges({
     <div className="flex flex-wrap gap-1">
       {visible.map((chain) => (
         <span
-          className="rounded-full bg-[#09fd671a] px-2 py-0.5 font-medium text-[#09fd67] text-[10px]"
+          className="rounded-full bg-[var(--color-bg-accent)] px-2 py-0.5 font-medium text-[var(--color-text-accent)] text-[10px]"
           key={chain}
         >
           {getChainName(chain)}
@@ -126,7 +126,7 @@ export function ProtocolCard({
       <CardHeader className="pb-2 pt-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-lg bg-[#2a3342]">
+            <div className="flex size-10 items-center justify-center rounded-lg bg-[var(--color-hub-icon-bg)]">
               {protocol.icon ? (
                 <Image
                   alt={protocol.name}
@@ -136,7 +136,7 @@ export function ProtocolCard({
                   width={24}
                 />
               ) : (
-                <Box className="size-4 text-[#09fd67]" />
+                <Box className="size-4 text-[var(--color-text-accent)]" />
               )}
             </div>
             <div className="flex items-center gap-2">

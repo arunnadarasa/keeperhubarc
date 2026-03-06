@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import { expand } from "dotenv-expand";
 import { cleanupTestUsers } from "./utils/cleanup";
+import { isRemoteMode } from "./utils/env";
 import { cleanupPersistentTestUsers } from "./utils/seed";
 
 const DEFAULT_DB_URL =
@@ -8,6 +9,10 @@ const DEFAULT_DB_URL =
 
 async function globalTeardown(): Promise<void> {
   expand(dotenv.config());
+
+  if (isRemoteMode()) {
+    return;
+  }
 
   const envDbUrl = process.env.DATABASE_URL;
   if (!envDbUrl || envDbUrl.includes("${")) {

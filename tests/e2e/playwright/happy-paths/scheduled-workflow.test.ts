@@ -13,7 +13,7 @@ const WORKFLOW_URL_REGEX = /workflow/;
 // Run tests serially to maintain user session state
 test.describe.configure({ mode: "serial" });
 
-test.describe.skip("Happy Path: Scheduled Workflow", () => {
+test.describe("Happy Path: Scheduled Workflow", () => {
   test("create and save a scheduled workflow with webhook action", async ({
     page,
   }) => {

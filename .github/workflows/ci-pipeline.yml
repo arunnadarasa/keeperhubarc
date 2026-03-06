@@ -1,0 +1,49 @@
+# Type: orchestrator | Coordinates build-images -> e2e-tests-ephemeral -> deploy
+name: CI Pipeline
+
+on:
+  push:
+    branches: [staging, prod]
+  pull_request:
+    types: [labeled, synchronize]
+  workflow_dispatch: {}
+
+jobs:
+  # Build Docker images once for push/dispatch events (staging/prod).
+  # Outputs image tag and ECR coordinates for downstream jobs.
+  # Skipped for PRs -- e2e falls back to bare-metal build.
+  build-images:
+    if: github.event_name != 'pull_request'
+    uses: ./.github/workflows/build-images.yml
+    secrets: inherit
+
+  # Ephemeral e2e tests run on:
+  # - Push/dispatch to staging (gate for staging-to-prod promotion PRs)
+  # - PRs with run-e2e-tests-ephemeral label
+  # Skipped on push to prod -- code already passed e2e on staging,
+  # and remote e2e tests post-deploy validate the actual prod environment.
+  e2e-tests:
+    needs: [build-images]
+    if: ${{ !failure() && !cancelled() && !(github.event_name != 'pull_request' && github.ref_name == 'prod') }}
+    uses: ./.github/workflows/e2e-tests-ephemeral.yml
+    with:
+      caller_event: ${{ github.event_name }}
+      caller_action: ${{ github.event.action }}
+      has_e2e_label: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-e2e-tests-ephemeral') || false }}
+      label_name: ${{ github.event.label.name || '' }}
+      image_tag: ${{ needs.build-images.outputs.image_tag || '' }}
+      ecr_registry: ${{ needs.build-images.outputs.ecr_registry || '' }}
+      ecr_repo: ${{ needs.build-images.outputs.ecr_repo || '' }}
+      ecr_region: ${{ needs.build-images.outputs.ecr_region || '' }}
+    secrets: inherit
+
+  # Deploy runs after build-images and e2e-tests.
+  # On prod pushes, e2e-tests is skipped (not failed/cancelled),
+  # so !failure() && !cancelled() correctly allows deploy to proceed.
+  deploy:
+    needs: [build-images, e2e-tests]
+    if: ${{ github.event_name != 'pull_request' && !failure() && !cancelled() }}
+    uses: ./.github/workflows/deploy-keeperhub.yaml
+    with:
+      image_tag: ${{ needs.build-images.outputs.image_tag }}
+    secrets: inherit

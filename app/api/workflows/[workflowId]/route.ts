@@ -1,10 +1,8 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 // start custom keeperhub code //
-import { authenticateApiKey } from "@/keeperhub/lib/api-key-auth";
 import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
-import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
-import { auth } from "@/lib/auth";
+import { getDualAuthContext } from "@/keeperhub/lib/middleware/auth-helpers";
 import { db } from "@/lib/db";
 import { validateWorkflowIntegrations } from "@/lib/db/integrations";
 import { projects, publicTags, tags, workflowPublicTags, workflows } from "@/lib/db/schema";
@@ -57,37 +55,6 @@ function sanitizeNodesForPublicView(
   });
 }
 
-// Helper to get authenticated user context for PATCH
-async function getAuthContextForPatch(
-  request: Request
-): Promise<
-  | { userId: string | null; organizationId: string | null }
-  | { error: string; status: number }
-> {
-  const apiKeyAuth = await authenticateApiKey(request);
-
-  if (apiKeyAuth.authenticated) {
-    return {
-      userId: null,
-      organizationId: apiKeyAuth.organizationId || null,
-    };
-  }
-
-  const session = await auth.api.getSession({
-    headers: request.headers,
-  });
-
-  if (!session?.user) {
-    return { error: "Unauthorized", status: 401 };
-  }
-
-  const orgContext = await getOrgContext();
-  return {
-    userId: session.user.id,
-    organizationId: orgContext.organization?.id || null,
-  };
-}
-
 export async function GET(
   request: Request,
   context: { params: Promise<{ workflowId: string }> }
@@ -96,28 +63,14 @@ export async function GET(
     const { workflowId } = await context.params;
 
     // start custom keeperhub code //
-    // Try API key authentication first
-    const apiKeyAuth = await authenticateApiKey(request);
-    let userId: string | null = null;
-    let organizationId: string | null = null;
-
-    if (apiKeyAuth.authenticated) {
-      // API key authentication successful
-      organizationId = apiKeyAuth.organizationId || null;
-    } else {
-      // Fall back to session authentication
-      const session = await auth.api.getSession({
-        headers: request.headers,
-      });
-
-      if (session?.user) {
-        userId = session.user.id;
-
-        // Get organization context from session
-        const orgContext = await getOrgContext();
-        organizationId = orgContext.organization?.id || null;
-      }
+    const authContext = await getDualAuthContext(request, { required: false });
+    if ("error" in authContext) {
+      return NextResponse.json(
+        { error: authContext.error },
+        { status: authContext.status }
+      );
     }
+    const { userId, organizationId } = authContext;
     // end keeperhub code //
 
     // First, try to find the workflow
@@ -289,7 +242,7 @@ export async function PATCH(
     const { workflowId } = await context.params;
 
     // start custom keeperhub code //
-    const authContext = await getAuthContextForPatch(request);
+    const authContext = await getDualAuthContext(request);
     if ("error" in authContext) {
       return NextResponse.json(
         { error: authContext.error },
@@ -422,30 +375,14 @@ export async function DELETE(
     const { workflowId } = await context.params;
 
     // start custom keeperhub code //
-    // Try API key authentication first
-    const apiKeyAuth = await authenticateApiKey(request);
-    let userId: string | null = null;
-    let organizationId: string | null = null;
-
-    if (apiKeyAuth.authenticated) {
-      // API key authentication successful
-      organizationId = apiKeyAuth.organizationId || null;
-    } else {
-      // Fall back to session authentication
-      const session = await auth.api.getSession({
-        headers: request.headers,
-      });
-
-      if (!session?.user) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-
-      userId = session.user.id;
-
-      // Get organization context from session
-      const orgContext = await getOrgContext();
-      organizationId = orgContext.organization?.id || null;
+    const authContext = await getDualAuthContext(request);
+    if ("error" in authContext) {
+      return NextResponse.json(
+        { error: authContext.error },
+        { status: authContext.status }
+      );
     }
+    const { userId, organizationId } = authContext;
 
     const { hasAccess } = await validateWorkflowAccess(
       workflowId,

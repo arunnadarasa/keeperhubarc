@@ -626,4 +626,6 @@ export async function aggregateStep(
   );
 }
 
+aggregateStep.maxRetries = 0;
+
 export const _integrationType = PLUGIN_NAME;

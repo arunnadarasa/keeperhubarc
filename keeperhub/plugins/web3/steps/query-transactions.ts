@@ -25,4 +25,6 @@ export async function queryTransactionsStep(
   );
 }
 
+queryTransactionsStep.maxRetries = 0;
+
 export const _integrationType = "web3";
