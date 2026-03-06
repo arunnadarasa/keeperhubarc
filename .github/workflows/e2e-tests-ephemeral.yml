@@ -24,6 +24,26 @@ on:
         type: string
         required: false
         default: ''
+      image_tag:
+        description: 'ECR image tag (short SHA). When provided, runs app from Docker instead of bare-metal build.'
+        type: string
+        required: false
+        default: ''
+      ecr_registry:
+        description: 'ECR registry URL'
+        type: string
+        required: false
+        default: ''
+      ecr_repo:
+        description: 'ECR repository name'
+        type: string
+        required: false
+        default: ''
+      ecr_region:
+        description: 'AWS region for ECR'
+        type: string
+        required: false
+        default: ''
   workflow_dispatch: {}
 
 jobs:
@@ -43,9 +63,7 @@ jobs:
         env:
           EFFECTIVE_EVENT: ${{ inputs.caller_event || github.event_name }}
         run: |
-          echo "run-e2e=false" >> $GITHUB_OUTPUT
-          echo "run-deployed=false" >> $GITHUB_OUTPUT
-          echo "pr-number=" >> $GITHUB_OUTPUT
+          echo "run-e2e=false" >> "$GITHUB_OUTPUT"
 
           # Check for [skip e2e] flag in commit message (push events only)
           if [[ "$EFFECTIVE_EVENT" == "push" ]]; then
@@ -57,17 +75,17 @@ jobs:
           fi
 
           if [[ "$EFFECTIVE_EVENT" == "push" || "$EFFECTIVE_EVENT" == "workflow_dispatch" ]]; then
-            echo "run-e2e=true" >> $GITHUB_OUTPUT
+            echo "run-e2e=true" >> "$GITHUB_OUTPUT"
           elif [[ "$EFFECTIVE_EVENT" == "pull_request" ]]; then
             if [[ "${{ inputs.caller_action }}" == "labeled" ]]; then
               # Only run when the run-e2e-tests-ephemeral label was the one just added
               if [[ "${{ inputs.label_name }}" == "run-e2e-tests-ephemeral" ]]; then
-                echo "run-e2e=true" >> $GITHUB_OUTPUT
+                echo "run-e2e=true" >> "$GITHUB_OUTPUT"
               fi
             elif [[ "${{ inputs.caller_action }}" == "synchronize" ]]; then
               # On new commits, re-run if the label is already present
               if [[ "${{ inputs.has_e2e_label }}" == "true" ]]; then
-                echo "run-e2e=true" >> $GITHUB_OUTPUT
+                echo "run-e2e=true" >> "$GITHUB_OUTPUT"
               fi
             fi
           fi
@@ -117,15 +135,6 @@ jobs:
         uses: ./.github/actions/setup-node-pnpm
         with:
           discover-plugins: "true"
-
-      - name: Cache Next.js build
-        uses: actions/cache@v4
-        with:
-          path: .next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**/*.ts', '**/*.tsx') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-
-            ${{ runner.os }}-nextjs-
 
       - name: Wait for services
         run: |
@@ -178,30 +187,17 @@ jobs:
           TEST_PARA_USER_SHARE: ${{ secrets.TEST_PARA_USER_SHARE }}
           WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
 
-      - name: Build application
-        run: pnpm build
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-
       - name: Start application
-        run: |
-          pnpm start &
-          # Wait for app to be ready (max 60s)
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:3000 > /dev/null 2>&1; then
-              echo "App is ready"
-              break
-            fi
-            if [ "$i" -eq 30 ]; then
-              echo "App did not start in 60s"
-              exit 1
-            fi
-            sleep 2
-          done
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+        uses: ./.github/actions/start-app
+        with:
+          image_tag: ${{ inputs.image_tag }}
+          ecr_registry: ${{ inputs.ecr_registry }}
+          ecr_repo: ${{ inputs.ecr_repo }}
+          ecr_region: ${{ inputs.ecr_region }}
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          database_url: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          better_auth_secret: ${{ secrets.BETTER_AUTH_SECRET }}
 
       - name: Run E2E Vitest tests
         run: pnpm test:e2e:vitest
@@ -216,6 +212,16 @@ jobs:
           AWS_ACCESS_KEY_ID: test
           AWS_SECRET_ACCESS_KEY: test
           AWS_REGION: us-east-1
+
+      - name: Dump app container logs
+        if: failure() && inputs.image_tag != ''
+        run: docker logs keeperhub-app 2>&1 | tail -200
+
+      - name: Stop app container
+        if: always() && inputs.image_tag != ''
+        run: |
+          docker rm -f keeperhub-app || true
+          rm -f /tmp/keeperhub-app.env
 
       - name: Upload test results
         if: failure()
@@ -272,39 +278,17 @@ jobs:
           TEST_PARA_USER_SHARE: ${{ secrets.TEST_PARA_USER_SHARE }}
           WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
 
-      - name: Cache Next.js build
-        uses: actions/cache@v4
-        with:
-          path: .next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**/*.ts', '**/*.tsx') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-
-            ${{ runner.os }}-nextjs-
-
-      - name: Build application
-        run: pnpm build
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-
       - name: Start application
-        run: |
-          pnpm start &
-          # Wait for app to be ready (max 60s)
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:3000 > /dev/null 2>&1; then
-              echo "App is ready"
-              break
-            fi
-            if [ "$i" -eq 30 ]; then
-              echo "App did not start in 60s"
-              exit 1
-            fi
-            sleep 2
-          done
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+        uses: ./.github/actions/start-app
+        with:
+          image_tag: ${{ inputs.image_tag }}
+          ecr_registry: ${{ inputs.ecr_registry }}
+          ecr_repo: ${{ inputs.ecr_repo }}
+          ecr_region: ${{ inputs.ecr_region }}
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          database_url: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          better_auth_secret: ${{ secrets.BETTER_AUTH_SECRET }}
 
       - name: Run Playwright tests
         run: pnpm test:e2e
@@ -320,6 +304,16 @@ jobs:
           PARA_PORTAL_KEY_ID: ${{ secrets.PARA_PORTAL_KEY_ID }}
           PARA_PORTAL_API_KEY: ${{ secrets.PARA_PORTAL_API_KEY }}
           CI: true
+
+      - name: Dump app container logs
+        if: failure() && inputs.image_tag != ''
+        run: docker logs keeperhub-app 2>&1 | tail -200
+
+      - name: Stop app container
+        if: always() && inputs.image_tag != ''
+        run: |
+          docker rm -f keeperhub-app || true
+          rm -f /tmp/keeperhub-app.env
 
       - name: Upload Playwright report
         if: failure()
