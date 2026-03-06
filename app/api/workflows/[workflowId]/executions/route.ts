@@ -1,11 +1,9 @@
 import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 // start custom keeperhub code //
-import { authenticateApiKey } from "@/keeperhub/lib/api-key-auth";
 import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
-import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
+import { getDualAuthContext } from "@/keeperhub/lib/middleware/auth-helpers";
 // end keeperhub code //
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { workflowExecutions, workflows } from "@/lib/db/schema";
 
@@ -17,26 +15,14 @@ export async function GET(
     const { workflowId } = await context.params;
 
     // start custom keeperhub code //
-    // Try API key authentication first, then fall back to session
-    let userId: string | null = null;
-    let organizationId: string | null = null;
-
-    const apiKeyAuth = await authenticateApiKey(request);
-    if (apiKeyAuth.authenticated) {
-      organizationId = apiKeyAuth.organizationId || null;
-    } else {
-      const session = await auth.api.getSession({
-        headers: request.headers,
-      });
-
-      if (!session?.user) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-
-      userId = session.user.id;
-      const orgContext = await getOrgContext();
-      organizationId = orgContext.organization?.id || null;
+    const authContext = await getDualAuthContext(request);
+    if ("error" in authContext) {
+      return NextResponse.json(
+        { error: authContext.error },
+        { status: authContext.status }
+      );
     }
+    const { userId, organizationId } = authContext;
 
     // Verify workflow access (owner or org member)
     const workflow = await db.query.workflows.findFirst({
@@ -95,26 +81,14 @@ export async function DELETE(
     const { workflowId } = await context.params;
 
     // start custom keeperhub code //
-    // Try API key authentication first, then fall back to session
-    let userId: string | null = null;
-    let organizationId: string | null = null;
-
-    const apiKeyAuth = await authenticateApiKey(request);
-    if (apiKeyAuth.authenticated) {
-      organizationId = apiKeyAuth.organizationId || null;
-    } else {
-      const session = await auth.api.getSession({
-        headers: request.headers,
-      });
-
-      if (!session?.user) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-
-      userId = session.user.id;
-      const orgContext = await getOrgContext();
-      organizationId = orgContext.organization?.id || null;
+    const authContext = await getDualAuthContext(request);
+    if ("error" in authContext) {
+      return NextResponse.json(
+        { error: authContext.error },
+        { status: authContext.status }
+      );
     }
+    const { userId, organizationId } = authContext;
 
     // Verify workflow access (owner or org member)
     const workflow = await db.query.workflows.findFirst({
