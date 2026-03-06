@@ -47,9 +47,9 @@ export const AnimatedBorder = ({ className }: AnimatedBorderProps) => {
         >
           <defs>
             <linearGradient id="gradient-glow" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#60a5fa" />
-              <stop offset="50%" stopColor="#3b82f6" />
-              <stop offset="100%" stopColor="#60a5fa" />
+              <stop offset="0%" stopColor="var(--ds-blue-400)" />
+              <stop offset="50%" stopColor="var(--ds-blue-500)" />
+              <stop offset="100%" stopColor="var(--ds-blue-400)" />
             </linearGradient>
           </defs>
           <rect
@@ -62,7 +62,7 @@ export const AnimatedBorder = ({ className }: AnimatedBorderProps) => {
             stroke="url(#gradient-glow)"
             strokeWidth="2"
             style={{
-              filter: "drop-shadow(0 0 4px #3b82f6)",
+              filter: "drop-shadow(0 0 4px var(--ds-blue-500))",
             }}
           />
         </svg>

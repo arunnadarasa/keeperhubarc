@@ -63,7 +63,7 @@ function ActionTypeBadge({
   }
 
   return (
-    <span className="rounded-full bg-[#09fd671a] px-2 py-0.5 font-medium text-[#09fd67] text-[10px] uppercase tracking-wider">
+    <span className="rounded-full bg-[var(--color-bg-accent)] px-2 py-0.5 font-medium text-[var(--color-text-accent)] text-[10px] uppercase tracking-wider">
       WRITE
     </span>
   );
@@ -330,7 +330,7 @@ export function ProtocolDetail({
       )}
 
       <div className="flex items-start gap-4">
-        <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-[#2a3342]">
+        <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-[var(--color-hub-icon-bg)]">
           {protocol.icon ? (
             <Image
               alt={protocol.name}
@@ -340,7 +340,7 @@ export function ProtocolDetail({
               width={32}
             />
           ) : (
-            <Box className="size-5 text-[#09fd67]" />
+            <Box className="size-5 text-[var(--color-text-accent)]" />
           )}
         </div>
         <div>
@@ -382,7 +382,7 @@ export function ProtocolDetail({
           <div className="mt-3 flex flex-wrap gap-1">
             {allChains.map((chain) => (
               <span
-                className="rounded-full bg-[#09fd671a] px-2 py-0.5 font-medium text-[#09fd67] text-[10px]"
+                className="rounded-full bg-[var(--color-bg-accent)] px-2 py-0.5 font-medium text-[var(--color-text-accent)] text-[10px]"
                 key={chain}
               >
                 {getChainName(chain)}

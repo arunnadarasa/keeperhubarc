@@ -13,19 +13,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { COLOR_PALETTE } from "@/keeperhub/lib/palette";
 import { api, type Project } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
-
-const COLOR_PALETTE = [
-  "#4A90D9",
-  "#7B61FF",
-  "#E06C75",
-  "#98C379",
-  "#E5C07B",
-  "#56B6C2",
-  "#C678DD",
-  "#D19A66",
-];
 
 type ProjectFormDialogProps = {
   open: boolean;
