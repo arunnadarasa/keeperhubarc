@@ -8,7 +8,7 @@ export type DualAuthContext =
 
 /**
  * Resolves user and organization context from either API key or session auth.
- * API key auth sets userId to null (org-level access only).
+ * For API key auth, userId is the key creator (if available).
  *
  * @param required - If true (default), returns 401 when neither auth method succeeds.
  *   Set to false for routes that allow unauthenticated access (e.g. public workflows).
@@ -22,7 +22,7 @@ export async function getDualAuthContext(
   const apiKeyAuth = await authenticateApiKey(request);
   if (apiKeyAuth.authenticated) {
     return {
-      userId: null,
+      userId: apiKeyAuth.userId || null,
       organizationId: apiKeyAuth.organizationId || null,
     };
   }
