@@ -47,7 +47,7 @@ args:
   - "-c"
   - |
     echo "$(date) - [Dispatcher] Starting..."
-    tsx schedule-dispatcher/index.ts
+    tsx scripts/scheduler/schedule-dispatcher.ts
 
 env:
   KEEPERHUB_API_URL:
