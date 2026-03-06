@@ -25,7 +25,7 @@ export const metadata = {
 };
 
 // Hidden sections that should not appear in sidebar
-const HIDDEN_SECTIONS = ["api", "plans-features", "keeperhub"];
+const HIDDEN_SECTIONS = ["plans-features", "keeperhub"];
 
 // Filter and reorder page map items
 function filterPageMap(
