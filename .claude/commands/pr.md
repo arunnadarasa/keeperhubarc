@@ -62,10 +62,10 @@ Create a pull request for the current branch against the staging base branch, wi
    - Includes a commit-message skill that encodes the team's conventions
      so Claude follows them automatically
    ```
-8. Present the title and body to the user for confirmation before creating.
-9. Create the PR targeting staging with review requested from the keeperhub team:
+8. Create the PR targeting staging with review requested from the keeperhub team.
+   Do NOT ask for confirmation -- proceed directly:
    `gh pr create --base staging --reviewer techops-services/keeperhub --title "..." --body "..."`
-10. Output the PR URL.
+9. Output the PR URL.
 </process>
 
 <success_criteria>
