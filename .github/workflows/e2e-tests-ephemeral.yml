@@ -290,7 +290,9 @@ jobs:
 
       - name: Stop app container
         if: always() && inputs.image_tag != ''
-        run: docker rm -f keeperhub-app || true
+        run: |
+          docker rm -f keeperhub-app || true
+          rm -f /tmp/keeperhub-app.env
 
       - name: Upload test results
         if: failure()
@@ -451,7 +453,9 @@ jobs:
 
       - name: Stop app container
         if: always() && inputs.image_tag != ''
-        run: docker rm -f keeperhub-app || true
+        run: |
+          docker rm -f keeperhub-app || true
+          rm -f /tmp/keeperhub-app.env
 
       - name: Upload Playwright report
         if: failure()
