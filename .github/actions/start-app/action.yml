@@ -115,6 +115,8 @@ runs:
       env:
         DATABASE_URL: ${{ inputs.database_url }}
         BETTER_AUTH_SECRET: ${{ inputs.better_auth_secret }}
+        CI: true
+        TEST_API_KEY: ${{ inputs.test_api_key }}
 
     - name: Start application
       if: inputs.image_tag == ''
@@ -135,3 +137,5 @@ runs:
       env:
         DATABASE_URL: ${{ inputs.database_url }}
         BETTER_AUTH_SECRET: ${{ inputs.better_auth_secret }}
+        CI: true
+        TEST_API_KEY: ${{ inputs.test_api_key }}
