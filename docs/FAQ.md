@@ -207,7 +207,7 @@ Restart Claude Code after setup. You can verify with `/keeperhub:status`.
 
 ### What's the difference between `kh_` and `wfb_` API keys?
 
-`kh_` keys are organization-scoped -- required for the MCP server and Claude Code plugin. `wfb_` keys are user-scoped and work with the REST API. The MCP server won't accept `wfb_` keys.
+`kh_` keys are organization-scoped -- used for the REST API, MCP server, and Claude Code plugin. Create them in Settings > API Keys > Organisation tab. `wfb_` keys are user-scoped and used for webhook triggers. Most of the time you want a `kh_` key.
 
 ### Can I run the MCP server for remote agents (not just local)?
 
