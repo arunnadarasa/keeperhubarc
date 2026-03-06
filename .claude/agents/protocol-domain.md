@@ -241,3 +241,65 @@ Format for `tests/unit/protocol-{slug}.test.ts` using Vitest. Tests to include:
 - Action count matches expected
 - Registration check (use `getProtocol("{slug}")`)
 </test_structure>
+
+<explorer_chain_availability>
+Only chains with block explorer configs support ABI auto-fetch. Workflows targeting chains without explorer configs will fail silently at runtime when resolveAbi() cannot fetch the ABI.
+
+Chains WITH explorer configs (safe for seed workflows):
+- "1" -- Ethereum Mainnet (Etherscan)
+- "8453" -- Base (BaseScan)
+- "84532" -- Base Sepolia (BaseScan testnet)
+- "11155111" -- Sepolia Testnet (Etherscan Sepolia)
+
+Chains WITHOUT explorer configs (ABI auto-fetch fails):
+- "42161" -- Arbitrum One
+- "10" -- Optimism
+
+Rules:
+- Seed/example workflows MUST only target chains with explorer configs unless the protocol provides an inline `abi` field
+- When a protocol supports multiple chains, default to chain "1" (Ethereum Mainnet) for seed workflows
+- Update this section when new explorer configs are added to the codebase
+</explorer_chain_availability>
+
+<code_node_patterns>
+Rules for Code nodes in workflows. Violations cause silent runtime failures.
+
+Template quoting:
+- `formatCodeValue()` in `lib/workflow-executor.workflow.ts` (line 664) already wraps string values via `JSON.stringify()` before injecting them into the Code node sandbox
+- CORRECT: `const x = {{@nodeId:Label.result}};` -- no manual quotes needed, becomes `const x = "value";`
+- WRONG: `const x = "{{@nodeId:Label.result}}";` -- produces `const x = ""value""` which is a JS syntax error
+- For numbers: `Number({{@nodeId:Label.result}})` works correctly (becomes `Number("123")`)
+
+Divide-by-zero guards:
+- All percentage and ratio calculations in Code nodes MUST guard against divide-by-zero
+- Pattern: `const pct = total > 0 ? ((val / total) * 100).toFixed(2) : "0.00";`
+- Applies to any expression with division where the denominator comes from a template reference or computed value
+
+Value formatting:
+- Use `Intl.NumberFormat` for formatting token amounts and prices (available in Code node VM sandbox via `Intl` global)
+- Pattern: `new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)`
+- For USD prices: `new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value)`
+- Prefer `Intl.NumberFormat` over `.toLocaleString()` for consistency and explicit control
+</code_node_patterns>
+
+<example_workflow_generation>
+The pipeline creates example workflows directly in the local postgres DB using the postgres MCP (`mcp__postgres__execute_sql`). Never use the KeeperHub MCP for this -- workflows stay local only.
+
+Steps:
+1. Query `users` and `member` tables to find the local dev user and org:
+   `SELECT u.id, m.organization_id FROM users u JOIN member m ON m.user_id = u.id LIMIT 1;`
+2. INSERT a project row into `projects` table with `id: "proj-{slug}"` (use ON CONFLICT DO NOTHING to be idempotent)
+3. INSERT workflow rows into `workflows` table with correct `user_id`, `organization_id`, `project_id`
+4. Use `actionType: "{slug}/{action-slug}"` and include `_protocolMeta` JSON in node configs
+
+What to generate:
+- 1 test workflow per read action: manual trigger + single action node, named `[Test - {action-slug}] {description}`
+- 8-10 example workflows (or as many as the protocol's actions support) combining multiple actions with Code formatting nodes and notification actions (Discord, SendGrid). Cover as many action combinations as possible.
+- Write actions do NOT get test workflows (they require wallets)
+
+Workflow rules:
+- All workflows target only chains with explorer configs (see `<explorer_chain_availability>`)
+- All Code nodes follow `<code_node_patterns>` rules (no manual quotes around template refs, divide-by-zero guards, Intl formatting)
+- Node layout: trigger at x=100, subsequent nodes at x+250 increments, y=250 baseline
+- Edge naming: sequential e1, e2, etc.
+</example_workflow_generation>
