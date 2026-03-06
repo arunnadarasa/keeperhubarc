@@ -82,6 +82,12 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Fail fast if build skipped but image missing
+        if: steps.skip.outputs.skip_build == 'true' && steps.check-image.outputs.exists != 'true'
+        run: |
+          echo "::error::Cannot skip build: image app-${{ steps.vars.outputs.sha_short }} does not exist in ECR. Remove [skip build] from the commit message or push a build first."
+          exit 1
+
       - name: Verify submodule token access
         if: steps.skip.outputs.skip_build != 'true' && steps.check-image.outputs.exists != 'true'
         env:
