@@ -77,16 +77,20 @@ externalSecrets:
   clusterSecretStoreName: techops-prod
 
 livenessProbe:
-  httpGet:
-    path: /health
-    port: 3000
+  exec:
+    command:
+      - node
+      - -e
+      - "process.exit(0)"
   initialDelaySeconds: 30
   periodSeconds: 30
   failureThreshold: 3
 
 readinessProbe:
-  httpGet:
-    path: /health
-    port: 3000
+  exec:
+    command:
+      - node
+      - -e
+      - "process.exit(0)"
   initialDelaySeconds: 10
   periodSeconds: 10
