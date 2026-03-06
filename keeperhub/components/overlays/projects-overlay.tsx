@@ -98,7 +98,10 @@ export function ProjectsOverlay({ overlayId }: ProjectsOverlayProps) {
                   <div className="flex items-center gap-3">
                     <span
                       className="inline-block size-3 shrink-0 rounded-full"
-                      style={{ backgroundColor: project.color ?? "#888" }}
+                      style={{
+                        backgroundColor:
+                          project.color ?? "var(--color-text-muted)",
+                      }}
                     />
                     <div>
                       <p className="font-medium text-sm">{project.name}</p>

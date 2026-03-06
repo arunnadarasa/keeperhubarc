@@ -16,20 +16,26 @@ For browser-based applications, authentication is handled via Better Auth sessio
 For programmatic access, use API keys in the `Authorization` header:
 
 ```bash
-curl -H "Authorization: Bearer wfb_your_api_key" \
+curl -H "Authorization: Bearer kh_your_api_key" \
   https://app.keeperhub.com/api/workflows
 ```
+
+### Key Types
+
+KeeperHub has two types of API keys:
+
+| Prefix | Scope | Created in | Used for |
+|--------|-------|------------|----------|
+| `kh_` | Organization | Settings > API Keys > Organisation | REST API, MCP server, Claude Code plugin |
+| `wfb_` | User | Settings > API Keys | Webhook triggers |
 
 ### Creating API Keys
 
 1. Navigate to Settings in the KeeperHub dashboard
 2. Select "API Keys"
-3. Click "Create New Key"
-4. Copy the key immediately - it will only be shown once
-
-### Key Format
-
-API keys follow the format: `wfb_` followed by a random string.
+3. For organization keys (`kh_`), switch to the Organisation tab
+4. Click "Create New Key"
+5. Copy the key immediately -- it will only be shown once
 
 ### Key Security
 
@@ -39,7 +45,7 @@ API keys follow the format: `wfb_` followed by a random string.
 
 ## Webhook Authentication
 
-For webhook triggers, use the workflow-specific webhook URL with your API key:
+For webhook triggers, use a user-scoped key (`wfb_`) with the workflow-specific webhook URL:
 
 ```bash
 POST /api/workflows/{workflowId}/webhook

@@ -8,7 +8,6 @@
 - **No co-authored with Claude in PR descriptions and git commits**
 - **Do not git push or create Github PRs without user's confirmation**
 - **Do not leave code comments with summaries of user's prompt**
-- **Do not include task codes in branch/PR names**
 - **PR titles must follow conventional commit format**: `<type>: <description>` or `<type>(scope): <description>`. Allowed types: `feat`, `fix`, `hotfix`, `chore`, `docs`, `refactor`, `test`, `ci`, `build`, `perf`, `style`, `breaking`. This is enforced by the `pr-title-check` workflow on PRs targeting `staging`.
 
 ## Code Quality: Lint and Type Checking
@@ -98,6 +97,37 @@ When you must use an ignore comment:
    // biome-ignore lint/suspicious/noExplicitAny: third-party SDK types are incomplete
    const result = externalLib.call() as any;
    ```
+
+## Design System
+
+Before writing or modifying any UI code, read the relevant spec file in `specs/design-system/`. Use only tokens from `specs/design-system/tokens.css`. Run `node scripts/token-audit.js` before committing UI changes. Zero errors required.
+
+### Key Rules
+
+1. **Read the spec first**: Check `specs/design-system/foundations/` for color, spacing, typography, radius, elevation, and motion tokens. Check `specs/design-system/components/` for component-specific specs.
+2. **Use tokens, not raw values**: Never use hardcoded hex colors, rgb/rgba values, or arbitrary pixel values. Reference semantic tokens from `tokens.css`.
+3. **Tailwind classes over arbitrary values**: Use `bg-primary`, `text-muted-foreground`, `border-border` instead of `bg-[#xxx]`, `text-[#xxx]`.
+4. **Hub-specific dark surfaces**: Use `--color-hub-card`, `--color-hub-icon-bg`, etc. for protocol/hub pages.
+5. **Layout constants**: Use `--header-height`, `--flyout-width`, `--sidebar-strip-width` instead of `top-[60px]`, `w-[280px]`, `w-[32px]`.
+6. **Token reference**: See `specs/design-system/tokens/token-reference.md` for the complete token map with usage guidance.
+
+### Audit Script
+
+```bash
+node scripts/token-audit.js         # Full scan (errors + warnings)
+node scripts/token-audit.js --quiet # Errors only
+```
+
+Exits with code 1 if errors are found. Errors are hardcoded colors in CSS and arbitrary Tailwind color classes. Warnings are hardcoded spacing, font sizes, z-index, and shadows.
+
+### Exempt Files
+
+- `keeperhub/api/og/generate-og.tsx` -- server-rendered OG images, not interactive UI
+- `lib/monaco-theme.ts` -- editor syntax highlighting, uses Monaco's theming API
+- `lib/next-boilerplate/` -- upstream template code
+- `docs-site/` -- separate documentation site
+
+---
 
 ## 🚨 CRITICAL: KeeperHub Custom Code Policy
 
@@ -263,6 +293,7 @@ pnpm discover / --auth --steps "click:button:has-text('New Workflow')" "probe:af
 ```
 
 Output goes to `tests/e2e/playwright/.probes/<label>-<timestamp>/`:
+
 - `screenshot.png` - full page screenshot
 - `screenshot-highlighted.png` - elements with numbered overlays (if --highlight)
 - `elements.md` - interactive elements table grouped by region (optimized for Claude)
@@ -278,10 +309,10 @@ import { probe, highlightElements } from "./utils/discover";
 
 test("my test", async ({ page }) => {
   await page.goto("/");
-  await probe(page, "initial");        // captures screenshot + element map
+  await probe(page, "initial"); // captures screenshot + element map
 
   await page.click('button:has-text("Sign In")');
-  await probe(page, "dialog-open");    // captures new state after click
+  await probe(page, "dialog-open"); // captures new state after click
 
   // Read .probes/ output to understand what's on screen
 });
@@ -290,6 +321,7 @@ test("my test", async ({ page }) => {
 ### Tool 3: Playwright MCP (direct browser control)
 
 The Playwright MCP server (`.mcp.json`) gives Claude direct browser access. Use it for interactive exploration when the CLI isn't enough:
+
 - Navigate pages, click elements, fill forms
 - Take screenshots and read them
 - Evaluate JavaScript in the page
@@ -316,31 +348,31 @@ Combine with the discovery utilities: use MCP to navigate, then call `getInterac
 
 ### Key Selectors Reference
 
-| Element | Selector |
-|---|---|
-| Sign In button | `button:has-text("Sign In")` (first) |
-| Auth dialog | `[role="dialog"]` |
-| Signup email | `#signup-email` |
-| Signup password | `#signup-password` |
-| OTP input | `#otp` |
-| User menu | `[data-testid="user-menu"]` |
-| Workflow canvas | `[data-testid="workflow-canvas"]` |
-| Trigger node | `.react-flow__node-trigger` |
-| Action grid | `[data-testid="action-grid"]` |
-| Add Step button | `button[name="Add Step"]` |
-| Toasts | `[data-sonner-toast]` |
-| Org switcher | `button[role="combobox"]` |
+| Element         | Selector                             |
+| --------------- | ------------------------------------ |
+| Sign In button  | `button:has-text("Sign In")` (first) |
+| Auth dialog     | `[role="dialog"]`                    |
+| Signup email    | `#signup-email`                      |
+| Signup password | `#signup-password`                   |
+| OTP input       | `#otp`                               |
+| User menu       | `[data-testid="user-menu"]`          |
+| Workflow canvas | `[data-testid="workflow-canvas"]`    |
+| Trigger node    | `.react-flow__node-trigger`          |
+| Action grid     | `[data-testid="action-grid"]`        |
+| Add Step button | `button[name="Add Step"]`            |
+| Toasts          | `[data-sonner-toast]`                |
+| Org switcher    | `button[role="combobox"]`            |
 
 ### Existing Test Utilities
 
-| Utility | Import | Purpose |
-|---|---|---|
-| `signUpAndVerify(page)` | `./utils/auth` | Full signup + OTP verification flow |
-| `signIn(page, email, pw)` | `./utils/auth` | Sign in with credentials |
-| `createWorkflow(page)` | `./utils/workflow` | Navigate + create new workflow |
-| `addActionNode(page, label)` | `./utils/workflow` | Add action to canvas |
-| `probe(page, label)` | `./utils/discover` | Capture page state for analysis |
-| `highlightElements(page)` | `./utils/discover` | Add numbered overlays |
-| `getInteractiveElements(page)` | `./utils/discover` | Get structured element list |
-| `getPageStructure(page)` | `./utils/discover` | Get page headings, landmarks, forms |
-| `createTestWorkflow(email)` | `./utils/db` | Inject workflow directly into DB |
+| Utility                        | Import             | Purpose                             |
+| ------------------------------ | ------------------ | ----------------------------------- |
+| `signUpAndVerify(page)`        | `./utils/auth`     | Full signup + OTP verification flow |
+| `signIn(page, email, pw)`      | `./utils/auth`     | Sign in with credentials            |
+| `createWorkflow(page)`         | `./utils/workflow` | Navigate + create new workflow      |
+| `addActionNode(page, label)`   | `./utils/workflow` | Add action to canvas                |
+| `probe(page, label)`           | `./utils/discover` | Capture page state for analysis     |
+| `highlightElements(page)`      | `./utils/discover` | Add numbered overlays               |
+| `getInteractiveElements(page)` | `./utils/discover` | Get structured element list         |
+| `getPageStructure(page)`       | `./utils/discover` | Get page headings, landmarks, forms |
+| `createTestWorkflow(email)`    | `./utils/db`       | Inject workflow directly into DB    |

@@ -68,7 +68,11 @@ function MiniNode({
 
   return (
     <rect
-      className={isTrigger ? "fill-[#09fd67]/60" : "fill-[#3d4f63]"}
+      className={
+        isTrigger
+          ? "fill-[var(--color-text-accent)]/60"
+          : "fill-[var(--color-hub-node-bg)]"
+      }
       height={FIXED_NODE_SIZE}
       rx={FIXED_NODE_SIZE * 0.15}
       ry={FIXED_NODE_SIZE * 0.15}
@@ -121,7 +125,7 @@ function MiniEdge({
 
   return (
     <path
-      className="fill-none stroke-[#2a3342]"
+      className="fill-none stroke-[var(--color-hub-icon-bg)]"
       d={`M ${sourceX} ${sourceY} C ${midX} ${sourceY}, ${midX} ${targetY}, ${targetX} ${targetY}`}
       strokeWidth={0.4}
     />

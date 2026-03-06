@@ -2,9 +2,8 @@ import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 // start custom keeperhub code //
 import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
-import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
+import { getDualAuthContext } from "@/keeperhub/lib/middleware/auth-helpers";
 // end keeperhub code //
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { workflowExecutions, workflows } from "@/lib/db/schema";
 
@@ -14,15 +13,17 @@ export async function GET(
 ) {
   try {
     const { workflowId } = await context.params;
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
     // start custom keeperhub code //
+    const authContext = await getDualAuthContext(request);
+    if ("error" in authContext) {
+      return NextResponse.json(
+        { error: authContext.error },
+        { status: authContext.status }
+      );
+    }
+    const { userId, organizationId } = authContext;
+
     // Verify workflow access (owner or org member)
     const workflow = await db.query.workflows.findFirst({
       where: eq(workflows.id, workflowId),
@@ -35,12 +36,11 @@ export async function GET(
       );
     }
 
-    const isOwner = session.user.id === workflow.userId;
-    const orgContext = await getOrgContext();
+    const isOwner = userId !== null && userId === workflow.userId;
     const isSameOrg =
       !workflow.isAnonymous &&
       workflow.organizationId &&
-      orgContext.organization?.id === workflow.organizationId;
+      organizationId === workflow.organizationId;
 
     if (!(isOwner || isSameOrg)) {
       return NextResponse.json(
@@ -79,15 +79,17 @@ export async function DELETE(
 ) {
   try {
     const { workflowId } = await context.params;
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
     // start custom keeperhub code //
+    const authContext = await getDualAuthContext(request);
+    if ("error" in authContext) {
+      return NextResponse.json(
+        { error: authContext.error },
+        { status: authContext.status }
+      );
+    }
+    const { userId, organizationId } = authContext;
+
     // Verify workflow access (owner or org member)
     const workflow = await db.query.workflows.findFirst({
       where: eq(workflows.id, workflowId),
@@ -100,12 +102,11 @@ export async function DELETE(
       );
     }
 
-    const isOwner = session.user.id === workflow.userId;
-    const orgContext = await getOrgContext();
+    const isOwner = userId !== null && userId === workflow.userId;
     const isSameOrg =
       !workflow.isAnonymous &&
       workflow.organizationId &&
-      orgContext.organization?.id === workflow.organizationId;
+      organizationId === workflow.organizationId;
 
     if (!(isOwner || isSameOrg)) {
       return NextResponse.json(

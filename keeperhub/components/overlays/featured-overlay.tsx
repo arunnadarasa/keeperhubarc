@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/card";
 import { WorkflowMiniMap } from "@/keeperhub/components/hub/workflow-mini-map";
 import { useDebounce } from "@/keeperhub/lib/hooks/use-debounce";
+import { refetchSidebar } from "@/keeperhub/lib/refetch-sidebar";
 import { api, type SavedWorkflow } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
 
@@ -78,6 +79,7 @@ export function FeaturedOverlay({ overlayId }: FeaturedOverlayProps) {
       }
 
       const duplicated = await api.workflow.duplicate(workflowId);
+      refetchSidebar();
       toast.success("Template applied successfully");
       closeAll();
       router.push(`/workflows/${duplicated.id}`);

@@ -122,7 +122,7 @@ export function ProtocolStrip({
 
           return (
             <button
-              className="relative flex w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-[#1a2230] text-left transition-colors hover:border-border hover:brightness-110"
+              className="relative flex w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-[var(--color-hub-card)] text-left transition-colors hover:border-border hover:brightness-110"
               key={protocol.slug}
               onClick={() => onSelect(protocol.slug)}
               type="button"
@@ -130,7 +130,7 @@ export function ProtocolStrip({
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_120%_70%_at_top_left,#243548_0%,transparent_70%)]" />
               <div className="relative flex flex-1 flex-col gap-3 p-5">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#2a3342]">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[var(--color-hub-icon-bg)]">
                     {protocol.icon ? (
                       <Image
                         alt={protocol.name}
@@ -140,7 +140,7 @@ export function ProtocolStrip({
                         width={24}
                       />
                     ) : (
-                      <Box className="size-5 text-[#09fd67]" />
+                      <Box className="size-5 text-[var(--color-text-accent)]" />
                     )}
                   </div>
                   <h3 className="font-semibold text-base">{protocol.name}</h3>
@@ -154,7 +154,7 @@ export function ProtocolStrip({
                 <div className="flex flex-wrap gap-1.5">
                   {chains.slice(0, MAX_VISIBLE_CHAINS).map((chain) => (
                     <span
-                      className="rounded-full bg-[#09fd671a] px-2.5 py-0.5 font-medium text-[#09fd67] text-[11px]"
+                      className="rounded-full bg-[var(--color-bg-accent)] px-2.5 py-0.5 font-medium text-[var(--color-text-accent)] text-[11px]"
                       key={chain}
                     >
                       {getChainName(chain)}
