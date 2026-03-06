@@ -17,6 +17,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { refetchSidebar } from "@/keeperhub/lib/refetch-sidebar";
 import { api, type SavedWorkflow } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
 import { WorkflowMiniMap } from "./workflow-mini-map";
@@ -77,6 +78,7 @@ export function FeaturedCarousel({ workflows }: FeaturedCarouselProps) {
       }
 
       const duplicated = await api.workflow.duplicate(workflowId);
+      refetchSidebar();
       toast.success("Workflow duplicated successfully");
       router.push(`/workflows/${duplicated.id}`);
     } catch (error) {
