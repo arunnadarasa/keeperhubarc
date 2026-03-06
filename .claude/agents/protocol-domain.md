@@ -264,6 +264,11 @@ Rules:
 <code_node_patterns>
 Rules for Code nodes in workflows. Violations cause silent runtime failures.
 
+Action type:
+- Code nodes MUST use `actionType: "code/run-code"` -- NOT `"Code"`
+- The workflow executor in `lib/workflow-executor.workflow.ts` checks `actionType === "code/run-code"` (line 1162/1197)
+- Using `"Code"` causes the node to be treated as an unknown action, breaking the workflow silently
+
 Template quoting:
 - `formatCodeValue()` in `lib/workflow-executor.workflow.ts` (line 664) already wraps string values via `JSON.stringify()` before injecting them into the Code node sandbox
 - CORRECT: `const x = {{@nodeId:Label.result}};` -- no manual quotes needed, becomes `const x = "value";`
@@ -283,14 +288,100 @@ Value formatting:
 </code_node_patterns>
 
 <example_workflow_generation>
-The pipeline creates example workflows directly in the local postgres DB using the postgres MCP (`mcp__postgres__execute_sql`). Never use the KeeperHub MCP for this -- workflows stay local only.
+The pipeline creates example workflows directly in the local postgres DB using the postgres MCP (`mcp__postgres__execute_sql`). Do NOT create TypeScript seed scripts in `scripts/seed/`. Use SQL INSERTs via MCP so workflows are created immediately and can be verified in the app. Never use the KeeperHub MCP for this -- workflows stay local only.
 
 Steps:
-1. Query `users` and `member` tables to find the local dev user and org:
-   `SELECT u.id, m.organization_id FROM users u JOIN member m ON m.user_id = u.id LIMIT 1;`
-2. INSERT a project row into `projects` table with `id: "proj-{slug}"` (use ON CONFLICT DO NOTHING to be idempotent)
-3. INSERT workflow rows into `workflows` table with correct `user_id`, `organization_id`, `project_id`
-4. Use `actionType: "{slug}/{action-slug}"` and include `_protocolMeta` JSON in node configs
+1. Query for the local dev user and org:
+   ```sql
+   SELECT u.id AS user_id, m.organization_id
+   FROM users u JOIN member m ON m.user_id = u.id LIMIT 1;
+   ```
+2. Create a project (idempotent):
+   ```sql
+   INSERT INTO projects (id, name, description, organization_id, user_id)
+   VALUES ('proj-{slug}', '{Protocol Name}', '{description}', '{org_id}', '{user_id}')
+   ON CONFLICT (id) DO NOTHING;
+   ```
+3. Insert each workflow with a single INSERT. The `nodes` and `edges` columns are JSONB.
+   ```sql
+   INSERT INTO workflows (id, name, description, user_id, organization_id, project_id, visibility, featured, featured_protocol, featured_protocol_order, nodes, edges)
+   VALUES (
+     '{generate-unique-id}',
+     '{workflow name}',
+     '{workflow description}',
+     '{user_id}',
+     '{org_id}',
+     'proj-{slug}',
+     'public',     -- 'private' for test workflows
+     true,         -- false for test workflows
+     '{slug}',     -- null for test workflows
+     1,            -- sequential order, null for test workflows
+     '{nodes_json}'::jsonb,
+     '{edges_json}'::jsonb
+   );
+   ```
+
+Node JSON structure reference:
+```json
+{
+  "id": "node-id",
+  "type": "action",
+  "position": {"x": 350, "y": 250},
+  "data": {
+    "type": "action",
+    "label": "Node Label",
+    "description": "What this node does",
+    "config": {
+      "actionType": "{slug}/{action-slug}",
+      "network": "1",
+      "_protocolMeta": "{\"protocolSlug\":\"{slug}\",\"contractKey\":\"...\",\"functionName\":\"...\",\"actionType\":\"read\"}",
+      "account": "0x..."
+    },
+    "status": "idle"
+  }
+}
+```
+
+Referencing Code node outputs from downstream nodes:
+- Code step returns `{ success: true, result: <return value>, logs }`, so the executor stores `result` as a nested field
+- CORRECT: `{{@code-node:Code Label.result.myField}}` -- resolves through `result` to the returned field
+- WRONG: `{{@code-node:Code Label.myField}}` -- resolves to undefined (top-level keys are `success`, `result`, `logs`)
+- Protocol read actions are different: `{{@read-node:Read Label.result}}` resolves to the raw value directly (for single unnamed ABI returns)
+
+Code node structure (MUST use `code/run-code` -- see `<code_node_patterns>`):
+```json
+{
+  "id": "format-result",
+  "type": "action",
+  "position": {"x": 600, "y": 250},
+  "data": {
+    "type": "action",
+    "label": "Format Result",
+    "description": "Convert raw value to human-readable format",
+    "config": {
+      "actionType": "code/run-code",
+      "code": "const raw = Number({{@prev-node:Prev Label.result}});\nconst formatted = (raw / 1e18).toFixed(4);\nreturn { formatted };"
+    },
+    "status": "idle"
+  }
+}
+```
+
+Trigger node structure:
+```json
+{
+  "id": "trigger-1",
+  "type": "trigger",
+  "position": {"x": 100, "y": 250},
+  "data": {
+    "type": "trigger",
+    "label": "Manual Trigger",
+    "config": {"triggerType": "Manual"},
+    "status": "idle",
+    "description": "Run manually"
+  }
+}
+```
 
 What to generate:
 - 1 test workflow per read action: manual trigger + single action node, named `[Test - {action-slug}] {description}`
@@ -299,7 +390,9 @@ What to generate:
 
 Workflow rules:
 - All workflows target only chains with explorer configs (see `<explorer_chain_availability>`)
-- All Code nodes follow `<code_node_patterns>` rules (no manual quotes around template refs, divide-by-zero guards, Intl formatting)
+- All Code nodes MUST use `actionType: "code/run-code"` (see `<code_node_patterns>`)
+- All Code nodes follow template quoting rules (no manual quotes around template refs, divide-by-zero guards, Intl formatting)
 - Node layout: trigger at x=100, subsequent nodes at x+250 increments, y=250 baseline
 - Edge naming: sequential e1, e2, etc.
+- Generate unique IDs for workflow rows (use a random alphanumeric string, 20 chars)
 </example_workflow_generation>
