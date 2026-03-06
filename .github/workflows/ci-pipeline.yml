@@ -33,6 +33,7 @@ jobs:
       image_tag: ${{ needs.build-images.outputs.image_tag || '' }}
       ecr_registry: ${{ needs.build-images.outputs.ecr_registry || '' }}
       ecr_repo: ${{ needs.build-images.outputs.ecr_repo || '' }}
+      ecr_region: ${{ needs.build-images.outputs.ecr_region || '' }}
     secrets: inherit
 
   deploy:

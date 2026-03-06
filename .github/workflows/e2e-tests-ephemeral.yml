@@ -39,6 +39,11 @@ on:
         type: string
         required: false
         default: ''
+      ecr_region:
+        description: 'AWS region for ECR'
+        type: string
+        required: false
+        default: ''
   workflow_dispatch: {}
 
 jobs:
@@ -189,7 +194,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-2
+          aws-region: ${{ inputs.ecr_region }}
 
       - name: Login to AWS ECR
         if: inputs.image_tag != ''
@@ -343,7 +348,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-2
+          aws-region: ${{ inputs.ecr_region }}
 
       - name: Login to AWS ECR
         if: inputs.image_tag != ''
