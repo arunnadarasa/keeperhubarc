@@ -17,8 +17,8 @@ ingress:
   enabled: false
 
 image:
-  repository: ${ECR_REGISTRY}/sc-event-tracker-staging
-  tag: app-latest
+  repository: ${ECR_REGISTRY}/keeperhub-staging
+  tag: event-tracker-${IMAGE_TAG}
   pullPolicy: Always
 
 deployment:

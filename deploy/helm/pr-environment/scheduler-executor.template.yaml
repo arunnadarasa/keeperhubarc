@@ -17,8 +17,8 @@ ingress:
   enabled: false
 
 image:
-  repository: ${ECR_REGISTRY}/keeperhub-scheduler-staging
-  tag: executor-latest
+  repository: ${ECR_REGISTRY}/keeperhub-staging
+  tag: scheduler-${IMAGE_TAG}
   pullPolicy: Always
 
 deployment:
