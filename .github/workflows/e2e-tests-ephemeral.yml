@@ -202,15 +202,21 @@ jobs:
 
       - name: Start application (Docker)
         if: inputs.image_tag != ''
+        env:
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
         run: |
           IMAGE="${{ inputs.ecr_registry }}/${{ inputs.ecr_repo }}:app-${{ inputs.image_tag }}"
           echo "Pulling ${IMAGE}..."
           docker pull "${IMAGE}"
 
+          printf '%s\n' \
+            "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/keeperhub_test" \
+            "BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}" \
+            "NODE_ENV=production" \
+            > /tmp/keeperhub-app.env
+
           docker run -d --name keeperhub-app --network host \
-            -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/keeperhub_test \
-            -e BETTER_AUTH_SECRET=${{ secrets.BETTER_AUTH_SECRET }} \
-            -e NODE_ENV=production \
+            --env-file /tmp/keeperhub-app.env \
             "${IMAGE}"
 
           for i in $(seq 1 30); do
@@ -356,15 +362,21 @@ jobs:
 
       - name: Start application (Docker)
         if: inputs.image_tag != ''
+        env:
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
         run: |
           IMAGE="${{ inputs.ecr_registry }}/${{ inputs.ecr_repo }}:app-${{ inputs.image_tag }}"
           echo "Pulling ${IMAGE}..."
           docker pull "${IMAGE}"
 
+          printf '%s\n' \
+            "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/keeperhub_test" \
+            "BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}" \
+            "NODE_ENV=production" \
+            > /tmp/keeperhub-app.env
+
           docker run -d --name keeperhub-app --network host \
-            -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/keeperhub_test \
-            -e BETTER_AUTH_SECRET=${{ secrets.BETTER_AUTH_SECRET }} \
-            -e NODE_ENV=production \
+            --env-file /tmp/keeperhub-app.env \
             "${IMAGE}"
 
           for i in $(seq 1 30); do
