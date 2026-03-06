@@ -10,6 +10,7 @@ export default {
   morpho: "Morpho",
   pendle: "Pendle",
   sky: "Sky",
+  spark: "Spark",
   uniswap: "Uniswap",
   discord: "Discord",
   telegram: "Telegram",
