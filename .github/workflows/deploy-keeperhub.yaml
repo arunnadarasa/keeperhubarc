@@ -60,14 +60,19 @@ jobs:
       - name: Extract commit hash
         id: vars
         shell: bash
+        env:
+          INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
         run: |
-          if [[ -n "${{ inputs.image_tag }}" ]]; then
-            echo "sha_short=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+          if [[ -n "${INPUT_IMAGE_TAG}" ]]; then
+            echo "sha_short=${INPUT_IMAGE_TAG}" >> "$GITHUB_OUTPUT"
           else
             echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           fi
 
-      # Build steps only run when not using pre-built images
+      # Build steps are skipped when:
+      # - inputs.skip_build=true: ci-pipeline.yml already built images via build-images.yml
+      # - [skip build] in commit message: manual escape hatch for workflow_dispatch reruns
+      #   where images already exist in ECR from a previous run
       - name: Set up Docker Buildx
         if: ${{ !inputs.skip_build && steps.skip.outputs.skip_build != 'true' }}
         uses: docker/setup-buildx-action@v3

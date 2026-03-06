@@ -57,13 +57,17 @@ runs:
       shell: bash
       env:
         BETTER_AUTH_SECRET: ${{ inputs.better_auth_secret }}
+        ECR_REGISTRY: ${{ inputs.ecr_registry }}
+        ECR_REPO: ${{ inputs.ecr_repo }}
+        IMAGE_TAG: ${{ inputs.image_tag }}
+        DATABASE_URL: ${{ inputs.database_url }}
       run: |
-        IMAGE="${{ inputs.ecr_registry }}/${{ inputs.ecr_repo }}:app-${{ inputs.image_tag }}"
+        IMAGE="${ECR_REGISTRY}/${ECR_REPO}:app-${IMAGE_TAG}"
         echo "Pulling ${IMAGE}..."
         docker pull "${IMAGE}"
 
         printf '%s\n' \
-          "DATABASE_URL=${{ inputs.database_url }}" \
+          "DATABASE_URL=${DATABASE_URL}" \
           "BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}" \
           "NODE_ENV=production" \
           > /tmp/keeperhub-app.env
