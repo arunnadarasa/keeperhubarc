@@ -1,37 +1,26 @@
 # Type: reusable | Called by ci-pipeline.yml
+# Pure deployer: expects images to already exist in ECR (built by build-images.yml).
 on:
   workflow_call:
     inputs:
-      skip_build:
-        description: 'Skip Docker build (images already pushed to ECR by build-images job)'
-        type: boolean
-        required: false
-        default: false
       image_tag:
-        description: 'Pre-built image tag (short SHA). Overrides computed SHA when provided.'
+        description: 'Pre-built image tag (short SHA).'
         type: string
         required: false
         default: ''
-  workflow_dispatch: {}
 
 name: deploy-keeperhub
 jobs:
-  build-and-deploy:
+  deploy:
     environment: ${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
     runs-on: ubuntu-latest
     env:
       HELM_FILE: deploy/keeperhub/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/values.yaml
       REGION: ${{ github.ref_name == 'prod' && 'us-east-1' || 'us-east-2' }}
       CLUSTER_NAME: ${{ github.ref_name == 'prod' && 'maker-prod' || 'maker-staging' }}
-      ENVIRONMENT_TAG: ${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
       NAMESPACE: keeperhub
       SERVICE_NAME: keeperhub
-      AWS_ECR_NAME: keeperhub-${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
       SERVICE_ACCOUNT_ROLE_ARN: ${{ vars.SERVICE_ACCOUNT_ROLE_ARN }}
-      # Auth provider build args (selected by deployment branch: prod vs staging)
-      NEXT_PUBLIC_AUTH_PROVIDERS: ${{ github.ref_name == 'prod' && vars.NEXT_PUBLIC_AUTH_PROVIDERS_PROD || vars.NEXT_PUBLIC_AUTH_PROVIDERS_STAGING }}
-      NEXT_PUBLIC_GITHUB_CLIENT_ID: ${{ github.ref_name == 'prod' && vars.NEXT_PUBLIC_GITHUB_CLIENT_ID_PROD || vars.NEXT_PUBLIC_GITHUB_CLIENT_ID_STAGING }}
-      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ github.ref_name == 'prod' && vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID_PROD || vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID_STAGING }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -43,7 +32,6 @@ jobs:
         id: skip
         run: |
           MSG=$(git log -1 --format=%B)
-          echo "skip_build=$([[ "$MSG" == *"[skip build]"* ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "skip_deploy=$([[ "$MSG" == *"[skip deploy]"* ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
       - name: Configure AWS credentials
@@ -68,46 +56,6 @@ jobs:
           else
             echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           fi
-
-      # Build steps are skipped when:
-      # - inputs.skip_build=true: ci-pipeline.yml already built images via build-images.yml
-      # - [skip build] in commit message: manual escape hatch for workflow_dispatch reruns
-      #   where images already exist in ECR from a previous run
-      - name: Set up Docker Buildx
-        if: ${{ !inputs.skip_build && steps.skip.outputs.skip_build != 'true' }}
-        uses: docker/setup-buildx-action@v3
-
-      - name: Verify submodule token access
-        if: ${{ !inputs.skip_build && steps.skip.outputs.skip_build != 'true' }}
-        env:
-          TOKEN: ${{ secrets.KEEPERHUB_SUBMODULE_TOKEN }}
-        run: |
-          for repo in keeperhub-events keeperhub-scheduler; do
-            status=$(curl -sf -o /dev/null -w "%{http_code}" \
-              -H "Authorization: Bearer $TOKEN" \
-              "https://api.github.com/repos/techops-services/$repo")
-            if [ "$status" != "200" ]; then
-              echo "::error::KEEPERHUB_SUBMODULE_TOKEN cannot access techops-services/$repo (HTTP $status). Token may be expired or revoked."
-              exit 1
-            fi
-            echo "Verified access to techops-services/$repo"
-          done
-
-      - name: Build and push all images to ECR
-        if: ${{ !inputs.skip_build && steps.skip.outputs.skip_build != 'true' }}
-        uses: docker/bake-action@v6
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPO: ${{ env.AWS_ECR_NAME }}
-          IMAGE_TAG: ${{ steps.vars.outputs.sha_short }}
-          NEXT_PUBLIC_AUTH_PROVIDERS: ${{ env.NEXT_PUBLIC_AUTH_PROVIDERS }}
-          NEXT_PUBLIC_GITHUB_CLIENT_ID: ${{ env.NEXT_PUBLIC_GITHUB_CLIENT_ID }}
-          NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ env.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
-          BUILDX_BAKE_GIT_AUTH_TOKEN: ${{ secrets.KEEPERHUB_SUBMODULE_TOKEN }}
-          ENVIRONMENT_TAG: ${{ env.ENVIRONMENT_TAG }}
-        with:
-          files: docker-bake.hcl
-          push: true
 
       - name: Replace variables in the Helm values file
         id: replace-vars
@@ -150,7 +98,7 @@ jobs:
 
   # DISABLED: remote E2E tests temporarily disabled while KEEP-1351 stabilises auth/rate-limit infrastructure
   e2e-playwright-remote:
-    needs: build-and-deploy
+    needs: deploy
     if: ${{ vars.ENABLE_E2E_REMOTE_TESTS == 'true' }}
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
