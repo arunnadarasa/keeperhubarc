@@ -58,9 +58,11 @@ jobs:
         env:
           EFFECTIVE_EVENT: ${{ inputs.caller_event || github.event_name }}
         run: |
-          echo "run-e2e=false" >> $GITHUB_OUTPUT
-          echo "run-deployed=false" >> $GITHUB_OUTPUT
-          echo "pr-number=" >> $GITHUB_OUTPUT
+          {
+            echo "run-e2e=false"
+            echo "run-deployed=false"
+            echo "pr-number="
+          } >> "$GITHUB_OUTPUT"
 
           # Check for [skip e2e] flag in commit message (push events only)
           if [[ "$EFFECTIVE_EVENT" == "push" ]]; then
@@ -72,17 +74,17 @@ jobs:
           fi
 
           if [[ "$EFFECTIVE_EVENT" == "push" || "$EFFECTIVE_EVENT" == "workflow_dispatch" ]]; then
-            echo "run-e2e=true" >> $GITHUB_OUTPUT
+            echo "run-e2e=true" >> "$GITHUB_OUTPUT"
           elif [[ "$EFFECTIVE_EVENT" == "pull_request" ]]; then
             if [[ "${{ inputs.caller_action }}" == "labeled" ]]; then
               # Only run when the run-e2e-tests-ephemeral label was the one just added
               if [[ "${{ inputs.label_name }}" == "run-e2e-tests-ephemeral" ]]; then
-                echo "run-e2e=true" >> $GITHUB_OUTPUT
+                echo "run-e2e=true" >> "$GITHUB_OUTPUT"
               fi
             elif [[ "${{ inputs.caller_action }}" == "synchronize" ]]; then
               # On new commits, re-run if the label is already present
               if [[ "${{ inputs.has_e2e_label }}" == "true" ]]; then
-                echo "run-e2e=true" >> $GITHUB_OUTPUT
+                echo "run-e2e=true" >> "$GITHUB_OUTPUT"
               fi
             fi
           fi

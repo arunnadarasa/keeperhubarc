@@ -113,10 +113,10 @@ jobs:
           SERVICE_ACCOUNT_ROLE_ARN: ${{ env.SERVICE_ACCOUNT_ROLE_ARN }}
           AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
         run: |
-          sed -i 's|${ECR_REGISTRY}|'"$ECR_REGISTRY"'|g' $HELM_FILE
-          sed -i 's|${IMAGE_TAG}|'"$IMAGE_TAG"'|g' $HELM_FILE
-          sed -i 's|${SERVICE_ACCOUNT_ROLE_ARN}|'"$SERVICE_ACCOUNT_ROLE_ARN"'|g' $HELM_FILE
-          sed -i 's|${AWS_ACCOUNT_ID}|'"$AWS_ACCOUNT_ID"'|g' $HELM_FILE
+          sed -i "s|\${ECR_REGISTRY}|${ECR_REGISTRY}|g" "$HELM_FILE"
+          sed -i "s|\${IMAGE_TAG}|${IMAGE_TAG}|g" "$HELM_FILE"
+          sed -i "s|\${SERVICE_ACCOUNT_ROLE_ARN}|${SERVICE_ACCOUNT_ROLE_ARN}|g" "$HELM_FILE"
+          sed -i "s|\${AWS_ACCOUNT_ID}|${AWS_ACCOUNT_ID}|g" "$HELM_FILE"
 
       - name: Configure kubectl
         if: steps.skip.outputs.skip_deploy != 'true'
