@@ -53,10 +53,10 @@ env:
   DATABASE_URL:
     type: kv
     value: "postgresql://keeperhub:${DB_PASSWORD}@keeperhub-pr-${PR_NUMBER}-db-rw.pr-${PR_NUMBER}.svc.cluster.local:5432/keeperhub"
-  KEEPERHUB_API_URL:
+  KEEPERHUB_URL:
     type: kv
     value: "http://keeperhub-pr-${PR_NUMBER}-common:3000"
-  KEEPERHUB_API_KEY:
+  SCHEDULER_SERVICE_API_KEY:
     type: parameterStore
     name: scheduler-service-api-key
     parameter_name: /eks/techops-prod/keeperhub-scheduler/keeperhub-api-key
