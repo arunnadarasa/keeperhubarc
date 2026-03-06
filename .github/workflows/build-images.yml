@@ -26,8 +26,8 @@ jobs:
     outputs:
       image_tag: ${{ steps.vars.outputs.sha_short }}
       ecr_registry: ${{ steps.login-ecr.outputs.registry }}
-      ecr_repo: ${{ env.AWS_ECR_NAME }}
-      ecr_region: ${{ env.REGION }}
+      ecr_repo: ${{ steps.vars.outputs.ecr_repo }}
+      ecr_region: ${{ steps.vars.outputs.ecr_region }}
     env:
       REGION: ${{ github.ref_name == 'prod' && 'us-east-1' || 'us-east-2' }}
       AWS_ECR_NAME: keeperhub-${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
@@ -59,9 +59,14 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Extract commit hash
+      - name: Extract commit hash and ECR coordinates
         id: vars
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+        run: |
+          {
+            echo "sha_short=$(git rev-parse --short HEAD)"
+            echo "ecr_repo=${AWS_ECR_NAME}"
+            echo "ecr_region=${REGION}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Check if images already exist
         id: check-image
