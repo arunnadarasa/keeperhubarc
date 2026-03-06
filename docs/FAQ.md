@@ -149,6 +149,72 @@ Yes. The [MCP server](/ai-tools/mcp-server) exposes 19 tools that let AI agents 
 
 ---
 
+## MCP and AI agent setup
+
+### What is the MCP server?
+
+The KeeperHub [MCP server](/ai-tools/mcp-server) lets AI agents (Claude, custom agents, etc.) create, run, and monitor workflows over the [Model Context Protocol](https://modelcontextprotocol.io). It exposes 19 tools covering workflow CRUD, execution, plugin discovery, template deployment, and integration management.
+
+### How do I set up the MCP server?
+
+You need an organization-scoped API key (prefix `kh_`). Create one in Settings > API Keys > Organisation tab.
+
+Then pick a transport mode:
+
+**Docker (recommended):**
+```bash
+docker build -t keeperhub-mcp .
+docker run -i --rm -e KEEPERHUB_API_KEY=kh_your_key keeperhub-mcp
+```
+
+**Node.js:**
+```bash
+pnpm install && pnpm build
+KEEPERHUB_API_KEY=kh_your_key pnpm start
+```
+
+**Via Claude Code Plugin** -- if you install the [Claude Code plugin](/ai-tools/claude-code-plugin), the MCP server is set up automatically. No manual config needed.
+
+Source code and full docs: [github.com/techops-services/keeperhub-mcp](https://github.com/techops-services/keeperhub-mcp)
+
+### How do I connect Claude Code to KeeperHub?
+
+Add this to your MCP client config (e.g. `~/.claude.json`):
+
+```json
+{
+  "mcpServers": {
+    "keeperhub": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "KEEPERHUB_API_KEY", "keeperhub-mcp"],
+      "env": {
+        "KEEPERHUB_API_KEY": "kh_your_key_here"
+      }
+    }
+  }
+}
+```
+
+Or skip the manual config entirely -- install the Claude Code plugin and run `/keeperhub:login`:
+
+```bash
+/plugin marketplace add techops-services/claude-plugins
+/plugin install keeperhub@techops-plugins
+/keeperhub:login
+```
+
+Restart Claude Code after setup. You can verify with `/keeperhub:status`.
+
+### What's the difference between `kh_` and `wfb_` API keys?
+
+`kh_` keys are organization-scoped -- required for the MCP server and Claude Code plugin. `wfb_` keys are user-scoped and work with the REST API. The MCP server won't accept `wfb_` keys.
+
+### Can I run the MCP server for remote agents (not just local)?
+
+Yes. Set the `PORT` and `MCP_API_KEY` environment variables to enable HTTP/SSE mode. Remote agents connect via `GET /sse` for the event stream and `POST /message` for commands. All requests require `Authorization: Bearer <MCP_API_KEY>`.
+
+---
+
 ## API and integrations
 
 ### Is there an API?
