@@ -36,6 +36,7 @@ import {
   type ProtocolDefinition,
   type ProtocolEvent,
 } from "@/keeperhub/lib/protocol-registry";
+import { refetchSidebar } from "@/keeperhub/lib/refetch-sidebar";
 import { api, type SavedWorkflow } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
 import { WorkflowMiniMap } from "./workflow-mini-map";
@@ -165,6 +166,7 @@ export function ProtocolDetail({
       }
 
       const duplicated = await api.workflow.duplicate(workflowId);
+      refetchSidebar();
       toast.success("Workflow duplicated successfully");
       router.push(`/workflows/${duplicated.id}`);
     } catch (error) {
@@ -248,6 +250,7 @@ export function ProtocolDetail({
         edges,
       });
 
+      refetchSidebar();
       sessionStorage.setItem("animate-sidebar", "true");
       router.push(`/workflows/${newWorkflow.id}`);
     } catch {
@@ -299,6 +302,7 @@ export function ProtocolDetail({
         edges: [],
       });
 
+      refetchSidebar();
       sessionStorage.setItem("animate-sidebar", "true");
       router.push(`/workflows/${newWorkflow.id}`);
     } catch {
