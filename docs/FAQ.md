@@ -15,11 +15,12 @@ Common use cases include treasury monitoring, DeFi position management, event-dr
 
 ### How do I get started?
 
-1. Create an account at [app.keeperhub.com](https://app.keeperhub.com) -- a Para wallet is provisioned automatically
-2. Fund your wallet with ETH on your target network (start with Sepolia testnet to experiment for free)
-3. Build a workflow using the visual builder or the AI assistant
-4. Test with a manual trigger before enabling automated scheduling
-5. Monitor execution through the run logs
+1. Create an account at [app.keeperhub.com](https://app.keeperhub.com)
+2. Set up your Para wallet in the Web3 integration settings
+3. Fund your wallet with ETH on your target network (start with Sepolia testnet to experiment for free)
+4. Build a workflow using the visual builder or the AI assistant
+5. Test with a manual trigger before enabling automated scheduling
+6. Monitor execution through the run logs
 
 See the [Quick Start Guide](/getting-started/quickstart) for a full walkthrough.
 
@@ -49,7 +50,7 @@ Beyond these, you can interact with any smart contract through the generic [Web3
 
 ### How does the wallet work? Do I need to bring my own?
 
-When you create a KeeperHub account, a [Para wallet](/wallet-management/para) is automatically generated for you. It uses multi-party computation (MPC) -- the private key is split between you and Para so neither party can sign alone, but automated signing is seamless during workflow execution.
+When you create a KeeperHub account, you can set up a [Para wallet](/wallet-management/para) through the Web3 integration settings. It uses multi-party computation (MPC) -- the private key is split between you and Para so neither party can sign alone, but automated signing is seamless during workflow execution.
 
 Read-only operations (checking balances, reading contracts, monitoring events) do not require any ETH. Write operations (transfers, contract calls) execute through your Para wallet and require ETH for gas on the target network.
 
@@ -59,7 +60,6 @@ Your Para wallet uses MPC where the private key is split into shares held by you
 
 - KeeperHub employees cannot move your funds unilaterally
 - Para cannot move your funds unilaterally
-- You can [export your private key](/wallet-management/para) at any time from the Wallet Settings tab for full independent control
 
 The tradeoff: you get convenience and automated signing for workflows, but you are trusting Para's infrastructure to be available for signing operations.
 
@@ -71,9 +71,7 @@ We recommend starting on the Sepolia testnet, where you can get free test ETH fr
 
 ### Can I export my private key?
 
-Yes. Navigate to the **Wallet** tab, tap **Settings**, then **Export Private Key**. Follow the instructions provided by Para on their domain.
-
-**Important**: Never share your private key or seed phrase with anyone. Do not store it in email, cloud drives, chat apps, screenshots, or unencrypted notes. Prefer storing the key offline in an encrypted password manager, air-gapped USB drive, or hardware wallet. After copying, clear your clipboard and close the export screen.
+Private key export is not currently supported but is planned for a future release. In the meantime, your funds remain accessible through your Para wallet in KeeperHub. We will announce when this feature becomes available.
 
 ---
 
@@ -178,11 +176,11 @@ See [Organizations](/users-teams-orgs/organizations) for details.
 
 ### What happens if I lose access to my account?
 
-You can reset your password via a one-time code sent to your email. If you use OAuth (Google, GitHub), you are directed to your provider for recovery. While you have account access, you can export your Para wallet private key at any time from the Wallet Settings tab to ensure you always have independent control of your funds.
+You can reset your password via a one-time code sent to your email. If you use OAuth (Google, GitHub), you are directed to your provider for recovery.
 
 ### What happens if I delete my account?
 
-Account deletion is a soft delete -- your data is preserved but your account is deactivated, and all sessions are invalidated. You can reactivate by contacting an administrator. Before deleting, export your workflow definitions and your Para wallet private key if you want to retain them.
+Account deletion is a soft delete -- your data is preserved but your account is deactivated, and all sessions are invalidated. You can reactivate by contacting an administrator. Before deleting, export your workflow definitions if you want to retain them.
 
 ---
 
