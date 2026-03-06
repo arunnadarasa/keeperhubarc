@@ -77,15 +77,15 @@ describe("Compound V3 Protocol Definition", () => {
     }
   });
 
-  it("has exactly 5 actions", () => {
-    expect(compoundDef.actions).toHaveLength(5);
+  it("has exactly 12 actions", () => {
+    expect(compoundDef.actions).toHaveLength(12);
   });
 
-  it("has 2 write actions and 3 read actions", () => {
+  it("has 2 write actions and 10 read actions", () => {
     const readActions = compoundDef.actions.filter((a) => a.type === "read");
     const writeActions = compoundDef.actions.filter((a) => a.type === "write");
     expect(writeActions).toHaveLength(2);
-    expect(readActions).toHaveLength(3);
+    expect(readActions).toHaveLength(10);
   });
 
   it("has 1 contract", () => {
@@ -96,11 +96,10 @@ describe("Compound V3 Protocol Definition", () => {
     expect(compoundDef.contracts.comet.userSpecifiedAddress).toBe(true);
   });
 
-  it("comet contract is available on 3 supported chains", () => {
+  it("comet contract is available on Ethereum mainnet", () => {
     const chains = Object.keys(compoundDef.contracts.comet.addresses);
     expect(chains).toContain("1");
-    expect(chains).toContain("8453");
-    expect(chains).toContain("42161");
+    expect(chains).toHaveLength(1);
   });
 
   it("get-balance action has output with decimals", () => {
