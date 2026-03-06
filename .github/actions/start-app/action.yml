@@ -78,6 +78,7 @@ runs:
           "HOSTNAME=0.0.0.0" \
           "CI=true" \
           "TEST_API_KEY=${TEST_API_KEY}" \
+          "WORKFLOW_TARGET_WORLD=@workflow/world-postgres" \
           > /tmp/keeperhub-app.env
 
         docker run -d --name keeperhub-app --network host \
@@ -139,3 +140,4 @@ runs:
         BETTER_AUTH_SECRET: ${{ inputs.better_auth_secret }}
         CI: true
         TEST_API_KEY: ${{ inputs.test_api_key }}
+        WORKFLOW_TARGET_WORLD: "@workflow/world-postgres"
