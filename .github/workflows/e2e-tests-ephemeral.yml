@@ -198,6 +198,7 @@ jobs:
           aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           database_url: postgresql://postgres:postgres@localhost:5432/keeperhub_test
           better_auth_secret: ${{ secrets.BETTER_AUTH_SECRET }}
+          test_api_key: ${{ secrets.TEST_API_KEY }}
 
       - name: Run E2E Vitest tests
         run: pnpm test:e2e:vitest
@@ -212,6 +213,7 @@ jobs:
           AWS_ACCESS_KEY_ID: test
           AWS_SECRET_ACCESS_KEY: test
           AWS_REGION: us-east-1
+          TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
 
       - name: Dump app container logs
         if: failure() && inputs.image_tag != ''
@@ -289,6 +291,7 @@ jobs:
           aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           database_url: postgresql://postgres:postgres@localhost:5432/keeperhub_test
           better_auth_secret: ${{ secrets.BETTER_AUTH_SECRET }}
+          test_api_key: ${{ secrets.TEST_API_KEY }}
 
       - name: Run Playwright tests
         run: pnpm test:e2e
@@ -304,6 +307,7 @@ jobs:
           PARA_PORTAL_KEY_ID: ${{ secrets.PARA_PORTAL_KEY_ID }}
           PARA_PORTAL_API_KEY: ${{ secrets.PARA_PORTAL_API_KEY }}
           CI: true
+          TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
 
       - name: Dump app container logs
         if: failure() && inputs.image_tag != ''
