@@ -58,11 +58,7 @@ jobs:
         env:
           EFFECTIVE_EVENT: ${{ inputs.caller_event || github.event_name }}
         run: |
-          {
-            echo "run-e2e=false"
-            echo "run-deployed=false"
-            echo "pr-number="
-          } >> "$GITHUB_OUTPUT"
+          echo "run-e2e=false" >> "$GITHUB_OUTPUT"
 
           # Check for [skip e2e] flag in commit message (push events only)
           if [[ "$EFFECTIVE_EVENT" == "push" ]]; then
