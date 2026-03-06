@@ -70,6 +70,7 @@ runs:
           "DATABASE_URL=${DATABASE_URL}" \
           "BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}" \
           "NODE_ENV=production" \
+          "HOSTNAME=0.0.0.0" \
           > /tmp/keeperhub-app.env
 
         docker run -d --name keeperhub-app --network host \
