@@ -36,6 +36,9 @@ jobs:
       ecr_region: ${{ needs.build-images.outputs.ecr_region || '' }}
     secrets: inherit
 
+  # Deploy runs after build-images and e2e-tests.
+  # On prod pushes, e2e-tests is skipped (not failed/cancelled),
+  # so !failure() && !cancelled() correctly allows deploy to proceed.
   deploy:
     needs: [build-images, e2e-tests]
     if: ${{ github.event_name == 'push' && !failure() && !cancelled() }}
