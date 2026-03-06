@@ -187,89 +187,18 @@ jobs:
           TEST_PARA_USER_SHARE: ${{ secrets.TEST_PARA_USER_SHARE }}
           WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
 
-      # --- Docker path: pull pre-built image from ECR (push to staging/prod) ---
-      - name: Configure AWS credentials
-        if: inputs.image_tag != ''
-        uses: aws-actions/configure-aws-credentials@v6
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ inputs.ecr_region }}
-
-      - name: Login to AWS ECR
-        if: inputs.image_tag != ''
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Start application (Docker)
-        if: inputs.image_tag != ''
-        env:
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-        run: |
-          IMAGE="${{ inputs.ecr_registry }}/${{ inputs.ecr_repo }}:app-${{ inputs.image_tag }}"
-          echo "Pulling ${IMAGE}..."
-          docker pull "${IMAGE}"
-
-          printf '%s\n' \
-            "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/keeperhub_test" \
-            "BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}" \
-            "NODE_ENV=production" \
-            > /tmp/keeperhub-app.env
-
-          docker run -d --name keeperhub-app --network host \
-            --env-file /tmp/keeperhub-app.env \
-            "${IMAGE}"
-
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:3000 > /dev/null 2>&1; then
-              echo "App is ready (Docker)"
-              break
-            fi
-            if [ "$i" -eq 30 ]; then
-              echo "App did not start in 60s"
-              docker logs keeperhub-app
-              exit 1
-            fi
-            sleep 2
-          done
-
-      # --- Bare-metal path: build locally (PRs, workflow_dispatch) ---
-      - name: Cache Next.js build
-        if: inputs.image_tag == ''
-        uses: actions/cache@v4
-        with:
-          path: .next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**/*.ts', '**/*.tsx') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-
-            ${{ runner.os }}-nextjs-
-
-      - name: Build application
-        if: inputs.image_tag == ''
-        run: pnpm build
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-
       - name: Start application
-        if: inputs.image_tag == ''
-        run: |
-          pnpm start &
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:3000 > /dev/null 2>&1; then
-              echo "App is ready"
-              break
-            fi
-            if [ "$i" -eq 30 ]; then
-              echo "App did not start in 60s"
-              exit 1
-            fi
-            sleep 2
-          done
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+        uses: ./.github/actions/start-app
+        with:
+          image_tag: ${{ inputs.image_tag }}
+          ecr_registry: ${{ inputs.ecr_registry }}
+          ecr_repo: ${{ inputs.ecr_repo }}
+          ecr_region: ${{ inputs.ecr_region }}
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          database_url: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          better_auth_secret: ${{ secrets.BETTER_AUTH_SECRET }}
 
-      # --- Tests (same for both paths) ---
       - name: Run E2E Vitest tests
         run: pnpm test:e2e:vitest
         env:
@@ -349,89 +278,18 @@ jobs:
           TEST_PARA_USER_SHARE: ${{ secrets.TEST_PARA_USER_SHARE }}
           WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
 
-      # --- Docker path: pull pre-built image from ECR (push to staging/prod) ---
-      - name: Configure AWS credentials
-        if: inputs.image_tag != ''
-        uses: aws-actions/configure-aws-credentials@v6
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ inputs.ecr_region }}
-
-      - name: Login to AWS ECR
-        if: inputs.image_tag != ''
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Start application (Docker)
-        if: inputs.image_tag != ''
-        env:
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-        run: |
-          IMAGE="${{ inputs.ecr_registry }}/${{ inputs.ecr_repo }}:app-${{ inputs.image_tag }}"
-          echo "Pulling ${IMAGE}..."
-          docker pull "${IMAGE}"
-
-          printf '%s\n' \
-            "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/keeperhub_test" \
-            "BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}" \
-            "NODE_ENV=production" \
-            > /tmp/keeperhub-app.env
-
-          docker run -d --name keeperhub-app --network host \
-            --env-file /tmp/keeperhub-app.env \
-            "${IMAGE}"
-
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:3000 > /dev/null 2>&1; then
-              echo "App is ready (Docker)"
-              break
-            fi
-            if [ "$i" -eq 30 ]; then
-              echo "App did not start in 60s"
-              docker logs keeperhub-app
-              exit 1
-            fi
-            sleep 2
-          done
-
-      # --- Bare-metal path: build locally (PRs, workflow_dispatch) ---
-      - name: Cache Next.js build
-        if: inputs.image_tag == ''
-        uses: actions/cache@v4
-        with:
-          path: .next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**/*.ts', '**/*.tsx') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-
-            ${{ runner.os }}-nextjs-
-
-      - name: Build application
-        if: inputs.image_tag == ''
-        run: pnpm build
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-
       - name: Start application
-        if: inputs.image_tag == ''
-        run: |
-          pnpm start &
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:3000 > /dev/null 2>&1; then
-              echo "App is ready"
-              break
-            fi
-            if [ "$i" -eq 30 ]; then
-              echo "App did not start in 60s"
-              exit 1
-            fi
-            sleep 2
-          done
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+        uses: ./.github/actions/start-app
+        with:
+          image_tag: ${{ inputs.image_tag }}
+          ecr_registry: ${{ inputs.ecr_registry }}
+          ecr_repo: ${{ inputs.ecr_repo }}
+          ecr_region: ${{ inputs.ecr_region }}
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          database_url: postgresql://postgres:postgres@localhost:5432/keeperhub_test
+          better_auth_secret: ${{ secrets.BETTER_AUTH_SECRET }}
 
-      # --- Tests (same for both paths) ---
       - name: Run Playwright tests
         run: pnpm test:e2e
         env:

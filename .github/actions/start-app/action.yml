@@ -1,0 +1,125 @@
+# Starts the application for e2e tests.
+# Docker path: pulls pre-built image from ECR (push events).
+# Bare-metal path: builds locally with pnpm (PRs, workflow_dispatch).
+name: Start Application
+description: Start application from Docker image or bare-metal build
+
+inputs:
+  image_tag:
+    description: 'ECR image tag. When provided, uses Docker path instead of bare-metal.'
+    required: false
+    default: ''
+  ecr_registry:
+    description: 'ECR registry URL'
+    required: false
+    default: ''
+  ecr_repo:
+    description: 'ECR repository name'
+    required: false
+    default: ''
+  ecr_region:
+    description: 'AWS region for ECR'
+    required: false
+    default: ''
+  aws_access_key_id:
+    description: 'AWS access key ID (for ECR login)'
+    required: false
+    default: ''
+  aws_secret_access_key:
+    description: 'AWS secret access key (for ECR login)'
+    required: false
+    default: ''
+  database_url:
+    description: 'Database connection URL'
+    required: true
+  better_auth_secret:
+    description: 'BetterAuth secret'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # --- Docker path ---
+    - name: Configure AWS credentials
+      if: inputs.image_tag != ''
+      uses: aws-actions/configure-aws-credentials@v6
+      with:
+        aws-access-key-id: ${{ inputs.aws_access_key_id }}
+        aws-secret-access-key: ${{ inputs.aws_secret_access_key }}
+        aws-region: ${{ inputs.ecr_region }}
+
+    - name: Login to AWS ECR
+      if: inputs.image_tag != ''
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Start application (Docker)
+      if: inputs.image_tag != ''
+      shell: bash
+      env:
+        BETTER_AUTH_SECRET: ${{ inputs.better_auth_secret }}
+      run: |
+        IMAGE="${{ inputs.ecr_registry }}/${{ inputs.ecr_repo }}:app-${{ inputs.image_tag }}"
+        echo "Pulling ${IMAGE}..."
+        docker pull "${IMAGE}"
+
+        printf '%s\n' \
+          "DATABASE_URL=${{ inputs.database_url }}" \
+          "BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}" \
+          "NODE_ENV=production" \
+          > /tmp/keeperhub-app.env
+
+        docker run -d --name keeperhub-app --network host \
+          --env-file /tmp/keeperhub-app.env \
+          "${IMAGE}"
+
+        for i in $(seq 1 30); do
+          if curl -sf http://localhost:3000 > /dev/null 2>&1; then
+            echo "App is ready (Docker)"
+            break
+          fi
+          if [ "$i" -eq 30 ]; then
+            echo "App did not start in 60s"
+            docker logs keeperhub-app
+            exit 1
+          fi
+          sleep 2
+        done
+
+    # --- Bare-metal path ---
+    - name: Cache Next.js build
+      if: inputs.image_tag == ''
+      uses: actions/cache@v4
+      with:
+        path: .next/cache
+        key: ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**/*.ts', '**/*.tsx') }}
+        restore-keys: |
+          ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-
+          ${{ runner.os }}-nextjs-
+
+    - name: Build application
+      if: inputs.image_tag == ''
+      shell: bash
+      run: pnpm build
+      env:
+        DATABASE_URL: ${{ inputs.database_url }}
+        BETTER_AUTH_SECRET: ${{ inputs.better_auth_secret }}
+
+    - name: Start application
+      if: inputs.image_tag == ''
+      shell: bash
+      run: |
+        pnpm start &
+        for i in $(seq 1 30); do
+          if curl -sf http://localhost:3000 > /dev/null 2>&1; then
+            echo "App is ready"
+            break
+          fi
+          if [ "$i" -eq 30 ]; then
+            echo "App did not start in 60s"
+            exit 1
+          fi
+          sleep 2
+        done
+      env:
+        DATABASE_URL: ${{ inputs.database_url }}
+        BETTER_AUTH_SECRET: ${{ inputs.better_auth_secret }}
