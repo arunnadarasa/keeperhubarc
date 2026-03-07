@@ -9,7 +9,7 @@ import { db } from "@/lib/db";
 import { workflowExecutionLogs, workflowExecutions } from "@/lib/db/schema";
 
 // start custom keeperhub code //
-const TERMINAL_STATUSES = new Set(["cancelled", "success", "error"]);
+const TERMINAL_STATUSES = new Set(["cancelled"]);
 
 /**
  * Check if an execution has been cancelled (or otherwise terminated).
