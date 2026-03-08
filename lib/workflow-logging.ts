@@ -131,12 +131,66 @@ export async function logWorkflowCompleteDb(
 ): Promise<void> {
   const duration = Date.now() - params.startTime;
 
+  // start custom keeperhub code //
+  // KEEP-1549: Reconcile spurious SDK errors.
+  // The Workflow DevKit can throw "exceeded max retries" AFTER all steps
+  // succeed. If we're about to write status='error', check whether any
+  // node log actually failed. If none did, the error is spurious.
+  let resolvedStatus: "success" | "error" = params.status;
+  let resolvedError: string | undefined = params.error;
+
+  if (params.status === "error") {
+    console.warn(
+      "[Workflow Logging] Execution completed with error, checking node logs for reconciliation:",
+      {
+        executionId: params.executionId,
+        originalError: params.error,
+      }
+    );
+
+    try {
+      const errorLogs = await db.query.workflowExecutionLogs.findMany({
+        where: and(
+          eq(workflowExecutionLogs.executionId, params.executionId),
+          eq(workflowExecutionLogs.status, "error")
+        ),
+        columns: { id: true },
+        limit: 1,
+      });
+
+      if (errorLogs.length === 0) {
+        console.warn(
+          "[Workflow Logging] No node-level errors found, overriding spurious SDK error to success:",
+          {
+            executionId: params.executionId,
+            originalError: params.error,
+          }
+        );
+        resolvedStatus = "success";
+        resolvedError = undefined;
+      } else {
+        console.warn(
+          "[Workflow Logging] Node-level errors confirmed, keeping error status:",
+          {
+            executionId: params.executionId,
+          }
+        );
+      }
+    } catch (queryError) {
+      console.error(
+        "[Workflow Logging] Failed to query node logs for reconciliation, keeping original error status:",
+        queryError
+      );
+    }
+  }
+  // end keeperhub code //
+
   await db
     .update(workflowExecutions)
     .set({
-      status: params.status,
+      status: resolvedStatus,
       output: params.output,
-      error: params.error,
+      error: resolvedError,
       completedAt: new Date(),
       duration: duration.toString(),
       // Clear current step on completion

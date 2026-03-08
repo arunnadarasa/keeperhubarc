@@ -27,13 +27,7 @@ import {
   detectTriggerType,
   recordWorkflowComplete,
 } from "@/keeperhub/lib/metrics/instrumentation/workflow";
-import {
-  getFailedMaxRetriesNodeIds,
-  reconcileMaxRetriesFailures,
-  reconcileSdkFailures,
-} from "@/keeperhub/lib/max-retries-reconciler";
 import { clearExecution } from "@/keeperhub/lib/step-success-tracker";
-import { fetchSuccessfulStepsStep } from "@/keeperhub/lib/steps/fetch-successful-steps";
 import { ARRAY_SOURCE_RE } from "@/keeperhub/lib/for-each-utils";
 import {
   buildEdgesBySourceHandle,
@@ -2041,73 +2035,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     processSettledResults(triggerSettled, triggerNodeIds);
 
     // start custom keeperhub code //
-    // KEEP-1541: Reconcile spurious SDK failures.
-    // The Workflow DevKit's durability layer can throw errors (e.g. "exceeded
-    // max retries", event log corruption, state replay mismatches) AFTER
-    // withStepLogging has already recorded a success. Two passes:
-    //   1. reconcileMaxRetriesFailures - targets known "max retries" errors
-    //   2. reconcileSdkFailures - catches any remaining SDK-induced failures
-    // See max-retries-reconciler.ts for details.
-    if (executionId) {
-      // Query DB for successful steps via a "use step" function.
-      // The in-memory tracker (step-success-tracker.ts) is not shared
-      // across SDK isolates in production, so we use the DB as the
-      // source of truth for reconciliation.
-      let successfulSteps: Map<string, unknown> | undefined;
-      try {
-        const { successfulNodeIds } = await fetchSuccessfulStepsStep({
-          executionId,
-        });
-        if (successfulNodeIds.length > 0) {
-          successfulSteps = new Map<string, unknown>();
-          for (const nodeId of successfulNodeIds) {
-            successfulSteps.set(nodeId, undefined);
-          }
-        }
-      } catch (fetchError) {
-        console.warn(
-          "[Workflow Executor] Failed to fetch successful steps for reconciliation:",
-          fetchError
-        );
-      }
-
-      if (successfulSteps) {
-        // Pass 1: targeted max-retries reconciliation
-        const failedNodeIds = getFailedMaxRetriesNodeIds(results);
-
-        if (failedNodeIds.length > 0) {
-          const { overriddenNodeIds } = reconcileMaxRetriesFailures({
-            results,
-            successfulSteps,
-            workflowId,
-            executionId,
-          });
-
-          if (overriddenNodeIds.length > 0) {
-            console.warn(
-              "[Workflow Executor] Reconciled spurious max-retries failures:",
-              overriddenNodeIds
-            );
-          }
-        }
-
-        // Pass 2: general SDK error reconciliation for remaining failures
-        const { overriddenNodeIds: sdkOverrides } = reconcileSdkFailures({
-          results,
-          successfulSteps,
-          workflowId,
-          executionId,
-        });
-
-        if (sdkOverrides.length > 0) {
-          console.warn(
-            "[Workflow Executor] Reconciled SDK-induced failures:",
-            sdkOverrides
-          );
-        }
-      }
-    }
-
     // Branch-aware finalSuccess: exclude nodes on dead (not-taken) condition branches
     const allSkippedTargets = collectAllSkippedTargets(conditionDecisions);
     const finalSuccess = Object.entries(results).every(
