@@ -32,10 +32,8 @@ import {
   reconcileMaxRetriesFailures,
   reconcileSdkFailures,
 } from "@/keeperhub/lib/max-retries-reconciler";
-import {
-  clearExecution,
-  getSuccessfulSteps,
-} from "@/keeperhub/lib/step-success-tracker";
+import { clearExecution } from "@/keeperhub/lib/step-success-tracker";
+import { fetchSuccessfulStepsStep } from "@/keeperhub/lib/steps/fetch-successful-steps";
 import { ARRAY_SOURCE_RE } from "@/keeperhub/lib/for-each-utils";
 import {
   buildEdgesBySourceHandle,
@@ -2051,7 +2049,27 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     //   2. reconcileSdkFailures - catches any remaining SDK-induced failures
     // See max-retries-reconciler.ts for details.
     if (executionId) {
-      const successfulSteps = getSuccessfulSteps(executionId);
+      // Query DB for successful steps via a "use step" function.
+      // The in-memory tracker (step-success-tracker.ts) is not shared
+      // across SDK isolates in production, so we use the DB as the
+      // source of truth for reconciliation.
+      let successfulSteps: Map<string, unknown> | undefined;
+      try {
+        const { successfulNodeIds } = await fetchSuccessfulStepsStep({
+          executionId,
+        });
+        if (successfulNodeIds.length > 0) {
+          successfulSteps = new Map<string, unknown>();
+          for (const nodeId of successfulNodeIds) {
+            successfulSteps.set(nodeId, undefined);
+          }
+        }
+      } catch (fetchError) {
+        console.warn(
+          "[Workflow Executor] Failed to fetch successful steps for reconciliation:",
+          fetchError
+        );
+      }
 
       if (successfulSteps) {
         // Pass 1: targeted max-retries reconciliation
