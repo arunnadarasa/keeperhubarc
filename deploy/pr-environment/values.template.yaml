@@ -290,9 +290,11 @@ cronjob:
       args:
         - "-c"
         - 'curl -sS -f -H "X-Service-Key: $SCHEDULER_SERVICE_API_KEY" http://keeperhub-pr-${PR_NUMBER}-common:3000/api/internal/reaper'
-      envFrom:
-        - secretRef:
-            name: keeperhub-pr-${PR_NUMBER}-common
+      env:
+        SCHEDULER_SERVICE_API_KEY:
+          type: parameterStore
+          name: scheduler-service-api-key
+          parameter_name: /eks/maker-staging/keeperhub-scheduler/keeperhub-api-key
       resources:
         requests:
           memory: "32Mi"
