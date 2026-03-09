@@ -19,7 +19,7 @@ jobs:
       REGION: us-east-2
       CLUSTER_NAME: techops-prod
       NAMESPACE: keeperhub-staging
-      SERVICE_NAME: keeperhub
+      SERVICE_NAME: keeperhub-staging
       SERVICE_ACCOUNT_ROLE_ARN: ${{ vars.TECHOPS_SERVICE_ACCOUNT_ROLE_ARN }}
     steps:
       - name: Checkout

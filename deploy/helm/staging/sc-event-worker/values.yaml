@@ -46,7 +46,7 @@ env:
     parameter_name: /eks/techops-prod/keeperhub-events/worker-port
   KEEPERHUB_API_URL:
     type: kv
-    value: "http://keeperhub-common:3000"
+    value: "http://keeperhub-staging-common:3000"
   KEEPERHUB_API_KEY:
     type: parameterStore
     name: keeperhub-api-key
