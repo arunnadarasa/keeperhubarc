@@ -15,8 +15,6 @@ fi
 
 echo "Environment variables are ready"
 
-sleep 600
-
 curl -sS \
   -w '\n{"http_code":%{http_code},"time_total":%{time_total}}' \
   -H "X-Service-Key: ${SCHEDULER_SERVICE_API_KEY}" \
