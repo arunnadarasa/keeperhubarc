@@ -164,6 +164,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Copy OG image fonts for server-side image generation
 COPY --from=source --chown=nextjs:nodejs /app/keeperhub/api/og/fonts ./keeperhub/api/og/fonts
 
+# Copy deploy scripts (used by cronjobs)
+COPY --from=source /app/deploy/scripts ./deploy/scripts
+RUN chmod +x ./deploy/scripts/*.sh
+
 # Switch to non-root user
 USER nextjs
 

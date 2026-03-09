@@ -271,14 +271,11 @@ cronjob:
   jobs:
     - name: reaper
       image:
-        repository: curlimages/curl
-        tag: latest
+        repository: ${ECR_REGISTRY}/keeperhub-staging
+        tag: app-${IMAGE_TAG}
         imagePullPolicy: Always
       schedule: "*/10 * * * *" # every 10 minutes
-      command: ["/bin/sh"]
-      args:
-        - "-c"
-        - 'sleep 600 && curl -sS -w "\n{\"http_code\":%{http_code},\"time_total\":%{time_total}}" -H "X-Service-Key: ${SCHEDULER_SERVICE_API_KEY}" http://keeperhub-staging-common:3000/api/internal/reaper'
+      command: ["/bin/sh", "deploy/scripts/reaper.sh", "http://keeperhub-staging-common:3000/api/internal/reaper"]
       env:
         SCHEDULER_SERVICE_API_KEY:
           type: parameterStore
