@@ -166,7 +166,6 @@ COPY --from=source --chown=nextjs:nodejs /app/keeperhub/api/og/fonts ./keeperhub
 
 # Copy deploy scripts (used by cronjobs)
 COPY --from=source /app/deploy/scripts ./deploy/scripts
-RUN chmod +x ./deploy/scripts/*.sh
 
 # Switch to non-root user
 USER nextjs
