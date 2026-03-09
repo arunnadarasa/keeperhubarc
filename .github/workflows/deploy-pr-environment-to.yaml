@@ -197,7 +197,7 @@ jobs:
 
           # PostgreSQL
           (
-            envsubst < deploy/helm/pr-environment/postgres-cluster.template.yaml | kubectl apply -f -
+            envsubst < deploy/pr-environment/postgres-cluster.template.yaml | kubectl apply -f -
             echo "Waiting for PostgreSQL..."
             kubectl wait --for=condition=ready cluster/keeperhub-pr-${PR_NUMBER}-db \
               -n ${NAMESPACE} --timeout=10m || {
@@ -212,7 +212,7 @@ jobs:
           # LocalStack
           (
             kubectl delete job create-sqs-queue -n ${NAMESPACE} --ignore-not-found
-            envsubst '$PR_NUMBER' < deploy/helm/pr-environment/localstack.template.yaml | kubectl apply -f -
+            envsubst '$PR_NUMBER' < deploy/pr-environment/localstack.template.yaml | kubectl apply -f -
             echo "Waiting for LocalStack..."
             kubectl wait --for=condition=ready pod -l app=localstack,pr=pr-${PR_NUMBER} \
               -n ${NAMESPACE} --timeout=5m || {
@@ -226,7 +226,7 @@ jobs:
 
           # Redis
           (
-            envsubst '$PR_NUMBER' < deploy/helm/pr-environment/redis.template.yaml | kubectl apply -f -
+            envsubst '$PR_NUMBER' < deploy/pr-environment/redis.template.yaml | kubectl apply -f -
             echo "Waiting for Redis..."
             kubectl wait --for=condition=ready pod -l app=redis,pr=pr-${PR_NUMBER} \
               -n ${NAMESPACE} --timeout=3m || {
@@ -264,11 +264,11 @@ jobs:
           SERVICE_ACCOUNT_ROLE_ARN: ${{ vars.TECHOPS_SERVICE_ACCOUNT_ROLE_ARN }}
           TEST_PARA_USER_SHARE: ${{ secrets.TEST_PARA_USER_SHARE }}
         run: |
-          envsubst < deploy/helm/pr-environment/values.template.yaml > ${{ github.workspace }}/values-pr-${{ env.PR_NUMBER }}.yaml
-          envsubst < deploy/helm/pr-environment/scheduler-dispatcher.template.yaml > ${{ github.workspace }}/scheduler-dispatcher-pr-${{ env.PR_NUMBER }}.yaml
-          envsubst < deploy/helm/pr-environment/scheduler-executor.template.yaml > ${{ github.workspace }}/scheduler-executor-pr-${{ env.PR_NUMBER }}.yaml
-          envsubst < deploy/helm/pr-environment/sc-event-tracker.template.yaml > ${{ github.workspace }}/sc-event-tracker-pr-${{ env.PR_NUMBER }}.yaml
-          envsubst < deploy/helm/pr-environment/sc-event-worker.template.yaml > ${{ github.workspace }}/sc-event-worker-pr-${{ env.PR_NUMBER }}.yaml
+          envsubst < deploy/pr-environment/values.template.yaml > ${{ github.workspace }}/values-pr-${{ env.PR_NUMBER }}.yaml
+          envsubst < deploy/pr-environment/scheduler-dispatcher.template.yaml > ${{ github.workspace }}/scheduler-dispatcher-pr-${{ env.PR_NUMBER }}.yaml
+          envsubst < deploy/pr-environment/scheduler-executor.template.yaml > ${{ github.workspace }}/scheduler-executor-pr-${{ env.PR_NUMBER }}.yaml
+          envsubst < deploy/pr-environment/sc-event-tracker.template.yaml > ${{ github.workspace }}/sc-event-tracker-pr-${{ env.PR_NUMBER }}.yaml
+          envsubst < deploy/pr-environment/sc-event-worker.template.yaml > ${{ github.workspace }}/sc-event-worker-pr-${{ env.PR_NUMBER }}.yaml
 
       - name: Clean up stale Helm releases
         run: |

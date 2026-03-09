@@ -4,10 +4,10 @@ on:
   workflow_call:
     inputs:
       image_tag:
-        description: 'Pre-built image tag (short SHA).'
+        description: "Pre-built image tag (short SHA)."
         type: string
         required: false
-        default: ''
+        default: ""
 
 name: deploy-keeperhub-to
 jobs:
@@ -15,7 +15,7 @@ jobs:
     environment: staging
     runs-on: ubuntu-latest
     env:
-      HELM_FILE: deploy/helm/staging/keeperhub/values.yaml
+      HELM_FILE: deploy/keeperhub/staging/keeperhub/values.yaml
       REGION: us-east-2
       CLUSTER_NAME: techops-prod
       NAMESPACE: keeperhub-staging
@@ -99,10 +99,10 @@ jobs:
       - name: Apply RBAC for Job Spawner
         if: steps.skip.outputs.skip_deploy != 'true'
         run: |
-          kubectl apply -f deploy/helm/staging/keeperhub/rbac.yaml
+          kubectl apply -f deploy/keeperhub/staging/keeperhub/rbac.yaml
 
       # NOTE: Satellite services (events tracker/worker, scheduler) are deployed
-      # by their own repo workflows. Docs-site TechOps deploy is not yet set up.
+      # by their own repo workflows.
 
       - name: Wait for deployment health check
         if: steps.skip.outputs.skip_deploy != 'true'
