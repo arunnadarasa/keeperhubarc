@@ -15,7 +15,7 @@ jobs:
     environment: staging
     runs-on: ubuntu-latest
     env:
-      HELM_FILE: deploy/keeperhub/staging/keeperhub/values.yaml
+      HELM_FILE: deploy/keeperhub/staging/values.yaml
       REGION: us-east-2
       CLUSTER_NAME: techops-prod
       NAMESPACE: keeperhub-staging
@@ -99,7 +99,7 @@ jobs:
       - name: Apply RBAC for Job Spawner
         if: steps.skip.outputs.skip_deploy != 'true'
         run: |
-          kubectl apply -f deploy/keeperhub/staging/keeperhub/rbac.yaml
+          kubectl apply -f deploy/keeperhub/staging/rbac.yaml
 
       # NOTE: Satellite services (events tracker/worker, scheduler) are deployed
       # by their own repo workflows.
