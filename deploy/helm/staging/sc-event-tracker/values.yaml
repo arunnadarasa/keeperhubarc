@@ -42,7 +42,7 @@ env:
     value: "info"
   KEEPERHUB_API_URL:
     type: kv
-    value: "http://keeperhub-staging-common:3000"
+    value: "http://keeperhub-common:3000"
   WORKER_URL:
     type: kv
     value: "http://keeperhub-events-worker-common:3010"
