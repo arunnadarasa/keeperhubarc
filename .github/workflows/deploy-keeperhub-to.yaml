@@ -76,10 +76,10 @@ jobs:
         run: |
           aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.REGION }}
 
-      - name: Apply RBAC for Job Spawner
+      - name: Ensure namespace exists
         if: steps.skip.outputs.skip_deploy != 'true'
         run: |
-          kubectl apply -f deploy/helm/staging/keeperhub/rbac.yaml
+          kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Deploying Service to Kubernetes with Helm
         id: deploy
@@ -95,6 +95,11 @@ jobs:
           chart-repository: https://techops-services.github.io/helm-charts
           version: 0.2.1
           atomic: true
+
+      - name: Apply RBAC for Job Spawner
+        if: steps.skip.outputs.skip_deploy != 'true'
+        run: |
+          kubectl apply -f deploy/helm/staging/keeperhub/rbac.yaml
 
       # NOTE: Satellite services (events tracker/worker, scheduler) are deployed
       # by their own repo workflows. Docs-site TechOps deploy is not yet set up.
