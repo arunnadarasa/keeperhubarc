@@ -274,7 +274,10 @@ cronjob:
         tag: app-${IMAGE_TAG}
         imagePullPolicy: Always
       schedule: "*/10 * * * *" # every 10 minutes
-      command: ["/bin/sh", "deploy/scripts/reaper.sh", "http://keeperhub-prod-common:3000/api/internal/reaper"]
+      command: ["/bin/sh"]
+      args:
+        - "deploy/scripts/reaper.sh"
+        - "http://keeperhub-prod-common:3000/api/internal/reaper"
       env:
         SCHEDULER_SERVICE_API_KEY:
           type: parameterStore
