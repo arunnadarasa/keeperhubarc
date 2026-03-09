@@ -291,7 +291,6 @@ jobs:
           envsubst < deploy/pr-environment/scheduler-executor.template.yaml > ${{ github.workspace }}/scheduler-executor-pr-${{ env.PR_NUMBER }}.yaml
           envsubst < deploy/pr-environment/sc-event-tracker.template.yaml > ${{ github.workspace }}/sc-event-tracker-pr-${{ env.PR_NUMBER }}.yaml
           envsubst < deploy/pr-environment/sc-event-worker.template.yaml > ${{ github.workspace }}/sc-event-worker-pr-${{ env.PR_NUMBER }}.yaml
-          envsubst < deploy/pr-environment/reaper-cronjob.template.yaml > ${{ github.workspace }}/reaper-cronjob-pr-${{ env.PR_NUMBER }}.yaml
 
       - name: Clean up stale Helm releases
         run: |
@@ -369,11 +368,6 @@ jobs:
             exit 1
           fi
           echo "All satellite services deployed successfully."
-
-      - name: Deploy reaper CronJob
-        run: |
-          kubectl apply -f ${GITHUB_WORKSPACE}/reaper-cronjob-pr-${PR_NUMBER}.yaml \
-            -n ${NAMESPACE}
 
       - name: Get deployment status
         if: always()
