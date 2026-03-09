@@ -47,3 +47,12 @@ jobs:
     with:
       image_tag: ${{ needs.build-images.outputs.image_tag }}
     secrets: inherit
+
+  # Deploy to TechOps cluster (staging only, dual-deploy for migration)
+  deploy-techops:
+    needs: [build-images, e2e-tests]
+    if: ${{ github.event_name != 'pull_request' && github.ref_name == 'staging' && !failure() && !cancelled() }}
+    uses: ./.github/workflows/deploy-keeperhub-techops.yaml
+    with:
+      image_tag: ${{ needs.build-images.outputs.image_tag }}
+    secrets: inherit
