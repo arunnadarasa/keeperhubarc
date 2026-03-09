@@ -264,3 +264,32 @@ readinessProbe:
   periodSeconds: 30
   tcpSocket:
     port: 3000
+
+cronjob:
+  enabled: true
+  jobs:
+    - name: reaper
+      image:
+        repository: curlimages/curl
+        tag: latest
+        imagePullPolicy: Always
+      schedule: "*/10 * * * *" # every 10 minutes
+      command: ["/bin/sh"]
+      args:
+        - "-c"
+        - 'curl -sS -f -H "X-Service-Key: $SCHEDULER_SERVICE_API_KEY" http://keeperhub-prod-common:3000/api/internal/reaper'
+      envFrom:
+        - secretRef:
+            name: keeperhub-prod-common
+      resources:
+        requests:
+          memory: "32Mi"
+          cpu: "10m"
+        limits:
+          memory: "32Mi"
+          cpu: "10m"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 3
+      restartPolicy: OnFailure
+      backoffLimit: 2
