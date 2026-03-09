@@ -278,7 +278,7 @@ cronjob:
       command: ["/bin/sh"]
       args:
         - "/app/deploy/scripts/reaper.sh"
-        - "http://keeperhub-staging-common:3000/api/internal/reaper"
+        - "http://keeperhub-common:3000/api/internal/reaper"
       env:
         SCHEDULER_SERVICE_API_KEY:
           type: parameterStore
