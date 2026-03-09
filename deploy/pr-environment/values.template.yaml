@@ -288,7 +288,7 @@ cronjob:
       schedule: "* * * * *" # every minute
       command: ["/bin/sh"]
       args:
-        - "deploy/scripts/reaper.sh"
+        - "/app/deploy/scripts/reaper.sh"
         - "http://keeperhub-pr-${PR_NUMBER}-common:3000/api/internal/reaper"
       env:
         SCHEDULER_SERVICE_API_KEY:
