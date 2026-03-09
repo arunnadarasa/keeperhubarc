@@ -96,49 +96,8 @@ jobs:
           version: 0.2.1
           atomic: true
 
-      - name: Deploy satellite services
-        if: steps.skip.outputs.skip_deploy != 'true'
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ steps.vars.outputs.sha_short }}
-        run: |
-          set -euo pipefail
-
-          # Replace variables in satellite values files
-          for VALUES_FILE in \
-            deploy/helm/staging/sc-event-tracker/values.yaml \
-            deploy/helm/staging/sc-event-worker/values.yaml \
-            deploy/helm/staging/docs-site/values.yaml; do
-            if [ -f "$VALUES_FILE" ]; then
-              sed -i "s|\${ECR_REGISTRY}|${ECR_REGISTRY}|g" "$VALUES_FILE"
-              sed -i "s|\${IMAGE_TAG}|${IMAGE_TAG}|g" "$VALUES_FILE"
-            fi
-          done
-
-          helm repo add techops-services https://techops-services.github.io/helm-charts
-          helm repo update
-
-          COMMON_ARGS=(--namespace "${NAMESPACE}" --timeout 5m0s --atomic --version 0.2.1)
-
-          # Deploy event tracker
-          helm upgrade --install keeperhub-events-tracker \
-            techops-services/common \
-            -f deploy/helm/staging/sc-event-tracker/values.yaml \
-            "${COMMON_ARGS[@]}"
-
-          # Deploy event worker
-          helm upgrade --install keeperhub-events-worker \
-            techops-services/common \
-            -f deploy/helm/staging/sc-event-worker/values.yaml \
-            "${COMMON_ARGS[@]}"
-
-          # Deploy docs site
-          helm upgrade --install keeperhub-docs \
-            techops-services/common \
-            -f deploy/helm/staging/docs-site/values.yaml \
-            "${COMMON_ARGS[@]}"
-
-          echo "All satellite services deployed successfully."
+      # NOTE: Satellite services (events tracker/worker, scheduler) are deployed
+      # by their own repo workflows. Docs-site TechOps deploy is not yet set up.
 
       - name: Wait for deployment health check
         if: steps.skip.outputs.skip_deploy != 'true'
