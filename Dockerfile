@@ -152,9 +152,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY --from=deps /etc/ssl/certs/rds-combined-ca-bundle.pem /etc/ssl/certs/rds-combined-ca-bundle.pem
 
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Create non-root user and install curl (used by healthcheck and cronjob scripts)
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs && \
+    apk add --no-cache curl
 
 # Copy built application
 COPY --from=builder /app/public ./public
