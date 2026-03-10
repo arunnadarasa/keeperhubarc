@@ -144,6 +144,26 @@ describe("Rocket Pool Protocol Definition", () => {
     expect(outputNames).toContain("totalCollateral");
   });
 
+  it("has 3 events", () => {
+    expect(rocketPoolDef.events).toHaveLength(3);
+  });
+
+  it("all event slugs are valid kebab-case", () => {
+    for (const event of rocketPoolDef.events ?? []) {
+      expect(event.slug).toMatch(KEBAB_CASE_REGEX);
+    }
+  });
+
+  it("every event references an existing contract", () => {
+    const contractKeys = new Set(Object.keys(rocketPoolDef.contracts));
+    for (const event of rocketPoolDef.events ?? []) {
+      expect(
+        contractKeys.has(event.contract),
+        `event "${event.slug}" references unknown contract "${event.contract}"`
+      ).toBe(true);
+    }
+  });
+
   it("registers in the protocol registry and is retrievable", () => {
     registerProtocol(rocketPoolDef);
     const retrieved = getProtocol("rocket-pool");

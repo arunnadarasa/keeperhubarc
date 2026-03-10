@@ -132,4 +132,47 @@ export default defineProtocol({
       ],
     },
   ],
+
+  events: [
+    {
+      slug: "tokens-minted",
+      label: "rETH Minted",
+      description: "Fires when rETH tokens are minted after an ETH deposit",
+      eventName: "TokensMinted",
+      contract: "reth",
+      inputs: [
+        { name: "to", type: "address", indexed: true },
+        { name: "amount", type: "uint256", indexed: false },
+        { name: "ethAmount", type: "uint256", indexed: false },
+        { name: "time", type: "uint256", indexed: false },
+      ],
+    },
+    {
+      slug: "tokens-burned",
+      label: "rETH Burned",
+      description:
+        "Fires when rETH tokens are burned to redeem the underlying ETH",
+      eventName: "TokensBurned",
+      contract: "reth",
+      inputs: [
+        { name: "from", type: "address", indexed: true },
+        { name: "amount", type: "uint256", indexed: false },
+        { name: "ethAmount", type: "uint256", indexed: false },
+        { name: "time", type: "uint256", indexed: false },
+      ],
+    },
+    {
+      slug: "deposit-received",
+      label: "Deposit Received",
+      description:
+        "Fires when ETH is deposited into the Rocket Pool deposit pool",
+      eventName: "DepositReceived",
+      contract: "depositPool",
+      inputs: [
+        { name: "from", type: "address", indexed: true },
+        { name: "amount", type: "uint256", indexed: false },
+        { name: "time", type: "uint256", indexed: false },
+      ],
+    },
+  ],
 });
