@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
 import { getUpgradeSuggestion } from "@/keeperhub/lib/billing/tier-suggestions";
+import { getActiveOrgId } from "@/keeperhub/lib/middleware/org-context";
 import { auth } from "@/lib/auth";
 
 export async function GET(): Promise<NextResponse> {
@@ -18,7 +19,7 @@ export async function GET(): Promise<NextResponse> {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const activeOrgId = session.session.activeOrganizationId;
+    const activeOrgId = getActiveOrgId(session);
     if (!activeOrgId) {
       return NextResponse.json(
         { error: "No active organization" },

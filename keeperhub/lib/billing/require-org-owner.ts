@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { getActiveOrgId } from "@/keeperhub/lib/middleware/org-context";
 import { auth } from "@/lib/auth";
 
 type OrgOwnerResult =
@@ -16,7 +17,7 @@ export async function requireOrgOwner(): Promise<OrgOwnerResult> {
     };
   }
 
-  const activeOrgId = session.session.activeOrganizationId;
+  const activeOrgId = getActiveOrgId(session);
   if (!activeOrgId) {
     return {
       error: NextResponse.json(

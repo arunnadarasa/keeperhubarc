@@ -11,6 +11,7 @@ import {
   getOrgSubscription,
   resolvePriceId,
 } from "@/keeperhub/lib/billing/plans-server";
+import { getActiveOrgId } from "@/keeperhub/lib/middleware/org-context";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { overageBillingRecords } from "@/lib/db/schema";
@@ -29,7 +30,7 @@ export async function GET(): Promise<NextResponse> {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const activeOrgId = session.session.activeOrganizationId;
+    const activeOrgId = getActiveOrgId(session);
     if (!activeOrgId) {
       return NextResponse.json(
         { error: "No active organization" },
