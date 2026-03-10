@@ -4,7 +4,7 @@ export default defineProtocol({
   name: "Curve",
   slug: "curve",
   description:
-    "Curve Finance -- stableswap pools, token exchanges, and CRV token operations",
+    "Curve Finance -- stableswap pools, token exchanges, liquidity management, and CRV token operations",
   website: "https://curve.fi",
   icon: "/protocols/curve.png",
 
@@ -106,7 +106,32 @@ export default defineProtocol({
       ],
     },
 
-    // Pool Write
+    {
+      slug: "calc-withdraw-one-coin",
+      label: "Calculate Withdraw One Coin",
+      description:
+        "Calculate the amount received when withdrawing a single coin from the pool",
+      type: "read",
+      contract: "pool",
+      function: "calc_withdraw_one_coin",
+      inputs: [
+        {
+          name: "_token_amount",
+          type: "uint256",
+          label: "LP Token Amount (wei)",
+        },
+        { name: "i", type: "int128", label: "Output Coin Index" },
+      ],
+      outputs: [
+        {
+          name: "amount",
+          type: "uint256",
+          label: "Withdraw Amount (wei)",
+        },
+      ],
+    },
+
+    // Pool Writes
 
     {
       slug: "exchange",
@@ -120,6 +145,23 @@ export default defineProtocol({
         { name: "j", type: "int128", label: "Output Coin Index" },
         { name: "dx", type: "uint256", label: "Input Amount (wei)" },
         { name: "min_dy", type: "uint256", label: "Minimum Output (wei)" },
+      ],
+    },
+    {
+      slug: "remove-liquidity-one-coin",
+      label: "Remove Liquidity (Single Coin)",
+      description: "Withdraw liquidity from a Curve pool as a single token",
+      type: "write",
+      contract: "pool",
+      function: "remove_liquidity_one_coin",
+      inputs: [
+        {
+          name: "_token_amount",
+          type: "uint256",
+          label: "LP Token Amount (wei)",
+        },
+        { name: "i", type: "int128", label: "Output Coin Index" },
+        { name: "_min_amount", type: "uint256", label: "Minimum Output (wei)" },
       ],
     },
 

@@ -77,15 +77,15 @@ describe("Curve Protocol Definition", () => {
     }
   });
 
-  it("has exactly 8 actions", () => {
-    expect(curveDef.actions).toHaveLength(8);
+  it("has exactly 10 actions", () => {
+    expect(curveDef.actions).toHaveLength(10);
   });
 
-  it("has 5 read actions and 3 write actions", () => {
+  it("has 6 read actions and 4 write actions", () => {
     const readActions = curveDef.actions.filter((a) => a.type === "read");
     const writeActions = curveDef.actions.filter((a) => a.type === "write");
-    expect(readActions).toHaveLength(5);
-    expect(writeActions).toHaveLength(3);
+    expect(readActions).toHaveLength(6);
+    expect(writeActions).toHaveLength(4);
   });
 
   it("has 2 contracts", () => {
