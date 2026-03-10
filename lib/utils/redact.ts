@@ -61,11 +61,15 @@ const SENSITIVE_KEYS = new Set([
  */
 const SENSITIVE_PATTERNS = [
   /api[_-]?key/i,
-  /token/i,
   /secret/i,
   /password/i,
   /credential/i,
-  /auth/i,
+  /^auth/i,
+  /access[_-]?token/i,
+  /refresh[_-]?token/i,
+  /bearer[_-]?token/i,
+  /api[_-]?token/i,
+  /session[_-]?token/i,
 ];
 
 /**
