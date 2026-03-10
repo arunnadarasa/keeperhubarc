@@ -36,7 +36,7 @@ Required artifacts:
 - tests/unit/protocol-{slug}.test.ts -- Vitest unit tests
 - docs/plugins/{slug}.md -- documentation page
 - public/protocols/{slug}.png -- icon (if user provides one)
-- Example workflows inserted into local DB via postgres MCP (test workflow per read action + 8-10 example workflows)
+- Example workflows inserted into local DB via postgres MCP (test workflow per read action + up to 8-10 example workflows, scaled to protocol complexity)
 
 Required modifications:
 - docs/plugins/_meta.ts -- add nav entry
@@ -58,7 +58,7 @@ Success criteria:
 - pnpm type-check passes with zero TypeScript errors
 - Vitest unit tests pass
 - Documentation page exists with actions table and per-action sections
-- Example workflows created via postgres MCP: test workflows (1 per read action) + example workflows (8-10 or as many as actions support)
+- Example workflows created via postgres MCP: test workflows (1 per read action) + example workflows (up to 8-10, as many as the protocol's actions meaningfully support)
 - All workflows target only chains with explorer configs
 - Code nodes use bare template references (no manual quotes) and divide-by-zero guards
 ```

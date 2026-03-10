@@ -245,18 +245,24 @@ Format for `tests/unit/protocol-{slug}.test.ts` using Vitest. Tests to include:
 <explorer_chain_availability>
 Only chains with block explorer configs support ABI auto-fetch. Workflows targeting chains without explorer configs will fail silently at runtime when resolveAbi() cannot fetch the ABI.
 
-Chains WITH explorer configs (safe for seed workflows):
+EVM chains with Etherscan-compatible explorer configs (safe for seed workflows):
 - "1" -- Ethereum Mainnet (Etherscan)
 - "8453" -- Base (BaseScan)
 - "84532" -- Base Sepolia (BaseScan testnet)
 - "11155111" -- Sepolia Testnet (Etherscan Sepolia)
 
-Chains WITHOUT explorer configs (ABI auto-fetch fails):
+Non-EVM / Blockscout chains with explorer configs (NOT safe for protocol seed workflows -- different API format):
+- "42420" -- Tempo (Blockscout)
+- "42429" -- Tempo Testnet (Blockscout)
+- "101" -- Solana (Solscan)
+- "103" -- Solana Devnet (Solscan)
+
+EVM chains WITHOUT explorer configs (ABI auto-fetch fails):
 - "42161" -- Arbitrum One
 - "10" -- Optimism
 
 Rules:
-- Seed/example workflows MUST only target chains with explorer configs unless the protocol provides an inline `abi` field
+- Seed/example workflows MUST only target EVM chains with Etherscan-compatible explorer configs unless the protocol provides an inline `abi` field
 - When a protocol supports multiple chains, default to chain "1" (Ethereum Mainnet) for seed workflows
 - Update this section when new explorer configs are added to the codebase
 </explorer_chain_availability>
@@ -266,11 +272,11 @@ Rules for Code nodes in workflows. Violations cause silent runtime failures.
 
 Action type:
 - Code nodes MUST use `actionType: "code/run-code"` -- NOT `"Code"`
-- The workflow executor in `lib/workflow-executor.workflow.ts` checks `actionType === "code/run-code"` (line 1162/1197)
+- The workflow executor in `lib/workflow-executor.workflow.ts` checks `actionType === "code/run-code"` in the action dispatch logic
 - Using `"Code"` causes the node to be treated as an unknown action, breaking the workflow silently
 
 Template quoting:
-- `formatCodeValue()` in `lib/workflow-executor.workflow.ts` (line 664) already wraps string values via `JSON.stringify()` before injecting them into the Code node sandbox
+- `formatCodeValue()` in `lib/workflow-executor.workflow.ts` already wraps string values via `JSON.stringify()` before injecting them into the Code node sandbox
 - CORRECT: `const x = {{@nodeId:Label.result}};` -- no manual quotes needed, becomes `const x = "value";`
 - WRONG: `const x = "{{@nodeId:Label.result}}";` -- produces `const x = ""value""` which is a JS syntax error
 - For numbers: `Number({{@nodeId:Label.result}})` works correctly (becomes `Number("123")`)
@@ -296,10 +302,10 @@ Steps:
    SELECT u.id AS user_id, m.organization_id
    FROM users u JOIN member m ON m.user_id = u.id LIMIT 1;
    ```
-2. Create a project (idempotent):
+2. Create a project (idempotent). Use dollar-quoting (`$$`) for string values that may contain single quotes:
    ```sql
    INSERT INTO projects (id, name, description, organization_id, user_id)
-   VALUES ('proj-{slug}', '{Protocol Name}', '{description}', '{org_id}', '{user_id}')
+   VALUES ($$proj-{slug}$$, $${Protocol Name}$$, $${description}$$, $${org_id}$$, $${user_id}$$)
    ON CONFLICT (id) DO NOTHING;
    ```
 3. Insert each workflow with a single INSERT. The `nodes` and `edges` columns are JSONB.
@@ -370,6 +376,8 @@ WRONG: `"cron": "0 * * * *"` -- this field is ignored. MUST use `scheduleCron`.
 WRONG: omitting `scheduleTimezone` -- defaults are unreliable, always set `"UTC"`.
 
 **Protocol read action node (required fields: actionType, network, _protocolMeta, plus all action inputs):**
+
+Example with no inputs (parameterless read like `getExchangeRate`):
 ```json
 {
   "id": "read-rate",
@@ -382,7 +390,27 @@ WRONG: omitting `scheduleTimezone` -- defaults are unreliable, always set `"UTC"
     "config": {
       "actionType": "{slug}/{action-slug}",
       "network": "1",
-      "_protocolMeta": "{\"protocolSlug\":\"{slug}\",\"contractKey\":\"reth\",\"functionName\":\"getExchangeRate\",\"actionType\":\"read\"}",
+      "_protocolMeta": "{\"protocolSlug\":\"{slug}\",\"contractKey\":\"reth\",\"functionName\":\"getExchangeRate\",\"actionType\":\"read\"}"
+    },
+    "status": "idle"
+  }
+}
+```
+
+Example with inputs (read like `balanceOf(address)`):
+```json
+{
+  "id": "read-balance",
+  "type": "action",
+  "position": {"x": 350, "y": 250},
+  "data": {
+    "type": "action",
+    "label": "Get Token Balance",
+    "description": "Check token balance of an address",
+    "config": {
+      "actionType": "{slug}/{action-slug}",
+      "network": "1",
+      "_protocolMeta": "{\"protocolSlug\":\"{slug}\",\"contractKey\":\"token\",\"functionName\":\"balanceOf\",\"actionType\":\"read\"}",
       "account": "0x..."
     },
     "status": "idle"
@@ -392,7 +420,7 @@ WRONG: omitting `scheduleTimezone` -- defaults are unreliable, always set `"UTC"
 - `actionType`: MUST be `{protocol-slug}/{action-slug}` (e.g., `"rocket-pool/get-reth-exchange-rate"`)
 - `network`: chain ID string (e.g., `"1"` for mainnet) -- MUST be a chain with explorer config
 - `_protocolMeta`: JSON string with `protocolSlug`, `contractKey`, `functionName`, `actionType` -- MUST match the protocol definition exactly
-- All action inputs from the protocol definition MUST be present as config fields (e.g., `"account"` for `balanceOf`)
+- All action inputs from the protocol definition MUST be present as config fields (e.g., `"account"` for `balanceOf`). Omit input fields for parameterless actions.
 - For `userSpecifiedAddress` contracts: add `"contractAddress": "0x..."` field
 
 **Protocol write action node (required fields: actionType, network, _protocolMeta, plus all action inputs):**
@@ -564,7 +592,7 @@ Condition branch edge (MUST include sourceHandle and type):
 
 What to generate:
 - 1 test workflow per read action: manual trigger + single action node, named `[Test - {action-slug}] {description}`
-- 8-10 example workflows (or as many as the protocol's actions support) combining multiple actions with Code formatting nodes and notification actions (Discord, SendGrid, Webhook/PagerDuty). Cover as many action combinations as possible.
+- Up to 8-10 example workflows, as many as the protocol's actions meaningfully support. Protocols with few actions may only warrant 2-3 examples -- do not force artificial workflows. Combine multiple actions with Code formatting nodes and notification actions (Discord, SendGrid, Webhook/PagerDuty). Cover as many action combinations as possible.
 - Write actions do NOT get test workflows (they require wallets)
 - Example workflows SHOULD include Condition nodes with branching (true/false paths) for monitoring/alerting scenarios
 - Example workflows SHOULD use a mix of notification types: Discord for status updates, PagerDuty webhooks for alerts, SendGrid for reports/dashboards
