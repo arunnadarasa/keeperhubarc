@@ -18,6 +18,10 @@ export default defineProtocol({
       addresses: {
         // Ethereum Mainnet (USDC market)
         "1": "0xc3d688B66703497DAA19211EEdff47f25384cdc3",
+        // Base (USDC market)
+        "8453": "0xb125E6687d4313864e53df431d5425969c15Eb2F",
+        // Arbitrum One (USDC market)
+        "42161": "0x9c4ec768c28520B50860ea7a15bd7213a9fF58bf",
       },
     },
   },

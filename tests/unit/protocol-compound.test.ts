@@ -96,10 +96,12 @@ describe("Compound V3 Protocol Definition", () => {
     expect(compoundDef.contracts.comet.userSpecifiedAddress).toBe(true);
   });
 
-  it("comet contract is available on Ethereum mainnet", () => {
+  it("comet contract is available on Ethereum, Base, and Arbitrum", () => {
     const chains = Object.keys(compoundDef.contracts.comet.addresses);
     expect(chains).toContain("1");
-    expect(chains).toHaveLength(1);
+    expect(chains).toContain("8453");
+    expect(chains).toContain("42161");
+    expect(chains).toHaveLength(3);
   });
 
   it("get-balance action has output without hardcoded decimals", () => {
