@@ -11,7 +11,9 @@ const NON_RETRYABLE_ERROR_CODES: ReadonlySet<string> = new Set([
   "MISSING_ARGUMENT",
   "UNEXPECTED_ARGUMENT",
   "NUMERIC_FAULT", // overflow, division by zero
-  "BAD_DATA", // malformed ABI encoding that won't decode on any provider
+  // BAD_DATA intentionally omitted -- handled conditionally in
+  // isNonRetryableError() because "missing response for request" is transient
+  // while other BAD_DATA messages (malformed ABI decode) are permanent.
 ]);
 
 /**
@@ -146,6 +148,13 @@ export class RpcProviderManager {
 
     const provider = new ethers.JsonRpcProvider(fetchRequest, undefined, {
       cacheTimeout: -1,
+      // Disable JSON-RPC batching: ethers v6 batches concurrent calls into one
+      // HTTP request by default. When the RPC proxy returns an incomplete batch
+      // response, ethers throws BAD_DATA "missing response for request". Sending
+      // each call as its own HTTP request eliminates this class of errors. No
+      // performance impact -- workflow execution is sequential, and batch-reads
+      // use Multicall3 at the contract level.
+      batchMaxCount: 1,
     });
 
     return provider;
@@ -441,7 +450,23 @@ export class RpcProviderManager {
     if (typeof error !== "object" || error === null || !("code" in error)) {
       return false;
     }
-    return NON_RETRYABLE_ERROR_CODES.has((error as EthersError).code as string);
+
+    const ethersError = error as EthersError;
+    // BAD_DATA is context-dependent: "missing response for request" is a
+    // transient batch/RPC issue that succeeds on retry, while other BAD_DATA
+    // messages (malformed ABI decode) are permanent and should not be retried.
+    // Defense-in-depth: batchMaxCount:1 prevents most batch errors, but this
+    // guard protects against edge cases and future changes.
+    if (ethersError.code === "BAD_DATA") {
+      const msg =
+        ethersError.message ??
+        ("shortMessage" in ethersError
+          ? (ethersError as EthersError & { shortMessage: string }).shortMessage
+          : "");
+      return !msg.includes("missing response for request");
+    }
+
+    return NON_RETRYABLE_ERROR_CODES.has(ethersError.code as string);
   }
 
   getMetrics(): Readonly<RpcProviderMetrics> {
