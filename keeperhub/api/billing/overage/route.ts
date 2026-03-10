@@ -53,10 +53,23 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   if (body.organizationId && body.periodStart && body.periodEnd) {
+    const periodStart = new Date(body.periodStart);
+    const periodEnd = new Date(body.periodEnd);
+
+    if (
+      Number.isNaN(periodStart.getTime()) ||
+      Number.isNaN(periodEnd.getTime())
+    ) {
+      return NextResponse.json(
+        { error: "Invalid date format for periodStart or periodEnd" },
+        { status: 400 }
+      );
+    }
+
     const result = await billOverageForOrg(
       body.organizationId,
-      new Date(body.periodStart),
-      new Date(body.periodEnd)
+      periodStart,
+      periodEnd
     );
     return NextResponse.json(result);
   }
