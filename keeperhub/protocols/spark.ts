@@ -141,7 +141,7 @@ export default defineProtocol({
       slug: "set-collateral",
       label: "Set Asset as Collateral",
       description:
-        "Enable or disable a supplied asset as collateral in SparkLend",
+        "Enable or disable a supplied asset as collateral in SparkLend. This toggles the entire supplied balance, not a partial amount.",
       type: "write",
       contract: "pool",
       function: "setUserUseReserveAsCollateral",

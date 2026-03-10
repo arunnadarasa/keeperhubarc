@@ -146,7 +146,7 @@ export default defineProtocol({
       slug: "set-collateral",
       label: "Set Asset as Collateral",
       description:
-        "Enable or disable a supplied asset as collateral in Aave V3",
+        "Enable or disable a supplied asset as collateral in Aave V3. This toggles the entire supplied balance, not a partial amount.",
       type: "write",
       contract: "pool",
       function: "setUserUseReserveAsCollateral",
