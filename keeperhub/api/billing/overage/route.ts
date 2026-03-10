@@ -70,6 +70,37 @@ export async function POST(request: Request): Promise<NextResponse> {
   );
 }
 
+type OrgBillingResult = {
+  organizationId: string;
+  result: { billed: boolean; reason?: string };
+};
+
+async function safeBillOrg(
+  organizationId: string,
+  periodStart: Date,
+  periodEnd: Date,
+  errorLabel: string
+): Promise<OrgBillingResult> {
+  try {
+    const result = await billOverageForOrg(
+      organizationId,
+      periodStart,
+      periodEnd
+    );
+    return { organizationId, result };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(
+      `[Billing] ${errorLabel} for org ${organizationId}:`,
+      message
+    );
+    return {
+      organizationId,
+      result: { billed: false, reason: errorLabel },
+    };
+  }
+}
+
 async function handleScan(): Promise<NextResponse> {
   const now = new Date();
 
@@ -93,10 +124,7 @@ async function handleScan(): Promise<NextResponse> {
       )
     );
 
-  const results: Array<{
-    organizationId: string;
-    result: { billed: boolean; reason?: string };
-  }> = [];
+  const results: OrgBillingResult[] = [];
 
   // Track orgs processed in loop 1 to avoid double-processing in loop 2
   const processedOrgPeriods = new Set<string>();
@@ -106,15 +134,16 @@ async function handleScan(): Promise<NextResponse> {
       continue;
     }
 
-    const result = await billOverageForOrg(
+    const entry = await safeBillOrg(
       sub.organizationId,
       sub.periodStart,
-      sub.periodEnd
+      sub.periodEnd,
+      "Overage scan failed"
     );
+    results.push(entry);
     processedOrgPeriods.add(
       `${sub.organizationId}:${sub.periodStart.toISOString()}:${sub.periodEnd.toISOString()}`
     );
-    results.push({ organizationId: sub.organizationId, result });
   }
 
   // Retry pending/failed overage records that were created but not successfully
@@ -140,13 +169,14 @@ async function handleScan(): Promise<NextResponse> {
     if (processedOrgPeriods.has(key)) {
       continue;
     }
-    const result = await billOverageForOrg(
+    const entry = await safeBillOrg(
       record.organizationId,
       record.periodStart,
-      record.periodEnd
+      record.periodEnd,
+      "Overage retry failed"
     );
+    results.push(entry);
     retried += 1;
-    results.push({ organizationId: record.organizationId, result });
   }
 
   return NextResponse.json({

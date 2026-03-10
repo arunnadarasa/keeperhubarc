@@ -20,6 +20,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  const result = await scanAndCreateDebt();
-  return NextResponse.json(result);
+  try {
+    const result = await scanAndCreateDebt();
+    return NextResponse.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[Billing] Debt scan error:", message);
+    return NextResponse.json({ error: "Debt scan failed" }, { status: 500 });
+  }
 }
