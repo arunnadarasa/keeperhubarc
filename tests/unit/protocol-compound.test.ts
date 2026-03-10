@@ -102,12 +102,12 @@ describe("Compound V3 Protocol Definition", () => {
     expect(chains).toHaveLength(1);
   });
 
-  it("get-balance action has output with decimals", () => {
+  it("get-balance action has output without hardcoded decimals", () => {
     const action = compoundDef.actions.find((a) => a.slug === "get-balance");
     expect(action).toBeDefined();
     expect(action?.outputs).toHaveLength(1);
     expect(action?.outputs?.[0].name).toBe("balance");
-    expect(action?.outputs?.[0].decimals).toBe(6);
+    expect(action?.outputs?.[0].decimals).toBeUndefined();
   });
 
   it("get-collateral-balance action takes account and asset inputs", () => {
@@ -121,14 +121,14 @@ describe("Compound V3 Protocol Definition", () => {
     expect(inputNames).toContain("asset");
   });
 
-  it("get-borrow-balance action has output with decimals", () => {
+  it("get-borrow-balance action has output without hardcoded decimals", () => {
     const action = compoundDef.actions.find(
       (a) => a.slug === "get-borrow-balance"
     );
     expect(action).toBeDefined();
     expect(action?.outputs).toHaveLength(1);
     expect(action?.outputs?.[0].name).toBe("balance");
-    expect(action?.outputs?.[0].decimals).toBe(6);
+    expect(action?.outputs?.[0].decimals).toBeUndefined();
   });
 
   it("registers in the protocol registry and is retrievable", () => {

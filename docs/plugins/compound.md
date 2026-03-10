@@ -85,7 +85,7 @@ Get the balance of the base asset (e.g. USDC) for an account in a Comet market. 
 
 | Output | Type | Description |
 |--------|------|-------------|
-| balance | uint256 | Base Asset Balance, 6 decimals |
+| balance | uint256 | Base Asset Balance (raw, decimals vary by market) |
 
 **When to use:** Monitor supply positions, check earned interest, trigger actions based on balance thresholds.
 
@@ -126,7 +126,7 @@ Get the borrow balance of the base asset for an account in a Comet market. Retur
 
 | Output | Type | Description |
 |--------|------|-------------|
-| balance | uint256 | Borrow Balance, 6 decimals |
+| balance | uint256 | Borrow Balance (raw, decimals vary by market) |
 
 **When to use:** Monitor outstanding debt, trigger repayment workflows, track borrowing costs.
 
