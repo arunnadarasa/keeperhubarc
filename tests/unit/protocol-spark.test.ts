@@ -77,19 +77,41 @@ describe("Spark Protocol Definition", () => {
     }
   });
 
-  it("has exactly 10 actions", () => {
-    expect(sparkDef.actions).toHaveLength(10);
+  it("has exactly 12 actions", () => {
+    expect(sparkDef.actions).toHaveLength(12);
   });
 
-  it("has 6 write actions and 4 read actions", () => {
+  it("has 7 write actions and 5 read actions", () => {
     const readActions = sparkDef.actions.filter((a) => a.type === "read");
     const writeActions = sparkDef.actions.filter((a) => a.type === "write");
-    expect(writeActions).toHaveLength(6);
-    expect(readActions).toHaveLength(4);
+    expect(writeActions).toHaveLength(7);
+    expect(readActions).toHaveLength(5);
   });
 
   it("has 3 contracts", () => {
     expect(Object.keys(sparkDef.contracts)).toHaveLength(3);
+  });
+
+  it("pool and poolDataProvider are available on Gnosis Chain", () => {
+    expect(Object.keys(sparkDef.contracts.pool.addresses)).toContain("100");
+    expect(
+      Object.keys(sparkDef.contracts.poolDataProvider.addresses)
+    ).toContain("100");
+  });
+
+  it("sDAI is Ethereum-only (no Gnosis)", () => {
+    const sdaiChains = Object.keys(sparkDef.contracts.sdai.addresses);
+    expect(sdaiChains).toContain("1");
+    expect(sdaiChains).not.toContain("100");
+  });
+
+  it("get-user-reserve-data uses poolDataProvider contract", () => {
+    const action = sparkDef.actions.find(
+      (a) => a.slug === "get-user-reserve-data"
+    );
+    expect(action).toBeDefined();
+    expect(action?.contract).toBe("poolDataProvider");
+    expect(action?.outputs?.length).toBeGreaterThan(0);
   });
 
   it("all contracts are available on Ethereum mainnet", () => {

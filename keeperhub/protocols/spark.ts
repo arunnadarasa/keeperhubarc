@@ -14,6 +14,8 @@ export default defineProtocol({
       addresses: {
         // Ethereum Mainnet
         "1": "0xC13e21B648A5Ee794902342038FF3aDAB66BE987",
+        // Gnosis Chain
+        "100": "0x2Dae5307c5E3FD1CF5A72Cb6F698f915860607e0",
       },
       // Proxy contract -- ABI auto-resolved via abi-cache
     },
@@ -22,6 +24,8 @@ export default defineProtocol({
       addresses: {
         // Ethereum Mainnet
         "1": "0xFc21d6d146E6086B8359705C8b28512a983db0cb",
+        // Gnosis Chain
+        "100": "0x2a002054A06546bB5a264D57A81347e23Af91D18",
       },
       // ABI auto-resolved via abi-cache
     },
@@ -131,6 +135,22 @@ export default defineProtocol({
       ],
     },
 
+    // Collateral Management
+
+    {
+      slug: "set-collateral",
+      label: "Set Asset as Collateral",
+      description:
+        "Enable or disable a supplied asset as collateral in SparkLend",
+      type: "write",
+      contract: "pool",
+      function: "setUserUseReserveAsCollateral",
+      inputs: [
+        { name: "asset", type: "address", label: "Asset Token Address" },
+        { name: "useAsCollateral", type: "bool", label: "Use as Collateral" },
+      ],
+    },
+
     // sDAI (ERC-4626 Savings Vault)
 
     {
@@ -205,6 +225,68 @@ export default defineProtocol({
           type: "uint256",
           label: "Health Factor",
           decimals: 18,
+        },
+      ],
+    },
+    {
+      slug: "get-user-reserve-data",
+      label: "Get User Reserve Data",
+      description:
+        "Get per-asset position data including supplied balance, debt, and rates",
+      type: "read",
+      contract: "poolDataProvider",
+      function: "getUserReserveData",
+      inputs: [
+        { name: "asset", type: "address", label: "Asset Token Address" },
+        { name: "user", type: "address", label: "User Address" },
+      ],
+      outputs: [
+        {
+          name: "currentATokenBalance",
+          type: "uint256",
+          label: "Supplied Balance (spToken)",
+        },
+        {
+          name: "currentStableDebtTokenBalance",
+          type: "uint256",
+          label: "Stable Debt Balance",
+        },
+        {
+          name: "currentVariableDebtTokenBalance",
+          type: "uint256",
+          label: "Variable Debt Balance",
+        },
+        {
+          name: "principalStableDebt",
+          type: "uint256",
+          label: "Principal Stable Debt",
+        },
+        {
+          name: "scaledVariableDebt",
+          type: "uint256",
+          label: "Scaled Variable Debt",
+        },
+        {
+          name: "stableBorrowRate",
+          type: "uint256",
+          label: "Stable Borrow Rate (ray)",
+          decimals: 27,
+        },
+        {
+          name: "liquidityRate",
+          type: "uint256",
+          label: "Supply APY (ray)",
+          decimals: 27,
+        },
+        {
+          name: "stableRateLastUpdated",
+          type: "uint40",
+          label: "Stable Rate Last Updated (timestamp)",
+        },
+        {
+          name: "usageAsCollateralEnabled",
+          type: "bool",
+          label: "Used as Collateral",
         },
       ],
     },
