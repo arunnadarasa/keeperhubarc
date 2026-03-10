@@ -34,6 +34,13 @@ Each Comet market is a standalone contract. Common markets:
 | Get Base Balance | Read | No | Get the base asset balance for an account |
 | Get Collateral Balance | Read | No | Get a collateral asset balance for an account |
 | Get Borrow Balance | Read | No | Get the borrow balance for an account |
+| Get Utilization | Read | No | Get the current utilization rate of a market |
+| Get Supply Rate | Read | No | Get the per-second supply rate for a utilization level |
+| Get Borrow Rate | Read | No | Get the per-second borrow rate for a utilization level |
+| Get Total Supply | Read | No | Get total base asset supplied across all users |
+| Get Total Borrow | Read | No | Get total base asset borrowed across all users |
+| Is Liquidatable | Read | No | Check if an account is currently liquidatable |
+| Get Number of Assets | Read | No | Get the number of supported collateral assets |
 
 ---
 
@@ -129,6 +136,130 @@ Get the borrow balance of the base asset for an account in a Comet market. Retur
 | balance | uint256 | Borrow Balance (raw, decimals vary by market) |
 
 **When to use:** Monitor outstanding debt, trigger repayment workflows, track borrowing costs.
+
+---
+
+## Get Utilization
+
+Get the current utilization rate of a Comet market (ratio of borrows to supply, scaled to 1e18).
+
+**Inputs:** None
+
+**Outputs:**
+
+| Output | Type | Description |
+|--------|------|-------------|
+| utilization | uint256 | Utilization Rate (18 decimals) |
+
+**When to use:** Monitor market health, feed into supply/borrow rate calculations, trigger actions when utilization crosses a threshold.
+
+---
+
+## Get Supply Rate
+
+Get the per-second supply rate for a given utilization level. Multiply by 31536000 for annualized APR.
+
+**Inputs:**
+
+| Input | Type | Description |
+|-------|------|-------------|
+| utilization | uint256 | Utilization (from Get Utilization) |
+
+**Outputs:**
+
+| Output | Type | Description |
+|--------|------|-------------|
+| rate | uint64 | Supply Rate Per Second |
+
+**When to use:** Compare yield across markets, trigger rebalancing when rates change, monitor APR trends.
+
+---
+
+## Get Borrow Rate
+
+Get the per-second borrow rate for a given utilization level. Multiply by 31536000 for annualized APR.
+
+**Inputs:**
+
+| Input | Type | Description |
+|-------|------|-------------|
+| utilization | uint256 | Utilization (from Get Utilization) |
+
+**Outputs:**
+
+| Output | Type | Description |
+|--------|------|-------------|
+| rate | uint64 | Borrow Rate Per Second |
+
+**When to use:** Monitor borrowing costs, trigger repayment when rates spike, compare across markets.
+
+---
+
+## Get Total Supply
+
+Get the total base asset supplied to a Comet market across all users.
+
+**Inputs:** None
+
+**Outputs:**
+
+| Output | Type | Description |
+|--------|------|-------------|
+| totalSupply | uint256 | Total Supply (raw, decimals vary by market) |
+
+**When to use:** Monitor market depth, detect large supply changes, assess market liquidity.
+
+---
+
+## Get Total Borrow
+
+Get the total base asset borrowed from a Comet market across all users.
+
+**Inputs:** None
+
+**Outputs:**
+
+| Output | Type | Description |
+|--------|------|-------------|
+| totalBorrow | uint256 | Total Borrow (raw, decimals vary by market) |
+
+**When to use:** Monitor market demand, detect borrow spikes, assess protocol risk.
+
+---
+
+## Is Liquidatable
+
+Check if an account is currently liquidatable in a Comet market.
+
+**Inputs:**
+
+| Input | Type | Description |
+|-------|------|-------------|
+| account | address | Account Address |
+
+**Outputs:**
+
+| Output | Type | Description |
+|--------|------|-------------|
+| isLiquidatable | bool | Is Liquidatable |
+
+**When to use:** Monitor position health, trigger alerts before liquidation, build liquidation bots.
+
+---
+
+## Get Number of Assets
+
+Get the number of collateral assets supported by a Comet market.
+
+**Inputs:** None
+
+**Outputs:**
+
+| Output | Type | Description |
+|--------|------|-------------|
+| numAssets | uint8 | Number of Collateral Assets |
+
+**When to use:** Enumerate supported collaterals, detect new asset additions.
 
 ---
 
