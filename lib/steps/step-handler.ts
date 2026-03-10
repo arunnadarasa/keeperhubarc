@@ -7,6 +7,7 @@ import "server-only";
 
 // start custom keeperhub code //
 import { recordStepMetrics } from "@/keeperhub/lib/metrics/instrumentation/workflow";
+import { recordStepSuccess } from "@/keeperhub/lib/step-success-tracker";
 import { redactSensitiveData } from "../utils/redact";
 import {
   incrementCompletedSteps,
@@ -82,7 +83,10 @@ async function logStepComplete(
   logInfo: LogInfo,
   status: "success" | "error",
   output?: unknown,
-  error?: string
+  error?: string,
+  // start custom keeperhub code //
+  executionId?: string
+  // end keeperhub code //
 ): Promise<void> {
   if (!logInfo.logId) {
     return;
@@ -97,6 +101,9 @@ async function logStepComplete(
       status,
       output: redactedOutput,
       error,
+      // start custom keeperhub code //
+      executionId,
+      // end keeperhub code //
     });
   } catch (err) {
     console.error("[stepHandler] Failed to log completion:", err);
@@ -210,7 +217,8 @@ export async function withStepLogging<TInput extends StepInput, TOutput>(
         logInfo,
         "error",
         result,
-        errorResult.error || "Step execution failed"
+        errorResult.error || "Step execution failed",
+        context?.executionId
       );
 
       // start custom keeperhub code //
@@ -225,9 +233,19 @@ export async function withStepLogging<TInput extends StepInput, TOutput>(
       });
       // end keeperhub code //
     } else {
-      await logStepComplete(logInfo, "success", result);
+      await logStepComplete(
+        logInfo,
+        "success",
+        result,
+        undefined,
+        context?.executionId
+      );
 
       // start custom keeperhub code //
+      if (context?.executionId && context.nodeId) {
+        recordStepSuccess(context.executionId, context.nodeId, result);
+      }
+
       recordStepMetrics({
         executionId: context?.executionId,
         nodeId: context?.nodeId || "",
@@ -268,7 +286,13 @@ export async function withStepLogging<TInput extends StepInput, TOutput>(
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-    await logStepComplete(logInfo, "error", undefined, errorMessage);
+    await logStepComplete(
+      logInfo,
+      "error",
+      undefined,
+      errorMessage,
+      context?.executionId
+    );
 
     // start custom keeperhub code //
     recordStepMetrics({

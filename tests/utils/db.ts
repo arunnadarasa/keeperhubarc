@@ -15,6 +15,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import postgres from "postgres";
 import {
+  createManualWorkflow,
   createScheduledWorkflow,
   createWebhookWorkflow,
 } from "../fixtures/workflows";
@@ -61,6 +62,7 @@ export type CreateTestWorkflowOptions = {
   triggerType?: WorkflowTriggerType;
   cronExpression?: string;
   timezone?: string;
+  actionEndpoint?: string;
 };
 
 export type TestWorkflow = {
@@ -170,13 +172,18 @@ export async function createTestWorkflow(
       triggerType = "webhook",
       cronExpression = "0 9 * * *",
       timezone = "UTC",
+      actionEndpoint,
     } = options;
 
     // Get workflow structure based on trigger type
-    const workflow =
-      triggerType === "schedule"
-        ? createScheduledWorkflow(cronExpression, timezone)
-        : createWebhookWorkflow();
+    let workflow: ReturnType<typeof createWebhookWorkflow>;
+    if (triggerType === "schedule") {
+      workflow = createScheduledWorkflow(cronExpression, timezone);
+    } else if (triggerType === "manual") {
+      workflow = createManualWorkflow(actionEndpoint);
+    } else {
+      workflow = createWebhookWorkflow();
+    }
 
     const workflowId = generateId();
     const now = new Date();

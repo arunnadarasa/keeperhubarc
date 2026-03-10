@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install dev build type-check lint fix deploy-to-local-kubernetes setup-local-kubernetes check-local-kubernetes status logs restart teardown db-create db-migrate db-studio build-scheduler-images deploy-scheduler scheduler-status scheduler-logs runner-logs teardown-scheduler test test-unit test-integration test-e2e test-e2e-hybrid hybrid-setup hybrid-up hybrid-deploy hybrid-deploy-only hybrid-status hybrid-down hybrid-reset hybrid-logs hybrid-executor-logs dev-setup dev-up dev-down dev-logs dev-migrate
+.PHONY: help install dev build type-check lint fix deploy-to-local-kubernetes setup-local-kubernetes check-local-kubernetes status logs restart teardown db-create db-migrate db-studio build-scheduler-images deploy-scheduler scheduler-status scheduler-logs runner-logs teardown-scheduler test test-unit test-integration test-e2e test-e2e-hybrid test-playwright test-playwright-report hybrid-setup hybrid-up hybrid-deploy hybrid-deploy-only hybrid-status hybrid-down hybrid-reset hybrid-logs hybrid-executor-logs dev-setup dev-up dev-down dev-logs dev-migrate
 
 # Development
 install:
@@ -147,6 +147,41 @@ test-e2e:
 	pnpm test -- --run tests/e2e/; \
 	kill $$PF_PID_DB 2>/dev/null || true; \
 	kill $$PF_PID_SQS 2>/dev/null || true
+
+test-playwright:
+	@echo "Building and testing with Playwright (mirrors CI)..."
+	@echo "Checking database is running..."
+	@docker compose exec -T db pg_isready -U postgres > /dev/null 2>&1 || (echo "Error: Database not running. Run 'make dev-up' first." && exit 1)
+	pnpm discover-plugins
+	pnpm build
+	@echo "Starting production server..."
+	@pnpm start & APP_PID=$$!; \
+	for i in $$(seq 1 30); do \
+		if curl -sf http://localhost:3000 > /dev/null 2>&1; then \
+			echo "App is ready"; \
+			break; \
+		fi; \
+		if [ $$i -eq 30 ]; then \
+			echo "App did not start in 60s"; \
+			kill $$APP_PID 2>/dev/null || true; \
+			exit 1; \
+		fi; \
+		sleep 2; \
+	done; \
+	pnpm test:e2e; \
+	TEST_EXIT=$$?; \
+	kill $$APP_PID 2>/dev/null || true; \
+	if [ $$TEST_EXIT -ne 0 ]; then \
+		echo ""; \
+		echo "Tests failed. View report: pnpm exec playwright show-report"; \
+	else \
+		echo ""; \
+		echo "All tests passed. View report: pnpm exec playwright show-report"; \
+	fi; \
+	exit $$TEST_EXIT
+
+test-playwright-report:
+	pnpm exec playwright show-report
 
 test-e2e-hybrid:
 	@echo "Running E2E tests against hybrid deployment (Docker Compose + Minikube)..."
@@ -343,6 +378,8 @@ help:
 	@echo "    test                       - Run all tests"
 	@echo "    test-unit                  - Run unit tests"
 	@echo "    test-integration           - Run integration tests"
+	@echo "    test-playwright            - Build app, run Playwright E2E tests (mirrors CI)"
+	@echo "    test-playwright-report     - Open last Playwright HTML report"
 	@echo "    test-e2e                   - Run E2E tests against local kubernetes"
 	@echo "    test-e2e-hybrid            - Run E2E tests against hybrid deployment"
 	@echo ""

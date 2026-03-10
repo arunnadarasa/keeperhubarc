@@ -21,7 +21,7 @@ const STORAGE_KEY = "keeperhub-nav-state";
 const LEGACY_KEY = "keeperhub-sidebar-expanded";
 
 const DEFAULT_STATE: PersistedNavState = {
-  sidebar: false,
+  sidebar: true,
   panels: { projects: "closed", tags: "closed", workflows: "closed" },
   selectedProjectId: null,
   selectedTagId: null,
@@ -99,6 +99,7 @@ type UsePersistedNavStateReturn = {
   setSelectedProject: (id: string | null) => void;
   setSelectedTag: (id: string | null) => void;
   closeAll: () => void;
+  foldAll: () => void;
   peelRightmost: () => void;
   validateSelections: (projectIds: string[], tagIds: string[]) => void;
 };
@@ -106,7 +107,7 @@ type UsePersistedNavStateReturn = {
 export function usePersistedNavState(): UsePersistedNavStateReturn {
   const [state, setState] = useState<PersistedNavState>(DEFAULT_STATE);
   const stateRef = useRef(state);
-  const mounted = useRef(false);
+  const [hasMounted, setHasMounted] = useState(false);
 
   // Keep ref in sync with state
   stateRef.current = state;
@@ -115,7 +116,7 @@ export function usePersistedNavState(): UsePersistedNavStateReturn {
     const loaded = loadState();
     stateRef.current = loaded;
     setState(loaded);
-    mounted.current = true;
+    setHasMounted(true);
   }, []);
 
   const commit = useCallback((next: PersistedNavState) => {
@@ -173,6 +174,17 @@ export function usePersistedNavState(): UsePersistedNavStateReturn {
       selectedProjectId: null,
       selectedTagId: null,
     });
+  }, [commit]);
+
+  const foldAll = useCallback(() => {
+    const current = stateRef.current;
+    const panels = { ...current.panels };
+    for (const key of Object.keys(panels) as (keyof NavPanelStates)[]) {
+      if (panels[key] === "open") {
+        panels[key] = "collapsed";
+      }
+    }
+    commit({ ...current, panels });
   }, [commit]);
 
   const peelRightmost = useCallback(() => {
@@ -233,12 +245,13 @@ export function usePersistedNavState(): UsePersistedNavStateReturn {
 
   return {
     state,
-    hasMounted: mounted.current,
+    hasMounted,
     setSidebar,
     setPanelState,
     setSelectedProject,
     setSelectedTag,
     closeAll,
+    foldAll,
     peelRightmost,
     validateSelections,
   };

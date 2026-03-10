@@ -80,6 +80,18 @@
   --sidebar-ring: oklch(0.7107 0.0351 256.79);
   --keeperhub-green: oklch(0.8671 0.2514 147.76);
   --keeperhub-green-dark: oklch(0.7402 0.2136 147.89);
+
+  /* --- Hub surfaces (dark-only, used on /hub and protocol pages) --- */
+  --color-hub-card: #1a2230;
+  --color-hub-icon-bg: #2a3342;
+  --color-hub-icon-bg-hover: #354155;
+  --color-hub-gradient-center: #243548;
+  --color-hub-overlay: #171f2e;
+  --color-hub-node-bg: #3d4f63;
+
+  /* --- Accent (green brand) --- */
+  --color-text-accent: #09fd67;
+  --color-bg-accent: #09fd671a;
 }
 
 .dark {
@@ -189,11 +201,11 @@
 
 .dark .react-flow__attribution {
   background: transparent !important;
-  color: rgba(255, 255, 255, 0.4) !important;
+  color: var(--muted-foreground) !important;
 }
 
 .dark .react-flow__attribution a {
-  color: rgba(255, 255, 255, 0.5) !important;
+  color: var(--muted-foreground) !important;
 }
 
 /* React Flow pane cursor */
@@ -261,15 +273,15 @@
 }
 
 .template-badge {
-  background-color: rgba(59, 130, 246, 0.1);
-  color: rgb(37, 99, 235) !important;
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  background-color: var(--color-badge-blue-bg);
+  color: var(--color-badge-blue-text) !important;
+  border: 1px solid var(--color-badge-blue-border);
   border-radius: 3px;
   padding: 1px 4px;
 }
 
 .dark .template-badge {
-  color: rgb(96, 165, 250) !important;
+  color: var(--color-badge-blue-text-dark) !important;
 }
 /* end keeperhub code */
 

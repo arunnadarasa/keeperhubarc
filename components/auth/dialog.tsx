@@ -228,6 +228,7 @@ const SignInForm = ({
           <button
             className="text-muted-foreground text-xs hover:text-foreground"
             onClick={onForgotPassword}
+            tabIndex={-1}
             type="button"
           >
             Forgot password?

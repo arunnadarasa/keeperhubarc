@@ -22,7 +22,7 @@ import {
   analyticsSummaryAtom,
   analyticsTimeSeriesAtom,
 } from "@/keeperhub/lib/atoms/analytics";
-import { useOrganization } from "@/keeperhub/lib/hooks/use-organization";
+import { authClient } from "@/lib/auth-client";
 
 const POLL_INTERVAL_MS = 10_000;
 
@@ -80,8 +80,9 @@ async function processSection<T>(
 }
 
 export function useAnalytics(): UseAnalyticsReturn {
-  const { organization } = useOrganization();
-  const orgId = organization?.id;
+  const { data: activeOrg } = authClient.useActiveOrganization();
+  const activeOrgId = activeOrg?.id ?? null;
+
   const range = useAtomValue(analyticsRangeAtom);
   const statusFilter = useAtomValue(analyticsStatusFilterAtom);
   const sourceFilter = useAtomValue(analyticsSourceFilterAtom);
@@ -101,6 +102,10 @@ export function useAnalytics(): UseAnalyticsReturn {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchData = useCallback(async (): Promise<void> => {
+    if (!activeOrgId) {
+      return;
+    }
+
     abortControllerRef.current?.abort();
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -211,6 +216,7 @@ export function useAnalytics(): UseAnalyticsReturn {
       ),
     ]);
   }, [
+    activeOrgId,
     range,
     statusFilter,
     sourceFilter,
@@ -304,16 +310,16 @@ export function useAnalytics(): UseAnalyticsReturn {
   }, [fetchData]);
 
   // Re-fetch when org switches
-  const prevOrgIdRef = useRef(orgId);
+  const prevOrgIdRef = useRef(activeOrgId);
   useEffect(() => {
-    if (prevOrgIdRef.current === orgId) {
+    if (prevOrgIdRef.current === activeOrgId) {
       return;
     }
-    prevOrgIdRef.current = orgId;
+    prevOrgIdRef.current = activeOrgId;
     fetchData().catch(() => {
       /* org-switch refetch errors handled in fetchData */
     });
-  }, [orgId, fetchData]);
+  }, [activeOrgId, fetchData]);
 
   // Manage SSE / polling based on live state
   useEffect(() => {

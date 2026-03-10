@@ -28,7 +28,6 @@ export function AddNode({ data }: NodeProps & { data?: AddNodeData }) {
         <p className="text-muted-foreground">Automate anything onchain</p>
       </div>
       {/* start custom keeperhub code */}
-      <GettingStartedChecklist onCreateWorkflow={data.onClick} />
       <div className="flex gap-3">
         <Button
           className="gap-2 shadow-lg"
@@ -48,6 +47,7 @@ export function AddNode({ data }: NodeProps & { data?: AddNodeData }) {
           Browse Templates
         </Button>
       </div>
+      <GettingStartedChecklist onCreateWorkflow={data.onClick} />
       {/* end keeperhub code */}
     </div>
   );

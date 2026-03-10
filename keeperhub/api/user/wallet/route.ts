@@ -8,6 +8,7 @@ import {
 } from "@/keeperhub/lib/address-utils";
 import { apiError } from "@/keeperhub/lib/api-error";
 import { encryptUserShare } from "@/keeperhub/lib/encryption";
+import { getActiveOrgId } from "@/keeperhub/lib/middleware/org-context";
 import {
   getOrganizationWallet,
   organizationHasWallet,
@@ -51,7 +52,7 @@ async function validateUserAndOrganization(request: Request) {
   }
 
   // Get active organization from session
-  const activeOrgId = session.session.activeOrganizationId;
+  const activeOrgId = getActiveOrgId(session);
 
   if (!activeOrgId) {
     return {
@@ -236,7 +237,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const activeOrgId = session.session.activeOrganizationId;
+    const activeOrgId = getActiveOrgId(session);
 
     if (!activeOrgId) {
       return NextResponse.json({

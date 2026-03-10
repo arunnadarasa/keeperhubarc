@@ -43,7 +43,7 @@ function normalizeStatus(status: string, source: RunSource): NormalizedStatus {
     }
   }
   if (status === "cancelled") {
-    return "error";
+    return "cancelled";
   }
   return status as NormalizedStatus;
 }
@@ -68,6 +68,7 @@ function parseBucketRow(row: {
   bucket: string;
   success: string;
   error: string;
+  cancelled: string;
   pending: string;
   running: string;
 }): TimeSeriesBucket {
@@ -75,6 +76,7 @@ function parseBucketRow(row: {
     timestamp: new Date(row.bucket).toISOString(),
     success: Number(row.success) || 0,
     error: Number(row.error) || 0,
+    cancelled: Number(row.cancelled) || 0,
     pending: Number(row.pending) || 0,
     running: Number(row.running) || 0,
   };
@@ -91,6 +93,7 @@ function addBucketToMap(
   if (existing) {
     existing.success += bucket.success;
     existing.error += bucket.error;
+    existing.cancelled += bucket.cancelled;
     existing.pending += bucket.pending;
     existing.running += bucket.running;
   } else {
@@ -147,6 +150,7 @@ export async function getAnalyticsSummary(
   const totalRuns = workflowStats.total + directStats.total;
   const successCount = workflowStats.success + directStats.success;
   const errorCount = workflowStats.error + directStats.error;
+  const cancelledCount = workflowStats.cancelled;
   const successRate = totalRuns > 0 ? successCount / totalRuns : 0;
 
   const avgDurationMs = computeAvgDuration(
@@ -160,6 +164,7 @@ export async function getAnalyticsSummary(
     totalRuns,
     successCount,
     errorCount,
+    cancelledCount,
     successRate,
     avgDurationMs,
     totalGasWei,
@@ -177,6 +182,7 @@ async function getWorkflowCounts(
   total: number;
   success: number;
   error: number;
+  cancelled: number;
   durationSum: number;
   durationCount: number;
 }> {
@@ -184,7 +190,8 @@ async function getWorkflowCounts(
     .select({
       total: count(),
       success: sql<number>`SUM(CASE WHEN ${workflowExecutions.status} = 'success' THEN 1 ELSE 0 END)`,
-      error: sql<number>`SUM(CASE WHEN ${workflowExecutions.status} IN ('error', 'cancelled') THEN 1 ELSE 0 END)`,
+      error: sql<number>`SUM(CASE WHEN ${workflowExecutions.status} = 'error' THEN 1 ELSE 0 END)`,
+      cancelled: sql<number>`SUM(CASE WHEN ${workflowExecutions.status} = 'cancelled' THEN 1 ELSE 0 END)`,
       durationSum: sql<number>`COALESCE(SUM(CAST(${workflowExecutions.duration} AS INTEGER)), 0)`,
       durationCount: sql<number>`SUM(CASE WHEN ${workflowExecutions.duration} IS NOT NULL THEN 1 ELSE 0 END)`,
     })
@@ -204,6 +211,7 @@ async function getWorkflowCounts(
     total: Number(row?.total) || 0,
     success: Number(row?.success) || 0,
     error: Number(row?.error) || 0,
+    cancelled: Number(row?.cancelled) || 0,
     durationSum: Number(row?.durationSum) || 0,
     durationCount: Number(row?.durationCount) || 0,
   };
@@ -310,6 +318,7 @@ async function getPreviousPeriodSummary(
     totalRuns: workflowStats.total + directStats.total,
     successCount: workflowStats.success + directStats.success,
     errorCount: workflowStats.error + directStats.error,
+    cancelledCount: workflowStats.cancelled,
     avgDurationMs: computeAvgDuration(
       workflowStats.durationSum + directStats.durationSum,
       workflowStats.durationCount + directStats.durationCount
@@ -405,7 +414,8 @@ export async function getTimeSeries(
     .select({
       bucket: sql<string>`${bucketExpr(workflowExecutions.startedAt)}`,
       success: sql<string>`SUM(CASE WHEN ${workflowExecutions.status} = 'success' THEN 1 ELSE 0 END)`,
-      error: sql<string>`SUM(CASE WHEN ${workflowExecutions.status} IN ('error', 'cancelled') THEN 1 ELSE 0 END)`,
+      error: sql<string>`SUM(CASE WHEN ${workflowExecutions.status} = 'error' THEN 1 ELSE 0 END)`,
+      cancelled: sql<string>`SUM(CASE WHEN ${workflowExecutions.status} = 'cancelled' THEN 1 ELSE 0 END)`,
       pending: sql<string>`SUM(CASE WHEN ${workflowExecutions.status} = 'pending' THEN 1 ELSE 0 END)`,
       running: sql<string>`SUM(CASE WHEN ${workflowExecutions.status} = 'running' THEN 1 ELSE 0 END)`,
     })
@@ -431,6 +441,7 @@ export async function getTimeSeries(
       bucket: sql<string>`${bucketExpr(directExecutions.createdAt)}`,
       success: sql<string>`SUM(CASE WHEN ${directExecutions.status} = 'completed' THEN 1 ELSE 0 END)`,
       error: sql<string>`SUM(CASE WHEN ${directExecutions.status} = 'failed' THEN 1 ELSE 0 END)`,
+      cancelled: sql<string>`0`,
       pending: sql<string>`SUM(CASE WHEN ${directExecutions.status} = 'pending' THEN 1 ELSE 0 END)`,
       running: sql<string>`SUM(CASE WHEN ${directExecutions.status} = 'running' THEN 1 ELSE 0 END)`,
     })
@@ -478,6 +489,7 @@ type BucketRow = {
   bucket: string;
   success: string;
   error: string;
+  cancelled: string;
   pending: string;
   running: string;
 };
@@ -718,7 +730,7 @@ async function fetchWorkflowRuns(
   ];
 
   if (status) {
-    const dbStatuses = status === "error" ? ["error", "cancelled"] : [status];
+    const dbStatuses = [status];
     conditions.push(
       sql`${workflowExecutions.status} IN (${sql.join(
         dbStatuses.map((s) => sql`${s}`),
@@ -891,7 +903,7 @@ async function getWorkflowRunsTotal(
     conditions.push(eq(workflows.projectId, projectId));
   }
   if (status) {
-    const dbStatuses = status === "error" ? ["error", "cancelled"] : [status];
+    const dbStatuses = [status];
     conditions.push(
       sql`${workflowExecutions.status} IN (${sql.join(
         dbStatuses.map((s) => sql`${s}`),

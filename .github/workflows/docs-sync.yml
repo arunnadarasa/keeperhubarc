@@ -1,11 +1,8 @@
+# Type: reusable | Called by release-pipeline.yml
 name: Docs Sync
 
 on:
-  workflow_run:
-    workflows: ['Release']
-    types: [completed]
-    branches: [prod]
-
+  workflow_call: {}
   workflow_dispatch:
     inputs:
       days_back:
@@ -26,9 +23,6 @@ concurrency:
 jobs:
   docs-sync:
     runs-on: ubuntu-latest
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
     timeout-minutes: 75
 
     steps:
@@ -39,7 +33,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Detect changes from release
-        if: github.event_name == 'workflow_run'
+        if: github.event_name != 'workflow_dispatch'
         id: release_changes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -205,18 +199,18 @@ jobs:
 
       - name: Skip if no changes
         if: >-
-          (github.event_name == 'workflow_run' && steps.release_changes.outputs.has_changes != 'true') ||
+          (github.event_name != 'workflow_dispatch' && steps.release_changes.outputs.has_changes != 'true') ||
           (github.event_name == 'workflow_dispatch' && steps.manual_changes.outputs.has_changes != 'true')
         run: |
           echo "No relevant code changes detected. Skipping docs sync."
 
       - name: Set release tag
         if: >-
-          (github.event_name == 'workflow_run' && steps.release_changes.outputs.has_changes == 'true') ||
+          (github.event_name != 'workflow_dispatch' && steps.release_changes.outputs.has_changes == 'true') ||
           (github.event_name == 'workflow_dispatch' && steps.manual_changes.outputs.has_changes == 'true')
         id: tag
         run: |
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
             echo "release_tag=${{ steps.release_changes.outputs.release_tag }}" >> "$GITHUB_OUTPUT"
           else
             echo "release_tag=${{ steps.manual_changes.outputs.release_tag }}" >> "$GITHUB_OUTPUT"
@@ -226,7 +220,7 @@ jobs:
         if: steps.tag.outputs.release_tag != ''
         id: diffs
         run: |
-          CHANGED_FILES="${{ github.event_name == 'workflow_run' && steps.release_changes.outputs.changed_files || steps.manual_changes.outputs.changed_files }}"
+          CHANGED_FILES="${{ github.event_name != 'workflow_dispatch' && steps.release_changes.outputs.changed_files || steps.manual_changes.outputs.changed_files }}"
 
           if [ -z "$CHANGED_FILES" ]; then
             echo "No changed files to diff."
@@ -235,7 +229,7 @@ jobs:
 
           # For release trigger, find the base commit from the previous tag
           # For manual trigger, find the oldest commit in the lookback window
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
             PREV_TAG=$(gh release list --limit 2 --json tagName --jq '.[1].tagName' 2>/dev/null || echo "")
             CURRENT_TAG="${{ steps.tag.outputs.release_tag }}"
             if [ -n "$PREV_TAG" ]; then
@@ -347,7 +341,7 @@ jobs:
             RELEASE TAG: ${{ steps.tag.outputs.release_tag }}
 
             CHANGED FILES:
-            ${{ github.event_name == 'workflow_run' && steps.release_changes.outputs.changed_files || steps.manual_changes.outputs.changed_files }}
+            ${{ github.event_name != 'workflow_dispatch' && steps.release_changes.outputs.changed_files || steps.manual_changes.outputs.changed_files }}
 
             ---
 

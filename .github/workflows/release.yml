@@ -1,9 +1,8 @@
+# Type: reusable | Called by release-pipeline.yml
 name: Release
 
 on:
-  push:
-    branches:
-      - prod
+  workflow_call: {}
 
 permissions:
   contents: write

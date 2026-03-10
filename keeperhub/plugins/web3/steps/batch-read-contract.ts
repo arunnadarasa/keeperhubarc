@@ -818,4 +818,6 @@ export async function batchReadContractStep(
   );
 }
 
+batchReadContractStep.maxRetries = 0;
+
 export const _integrationType = "web3";

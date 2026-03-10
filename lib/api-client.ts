@@ -680,7 +680,7 @@ export const workflowApi = {
         nodeId: string;
         nodeName: string;
         nodeType: string;
-        status: "pending" | "running" | "success" | "error";
+        status: "pending" | "running" | "success" | "error" | "cancelled";
         input: unknown;
         output: unknown;
         error: string | null;
@@ -694,13 +694,19 @@ export const workflowApi = {
       }>;
     }>(`/api/workflows/executions/${executionId}/logs`),
 
+  // Cancel a running execution
+  cancelExecution: (executionId: string) =>
+    apiCall<{ success: boolean }>(`/api/executions/${executionId}/cancel`, {
+      method: "POST",
+    }),
+
   // Get execution status
   getExecutionStatus: (executionId: string) =>
     apiCall<{
       status: string;
       nodeStatuses: Array<{
         nodeId: string;
-        status: "pending" | "running" | "success" | "error";
+        status: "pending" | "running" | "success" | "error" | "cancelled";
       }>;
     }>(`/api/workflows/executions/${executionId}/status`),
 

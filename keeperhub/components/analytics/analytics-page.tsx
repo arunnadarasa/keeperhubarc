@@ -7,7 +7,10 @@ import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { analyticsSummaryAtom } from "@/keeperhub/lib/atoms/analytics";
+import {
+  analyticsProjectIdAtom,
+  analyticsSummaryAtom,
+} from "@/keeperhub/lib/atoms/analytics";
 import { useSession } from "@/lib/auth-client";
 import { AnalyticsHeader } from "./analytics-header";
 import { EmptyState } from "./empty-state";
@@ -58,6 +61,7 @@ export function AnalyticsPage(): ReactNode {
   const { data: session } = useSession();
   const { loading, error, refetch } = useAnalytics();
   const summary = useAtomValue(analyticsSummaryAtom);
+  const projectId = useAtomValue(analyticsProjectIdAtom);
   const prevErrorRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -79,12 +83,20 @@ export function AnalyticsPage(): ReactNode {
     }
   }, [session, error, refetch]);
 
-  if (error === "AUTH_REQUIRED" || error === "ORG_REQUIRED") {
+  const isAnonymous = !session?.user || session.user.isAnonymous;
+  if (isAnonymous || error === "AUTH_REQUIRED") {
+    return <AuthGate error="AUTH_REQUIRED" />;
+  }
+
+  if (error === "ORG_REQUIRED") {
     return <AuthGate error={error} />;
   }
 
   const hasNoData =
-    summary !== null && summary.totalRuns === 0 && summary.activeRuns === 0;
+    projectId === null &&
+    summary !== null &&
+    summary.totalRuns === 0 &&
+    summary.activeRuns === 0;
 
   if (hasNoData && !loading) {
     return (

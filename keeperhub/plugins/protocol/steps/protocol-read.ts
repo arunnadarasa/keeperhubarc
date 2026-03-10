@@ -123,4 +123,6 @@ export async function protocolReadStep(
   return await withStepLogging(input, () => readContractCore(coreInput));
 }
 
+protocolReadStep.maxRetries = 0;
+
 export const _integrationType = "protocol";

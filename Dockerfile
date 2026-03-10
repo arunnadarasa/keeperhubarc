@@ -154,9 +154,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY --from=deps /etc/ssl/certs/rds-combined-ca-bundle.pem /etc/ssl/certs/rds-combined-ca-bundle.pem
 
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Create non-root user and install curl (used by healthcheck and cronjob scripts)
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs && \
+    apk add --no-cache curl
 
 # Copy built application
 COPY --from=builder /app/public ./public
@@ -165,6 +166,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Copy OG image fonts for server-side image generation
 COPY --from=source --chown=nextjs:nodejs /app/keeperhub/api/og/fonts ./keeperhub/api/og/fonts
+
+# Copy deploy scripts (used by cronjobs)
+COPY --from=source /app/deploy/scripts ./deploy/scripts
 
 # Switch to non-root user
 USER nextjs

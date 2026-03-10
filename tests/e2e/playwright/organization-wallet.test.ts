@@ -75,18 +75,18 @@ async function openWalletOverlay(page: Page): Promise<void> {
 async function createWalletViaOverlay(page: Page): Promise<void> {
   await page.locator('button:has-text("Create Organization Wallet")').click();
 
-  const createBtn = page.locator('button:has-text("Create Wallet")');
+  const createBtn = page.locator(
+    'button[data-slot="button"]:has-text("Create Wallet")'
+  );
   await expect(createBtn).toBeEnabled({ timeout: 5000 });
   await createBtn.click();
 
-  // Wait for any toast to appear, then verify success
-  const anyToast = page.locator("[data-sonner-toast]").first();
-  await expect(anyToast).toBeVisible({ timeout: 30_000 });
+  // Wait for success toast (Para API can be slow in beta environments)
   await expect(
     page
       .locator("[data-sonner-toast]")
       .filter({ hasText: WALLET_CREATED_PATTERN })
-  ).toBeVisible({ timeout: 5000 });
+  ).toBeVisible({ timeout: 30_000 });
 }
 
 // Run tests serially to avoid session state conflicts
@@ -193,7 +193,9 @@ test.describe("Organization Management", () => {
 
       // Close any open dialogs by pressing Escape
       await page.keyboard.press("Escape");
-      await page.waitForTimeout(500);
+      await expect(page.locator('[role="dialog"]')).not.toBeVisible({
+        timeout: 5000,
+      });
 
       // Open org switcher
       const orgSwitcher = page.locator('button[role="combobox"]');
@@ -209,9 +211,7 @@ test.describe("Organization Management", () => {
 });
 
 test.describe("Para Wallet Management", () => {
-  // Para beta environment has a max user limit that CI always hits
-  // since each test run creates fresh users. Skip in CI.
-  test.skip(!!process.env.CI, "Para beta user limit exceeded in CI");
+  test.skip(!!process.env.CI, "Para beta API unreliable in CI");
 
   test.beforeEach(async ({ context }) => {
     await context.clearCookies();
@@ -245,24 +245,16 @@ test.describe("Para Wallet Management", () => {
       await expect(emailInput).toHaveValue(email);
 
       // Submit the form
-      const createBtn = overlay.locator('button:has-text("Create Wallet")');
+      const createBtn = overlay.locator(
+        'button[data-slot="button"]:has-text("Create Wallet")'
+      );
       await expect(createBtn).toBeEnabled({ timeout: 5000 });
       await createBtn.click();
 
-      // Wait for any toast (success or error) to understand outcome
-      const anyToast = page.locator("[data-sonner-toast]").first();
-      await expect(anyToast).toBeVisible({ timeout: 30_000 });
-
-      // Assert it's the success toast
-      await expect(
-        page
-          .locator("[data-sonner-toast]")
-          .filter({ hasText: WALLET_CREATED_PATTERN })
-      ).toBeVisible({ timeout: 5000 });
-
-      // Verify wallet details are shown
+      // Wait for wallet creation to complete (Para API can take ~5s)
+      // Verify wallet details section appears (proves creation succeeded)
       await expect(overlay.locator("text=Account details")).toBeVisible({
-        timeout: 5000,
+        timeout: 30_000,
       });
     });
 
@@ -327,7 +319,9 @@ test.describe("Para Wallet Management", () => {
       await emailInput.clear();
 
       // Create button should be disabled when email is empty
-      const createButton = overlay.locator('button:has-text("Create Wallet")');
+      const createButton = overlay.locator(
+        'button[data-slot="button"]:has-text("Create Wallet")'
+      );
       await expect(createButton).toBeDisabled();
     });
   });

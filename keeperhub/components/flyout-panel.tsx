@@ -1,6 +1,11 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export const FLYOUT_WIDTH = 280;
@@ -11,6 +16,7 @@ type FlyoutPanelProps = {
   leftOffset: number;
   title: string;
   collapsedLabel?: string;
+  accentColor?: string;
   onCollapse: () => void;
   onExpand: () => void;
   children: React.ReactNode;
@@ -21,6 +27,7 @@ export function FlyoutPanel({
   leftOffset,
   title,
   collapsedLabel,
+  accentColor,
   onCollapse,
   onExpand,
   children,
@@ -30,24 +37,54 @@ export function FlyoutPanel({
   }
 
   if (state === "collapsed") {
+    const label = collapsedLabel ?? title;
+    const dashIndex = label.indexOf(" - ");
+    const category = dashIndex > -1 ? label.slice(0, dashIndex) : label;
+    const selection = dashIndex > -1 ? label.slice(dashIndex + 3) : null;
+
     return (
-      <button
-        className="pointer-events-auto fixed top-[60px] bottom-0 z-30 flex items-center justify-center border-r bg-background transition-[left] duration-200 ease-out hover:bg-muted"
-        data-flyout
-        onClick={onExpand}
-        style={{ left: leftOffset, width: STRIP_WIDTH }}
-        type="button"
-      >
-        <div className="flex flex-col items-center gap-1">
-          <ChevronRight className="size-3.5 text-muted-foreground" />
-          <span
-            className="max-h-[120px] overflow-hidden text-muted-foreground text-xs"
-            style={{ writingMode: "vertical-lr" }}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            className="pointer-events-auto fixed top-[60px] bottom-0 z-30 flex items-start justify-center border-r bg-background pt-3 transition-[left] duration-200 ease-out hover:bg-muted/50"
+            data-flyout
+            onClick={onExpand}
+            style={{ left: leftOffset, width: STRIP_WIDTH }}
+            type="button"
           >
-            {collapsedLabel ?? title}
-          </span>
-        </div>
-      </button>
+            {accentColor && (
+              <div
+                className="absolute top-0 left-0 h-1 w-full"
+                style={{ backgroundColor: accentColor }}
+              />
+            )}
+            <div className="flex flex-col items-center gap-1.5">
+              <ChevronRight className="size-3.5 text-muted-foreground" />
+              <div
+                className="flex items-start gap-0.5 whitespace-nowrap"
+                style={{ writingMode: "vertical-lr" }}
+              >
+                <span className="font-medium text-foreground/70 text-[10px] uppercase tracking-wider">
+                  {category}
+                </span>
+                {selection && (
+                  <>
+                    <span className="text-muted-foreground/40 text-[10px]">
+                      /
+                    </span>
+                    <span className="max-h-[100px] overflow-hidden text-muted-foreground text-[11px]">
+                      {selection}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right">
+          <span className="text-xs">{label}</span>
+        </TooltipContent>
+      </Tooltip>
     );
   }
 

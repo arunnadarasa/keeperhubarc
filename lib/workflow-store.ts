@@ -60,6 +60,10 @@ export const isWorkflowEnabled = atom<boolean>(false);
 
 // UI state atoms
 export const propertiesPanelActiveTabAtom = atom<string>("properties");
+// start custom keeperhub code //
+// Increment to trigger an immediate Runs panel refresh (e.g. after execute)
+export const runsRefreshTriggerAtom = atom<number>(0);
+// end keeperhub code //
 export const showMinimapAtom = atom(false);
 export const selectedExecutionIdAtom = atom<string | null>(null);
 export const rightPanelWidthAtom = atom<string | null>(null);
@@ -76,6 +80,9 @@ export const pendingIntegrationNodesAtom = atom<Set<string>>(new Set<string>());
 // Cleared when the node gets an action type or is deselected
 export const newlyCreatedNodeIdAtom = atom<string | null>(null);
 
+// Tracks the execution ID of the currently running execution (for cancel support)
+export const currentExecutionIdAtom = atom<string | null>(null);
+
 // Trigger execute atom - set to true to trigger workflow execution
 // This allows keyboard shortcuts to trigger the same execute flow as the button
 export const triggerExecuteAtom = atom(false);
@@ -85,7 +92,7 @@ export type ExecutionLogEntry = {
   nodeId: string;
   nodeName: string;
   nodeType: string;
-  status: "pending" | "running" | "success" | "error";
+  status: "pending" | "running" | "success" | "error" | "cancelled";
   output?: unknown;
 };
 
@@ -122,11 +129,15 @@ export const autosaveAtom = atom(
 
     const saveFunc = async () => {
       try {
+        set(isSavingAtom, true);
         await api.workflow.update(workflowId, { nodes, edges });
         // Clear the unsaved changes indicator after successful save
         set(hasUnsavedChangesAtom, false);
       } catch (error) {
         console.warn("Autosave failed:", error);
+      } finally {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        set(isSavingAtom, false);
       }
     };
 
@@ -509,6 +520,7 @@ export const resetWorkflowStateForOrgSwitchAtom = atom(null, (_get, set) => {
   set(isWorkflowOwnerAtom, true);
   set(isWorkflowEnabled, false);
   set(workflowNotFoundAtom, false);
+  set(currentExecutionIdAtom, null);
   set(selectedExecutionIdAtom, null);
   set(executionLogsAtom, {});
   set(lastExecutionLogsAtom, { workflowId: null, logs: {} });

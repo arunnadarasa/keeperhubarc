@@ -218,6 +218,13 @@
       "when": 1772656435595,
       "tag": "0030_lucky_praxagora",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1772595598240,
+      "tag": "0031_heavy_overlord",
+      "breakpoints": true
     }
   ]
 }

@@ -4,27 +4,68 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
     branches:
-      - staging
       - production
 
 jobs:
-  check-label:
+  check-labels:
     runs-on: ubuntu-latest
     outputs:
-      should-deploy: ${{ steps.check.outputs.labeled }}
+      should-deploy: ${{ steps.check.outputs.should-deploy }}
+      should-test: ${{ steps.check.outputs.should-test }}
     steps:
-      - name: Check for deploy-pr-environment label
+      - name: Checkout code (for change detection)
+        if: github.event.action == 'synchronize'
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Determine what to run based on trigger
         id: check
         run: |
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'deploy-pr-environment') }}" == "true" ]]; then
-            echo "labeled=true" >> $GITHUB_OUTPUT
-          else
-            echo "labeled=false" >> $GITHUB_OUTPUT
+          echo "should-deploy=false" >> $GITHUB_OUTPUT
+          echo "should-test=false" >> $GITHUB_OUTPUT
+
+          HAS_DEPLOY_LABEL="${{ contains(github.event.pull_request.labels.*.name, 'deploy-pr-environment') }}"
+          HAS_TEST_LABEL="${{ contains(github.event.pull_request.labels.*.name, 'run-e2e-tests-pr-deploy') }}"
+          ACTION="${{ github.event.action }}"
+          ADDED_LABEL="${{ github.event.label.name }}"
+
+          if [[ "$ACTION" == "labeled" ]]; then
+            if [[ "$ADDED_LABEL" == "deploy-pr-environment" ]]; then
+              echo "should-deploy=true" >> $GITHUB_OUTPUT
+              if [[ "$HAS_TEST_LABEL" == "true" ]]; then
+                echo "should-test=true" >> $GITHUB_OUTPUT
+              fi
+            elif [[ "$ADDED_LABEL" == "run-e2e-tests-pr-deploy" ]]; then
+              echo "should-test=true" >> $GITHUB_OUTPUT
+            fi
+          elif [[ "$ACTION" == "synchronize" || "$ACTION" == "opened" || "$ACTION" == "reopened" ]]; then
+            NEEDS_DEPLOY=true
+
+            # On synchronize, check if changes are only in CI/test files
+            if [[ "$ACTION" == "synchronize" ]]; then
+              CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+              if [ -n "$CHANGED" ]; then
+                NON_CI_TEST_FILES=$(echo "$CHANGED" | grep -vE '^(\.github/|tests/|playwright\.config|vitest\.config)' || true)
+                if [ -z "$NON_CI_TEST_FILES" ]; then
+                  echo "Only CI/test files changed -- skipping deploy, running tests only"
+                  NEEDS_DEPLOY=false
+                fi
+              fi
+            fi
+
+            if [[ "$HAS_DEPLOY_LABEL" == "true" && "$NEEDS_DEPLOY" == "true" ]]; then
+              echo "should-deploy=true" >> $GITHUB_OUTPUT
+            fi
+            # Run tests if both labels present (even without deploy)
+            if [[ "$HAS_DEPLOY_LABEL" == "true" && "$HAS_TEST_LABEL" == "true" ]]; then
+              echo "should-test=true" >> $GITHUB_OUTPUT
+            fi
           fi
 
   build-images:
-    needs: check-label
-    if: needs.check-label.outputs.should-deploy == 'true'
+    needs: check-labels
+    if: needs.check-labels.outputs.should-deploy == 'true'
     runs-on: ubuntu-latest
     environment: staging
     strategy:
@@ -109,8 +150,8 @@ jobs:
           cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:${{ matrix.image.cache_key }},mode=max
 
   deploy:
-    needs: [check-label, build-images]
-    if: needs.check-label.outputs.should-deploy == 'true'
+    needs: [check-labels, build-images]
+    if: needs.check-labels.outputs.should-deploy == 'true'
     runs-on: ubuntu-latest
     environment: staging
     env:
@@ -385,7 +426,7 @@ jobs:
           script: |
             const prNumber = context.payload.pull_request.number;
 
-            const comment = `## ❌ PR Environment Deployment Failed
+            const comment = `## PR Environment Deployment Failed
 
             The PR environment deployment encountered an error.
 
@@ -403,3 +444,310 @@ jobs:
               repo: context.repo.repo,
               body: comment
             });
+
+  # Remote E2E tests against deployed PR environment
+  # Runs when: test label just added (deploy skipped), or deploy just completed with test label present
+  # DISABLED: remote E2E tests temporarily disabled while KEEP-1351 stabilises auth/rate-limit infrastructure
+  e2e-vitest-remote:
+    needs: [check-labels, deploy]
+    if: >-
+      always() &&
+      needs.check-labels.outputs.should-test == 'true' &&
+      (needs.deploy.result == 'success' || needs.deploy.result == 'skipped') &&
+      vars.ENABLE_E2E_REMOTE_TESTS == 'true'
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      NAMESPACE: pr-${{ github.event.pull_request.number }}
+      REGION: us-east-2
+      CLUSTER_NAME: maker-staging
+      KEEPERHUB_URL: https://app-pr-${{ github.event.pull_request.number }}.keeperhub.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          discover-plugins: "true"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.REGION }}
+
+      - name: Configure kubectl
+        run: |
+          aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.REGION }}
+
+      - name: Port-forward PR database and LocalStack
+        run: |
+          # Retrieve DB password from K8s secret
+          DB_PASSWORD=$(kubectl get secret keeperhub-pr-${{ env.PR_NUMBER }}-db-credentials \
+            -n ${{ env.NAMESPACE }} -o jsonpath='{.data.password}' | base64 -d)
+
+          # URL-encode the password (handles base64 special chars +/=)
+          ENCODED_PASSWORD=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${DB_PASSWORD}', safe=''))")
+
+          # Port-forward PostgreSQL (CNPG read-write service)
+          kubectl port-forward -n ${{ env.NAMESPACE }} \
+            svc/keeperhub-pr-${{ env.PR_NUMBER }}-db-rw 5432:5432 &
+          PF_PG_PID=$!
+
+          # Port-forward LocalStack
+          kubectl port-forward -n ${{ env.NAMESPACE }} \
+            svc/localstack 4566:4566 &
+          PF_LS_PID=$!
+
+          # Wait for port-forwards to be ready
+          for i in $(seq 1 15); do
+            if pg_isready -h localhost -p 5432 -U keeperhub 2>/dev/null; then
+              echo "PostgreSQL port-forward ready"
+              break
+            fi
+            if [ "$i" -eq 15 ]; then
+              echo "PostgreSQL port-forward did not become ready"
+              exit 1
+            fi
+            sleep 2
+          done
+
+          # Export connection details
+          echo "DATABASE_URL=postgresql://keeperhub:${ENCODED_PASSWORD}@localhost:5432/keeperhub" >> $GITHUB_ENV
+          echo "AWS_ENDPOINT_URL=http://localhost:4566" >> $GITHUB_ENV
+          echo "PF_PG_PID=$PF_PG_PID" >> $GITHUB_ENV
+          echo "PF_LS_PID=$PF_LS_PID" >> $GITHUB_ENV
+
+      - name: Wait for PR environment to be ready
+        run: |
+          echo "Waiting for ${{ env.KEEPERHUB_URL }}/api/health to return 200..."
+          CURL_ARGS=(-s -o /dev/null -w "%{http_code}")
+          if [[ -n "$CF_ACCESS_CLIENT_ID" && -n "$CF_ACCESS_CLIENT_SECRET" ]]; then
+            CURL_ARGS+=(-H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
+          fi
+          for i in {1..30}; do
+            STATUS=$(curl "${CURL_ARGS[@]}" "${{ env.KEEPERHUB_URL }}/api/health" || echo "000")
+            if [[ "$STATUS" == "200" ]]; then
+              echo "PR environment is ready!"
+              exit 0
+            fi
+            echo "Attempt $i/30: got HTTP $STATUS, waiting 10s..."
+            sleep 10
+          done
+          echo "PR environment did not become ready in time"
+          exit 1
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+
+      - name: Run E2E Vitest tests (remote)
+        run: >-
+          pnpm vitest run tests/e2e/vitest
+          --exclude '**/full-pipeline.test.ts'
+          --exclude '**/write-contract-workflow.test.ts'
+        env:
+          KEEPERHUB_URL: ${{ env.KEEPERHUB_URL }}
+          WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
+          PARA_API_KEY: ${{ secrets.TEST_PARA_API_KEY }}
+          PARA_ENVIRONMENT: beta
+          WORKFLOW_TARGET_WORLD: "@workflow/world-postgres"
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_REGION: us-east-1
+
+      - name: Cleanup port-forwards
+        if: always()
+        run: |
+          kill $PF_PG_PID 2>/dev/null || true
+          kill $PF_LS_PID 2>/dev/null || true
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-e2e-remote-results-pr-${{ env.PR_NUMBER }}
+          path: |
+            test-results/
+            coverage/
+          retention-days: 7
+
+  # DISABLED: remote E2E tests temporarily disabled while KEEP-1351 stabilises auth/rate-limit infrastructure
+  e2e-playwright-remote:
+    needs: [check-labels, deploy]
+    if: >-
+      always() &&
+      needs.check-labels.outputs.should-test == 'true' &&
+      (needs.deploy.result == 'success' || needs.deploy.result == 'skipped') &&
+      vars.ENABLE_E2E_REMOTE_TESTS == 'true'
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      NAMESPACE: pr-${{ github.event.pull_request.number }}
+      REGION: us-east-2
+      CLUSTER_NAME: maker-staging
+      BASE_URL: https://app-pr-${{ github.event.pull_request.number }}.keeperhub.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup Node.js, pnpm, and Playwright
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          install-playwright: "true"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.REGION }}
+
+      - name: Configure kubectl
+        run: |
+          aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.REGION }}
+
+      - name: Port-forward PR database
+        run: |
+          DB_PASSWORD=$(kubectl get secret keeperhub-pr-${{ env.PR_NUMBER }}-db-credentials \
+            -n ${{ env.NAMESPACE }} -o jsonpath='{.data.password}' | base64 -d)
+
+          ENCODED_PASSWORD=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${DB_PASSWORD}', safe=''))")
+
+          kubectl port-forward -n ${{ env.NAMESPACE }} \
+            svc/keeperhub-pr-${{ env.PR_NUMBER }}-db-rw 5432:5432 &
+          PF_PG_PID=$!
+
+          for i in $(seq 1 15); do
+            if pg_isready -h localhost -p 5432 -U keeperhub 2>/dev/null; then
+              echo "PostgreSQL port-forward ready"
+              break
+            fi
+            if [ "$i" -eq 15 ]; then
+              echo "PostgreSQL port-forward did not become ready"
+              exit 1
+            fi
+            sleep 2
+          done
+
+          echo "DATABASE_URL=postgresql://keeperhub:${ENCODED_PASSWORD}@localhost:5432/keeperhub" >> $GITHUB_ENV
+          echo "PF_PG_PID=$PF_PG_PID" >> $GITHUB_ENV
+
+      - name: Wait for PR environment to be ready
+        run: |
+          echo "Waiting for ${{ env.BASE_URL }}/api/health to return 200..."
+          CURL_ARGS=(-s -o /dev/null -w "%{http_code}")
+          if [[ -n "$CF_ACCESS_CLIENT_ID" && -n "$CF_ACCESS_CLIENT_SECRET" ]]; then
+            CURL_ARGS+=(-H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
+          fi
+          for i in {1..30}; do
+            STATUS=$(curl "${CURL_ARGS[@]}" "${{ env.BASE_URL }}/api/health" || echo "000")
+            if [[ "$STATUS" == "200" ]]; then
+              echo "PR environment is ready!"
+              exit 0
+            fi
+            echo "Attempt $i/30: got HTTP $STATUS, waiting 10s..."
+            sleep 10
+          done
+          echo "PR environment did not become ready in time"
+          exit 1
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+
+      - name: Fetch TEST_API_KEY from deployed environment
+        run: |
+          # Read from the K8s secret created by Helm for the parameterStore env var
+          # The common chart names secrets as: <release>-<env-name>
+          SECRET_NAME="test-api-key"
+          # Try reading the secret; the common chart stores the value under key "value"
+          TEST_API_KEY=$(kubectl get secret "$SECRET_NAME" \
+            -n ${{ env.NAMESPACE }} -o jsonpath='{.data.value}' 2>/dev/null | base64 -d) || true
+          if [ -z "$TEST_API_KEY" ]; then
+            # Fallback: extract from the running pod's environment
+            POD=$(kubectl get pods -n ${{ env.NAMESPACE }} \
+              -l app.kubernetes.io/instance=keeperhub-pr-${{ env.PR_NUMBER }} \
+              -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || \
+              kubectl get pods -n ${{ env.NAMESPACE }} -o jsonpath='{.items[0].metadata.name}')
+            TEST_API_KEY=$(kubectl exec -n ${{ env.NAMESPACE }} "$POD" -- printenv TEST_API_KEY)
+          fi
+          echo "::add-mask::$TEST_API_KEY"
+          echo "TEST_API_KEY=$TEST_API_KEY" >> $GITHUB_ENV
+
+      - name: Run Playwright tests against deployed environment
+        run: pnpm exec playwright test --grep-invert "happy-paths"
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+          TEST_API_KEY: ${{ env.TEST_API_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          CI: true
+
+      - name: Cleanup port-forwards
+        if: always()
+        run: |
+          kill $PF_PG_PID 2>/dev/null || true
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-deployed-report-pr-${{ env.PR_NUMBER }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+      - name: Comment test results on PR
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const status = '${{ job.status }}';
+            const label = status === 'success' ? 'PASS' : 'FAIL';
+            const title = status === 'success' ? 'E2E Remote Tests Passed' : 'E2E Remote Tests Failed';
+            const marker = '<!-- e2e-remote-test-result -->';
+
+            const body = [
+              marker,
+              `## ${label} ${title}`,
+              '',
+              `**Environment:** [app-pr-${prNumber}.keeperhub.com](https://app-pr-${prNumber}.keeperhub.com)`,
+              `**Status:** ${status}`,
+              `**Workflow Run:** [View Details](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`,
+              '',
+              status !== 'success' ? 'Check the workflow run for test failure details and screenshots.' : '',
+            ].filter(Boolean).join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              issue_number: prNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            const existing = comments.find(c => c.body?.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                comment_id: existing.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: prNumber,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            }

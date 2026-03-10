@@ -3,20 +3,10 @@ import { NextResponse } from "next/server";
 import { authenticateApiKey } from "@/keeperhub/lib/api-key-auth";
 import { resolveCreatorContext } from "@/keeperhub/lib/middleware/auth-helpers";
 import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
+import { COLOR_PALETTE } from "@/keeperhub/lib/palette";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { projects, workflows } from "@/lib/db/schema";
-
-const DEFAULT_COLORS = [
-  "#4A90D9",
-  "#7B61FF",
-  "#E06C75",
-  "#98C379",
-  "#E5C07B",
-  "#56B6C2",
-  "#C678DD",
-  "#D19A66",
-];
 
 export async function GET(request: Request) {
   try {
@@ -104,8 +94,8 @@ export async function POST(request: Request) {
       .from(projects)
       .where(eq(projects.organizationId, organizationId));
 
-    const colorIndex = (existingCount[0]?.value ?? 0) % DEFAULT_COLORS.length;
-    const color = body.color || DEFAULT_COLORS[colorIndex];
+    const colorIndex = (existingCount[0]?.value ?? 0) % COLOR_PALETTE.length;
+    const color = body.color || COLOR_PALETTE[colorIndex];
 
     const [newProject] = await db
       .insert(projects)

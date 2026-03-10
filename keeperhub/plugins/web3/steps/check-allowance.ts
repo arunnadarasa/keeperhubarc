@@ -169,4 +169,6 @@ export async function checkAllowanceStep(
   return withStepLogging(input, () => stepHandler(input));
 }
 
+checkAllowanceStep.maxRetries = 0;
+
 export const _integrationType = "web3";

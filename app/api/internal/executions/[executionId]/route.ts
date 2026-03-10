@@ -1,5 +1,5 @@
 // start custom keeperhub code //
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import { authenticateInternalService } from "@/keeperhub/lib/internal-service-auth";
@@ -20,7 +20,7 @@ export async function PATCH(
 
   const { executionId } = await context.params;
   const body = await request.json();
-  const { status, error } = body;
+  const { status, error, duration } = body;
 
   type ExecutionStatus = "running" | "success" | "error";
   const validStatuses: ExecutionStatus[] = ["running", "success", "error"];
@@ -35,21 +35,30 @@ export async function PATCH(
 
   const typedStatus = status as ExecutionStatus;
 
-  // Check execution exists
+  // Check execution exists and is not already cancelled
   const existing = await db.query.workflowExecutions.findFirst({
     where: eq(workflowExecutions.id, executionId),
-    columns: { id: true },
+    columns: { id: true, status: true },
   });
 
   if (!existing) {
     return NextResponse.json({ error: "Execution not found" }, { status: 404 });
   }
 
+  // Don't overwrite cancelled status (user already stopped this execution)
+  if (existing.status === "cancelled") {
+    return NextResponse.json({ success: true });
+  }
+
   // Build update payload
+  const isTerminal = status === "success" || status === "error";
   const updateData: {
     status: ExecutionStatus;
     error?: string | null;
     completedAt?: Date;
+    duration?: string;
+    currentNodeId?: null;
+    currentNodeName?: null;
   } = { status: typedStatus };
 
   if (status === "error") {
@@ -59,10 +68,23 @@ export async function PATCH(
     updateData.completedAt = new Date();
   }
 
+  if (isTerminal) {
+    updateData.currentNodeId = null;
+    updateData.currentNodeName = null;
+    if (typeof duration === "string") {
+      updateData.duration = duration;
+    }
+  }
+
   await db
     .update(workflowExecutions)
     .set(updateData)
-    .where(eq(workflowExecutions.id, executionId));
+    .where(
+      and(
+        eq(workflowExecutions.id, executionId),
+        ne(workflowExecutions.status, "cancelled")
+      )
+    );
 
   return NextResponse.json({ success: true });
 }

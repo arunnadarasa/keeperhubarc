@@ -4,6 +4,7 @@ type FallbackCompleteParams = {
   executionId: string;
   status: "success" | "error";
   error?: string;
+  startTime?: number;
 };
 
 /**
@@ -48,6 +49,9 @@ export async function fallbackCompleteExecution(
         body: JSON.stringify({
           status: params.status,
           error: params.error,
+          ...(params.startTime !== undefined && {
+            duration: (Date.now() - params.startTime).toString(),
+          }),
         }),
       }
     );

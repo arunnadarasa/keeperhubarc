@@ -1,18 +1,45 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useSession } from "@/lib/auth-client";
+import { authClient, useSession } from "@/lib/auth-client";
 
-const DISMISSED_KEY = "keeperhub-onboarding-dismissed";
+type GuideState = "expanded" | "collapsed" | "dismissed";
 
-function isDismissed(): boolean {
+const GUIDE_KEY = "keeperhub-onboarding-guide";
+const OLD_DISMISSED_KEY = "keeperhub-onboarding-dismissed";
+
+function readGuideState(): GuideState {
   if (typeof window === "undefined") {
-    return false;
+    return "expanded";
   }
   try {
-    return localStorage.getItem(DISMISSED_KEY) === "true";
+    // Migrate old key if present
+    const oldValue = localStorage.getItem(OLD_DISMISSED_KEY);
+    if (oldValue === "true") {
+      localStorage.removeItem(OLD_DISMISSED_KEY);
+      localStorage.setItem(GUIDE_KEY, "collapsed");
+      return "collapsed";
+    }
+
+    const value = localStorage.getItem(GUIDE_KEY);
+    if (value === "collapsed" || value === "dismissed") {
+      return value;
+    }
+    return "expanded";
   } catch {
-    return false;
+    return "expanded";
+  }
+}
+
+function persistGuideState(state: GuideState): void {
+  try {
+    if (state === "expanded") {
+      localStorage.removeItem(GUIDE_KEY);
+    } else {
+      localStorage.setItem(GUIDE_KEY, state);
+    }
+  } catch {
+    // localStorage unavailable
   }
 }
 
@@ -27,9 +54,10 @@ type OnboardingStatus = {
   allComplete: boolean;
   completedCount: number;
   refetch: () => void;
-  hidden: boolean;
-  hide: () => void;
-  show: () => void;
+  guideState: GuideState;
+  collapse: () => void;
+  expand: () => void;
+  dismiss: () => void;
 };
 
 function isFulfilledArray(result: PromiseSettledResult<unknown>): boolean {
@@ -42,13 +70,15 @@ function isFulfilledArray(result: PromiseSettledResult<unknown>): boolean {
 
 export function useOnboardingStatus(): OnboardingStatus {
   const { data: session } = useSession();
+  const { data: activeOrg } = authClient.useActiveOrganization();
+  const activeOrgId = activeOrg?.id ?? null;
   const [steps, setSteps] = useState<OnboardingStep[]>([
     { id: "create-workflow", complete: false },
     { id: "generate-api-key", complete: false },
     { id: "create-wallet", complete: false },
   ]);
   const [isLoading, setIsLoading] = useState(true);
-  const [hidden, setHidden] = useState(isDismissed);
+  const [guideState, setGuideState] = useState<GuideState>(readGuideState);
   const [refetchKey, setRefetchKey] = useState(0);
 
   const refetch = useCallback(() => {
@@ -57,32 +87,35 @@ export function useOnboardingStatus(): OnboardingStatus {
 
   const isAuthenticated = Boolean(session?.user);
 
-  const hide = useCallback(() => {
-    setHidden(true);
-    try {
-      localStorage.setItem(DISMISSED_KEY, "true");
-    } catch {
-      // localStorage unavailable
-    }
+  const collapse = useCallback(() => {
+    setGuideState("collapsed");
+    persistGuideState("collapsed");
   }, []);
 
-  const show = useCallback(() => {
-    setHidden(false);
-    try {
-      localStorage.removeItem(DISMISSED_KEY);
-    } catch {
-      // localStorage unavailable
-    }
+  const expand = useCallback(() => {
+    setGuideState("expanded");
+    persistGuideState("expanded");
+  }, []);
+
+  const dismiss = useCallback(() => {
+    setGuideState("dismissed");
+    persistGuideState("dismissed");
   }, []);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: refetchKey intentionally triggers re-fetch
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || guideState === "dismissed") {
       setIsLoading(false);
       return;
     }
 
     let cancelled = false;
+
+    setSteps([
+      { id: "create-workflow", complete: false },
+      { id: "generate-api-key", complete: false },
+      { id: "create-wallet", complete: false },
+    ]);
 
     async function fetchStatus(): Promise<void> {
       setIsLoading(true);
@@ -117,7 +150,7 @@ export function useOnboardingStatus(): OnboardingStatus {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, refetchKey]);
+  }, [isAuthenticated, activeOrgId, refetchKey, guideState]);
 
   const completedCount = steps.filter((s) => s.complete).length;
   const allComplete = completedCount === steps.length;
@@ -127,9 +160,10 @@ export function useOnboardingStatus(): OnboardingStatus {
     isLoading,
     allComplete,
     completedCount,
-    hidden,
-    hide,
-    show,
+    guideState,
+    collapse,
+    expand,
+    dismiss,
     refetch,
   };
 }

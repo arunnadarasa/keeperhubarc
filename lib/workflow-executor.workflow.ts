@@ -27,12 +27,17 @@ import {
   detectTriggerType,
   recordWorkflowComplete,
 } from "@/keeperhub/lib/metrics/instrumentation/workflow";
-import { fallbackCompleteExecution } from "@/keeperhub/lib/execution-fallback";
+import { clearExecution } from "@/keeperhub/lib/step-success-tracker";
 import { ARRAY_SOURCE_RE } from "@/keeperhub/lib/for-each-utils";
 import {
   buildEdgesBySourceHandle,
   type EdgesBySourceHandle,
 } from "@/keeperhub/lib/edge-handle-utils";
+import {
+  collectAllSkippedTargets,
+  collectSkippedTargets,
+  type ConditionDecision,
+} from "@/keeperhub/lib/skipped-branch-utils";
 import { resolveConditionExpression } from "@/keeperhub/lib/condition-resolver";
 import {
   applyBigIntConversion,
@@ -116,13 +121,28 @@ function replaceTemplateVariable(
   rest: string,
   outputs: NodeOutputs,
   evalContext: Record<string, unknown>,
-  varCounter: { value: number }
+  varCounter: { value: number },
+  // start custom keeperhub code //
+  nodeMap?: ReadonlyMap<string, unknown>,
+  executionResults?: Record<string, ExecutionResult>
+  // end keeperhub code //
 ): string {
   const sanitizedNodeId = nodeId.replace(/[^a-zA-Z0-9]/g, "_");
   const output = outputs[sanitizedNodeId];
 
   // KEEP-1284: Throw error when referenced node output doesn't exist
   if (!output) {
+    // start custom keeperhub code //
+    // Dead-branch grace: if the node exists in the workflow graph but was never
+    // executed (it sits on a branch that a condition did not take), return
+    // undefined instead of throwing so the condition evaluates gracefully.
+    if (nodeMap?.has(nodeId) && executionResults && !(nodeId in executionResults)) {
+      const varName = `__v${varCounter.value}`;
+      varCounter.value += 1;
+      evalContext[varName] = undefined;
+      return varName;
+    }
+    // end keeperhub code //
     throw new Error(
       `Condition references node "${nodeId}" but no output was found. The referenced node may not have executed or produced output.`
     );
@@ -211,7 +231,11 @@ type ConditionEvalResult = {
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: KEEP-1284 validation requires comprehensive error checking
 export function evaluateConditionExpression(
   conditionExpression: unknown,
-  outputs: NodeOutputs
+  outputs: NodeOutputs,
+  // start custom keeperhub code //
+  nodeMap?: ReadonlyMap<string, unknown>,
+  executionResults?: Record<string, ExecutionResult>
+  // end keeperhub code //
 ): ConditionEvalResult {
   console.log("[Condition] Original expression:", conditionExpression);
 
@@ -252,7 +276,11 @@ export function evaluateConditionExpression(
             rest,
             outputs,
             evalContext,
-            varCounter
+            varCounter,
+            // start custom keeperhub code //
+            nodeMap,
+            executionResults
+            // end keeperhub code //
           );
           // Store the resolved value with a readable key (the display text from the template)
           resolvedValues[rest] = evalContext[varName];
@@ -331,6 +359,10 @@ async function executeActionStep(input: {
   config: Record<string, unknown>;
   outputs: NodeOutputs;
   context: StepContext;
+  // start custom keeperhub code //
+  nodeMap?: ReadonlyMap<string, unknown>;
+  executionResults?: Record<string, ExecutionResult>;
+  // end keeperhub code //
 }) {
   const { actionType, config, outputs, context } = input;
 
@@ -354,7 +386,14 @@ async function executeActionStep(input: {
     let evaluationError: string | undefined;
 
     try {
-      const result = evaluateConditionExpression(originalExpression, outputs);
+      // start custom keeperhub code //
+      const result = evaluateConditionExpression(
+        originalExpression,
+        outputs,
+        input.nodeMap,
+        input.executionResults
+      );
+      // end keeperhub code //
       evaluatedCondition = result.result;
       resolvedValues = result.resolvedValues;
     } catch (error) {
@@ -1027,6 +1066,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
   const edgesBySource = new Map<string, string[]>();
   // start custom keeperhub code //
   const edgesBySourceHandle = buildEdgesBySourceHandle(edges);
+  const conditionDecisions = new Map<string, ConditionDecision>();
   // end keeperhub code //
   for (const edge of edges) {
     const targets = edgesBySource.get(edge.source) || [];
@@ -1152,6 +1192,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
 
     return processedConfig;
   }
+  // end keeperhub code //
 
   // -------------------------------------------------------------------
   // For Each: body-node executor (scoped outputs, body-only edges)
@@ -1587,6 +1628,24 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     };
   }
 
+  // start custom keeperhub code //
+  function processSettledResults(
+    settled: PromiseSettledResult<void>[],
+    nodeIds: string[]
+  ): void {
+    for (const [i, outcome] of settled.entries()) {
+      if (outcome.status === "rejected") {
+        const nodeId = nodeIds[i];
+        if (!(nodeId in results)) {
+          const errorMessage =
+            outcome.reason instanceof Error
+              ? outcome.reason.message
+              : String(outcome.reason);
+          results[nodeId] = { success: false, error: errorMessage };
+        }
+      }
+    }
+  }
   // end keeperhub code //
 
   // Helper to execute a single node
@@ -1618,9 +1677,10 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       };
 
       const nextNodes = edgesBySource.get(nodeId) || [];
-      await Promise.all(
+      const settled = await Promise.allSettled(
         nextNodes.map((nextNodeId) => executeNode(nextNodeId, visited))
       );
+      processSettledResults(settled, nextNodes);
       return;
     }
 
@@ -1781,6 +1841,10 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           config: processedConfig,
           outputs,
           context: stepContext,
+          // start custom keeperhub code //
+          nodeMap,
+          executionResults: results,
+          // end keeperhub code //
         });
 
         console.log("[Workflow Executor] Step result received:", {
@@ -1857,9 +1921,10 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             currentEdgesBySource: edgesBySource,
             continueAfterCollect: async (collectId) => {
               const nextNodes = edgesBySource.get(collectId) ?? [];
-              await Promise.all(
+              const settled = await Promise.allSettled(
                 nextNodes.map((nextNodeId) => executeNode(nextNodeId, visited))
               );
+              processSettledResults(settled, nextNodes);
             },
           });
 
@@ -1881,21 +1946,34 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           if (handleMap) {
             // Handle-aware routing: use sourceHandle to determine targets
             const handleId = conditionResult === true ? "true" : "false";
+            const notTakenHandle = conditionResult === true ? "false" : "true";
             const handleTargets = handleMap.get(handleId) ?? [];
-            await Promise.all(
+
+            // Record decision for branch-aware finalSuccess
+            conditionDecisions.set(nodeId, {
+              taken: handleId,
+              skippedTargets: collectSkippedTargets(
+                nodeId,
+                notTakenHandle,
+                edgesBySourceHandle
+              ),
+            });
+            const handleSettled = await Promise.allSettled(
               handleTargets.map((nextNodeId) =>
                 executeNode(nextNodeId, visited)
               )
             );
+            processSettledResults(handleSettled, handleTargets);
           } else {
             // Legacy fallback: no sourceHandle on edges, use old gate behavior
             if (conditionResult === true) {
               const nextNodes = edgesBySource.get(nodeId) ?? [];
-              await Promise.all(
+              const legacySettled = await Promise.allSettled(
                 nextNodes.map((nextNodeId) =>
                   executeNode(nextNodeId, visited)
                 )
               );
+              processSettledResults(legacySettled, nextNodes);
             }
           }
           // end keeperhub code //
@@ -1907,9 +1985,10 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             nextNodes.length,
             "next nodes in parallel"
           );
-          await Promise.all(
+          const nextSettled = await Promise.allSettled(
             nextNodes.map((nextNodeId) => executeNode(nextNodeId, visited))
           );
+          processSettledResults(nextSettled, nextNodes);
         }
       }
     } catch (error) {
@@ -1949,12 +2028,40 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     incrementConcurrentExecutions();
     // end keeperhub code //
 
-    await Promise.all(triggerNodes.map((trigger) => executeNode(trigger.id)));
+    const triggerNodeIds = triggerNodes.map((trigger) => trigger.id);
+    const triggerSettled = await Promise.allSettled(
+      triggerNodeIds.map((id) => executeNode(id))
+    );
+    processSettledResults(triggerSettled, triggerNodeIds);
 
-    const finalSuccess = Object.values(results).every((r) => r.success);
+    // start custom keeperhub code //
+    // Branch-aware finalSuccess: exclude nodes on dead (not-taken) condition branches
+    const allSkippedTargets = collectAllSkippedTargets(conditionDecisions);
+    const finalSuccess = Object.entries(results).every(
+      ([nodeId, r]) => r.success || allSkippedTargets.has(nodeId)
+    );
+    // end keeperhub code //
     const duration = Date.now() - workflowStartTime;
 
     // start custom keeperhub code //
+    // Diagnostic logging for branching workflow failures
+    if (!finalSuccess && conditionDecisions.size > 0) {
+      const failedNodes = Object.entries(results)
+        .filter(([, r]) => !r.success)
+        .map(([id, r]) => ({ id, error: r.error }));
+      const unexecutedNodes = [...nodeMap.keys()].filter(
+        (id) => !(id in results)
+      );
+      console.log("[Workflow Executor] Branch-aware finalSuccess=false diagnostic:", {
+        failedNodes,
+        conditionDecisions: [...conditionDecisions.entries()].map(
+          ([id, d]) => ({ id, ...d })
+        ),
+        skippedTargets: [...allSkippedTargets],
+        unexecutedNodes,
+      });
+    }
+
     recordWorkflowComplete({
       workflowId,
       executionId,
@@ -1981,28 +2088,22 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             executionId,
             status: finalSuccess ? "success" : "error",
             output: Object.values(results).at(-1)?.data,
-            error: Object.values(results).find((r) => !r.success)?.error,
+            error: finalSuccess
+              ? undefined
+              : Object.values(results).find((r) => !r.success)?.error,
             startTime: workflowStartTime,
           },
         });
-        console.log("[Workflow Executor] Updated execution record");
-      } catch (error) {
+      } catch (completeError) {
         logSystemError(
-          ErrorCategory.DATABASE,
+          ErrorCategory.WORKFLOW_ENGINE,
           "[Workflow Executor] Failed to update execution record:",
-          error,
+          completeError,
           {
             ...(workflowId ? { workflow_id: workflowId } : {}),
             ...(executionId ? { execution_id: executionId } : {}),
           }
         );
-        // start custom keeperhub code //
-        await fallbackCompleteExecution({
-          executionId,
-          status: finalSuccess ? "success" : "error",
-          error: Object.values(results).find((r) => !r.success)?.error,
-        });
-        // end keeperhub code //
       }
     }
 
@@ -2058,13 +2159,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             ...(executionId ? { execution_id: executionId } : {}),
           }
         );
-        // start custom keeperhub code //
-        await fallbackCompleteExecution({
-          executionId,
-          status: "error",
-          error: errorMessage,
-        });
-        // end keeperhub code //
       }
     }
 
@@ -2074,5 +2168,11 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       outputs,
       error: errorMessage,
     };
+  } finally {
+    // start custom keeperhub code //
+    if (executionId) {
+      clearExecution(executionId);
+    }
+    // end keeperhub code //
   }
 }

@@ -69,7 +69,7 @@ Use Playwright when the test **requires a browser** or validates **user-visible 
 
 Playwright tests live in `tests/e2e/playwright/`. They run against a live (or deployed) app with a real database. The test user authenticates through the actual sign-up/login UI or via the persistent test account.
 
-**Config:** `playwright.config.ts` -- single worker, chromium only, auto-starts `pnpm dev` locally.
+**Config:** `playwright.config.ts` -- serial execution (`fullyParallel: false`), single worker, 2 retries, chromium only. Reporter: `github` + `html` in CI, `list` locally. Auto-starts `pnpm dev` locally (disabled in CI and deployed environments).
 
 ### Vitest E2E (API/infrastructure)
 
@@ -90,6 +90,47 @@ Vitest E2E tests live in `tests/e2e/vitest/`. They connect directly to the datab
 
 If the assertion is about **what the user sees in the browser**, use Playwright.
 If the assertion is about **what happens in the database, queue, API, or chain**, use Vitest.
+
+---
+
+## CI Execution Model
+
+All E2E tests are managed by workflow files under `.github/workflows/`. See `docs/testing/README.md` for the full architecture, design decisions, secrets reference, and test data seeding details.
+
+### Trigger summary
+
+| Event | Ephemeral vitest | Ephemeral playwright | Remote playwright |
+|-------|-----------------|---------------------|-------------------|
+| Push to `staging`/`prod` | Yes | Yes (gates deploy) | Yes (post-deploy) |
+| PR with `run-e2e-tests-ephemeral` label | Yes | Yes | No |
+| PR with `deploy-pr-environment` + `run-e2e-tests-pr-deploy` labels | No | No | Yes |
+| `[skip e2e]` in commit message | Skipped | Skipped | Skipped |
+
+### Execution order on push to staging/prod
+
+```
+ci-pipeline.yml:
+    |
+    +-- e2e-tests-ephemeral.yml
+    |        |
+    |        +-- e2e-vitest-ephemeral (DB + SQS + built app)
+    |                 |
+    |                 +-- e2e-playwright-ephemeral (DB + built app, serial)
+    |
+    +-- deploy-keeperhub.yaml (after ephemeral tests pass)
+             |
+             +-- build-and-deploy
+                      |
+                      +-- e2e-playwright-remote (against deployed URL)
+```
+
+### Playwright stability decisions
+
+- **Serial execution** (`fullyParallel: false`, `workers: 1`): shared persistent test user session makes parallel unsafe
+- **Retries: 2**: handles environmental flakiness; 3 consecutive failures = real failure
+- **No sharding**: single runner completes full suite in ~6 min; sharding added cost without speed gain
+- **Deterministic waits**: `data-ready`, `data-state`, `data-page-state` attributes replace `waitForTimeout()` and `networkidle`
+- **Reporter**: `github` in CI (annotates PRs), `list` locally
 
 ---
 

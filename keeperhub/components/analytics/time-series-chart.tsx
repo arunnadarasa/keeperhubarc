@@ -23,6 +23,7 @@ import {
 const CHART_COLORS = {
   success: "var(--color-keeperhub-green)",
   error: "var(--chart-1)",
+  cancelled: "var(--color-orange-500, #f97316)",
   running: "var(--chart-2)",
   pending: "var(--chart-3)",
 } as const;
@@ -115,6 +116,7 @@ function TimeSeriesContent({
     timestamp: string;
     success: number;
     error: number;
+    cancelled: number;
     pending: number;
     running: number;
   }[];
@@ -173,6 +175,14 @@ function TimeSeriesContent({
           fillOpacity={0.4}
           stackId="executions"
           stroke={CHART_COLORS.error}
+          type="monotone"
+        />
+        <Area
+          dataKey="cancelled"
+          fill={CHART_COLORS.cancelled}
+          fillOpacity={0.4}
+          stackId="executions"
+          stroke={CHART_COLORS.cancelled}
           type="monotone"
         />
         <Area

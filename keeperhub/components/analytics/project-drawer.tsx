@@ -154,7 +154,9 @@ export function ProjectDrawer(): ReactNode {
             >
               <span
                 className="inline-block size-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: project.color ?? "#6b7280" }}
+                style={{
+                  backgroundColor: project.color ?? "var(--color-text-muted)",
+                }}
               />
               <span className="truncate">{project.name}</span>
             </button>

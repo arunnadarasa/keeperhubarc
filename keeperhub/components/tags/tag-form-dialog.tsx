@@ -12,19 +12,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { COLOR_PALETTE } from "@/keeperhub/lib/palette";
 import { api, type Tag } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
-
-const COLOR_PALETTE = [
-  "#4A90D9",
-  "#7B61FF",
-  "#E06C75",
-  "#98C379",
-  "#E5C07B",
-  "#56B6C2",
-  "#C678DD",
-  "#D19A66",
-];
 
 type TagFormDialogProps = {
   open: boolean;

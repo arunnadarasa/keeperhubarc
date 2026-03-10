@@ -86,18 +86,16 @@ export function OverlayProvider({ children }: OverlayProviderProps) {
   );
 
   const pop = useCallback(() => {
+    let closedItem: OverlayStackItem | undefined;
     setStack((prev) => {
       if (prev.length <= 1) {
-        // If only one item, close it and call onClose
-        const item = prev[0];
-        item?.options.onClose?.();
+        closedItem = prev[0];
         return [];
       }
-      // Pop the top item and call its onClose
-      const poppedItem = prev.at(-1);
-      poppedItem?.options.onClose?.();
+      closedItem = prev.at(-1);
       return prev.slice(0, -1);
     });
+    queueMicrotask(() => closedItem?.options.onClose?.());
   }, []);
 
   const replace = useCallback(
@@ -113,42 +111,47 @@ export function OverlayProvider({ children }: OverlayProviderProps) {
         props: (props ?? {}) as Record<string, unknown>,
         options: options ?? {},
       };
+      let replacedItem: OverlayStackItem | undefined;
       setStack((prev) => {
         if (prev.length === 0) {
           return [item];
         }
-        // Replace the top item
-        const poppedItem = prev.at(-1);
-        poppedItem?.options.onClose?.();
+        replacedItem = prev.at(-1);
         return [...prev.slice(0, -1), item];
       });
+      queueMicrotask(() => replacedItem?.options.onClose?.());
       return id;
     },
     []
   );
 
   const closeAll = useCallback(() => {
+    let closedItems: OverlayStackItem[] = [];
     setStack((prev) => {
-      // Call onClose for all items
-      for (const item of prev) {
+      closedItems = prev;
+      return [];
+    });
+    queueMicrotask(() => {
+      for (const item of closedItems) {
         item.options.onClose?.();
       }
-      return [];
     });
   }, []);
 
   const close = useCallback((id: string) => {
+    let closedItems: OverlayStackItem[] = [];
     setStack((prev) => {
       const index = prev.findIndex((item) => item.id === id);
       if (index === -1) {
         return prev;
       }
-
-      // Call onClose for all items from this index onwards
-      for (let i = index; i < prev.length; i++) {
-        prev[i].options.onClose?.();
-      }
+      closedItems = prev.slice(index);
       return prev.slice(0, index);
+    });
+    queueMicrotask(() => {
+      for (const item of closedItems) {
+        item.options.onClose?.();
+      }
     });
   }, []);
 

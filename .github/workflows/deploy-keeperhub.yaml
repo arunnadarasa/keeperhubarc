@@ -1,45 +1,37 @@
+# Type: reusable | Called by ci-pipeline.yml
+# Pure deployer: expects images to already exist in ECR (built by build-images.yml).
 on:
-  workflow_run:
-    workflows: ["E2E Tests"]
-    types: [completed]
-    branches:
-      - staging
-      - prod
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      image_tag:
+        description: 'Pre-built image tag (short SHA).'
+        type: string
+        required: false
+        default: ''
 
 name: deploy-keeperhub
 jobs:
-  build-and-deploy-keeperhub:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
-    environment: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && 'prod' || 'staging' }}
+  deploy:
+    environment: ${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
     runs-on: ubuntu-latest
     env:
-      HELM_FILE: deploy/keeperhub/${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && 'prod' || 'staging' }}/values.yaml
-      REGION: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && 'us-east-1' || 'us-east-2' }}
-      CLUSTER_NAME: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && 'maker-prod' || 'maker-staging' }}
-      ENVIRONMENT_TAG: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && 'prod' || 'staging' }}
+      HELM_FILE: deploy/keeperhub/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/values.yaml
+      REGION: ${{ github.ref_name == 'prod' && 'us-east-1' || 'us-east-2' }}
+      CLUSTER_NAME: ${{ github.ref_name == 'prod' && 'maker-prod' || 'maker-staging' }}
       NAMESPACE: keeperhub
       SERVICE_NAME: keeperhub
-      AWS_ECR_NAME: keeperhub-${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && 'prod' || 'staging' }}
       SERVICE_ACCOUNT_ROLE_ARN: ${{ vars.SERVICE_ACCOUNT_ROLE_ARN }}
-      # Auth provider build args (selected by deployment branch: prod vs staging)
-      NEXT_PUBLIC_AUTH_PROVIDERS: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && vars.NEXT_PUBLIC_AUTH_PROVIDERS_PROD || vars.NEXT_PUBLIC_AUTH_PROVIDERS_STAGING }}
-      NEXT_PUBLIC_GITHUB_CLIENT_ID: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && vars.NEXT_PUBLIC_GITHUB_CLIENT_ID_PROD || vars.NEXT_PUBLIC_GITHUB_CLIENT_ID_STAGING }}
-      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID_PROD || vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID_STAGING }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 1
 
       - name: Check commit message for skip flags
         id: skip
         run: |
           MSG=$(git log -1 --format=%B)
-          echo "skip_build=$([[ "$MSG" == *"[skip build]"* ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "skip_deploy=$([[ "$MSG" == *"[skip deploy]"* ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
       - name: Configure AWS credentials
@@ -53,48 +45,17 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Set up Docker Buildx
-        if: steps.skip.outputs.skip_build != 'true'
-        uses: docker/setup-buildx-action@v3
-
       - name: Extract commit hash
         id: vars
-        if: steps.skip.outputs.skip_build != 'true'
         shell: bash
-        run: |
-          echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Verify submodule token access
-        if: steps.skip.outputs.skip_build != 'true'
         env:
-          TOKEN: ${{ secrets.KEEPERHUB_SUBMODULE_TOKEN }}
+          INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
         run: |
-          for repo in keeperhub-events keeperhub-scheduler; do
-            status=$(curl -sf -o /dev/null -w "%{http_code}" \
-              -H "Authorization: Bearer $TOKEN" \
-              "https://api.github.com/repos/techops-services/$repo")
-            if [ "$status" != "200" ]; then
-              echo "::error::KEEPERHUB_SUBMODULE_TOKEN cannot access techops-services/$repo (HTTP $status). Token may be expired or revoked."
-              exit 1
-            fi
-            echo "Verified access to techops-services/$repo"
-          done
-
-      - name: Build and push all images to ECR
-        if: steps.skip.outputs.skip_build != 'true'
-        uses: docker/bake-action@v6
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPO: ${{ env.AWS_ECR_NAME }}
-          IMAGE_TAG: ${{ steps.vars.outputs.sha_short }}
-          NEXT_PUBLIC_AUTH_PROVIDERS: ${{ env.NEXT_PUBLIC_AUTH_PROVIDERS }}
-          NEXT_PUBLIC_GITHUB_CLIENT_ID: ${{ env.NEXT_PUBLIC_GITHUB_CLIENT_ID }}
-          NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ env.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
-          BUILDX_BAKE_GIT_AUTH_TOKEN: ${{ secrets.KEEPERHUB_SUBMODULE_TOKEN }}
-          ENVIRONMENT_TAG: ${{ env.ENVIRONMENT_TAG }}
-        with:
-          files: docker-bake.hcl
-          push: true
+          if [[ -n "${INPUT_IMAGE_TAG}" ]]; then
+            echo "sha_short=${INPUT_IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Replace variables in the Helm values file
         id: replace-vars
@@ -105,10 +66,10 @@ jobs:
           SERVICE_ACCOUNT_ROLE_ARN: ${{ env.SERVICE_ACCOUNT_ROLE_ARN }}
           AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
         run: |
-          sed -i 's|${ECR_REGISTRY}|'"$ECR_REGISTRY"'|g' $HELM_FILE
-          sed -i 's|${IMAGE_TAG}|'"$IMAGE_TAG"'|g' $HELM_FILE
-          sed -i 's|${SERVICE_ACCOUNT_ROLE_ARN}|'"$SERVICE_ACCOUNT_ROLE_ARN"'|g' $HELM_FILE
-          sed -i 's|${AWS_ACCOUNT_ID}|'"$AWS_ACCOUNT_ID"'|g' $HELM_FILE
+          sed -i "s|\${ECR_REGISTRY}|${ECR_REGISTRY}|g" "$HELM_FILE"
+          sed -i "s|\${IMAGE_TAG}|${IMAGE_TAG}|g" "$HELM_FILE"
+          sed -i "s|\${SERVICE_ACCOUNT_ROLE_ARN}|${SERVICE_ACCOUNT_ROLE_ARN}|g" "$HELM_FILE"
+          sed -i "s|\${AWS_ACCOUNT_ID}|${AWS_ACCOUNT_ID}|g" "$HELM_FILE"
 
       - name: Configure kubectl
         if: steps.skip.outputs.skip_deploy != 'true'
@@ -118,7 +79,7 @@ jobs:
       - name: Apply RBAC for Job Spawner
         if: steps.skip.outputs.skip_deploy != 'true'
         run: |
-          kubectl apply -f deploy/keeperhub/${{ (github.event.workflow_run.head_branch || github.ref_name) == 'prod' && 'prod' || 'staging' }}/rbac.yaml
+          kubectl apply -f deploy/keeperhub/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/rbac.yaml
 
       - name: Deploying Service to Kubernetes with Helm
         id: deploy
@@ -134,3 +95,77 @@ jobs:
           chart-repository: https://techops-services.github.io/helm-charts
           version: 0.2.1
           atomic: true
+
+  # DISABLED: remote E2E tests temporarily disabled while KEEP-1351 stabilises auth/rate-limit infrastructure
+  e2e-playwright-remote:
+    needs: deploy
+    if: ${{ vars.ENABLE_E2E_REMOTE_TESTS == 'true' }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
+    env:
+      BASE_URL: ${{ github.ref_name == 'prod' && 'https://app.keeperhub.com' || 'https://app-staging.keeperhub.com' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - name: Setup Node.js, pnpm, and Playwright
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          install-playwright: "true"
+
+      - name: Fetch TEST_API_KEY from Parameter Store
+        run: |
+          TEST_API_KEY=$(aws ssm get-parameter \
+            --name "/eks/maker-staging/keeperhub/test-api-key" \
+            --with-decryption --query "Parameter.Value" --output text \
+            --region us-east-2)
+          echo "::add-mask::$TEST_API_KEY"
+          echo "TEST_API_KEY=$TEST_API_KEY" >> "$GITHUB_ENV"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Wait for deployment to be ready
+        run: |
+          echo "Waiting for ${{ env.BASE_URL }}/api/health to return 200..."
+          CURL_ARGS=(-s -o /dev/null -w "%{http_code}")
+          if [[ -n "$CF_ACCESS_CLIENT_ID" && -n "$CF_ACCESS_CLIENT_SECRET" ]]; then
+            CURL_ARGS+=(-H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
+          fi
+          for i in {1..30}; do
+            STATUS=$(curl "${CURL_ARGS[@]}" "${{ env.BASE_URL }}/api/health" || echo "000")
+            if [[ "$STATUS" == "200" ]]; then
+              echo "Deployment is ready!"
+              exit 0
+            fi
+            echo "Attempt $i/30: got HTTP $STATUS, waiting 10s..."
+            sleep 10
+          done
+          echo "Deployment did not become ready in time"
+          exit 1
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+
+      - name: Run Playwright tests against deployed environment
+        run: pnpm exec playwright test --grep-invert "happy-paths"
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+          TEST_API_KEY: ${{ env.TEST_API_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          CI: true
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-remote-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
