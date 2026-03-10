@@ -153,6 +153,7 @@ describe("StripeBillingProvider", () => {
               data: [
                 {
                   price: { id: "price_pro" },
+                  current_period_start: 1_706_659_200,
                   current_period_end: 1_706_745_600,
                 },
               ],
@@ -241,6 +242,7 @@ describe("StripeBillingProvider", () => {
               data: [
                 {
                   price: { id: "price_pro" },
+                  current_period_start: 1_706_659_200,
                   current_period_end: 1_706_745_600,
                 },
               ],
@@ -365,6 +367,7 @@ describe("StripeBillingProvider", () => {
           data: [
             {
               price: { id: "price_pro_25k" },
+              current_period_start: 1_706_659_200,
               current_period_end: 1_706_745_600,
             },
           ],
@@ -376,7 +379,7 @@ describe("StripeBillingProvider", () => {
       expect(result.priceId).toBe("price_pro_25k");
       expect(result.status).toBe("active");
       expect(result.cancelAtPeriodEnd).toBe(false);
-      expect(result.periodStart).toEqual(new Date(1_704_067_200 * 1000));
+      expect(result.periodStart).toEqual(new Date(1_706_659_200 * 1000));
       expect(result.periodEnd).toEqual(new Date(1_706_745_600 * 1000));
     });
   });

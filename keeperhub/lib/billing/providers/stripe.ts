@@ -49,7 +49,10 @@ function getSubscriptionPeriod(subscription: Stripe.Subscription): {
   start: Date;
   end: Date | null;
 } {
-  const start = new Date(subscription.start_date * 1000);
+  const currentPeriodStart = subscription.items.data[0]?.current_period_start;
+  const start = currentPeriodStart
+    ? new Date(currentPeriodStart * 1000)
+    : new Date(subscription.start_date * 1000);
   const currentPeriodEnd = subscription.items.data[0]?.current_period_end;
   const end = currentPeriodEnd ? new Date(currentPeriodEnd * 1000) : null;
   return { start, end };
