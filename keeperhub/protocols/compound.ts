@@ -93,11 +93,6 @@ export default defineProtocol({
           type: "uint128",
           label: "Collateral Balance",
         },
-        {
-          name: "_reserved",
-          type: "uint128",
-          label: "Reserved",
-        },
       ],
     },
     {
