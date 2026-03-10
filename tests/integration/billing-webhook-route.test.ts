@@ -11,6 +11,7 @@ const mockUpdateWhere = vi
 const mockUpdateSet = vi.fn().mockReturnValue({ where: mockUpdateWhere });
 
 const mockSelectLimit = vi.fn().mockResolvedValue([]);
+const mockDeleteWhere = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("@/lib/db", () => ({
   db: {
@@ -19,6 +20,9 @@ vi.mock("@/lib/db", () => ({
     })),
     update: vi.fn(() => ({
       set: mockUpdateSet,
+    })),
+    delete: vi.fn(() => ({
+      where: mockDeleteWhere,
     })),
     select: vi.fn(() => ({
       from: vi.fn(() => ({
@@ -166,7 +170,7 @@ describe("POST /api/billing/webhooks/stripe", () => {
     expect(json.error).toContain("Invalid signature");
   });
 
-  it("returns generic error message on handler failure", async () => {
+  it("releases claim and returns error on handler failure", async () => {
     mockVerifyWebhook.mockResolvedValue({
       type: "invoice.paid",
       providerEventId: "evt_fail",
@@ -182,6 +186,7 @@ describe("POST /api/billing/webhooks/stripe", () => {
     const json = await response.json();
     expect(json.error).toBe("Webhook processing failed");
     expect(json.error).not.toContain("DB connection lost");
+    expect(mockDeleteWhere).toHaveBeenCalled();
   });
 
   it("returns 404 when billing is disabled", async () => {

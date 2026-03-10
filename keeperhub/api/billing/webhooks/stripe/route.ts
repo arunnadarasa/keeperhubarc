@@ -33,6 +33,12 @@ async function markProcessed(providerEventId: string): Promise<void> {
     .where(eq(billingEvents.providerEventId, providerEventId));
 }
 
+async function releaseClaim(providerEventId: string): Promise<void> {
+  await db
+    .delete(billingEvents)
+    .where(eq(billingEvents.providerEventId, providerEventId));
+}
+
 export async function POST(request: Request): Promise<NextResponse> {
   if (!isBillingEnabled()) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -78,8 +84,14 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json({ received: true });
     }
 
-    await handleBillingEvent(event, provider);
-    await markProcessed(event.providerEventId);
+    try {
+      await handleBillingEvent(event, provider);
+      await markProcessed(event.providerEventId);
+    } catch (handlerError) {
+      // Release the claim so Stripe retries can re-process this event
+      await releaseClaim(event.providerEventId);
+      throw handlerError;
+    }
 
     return NextResponse.json({ received: true });
   } catch (error) {
