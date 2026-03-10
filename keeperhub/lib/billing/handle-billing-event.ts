@@ -140,30 +140,30 @@ async function handleCheckoutCompleted(
     details.priceId
   );
 
-  const result = await db
-    .update(organizationSubscriptions)
-    .set({
-      providerSubscriptionId,
-      providerPriceId: details.priceId,
-      plan,
-      tier,
-      status: "active",
-      currentPeriodStart: details.periodStart,
-      currentPeriodEnd: details.periodEnd,
-      cancelAtPeriodEnd: details.cancelAtPeriodEnd,
-      updatedAt: new Date(),
+  const subscriptionData = {
+    providerSubscriptionId,
+    providerPriceId: details.priceId,
+    plan,
+    tier,
+    status: "active" as const,
+    currentPeriodStart: details.periodStart,
+    currentPeriodEnd: details.periodEnd,
+    cancelAtPeriodEnd: details.cancelAtPeriodEnd,
+    updatedAt: new Date(),
+  };
+
+  await db
+    .insert(organizationSubscriptions)
+    .values({
+      organizationId,
+      ...subscriptionData,
     })
-    .where(eq(organizationSubscriptions.organizationId, organizationId));
+    .onConflictDoUpdate({
+      target: organizationSubscriptions.organizationId,
+      set: subscriptionData,
+    });
 
-  if (Array.isArray(result) && result.length === 0) {
-    console.warn(
-      LOG_PREFIX,
-      "checkout.completed - no subscription row found for org:",
-      organizationId
-    );
-  }
-
-  console.info(LOG_PREFIX, "Updated subscription for org:", organizationId);
+  console.info(LOG_PREFIX, "Upserted subscription for org:", organizationId);
 }
 
 // Build the DB update payload for a subscription.updated event.

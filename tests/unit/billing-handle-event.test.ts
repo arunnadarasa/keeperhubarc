@@ -27,10 +27,18 @@ import { db } from "@/lib/db";
 
 const mockSet = vi.fn().mockReturnValue({ where: vi.fn() });
 const mockWhere = vi.fn();
+const mockOnConflictDoUpdate = vi.fn();
+const mockInsertValues = vi.fn().mockReturnValue({
+  onConflictDoUpdate: mockOnConflictDoUpdate,
+});
 
 vi.mocked(db.update).mockReturnValue({
   set: mockSet,
 } as unknown as ReturnType<typeof db.update>);
+
+vi.mocked(db.insert).mockReturnValue({
+  values: mockInsertValues,
+} as unknown as ReturnType<typeof db.insert>);
 
 vi.mocked(db.select).mockReturnValue({
   from: vi.fn().mockReturnValue({
@@ -87,6 +95,9 @@ function makeEvent(
 beforeEach(() => {
   vi.clearAllMocks();
   mockSet.mockReturnValue({ where: mockWhere });
+  mockInsertValues.mockReturnValue({
+    onConflictDoUpdate: mockOnConflictDoUpdate,
+  });
   mockBillOverageForOrg.mockResolvedValue({
     billed: false,
     reason: "no overage",
@@ -105,13 +116,24 @@ describe("handleBillingEvent", () => {
       await handleBillingEvent(event, provider);
 
       expect(provider.getSubscriptionDetails).toHaveBeenCalledWith("sub_1");
-      expect(db.update).toHaveBeenCalled();
-      expect(mockSet).toHaveBeenCalledWith(
+      expect(db.insert).toHaveBeenCalled();
+      expect(mockInsertValues).toHaveBeenCalledWith(
         expect.objectContaining({
+          organizationId: "org_1",
           providerSubscriptionId: "sub_1",
           plan: "pro",
           tier: "25k",
           status: "active",
+        })
+      );
+      expect(mockOnConflictDoUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          set: expect.objectContaining({
+            providerSubscriptionId: "sub_1",
+            plan: "pro",
+            tier: "25k",
+            status: "active",
+          }),
         })
       );
     });
@@ -125,7 +147,7 @@ describe("handleBillingEvent", () => {
       await handleBillingEvent(event, provider);
 
       expect(provider.getSubscriptionDetails).not.toHaveBeenCalled();
-      expect(db.update).not.toHaveBeenCalled();
+      expect(db.insert).not.toHaveBeenCalled();
     });
 
     it("skips when providerSubscriptionId is missing", async () => {
@@ -137,7 +159,7 @@ describe("handleBillingEvent", () => {
       await handleBillingEvent(event, provider);
 
       expect(provider.getSubscriptionDetails).not.toHaveBeenCalled();
-      expect(db.update).not.toHaveBeenCalled();
+      expect(db.insert).not.toHaveBeenCalled();
     });
 
     it("returns early when priceId cannot be resolved", async () => {
@@ -158,7 +180,7 @@ describe("handleBillingEvent", () => {
       await handleBillingEvent(event, provider);
 
       expect(provider.getSubscriptionDetails).toHaveBeenCalledWith("sub_1");
-      expect(db.update).not.toHaveBeenCalled();
+      expect(db.insert).not.toHaveBeenCalled();
     });
   });
 
