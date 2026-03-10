@@ -1,5 +1,5 @@
 // start custom keeperhub code //
-import { and, eq, lt, notInArray, sql } from "drizzle-orm";
+import { and, eq, gt, lt, notInArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import { authenticateInternalService } from "@/keeperhub/lib/internal-service-auth";
@@ -44,7 +44,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         executionId: workflowExecutionLogs.executionId,
       })
       .from(workflowExecutionLogs)
-      .where(sql`${workflowExecutionLogs.completedAt} > ${cutoff}`)
+      .where(gt(workflowExecutionLogs.completedAt, cutoff))
       .groupBy(workflowExecutionLogs.executionId);
 
     const excludeIds = activeExecutionIds.map((row) => row.executionId);
