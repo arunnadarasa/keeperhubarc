@@ -112,6 +112,7 @@ export default defineProtocol({
       contract: "depositPool",
       function: "deposit",
       inputs: [],
+      payable: true,
     },
     {
       slug: "burn-reth",
