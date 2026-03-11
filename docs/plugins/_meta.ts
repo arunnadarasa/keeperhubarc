@@ -9,6 +9,7 @@ export default {
   cowswap: "CoW Swap",
   morpho: "Morpho",
   pendle: "Pendle",
+  "rocket-pool": "Rocket Pool",
   sky: "Sky",
   spark: "Spark",
   uniswap: "Uniswap",
