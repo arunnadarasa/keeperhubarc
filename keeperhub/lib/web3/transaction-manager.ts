@@ -10,9 +10,10 @@
  * @see docs/keeperhub/KEEP-1240/gas.md for gas strategy specification
  */
 
-import { ethers } from "ethers";
+import type { ethers } from "ethers";
 import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
 import { initializeParaSigner } from "@/keeperhub/lib/para/wallet-helpers";
+import { getRpcProviderFromUrls } from "@/lib/rpc/provider-factory";
 import {
   type TriggerType as GasTriggerType,
   getGasStrategy,
@@ -271,7 +272,8 @@ export async function withNonceSession<T>(
   fn: (session: NonceSession) => Promise<T>
 ): Promise<T> {
   const nonceManager = getNonceManager();
-  const provider = new ethers.JsonRpcProvider(context.rpcUrl);
+  const rpcManager = getRpcProviderFromUrls(context.rpcUrl);
+  const provider = rpcManager.getProvider();
 
   // Start session (acquires lock, fetches nonce, validates)
   const { session, validation } = await nonceManager.startSession(
@@ -309,6 +311,8 @@ export async function getCurrentNonce(
   walletAddress: string,
   rpcUrl: string
 ): Promise<number> {
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
-  return await provider.getTransactionCount(walletAddress, "pending");
+  const rpcManager = getRpcProviderFromUrls(rpcUrl);
+  return await rpcManager.executeWithFailover((provider) =>
+    provider.getTransactionCount(walletAddress, "pending")
+  );
 }

@@ -9,7 +9,8 @@ import { db } from "@/lib/db";
 import { explorerConfigs } from "@/lib/db/schema";
 import { fetchEtherscanSourceCode } from "@/lib/explorer/etherscan";
 import { detectProxyViaRpc } from "@/lib/explorer/proxy-detection";
-import { getChainIdFromNetwork, resolveRpcConfig } from "@/lib/rpc";
+import { getChainIdFromNetwork } from "@/lib/rpc";
+import { getRpcProvider } from "@/lib/rpc/provider-factory";
 
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "";
 
@@ -253,60 +254,58 @@ async function getDiamondFacets(
   contractAddress: string,
   chainId: number
 ): Promise<string[]> {
-  // Get RPC config (using default, no user preferences needed for this)
-  const rpcConfig = await resolveRpcConfig(chainId);
-  if (!rpcConfig) {
-    throw new Error(`No RPC config found for chain ${chainId}`);
-  }
+  const rpcManager = await getRpcProvider({ chainId });
 
-  const provider = new ethers.JsonRpcProvider(rpcConfig.primaryRpcUrl);
-  const diamondContract = new ethers.Contract(
-    contractAddress,
-    DIAMOND_LOUPE_ABI,
-    provider
-  );
-
-  // Try to get facet addresses using the loupe interface
-  try {
-    const facetAddresses = (await diamondContract.facetAddresses()) as string[];
-    const validAddresses = facetAddresses.filter((addr) =>
-      ethers.isAddress(addr)
+  return rpcManager.executeWithFailover(async (provider) => {
+    const diamondContract = new ethers.Contract(
+      contractAddress,
+      DIAMOND_LOUPE_ABI,
+      provider
     );
-    if (validAddresses.length > 0) {
-      console.log(
-        "[Diamond] Found facets via facetAddresses():",
-        validAddresses
+
+    // Try to get facet addresses using the loupe interface
+    try {
+      const facetAddresses =
+        (await diamondContract.facetAddresses()) as string[];
+      const validAddresses = facetAddresses.filter((addr) =>
+        ethers.isAddress(addr)
       );
-      return validAddresses;
+      if (validAddresses.length > 0) {
+        console.log(
+          "[Diamond] Found facets via facetAddresses():",
+          validAddresses
+        );
+        return validAddresses;
+      }
+    } catch (error) {
+      console.log(
+        "[Diamond] facetAddresses() not available, trying facets():",
+        error instanceof Error ? error.message : "Unknown error"
+      );
     }
-  } catch (error) {
-    console.log(
-      "[Diamond] facetAddresses() not available, trying facets():",
-      error instanceof Error ? error.message : "Unknown error"
-    );
-  }
 
-  // Fallback: try facets() which returns more detailed info
-  try {
-    const facets = (await diamondContract.facets()) as Array<{
-      facetAddress: string;
-      functionSelectors: string[];
-    }>;
-    const addresses = facets.map((f) => f.facetAddress);
-    const validAddresses = addresses.filter((addr) => ethers.isAddress(addr));
-    if (validAddresses.length > 0) {
-      console.log("[Diamond] Found facets via facets():", validAddresses);
-      return validAddresses;
+    // Fallback: try facets() which returns more detailed info
+    try {
+      const facets = (await diamondContract.facets()) as Array<{
+        facetAddress: string;
+        functionSelectors: string[];
+      }>;
+      const addresses = facets.map((f) => f.facetAddress);
+      const validAddresses = addresses.filter((addr) => ethers.isAddress(addr));
+      if (validAddresses.length > 0) {
+        console.log("[Diamond] Found facets via facets():", validAddresses);
+        return validAddresses;
+      }
+    } catch (facetsError) {
+      console.log(
+        "[Diamond] Both loupe methods failed:",
+        facetsError instanceof Error ? facetsError.message : "Unknown error"
+      );
     }
-  } catch (facetsError) {
-    console.log(
-      "[Diamond] Both loupe methods failed:",
-      facetsError instanceof Error ? facetsError.message : "Unknown error"
-    );
-  }
 
-  // If we get here, it's not a Diamond or doesn't implement the loupe interface
-  throw new Error("Not a Diamond contract or loupe interface not available");
+    // If we get here, it's not a Diamond or doesn't implement the loupe interface
+    throw new Error("Not a Diamond contract or loupe interface not available");
+  });
 }
 
 /**
@@ -1337,10 +1336,11 @@ export async function POST(request: Request) {
     const checksummedAddress = toChecksumAddress(contractAddress);
 
     const chainId = getChainIdFromNetwork(network);
-    const rpcConfig = await resolveRpcConfig(chainId);
-    if (rpcConfig) {
-      const provider = new ethers.JsonRpcProvider(rpcConfig.primaryRpcUrl);
-      const code = await provider.getCode(checksummedAddress);
+    try {
+      const rpcManager = await getRpcProvider({ chainId });
+      const code = await rpcManager.executeWithFailover((provider) =>
+        provider.getCode(checksummedAddress)
+      );
       if (!code || code === "0x") {
         return NextResponse.json(
           {
@@ -1350,6 +1350,8 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
+    } catch {
+      // Chain not found/enabled — skip code check, proceed to Etherscan
     }
 
     console.log("[Etherscan] Fetching ABI for:", {

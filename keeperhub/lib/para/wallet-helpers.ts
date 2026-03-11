@@ -2,11 +2,11 @@ import "server-only";
 import { ParaEthersSigner } from "@getpara/ethers-v6-integration";
 import { Environment, Para as ParaServer } from "@getpara/server-sdk";
 import { eq } from "drizzle-orm";
-import { ethers } from "ethers";
 import { decryptUserShare } from "@/keeperhub/lib/encryption";
 import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 import { db } from "@/lib/db";
 import { paraWallets } from "@/lib/db/schema";
+import { getRpcProviderFromUrls } from "@/lib/rpc/provider-factory";
 
 /**
  * Get organization's Para wallet from database
@@ -85,9 +85,9 @@ export async function initializeParaSigner(
   const decryptedShare = decryptUserShare(wallet.userShare);
   await paraClient.setUserShare(decryptedShare);
 
-  // Create blockchain provider and signer
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
-  const signer = new ParaEthersSigner(paraClient, provider);
+  // Create blockchain provider (with batching disabled) and signer
+  const rpcManager = getRpcProviderFromUrls(rpcUrl);
+  const signer = new ParaEthersSigner(paraClient, rpcManager.getProvider());
 
   return signer;
 }

@@ -10,6 +10,7 @@ import { auth } from "@/lib/auth";
 import { ERC20_ABI } from "@/lib/contracts";
 import { db } from "@/lib/db";
 import { chains, organizationTokens, supportedTokens } from "@/lib/db/schema";
+import { getRpcProvider } from "@/lib/rpc/provider-factory";
 
 /**
  * GET /api/user/wallet/tokens
@@ -175,20 +176,28 @@ export async function POST(request: Request) {
       );
     }
 
-    // Fetch token metadata from the contract
-    const provider = new ethers.JsonRpcProvider(chain[0].defaultPrimaryRpc);
-    const contract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+    // Fetch token metadata from the contract with retry/failover
+    const rpcManager = await getRpcProvider({ chainId });
 
     let symbol: string;
     let name: string;
     let decimals: number;
 
     try {
-      [symbol, name, decimals] = await Promise.all([
-        contract.symbol() as Promise<string>,
-        contract.name() as Promise<string>,
-        contract.decimals().then((d: bigint) => Number(d)),
-      ]);
+      [symbol, name, decimals] = await rpcManager.executeWithFailover(
+        (provider) => {
+          const contract = new ethers.Contract(
+            tokenAddress,
+            ERC20_ABI,
+            provider
+          );
+          return Promise.all([
+            contract.symbol() as Promise<string>,
+            contract.name() as Promise<string>,
+            contract.decimals().then((d: bigint) => Number(d)),
+          ]);
+        }
+      );
     } catch (error) {
       console.error("[Tokens] Failed to fetch token metadata:", error);
       return NextResponse.json(
