@@ -4,6 +4,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   text,
@@ -281,7 +282,7 @@ export const workflowExecutions = pgTable(
     error: text("error"),
     startedAt: timestamp("started_at").notNull().defaultNow(),
     completedAt: timestamp("completed_at"),
-    duration: text("duration"), // Duration in milliseconds
+    duration: numeric("duration"), // Duration in milliseconds
     // Progress tracking
     totalSteps: text("total_steps"),
     completedSteps: text("completed_steps").default("0"),
@@ -318,7 +319,7 @@ export const workflowExecutionLogs = pgTable("workflow_execution_logs", {
   error: text("error"),
   startedAt: timestamp("started_at").notNull().defaultNow(),
   completedAt: timestamp("completed_at"),
-  duration: text("duration"), // Duration in milliseconds
+  duration: numeric("duration"), // Duration in milliseconds
   timestamp: timestamp("timestamp").notNull().defaultNow(),
   // start custom keeperhub code //
   iterationIndex: integer("iteration_index"), // 0-based loop iteration (null for non-loop nodes)
