@@ -454,6 +454,30 @@ describe("StripeBillingProvider", () => {
         provider.updateSubscription("sub_1", "price_new")
       ).rejects.toThrow("No subscription item found to update");
     });
+
+    it("propagates Stripe error when payment fails", async () => {
+      vi.mocked(s.subscriptions.retrieve).mockResolvedValue({
+        id: "sub_1",
+        items: {
+          data: [
+            {
+              id: "si_1",
+              price: { id: "price_old", recurring: { interval: "month" } },
+            },
+          ],
+        },
+      } as unknown as Awaited<ReturnType<typeof s.subscriptions.retrieve>>);
+      vi.mocked(s.prices.retrieve).mockResolvedValue({
+        recurring: { interval: "month" },
+      } as Awaited<ReturnType<typeof s.prices.retrieve>>);
+      vi.mocked(s.subscriptions.update).mockRejectedValue(
+        new Error("Your card was declined.")
+      );
+
+      await expect(
+        provider.updateSubscription("sub_1", "price_new")
+      ).rejects.toThrow("Your card was declined.");
+    });
   });
 
   describe("previewProration", () => {
@@ -570,6 +594,111 @@ describe("StripeBillingProvider", () => {
       const subDetails = (callArgs as Record<string, unknown> | undefined)
         ?.subscription_details as Record<string, unknown> | undefined;
       expect(subDetails?.proration_date).toBeDefined();
+    });
+
+    it("returns negative amountDue for downgrade with excess credit", async () => {
+      vi.mocked(s.subscriptions.retrieve).mockResolvedValue({
+        id: "sub_1",
+        items: {
+          data: [
+            {
+              id: "si_1",
+              price: { id: "price_biz", recurring: { interval: "month" } },
+            },
+          ],
+        },
+      } as unknown as Awaited<ReturnType<typeof s.subscriptions.retrieve>>);
+      vi.mocked(s.prices.retrieve).mockResolvedValue({
+        recurring: { interval: "month" },
+      } as Awaited<ReturnType<typeof s.prices.retrieve>>);
+      vi.mocked(s.invoices.createPreview).mockResolvedValue({
+        period_end: 1_706_745_600,
+        subtotal: -15_000,
+        total: -15_000,
+        amount_due: 0,
+        currency: "usd",
+        lines: {
+          data: [
+            {
+              description: "Unused time on Business 250k",
+              amount: -20_000,
+              parent: {
+                subscription_item_details: { proration: true },
+              },
+            },
+            {
+              description: "Remaining time on Pro 25k",
+              amount: 5000,
+              parent: {
+                subscription_item_details: { proration: true },
+              },
+            },
+          ],
+        },
+      } as unknown as Awaited<ReturnType<typeof s.invoices.createPreview>>);
+
+      const result = await provider.previewProration("sub_1", "price_pro");
+
+      expect(result.amountDue).toBe(0);
+      expect(result.subtotal).toBe(-15_000);
+      expect(result.appliedBalance).toBe(15_000);
+      expect(result.lineItems).toHaveLength(2);
+      expect(result.lineItems[0].amount).toBe(-20_000);
+      expect(result.lineItems[0].proration).toBe(true);
+      expect(result.lineItems[1].amount).toBe(5000);
+      expect(result.lineItems[1].proration).toBe(true);
+    });
+
+    it("reflects customer balance credit in appliedBalance", async () => {
+      vi.mocked(s.subscriptions.retrieve).mockResolvedValue({
+        id: "sub_1",
+        items: {
+          data: [
+            {
+              id: "si_1",
+              price: { id: "price_old", recurring: { interval: "month" } },
+            },
+          ],
+        },
+      } as unknown as Awaited<ReturnType<typeof s.subscriptions.retrieve>>);
+      vi.mocked(s.prices.retrieve).mockResolvedValue({
+        recurring: { interval: "month" },
+      } as Awaited<ReturnType<typeof s.prices.retrieve>>);
+      vi.mocked(s.invoices.createPreview).mockResolvedValue({
+        period_end: 1_706_745_600,
+        subtotal: 6000,
+        total: 6000,
+        amount_due: 3500,
+        currency: "usd",
+        lines: {
+          data: [
+            {
+              description: "Pro 50k",
+              amount: 6000,
+              parent: {
+                subscription_item_details: { proration: false },
+              },
+            },
+          ],
+        },
+      } as unknown as Awaited<ReturnType<typeof s.invoices.createPreview>>);
+
+      const result = await provider.previewProration("sub_1", "price_new");
+
+      expect(result.amountDue).toBe(3500);
+      expect(result.subtotal).toBe(6000);
+      expect(result.appliedBalance).toBe(-2500);
+    });
+
+    it("throws when no subscription item found", async () => {
+      vi.mocked(s.subscriptions.retrieve).mockResolvedValue({
+        id: "sub_1",
+        items: { data: [] },
+      } as unknown as Awaited<ReturnType<typeof s.subscriptions.retrieve>>);
+
+      await expect(
+        provider.previewProration("sub_1", "price_new")
+      ).rejects.toThrow("No subscription item found to preview");
     });
 
     it("omits proration_date for interval changes", async () => {

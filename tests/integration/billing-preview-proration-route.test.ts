@@ -159,6 +159,77 @@ describe("POST /api/billing/preview-proration", () => {
     expect(response.status).toBe(400);
   });
 
+  it("returns empty preview for free plan subscription", async () => {
+    mockSession();
+    mockGetOrgSubscription.mockResolvedValue({
+      providerSubscriptionId: "sub_1",
+      status: "active",
+      plan: "free",
+    });
+
+    const response = await POST(
+      makeRequest({ plan: "pro", tier: "25k", interval: "monthly" })
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json.amountDue).toBe(0);
+    expect(json.lineItems).toEqual([]);
+    expect(mockPreviewProration).not.toHaveBeenCalled();
+  });
+
+  it("returns empty preview for canceled subscription", async () => {
+    mockSession();
+    mockGetOrgSubscription.mockResolvedValue({
+      providerSubscriptionId: "sub_1",
+      status: "canceled",
+      plan: "pro",
+    });
+
+    const response = await POST(
+      makeRequest({ plan: "pro", tier: "50k", interval: "monthly" })
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json.amountDue).toBe(0);
+    expect(json.lineItems).toEqual([]);
+    expect(mockPreviewProration).not.toHaveBeenCalled();
+  });
+
+  it("returns empty preview when no subscription exists", async () => {
+    mockSession();
+    mockGetOrgSubscription.mockResolvedValue(null);
+
+    const response = await POST(
+      makeRequest({ plan: "pro", tier: "25k", interval: "monthly" })
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json.amountDue).toBe(0);
+    expect(json.lineItems).toEqual([]);
+    expect(mockPreviewProration).not.toHaveBeenCalled();
+  });
+
+  it("returns 500 when provider throws", async () => {
+    mockSession();
+    mockGetOrgSubscription.mockResolvedValue({
+      providerSubscriptionId: "sub_1",
+      status: "active",
+      plan: "pro",
+    });
+    mockPreviewProration.mockRejectedValue(new Error("Stripe API unavailable"));
+
+    const response = await POST(
+      makeRequest({ plan: "pro", tier: "50k", interval: "monthly" })
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(json.error).toBe("Failed to preview proration");
+  });
+
   it("returns 404 when billing is disabled", async () => {
     process.env.NEXT_PUBLIC_BILLING_ENABLED = "false";
 
