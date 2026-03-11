@@ -241,3 +241,374 @@ Format for `tests/unit/protocol-{slug}.test.ts` using Vitest. Tests to include:
 - Action count matches expected
 - Registration check (use `getProtocol("{slug}")`)
 </test_structure>
+
+<explorer_chain_availability>
+Only chains with block explorer configs support ABI auto-fetch. Workflows targeting chains without explorer configs will fail silently at runtime when resolveAbi() cannot fetch the ABI.
+
+EVM chains with Etherscan-compatible explorer configs (safe for seed workflows):
+- "1" -- Ethereum Mainnet (Etherscan)
+- "8453" -- Base (BaseScan)
+- "84532" -- Base Sepolia (BaseScan testnet)
+- "11155111" -- Sepolia Testnet (Etherscan Sepolia)
+
+Non-EVM / Blockscout chains with explorer configs (NOT safe for protocol seed workflows -- different API format):
+- "42420" -- Tempo (Blockscout)
+- "42429" -- Tempo Testnet (Blockscout)
+- "101" -- Solana (Solscan)
+- "103" -- Solana Devnet (Solscan)
+
+EVM chains WITHOUT explorer configs (ABI auto-fetch fails):
+- "42161" -- Arbitrum One
+- "10" -- Optimism
+
+Rules:
+- Seed/example workflows MUST only target EVM chains with Etherscan-compatible explorer configs unless the protocol provides an inline `abi` field
+- When a protocol supports multiple chains, default to chain "1" (Ethereum Mainnet) for seed workflows
+- Update this section when new explorer configs are added to the codebase
+</explorer_chain_availability>
+
+<code_node_patterns>
+Rules for Code nodes in workflows. Violations cause silent runtime failures.
+
+Action type:
+- Code nodes MUST use `actionType: "code/run-code"` -- NOT `"Code"`
+- The workflow executor in `lib/workflow-executor.workflow.ts` checks `actionType === "code/run-code"` in the action dispatch logic
+- Using `"Code"` causes the node to be treated as an unknown action, breaking the workflow silently
+
+Template quoting:
+- `formatCodeValue()` in `lib/workflow-executor.workflow.ts` already wraps string values via `JSON.stringify()` before injecting them into the Code node sandbox
+- CORRECT: `const x = {{@nodeId:Label.result}};` -- no manual quotes needed, becomes `const x = "value";`
+- WRONG: `const x = "{{@nodeId:Label.result}}";` -- produces `const x = ""value""` which is a JS syntax error
+- For numbers: `Number({{@nodeId:Label.result}})` works correctly (becomes `Number("123")`)
+
+Divide-by-zero guards:
+- All percentage and ratio calculations in Code nodes MUST guard against divide-by-zero
+- Pattern: `const pct = total > 0 ? ((val / total) * 100).toFixed(2) : "0.00";`
+- Applies to any expression with division where the denominator comes from a template reference or computed value
+
+Value formatting:
+- Use `Intl.NumberFormat` for formatting token amounts and prices (available in Code node VM sandbox via `Intl` global)
+- Pattern: `new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)`
+- For USD prices: `new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value)`
+- Prefer `Intl.NumberFormat` over `.toLocaleString()` for consistency and explicit control
+</code_node_patterns>
+
+<example_workflow_generation>
+The pipeline creates example workflows directly in the local postgres DB using the postgres MCP (`mcp__postgres__execute_sql`). Do NOT create TypeScript seed scripts in `scripts/seed/`. Use SQL INSERTs via MCP so workflows are created immediately and can be verified in the app. Never use the KeeperHub MCP for this -- workflows stay local only.
+
+Steps:
+1. Query for the local dev user and org:
+   ```sql
+   SELECT u.id AS user_id, m.organization_id
+   FROM users u JOIN member m ON m.user_id = u.id LIMIT 1;
+   ```
+2. Create a project (idempotent). Use dollar-quoting (`$$`) for string values that may contain single quotes:
+   ```sql
+   INSERT INTO projects (id, name, description, organization_id, user_id)
+   VALUES ($$proj-{slug}$$, $${Protocol Name}$$, $${description}$$, $${org_id}$$, $${user_id}$$)
+   ON CONFLICT (id) DO NOTHING;
+   ```
+3. Insert each workflow with a single INSERT. The `nodes` and `edges` columns are JSONB.
+   ```sql
+   INSERT INTO workflows (id, name, description, user_id, organization_id, project_id, visibility, featured, featured_protocol, featured_protocol_order, nodes, edges)
+   VALUES (
+     '{generate-unique-id}',
+     '{workflow name}',
+     '{workflow description}',
+     '{user_id}',
+     '{org_id}',
+     'proj-{slug}',
+     'public',     -- 'private' for test workflows
+     true,         -- false for test workflows
+     '{slug}',     -- null for test workflows
+     1,            -- sequential order, null for test workflows
+     '{nodes_json}'::jsonb,
+     '{edges_json}'::jsonb
+   );
+   ```
+
+CRITICAL: Every node config MUST include ALL required fields for its action type. Incomplete nodes break workflows silently at runtime. The canonical reference for each node type is below -- follow these exactly.
+
+Referencing outputs from upstream nodes:
+- Protocol read actions (single return): `{{@read-node:Read Label.result}}` -- the raw value is stored as `result`
+- Code node outputs: `{{@code-node:Code Label.result.myField}}` -- Code step returns `{ success, result, logs }`, so fields are nested under `result`
+- WRONG for Code: `{{@code-node:Code Label.myField}}` -- resolves to undefined (top-level keys are `success`, `result`, `logs`)
+- Write action outputs: `{{@write-node:Write Label.transactionHash}}`, `{{@write-node:Write Label.transactionLink}}`, `{{@write-node:Write Label.success}}`, `{{@write-node:Write Label.error}}`
+
+Node structure reference -- ALL required fields shown for each type:
+
+**Trigger node -- Manual:**
+```json
+{
+  "id": "trigger-1",
+  "type": "trigger",
+  "position": {"x": 100, "y": 250},
+  "data": {
+    "type": "trigger",
+    "label": "Manual Trigger",
+    "config": {"triggerType": "Manual"},
+    "status": "idle",
+    "description": "Run manually"
+  }
+}
+```
+
+**Trigger node -- Schedule (required fields: triggerType, scheduleCron, scheduleTimezone):**
+```json
+{
+  "id": "trigger-1",
+  "type": "trigger",
+  "position": {"x": 100, "y": 250},
+  "data": {
+    "type": "trigger",
+    "label": "Hourly Schedule",
+    "config": {
+      "triggerType": "Schedule",
+      "scheduleCron": "0 * * * *",
+      "scheduleTimezone": "UTC"
+    },
+    "status": "idle",
+    "description": "Check every hour"
+  }
+}
+```
+WRONG: `"cron": "0 * * * *"` -- this field is ignored. MUST use `scheduleCron`.
+WRONG: omitting `scheduleTimezone` -- defaults are unreliable, always set `"UTC"`.
+
+**Protocol read action node (required fields: actionType, network, _protocolMeta, plus all action inputs):**
+
+Example with no inputs (parameterless read like `getExchangeRate`):
+```json
+{
+  "id": "read-rate",
+  "type": "action",
+  "position": {"x": 350, "y": 250},
+  "data": {
+    "type": "action",
+    "label": "Get rETH Exchange Rate",
+    "description": "Get the current ETH value of 1 rETH",
+    "config": {
+      "actionType": "{slug}/{action-slug}",
+      "network": "1",
+      "_protocolMeta": "{\"protocolSlug\":\"{slug}\",\"contractKey\":\"reth\",\"functionName\":\"getExchangeRate\",\"actionType\":\"read\"}"
+    },
+    "status": "idle"
+  }
+}
+```
+
+Example with inputs (read like `balanceOf(address)`):
+```json
+{
+  "id": "read-balance",
+  "type": "action",
+  "position": {"x": 350, "y": 250},
+  "data": {
+    "type": "action",
+    "label": "Get Token Balance",
+    "description": "Check token balance of an address",
+    "config": {
+      "actionType": "{slug}/{action-slug}",
+      "network": "1",
+      "_protocolMeta": "{\"protocolSlug\":\"{slug}\",\"contractKey\":\"token\",\"functionName\":\"balanceOf\",\"actionType\":\"read\"}",
+      "account": "0x..."
+    },
+    "status": "idle"
+  }
+}
+```
+- `actionType`: MUST be `{protocol-slug}/{action-slug}` (e.g., `"rocket-pool/get-reth-exchange-rate"`)
+- `network`: chain ID string (e.g., `"1"` for mainnet) -- MUST be a chain with explorer config
+- `_protocolMeta`: JSON string with `protocolSlug`, `contractKey`, `functionName`, `actionType` -- MUST match the protocol definition exactly
+- All action inputs from the protocol definition MUST be present as config fields (e.g., `"account"` for `balanceOf`). Omit input fields for parameterless actions.
+- For `userSpecifiedAddress` contracts: add `"contractAddress": "0x..."` field
+
+**Protocol write action node (required fields: actionType, network, _protocolMeta, plus all action inputs):**
+```json
+{
+  "id": "deposit-eth",
+  "type": "action",
+  "position": {"x": 600, "y": 250},
+  "data": {
+    "type": "action",
+    "label": "Deposit ETH for rETH",
+    "description": "Deposit ETH into Rocket Pool",
+    "config": {
+      "actionType": "{slug}/deposit",
+      "network": "1",
+      "_protocolMeta": "{\"protocolSlug\":\"{slug}\",\"contractKey\":\"depositPool\",\"functionName\":\"deposit\",\"actionType\":\"write\"}"
+    },
+    "status": "idle"
+  }
+}
+```
+
+**Code node (required fields: actionType, code):**
+```json
+{
+  "id": "fmt",
+  "type": "action",
+  "position": {"x": 600, "y": 250},
+  "data": {
+    "type": "action",
+    "label": "Format Rate",
+    "description": "Convert raw wei exchange rate to human-readable decimal",
+    "config": {
+      "actionType": "code/run-code",
+      "code": "const raw = Number({{@read-rate:Get rETH Exchange Rate.result}});\nconst rate = raw / 1e18;\nconst formatted = new Intl.NumberFormat(\"en-US\", { maximumFractionDigits: 6 }).format(rate);\nreturn { rate: rate.toFixed(6), formatted, raw: String(raw) };"
+    },
+    "status": "idle"
+  }
+}
+```
+- `actionType` MUST be `"code/run-code"` -- NOT `"Code"` (see `<code_node_patterns>`)
+- Template refs: NO manual quotes (see `<code_node_patterns>`)
+- ALL division MUST have divide-by-zero guards
+- Use `Intl.NumberFormat` for formatting
+
+**Condition node (required fields: actionType, condition, conditionConfig with group/rules):**
+```json
+{
+  "id": "cond-peg",
+  "type": "action",
+  "position": {"x": 850, "y": 250},
+  "data": {
+    "type": "action",
+    "label": "Rate >= 1.0 ETH?",
+    "description": "Check rETH rate is at or above 1.0 ETH (healthy peg)",
+    "config": {
+      "actionType": "Condition",
+      "condition": "{{@fmt:Format Rate.result.rate}} >= 1",
+      "conditionConfig": {
+        "group": {
+          "id": "rate-check-1",
+          "logic": "AND",
+          "rules": [
+            {
+              "id": "rule-rate-ok",
+              "operator": ">=",
+              "leftOperand": "{{@fmt:Format Rate.result.rate}}",
+              "rightOperand": "1"
+            }
+          ]
+        }
+      }
+    },
+    "status": "idle"
+  }
+}
+```
+- MUST include BOTH `condition` (legacy string) AND `conditionConfig` (structured rules)
+- `conditionConfig.group` MUST have `id`, `logic` ("AND"/"OR"), and `rules` array
+- Each rule MUST have `id`, `operator` (">=", "<=", ">", "<", "==", "!="), `leftOperand`, `rightOperand`
+- WRONG: omitting `conditionConfig` -- the UI cannot render the condition without it
+- Condition edges MUST use `sourceHandle`: `"true"` for the matching branch, `"false"` for the non-matching branch
+
+**Discord node (required fields: actionType, discordMessage):**
+```json
+{
+  "id": "discord-ok",
+  "type": "action",
+  "position": {"x": 1150, "y": 150},
+  "data": {
+    "type": "action",
+    "label": "Discord: Rate Healthy",
+    "description": "Report healthy rETH exchange rate to Discord",
+    "config": {
+      "actionType": "discord/send-message",
+      "discordMessage": "**Rocket Pool rETH Rate: Healthy**\n\nExchange Rate: {{@fmt:Format Rate.result.formatted}} ETH per rETH\nRaw Value: {{@fmt:Format Rate.result.raw}}\n\nRate is at or above 1.0 ETH."
+    },
+    "status": "idle"
+  }
+}
+```
+- WRONG: `"message": "..."` -- this field is ignored. MUST use `discordMessage`.
+- The `integrationId` is optional in seed workflows (user configures it in the UI).
+
+**SendGrid email node (required fields: actionType, emailTo, emailSubject, emailBody):**
+```json
+{
+  "id": "email-report",
+  "type": "action",
+  "position": {"x": 850, "y": 250},
+  "data": {
+    "type": "action",
+    "label": "Email: Position Report",
+    "description": "SendGrid email with staking position summary",
+    "config": {
+      "actionType": "sendgrid/send-email",
+      "emailTo": "treasury@example.com",
+      "emailSubject": "Daily Rocket Pool Staking Report",
+      "emailBody": "Rocket Pool Report\n\nrETH Balance: {{@calc:Calculate Value.result.balance}} rETH\nETH Value: {{@calc:Calculate Value.result.ethValue}} ETH"
+    },
+    "status": "idle"
+  }
+}
+```
+- WRONG: `"text"`, `"subject"`, `"to"` -- these fields are ignored.
+- MUST use exactly: `emailTo`, `emailSubject`, `emailBody`.
+
+**Webhook node (required fields: actionType, webhookUrl, webhookMethod, webhookHeaders, webhookPayload):**
+```json
+{
+  "id": "pagerduty-alert",
+  "type": "action",
+  "position": {"x": 1150, "y": 400},
+  "data": {
+    "type": "action",
+    "label": "PagerDuty: Rate Depeg Alert",
+    "description": "Critical alert -- rETH rate dropped below 1.0 ETH",
+    "config": {
+      "actionType": "webhook/send-webhook",
+      "webhookUrl": "https://events.pagerduty.com/v2/enqueue",
+      "webhookMethod": "POST",
+      "webhookHeaders": "{\"Content-Type\":\"application/json\"}",
+      "webhookPayload": "{\"routing_key\":\"YOUR_PAGERDUTY_ROUTING_KEY\",\"event_action\":\"trigger\",\"payload\":{\"summary\":\"rETH rate below 1.0 ETH\",\"severity\":\"critical\",\"source\":\"keeperhub-{slug}\",\"component\":\"{slug}-workflows\",\"custom_details\":{\"rate\":\"{{@fmt:Format Rate.result.formatted}}\"}}}"
+    },
+    "status": "idle"
+  }
+}
+```
+- WRONG: `"url"`, `"body"`, `"method"`, `"headers"` -- these fields are ignored.
+- MUST use exactly: `webhookUrl`, `webhookMethod`, `webhookHeaders`, `webhookPayload`.
+- `webhookHeaders` MUST be a JSON string (not an object).
+- `webhookPayload` MUST be a JSON string (not an object).
+
+**Edge structures:**
+
+Sequential edge:
+```json
+{"id": "e1", "source": "trigger-1", "target": "read-rate"}
+```
+
+Condition branch edge (MUST include sourceHandle and type):
+```json
+{"id": "e4", "type": "animated", "source": "cond-peg", "target": "discord-ok", "sourceHandle": "true"}
+{"id": "e5", "type": "animated", "source": "cond-peg", "target": "pagerduty-alert", "sourceHandle": "false"}
+```
+- `sourceHandle: "true"` = condition matched (left/top branch)
+- `sourceHandle: "false"` = condition not matched (right/bottom branch)
+- `type: "animated"` makes condition branches visually distinct in the UI
+
+What to generate:
+- 1 test workflow per read action: manual trigger + single action node, named `[Test - {action-slug}] {description}`
+- Up to 8-10 example workflows, as many as the protocol's actions meaningfully support. Protocols with few actions may only warrant 2-3 examples -- do not force artificial workflows. Combine multiple actions with Code formatting nodes and notification actions (Discord, SendGrid, Webhook/PagerDuty). Cover as many action combinations as possible.
+- Write actions do NOT get test workflows (they require wallets)
+- Example workflows SHOULD include Condition nodes with branching (true/false paths) for monitoring/alerting scenarios
+- Example workflows SHOULD use a mix of notification types: Discord for status updates, PagerDuty webhooks for alerts, SendGrid for reports/dashboards
+
+Workflow rules:
+- All workflows target only chains with explorer configs (see `<explorer_chain_availability>`)
+- All Code nodes MUST use `actionType: "code/run-code"` (see `<code_node_patterns>`)
+- All Code nodes follow template quoting rules (no manual quotes around template refs, divide-by-zero guards, Intl formatting)
+- All Condition nodes MUST include `conditionConfig` with `group` and `rules` (not just a `condition` string)
+- All Schedule triggers MUST use `scheduleCron` and `scheduleTimezone` (not `cron`)
+- All Discord nodes MUST use `discordMessage` (not `message`)
+- All SendGrid nodes MUST use `emailTo`, `emailSubject`, `emailBody` (not `text`, `subject`, `to`)
+- All Webhook nodes MUST use `webhookUrl`, `webhookMethod`, `webhookHeaders`, `webhookPayload` (not `url`, `method`, `headers`, `body`)
+- Only use action types that exist in the codebase: `discord/send-message`, `sendgrid/send-email`, `webhook/send-webhook`, `code/run-code`, `Condition`, `{protocol-slug}/{action-slug}`
+- Do NOT use non-existent action types like `telegram/send-message`, `slack/send-message`, etc.
+- Node layout: trigger at x=100, subsequent nodes at x+250 increments, y=250 baseline. For parallel reads, stagger y positions (150, 300, 450).
+- Edge naming: sequential e1, e2, etc.
+- Generate unique IDs for workflow rows (use a descriptive kebab-case prefix, e.g., `rp-ex-rate-monitor-01`)
+</example_workflow_generation>

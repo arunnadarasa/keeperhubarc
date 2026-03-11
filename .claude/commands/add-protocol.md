@@ -36,6 +36,7 @@ Required artifacts:
 - tests/unit/protocol-{slug}.test.ts -- Vitest unit tests
 - docs/plugins/{slug}.md -- documentation page
 - public/protocols/{slug}.png -- icon (if user provides one)
+- Example workflows inserted into local DB via postgres MCP (test workflow per read action + up to 8-10 example workflows, scaled to protocol complexity)
 
 Required modifications:
 - docs/plugins/_meta.ts -- add nav entry
@@ -48,6 +49,7 @@ Research questions for the Researcher agent:
 - Does any existing protocol definition serve as a closer pattern than WETH?
 - Does the slug "{slug}" already exist in lib/types/integration.ts or keeperhub/protocols/?
 - Does the protocol have Sepolia testnet deployments? If so, include addresses for chain "11155111".
+- Which chains in the protocol's contracts have explorer configs? (Only 1, 8453, 84532, 11155111 -- see protocol-domain.md)
 
 Success criteria:
 - keeperhub/protocols/{slug}.ts imports without throwing (defineProtocol validation passes)
@@ -56,6 +58,9 @@ Success criteria:
 - pnpm type-check passes with zero TypeScript errors
 - Vitest unit tests pass
 - Documentation page exists with actions table and per-action sections
+- Example workflows created via postgres MCP: test workflows (1 per read action) + example workflows (up to 8-10, as many as the protocol's actions meaningfully support)
+- All workflows target only chains with explorer configs
+- Code nodes use bare template references (no manual quotes) and divide-by-zero guards
 ```
 
 The Orchestrator handles: gathering protocol details from user or spec file, decomposing subtasks, delegating to Researcher/Builder/Verifier agents, and creating the PR.
