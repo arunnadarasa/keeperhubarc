@@ -25,6 +25,7 @@ export type ProtocolActionInput = {
   label: string;
   default?: string;
   decimals?: boolean | number;
+  helpTip?: string;
 };
 
 export type ProtocolActionOutput = {
@@ -222,6 +223,7 @@ function buildConfigFieldsFromAction(
       placeholder: input.default ?? "",
       required: true,
       ...(input.type === "address" ? { isAddressField: true } : {}),
+      ...(input.helpTip ? { helpTip: input.helpTip } : {}),
     });
   }
 

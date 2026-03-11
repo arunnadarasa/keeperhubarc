@@ -11,6 +11,7 @@ export default {
   pendle: "Pendle",
   "rocket-pool": "Rocket Pool",
   sky: "Sky",
+  spark: "Spark",
   uniswap: "Uniswap",
   discord: "Discord",
   telegram: "Telegram",

@@ -14,7 +14,7 @@ shared_env: &shared_env
   CHAIN_RPC_CONFIG:
     type: parameterStore
     name: chain-rpc-config
-    parameter_name: /eks/maker-staging/keeperhub/chain-rpc-config
+    parameter_name: /eks/techops-prod/keeperhub-staging/chain-rpc-config
 
 replicaCount: 1
 
@@ -73,14 +73,14 @@ deployment:
         PARA_API_KEY:
           type: parameterStore
           name: para-api-key
-          parameter_name: /eks/maker-staging/keeperhub/para-api-key
+          parameter_name: /eks/techops-prod/keeperhub-staging/para-api-key
         PARA_ENVIRONMENT:
           type: kv
           value: "beta"
         WALLET_ENCRYPTION_KEY:
           type: parameterStore
           name: wallet-encryption-key
-          parameter_name: /eks/maker-staging/keeperhub/wallet-encryption-key
+          parameter_name: /eks/techops-prod/keeperhub-staging/wallet-encryption-key
         TEST_PARA_USER_SHARE:
           type: kv
           value: "${TEST_PARA_USER_SHARE}"
@@ -150,108 +150,108 @@ env:
   GITHUB_CLIENT_ID:
     type: parameterStore
     name: github-client-id
-    parameter_name: /eks/maker-staging/keeperhub/github-client-id
+    parameter_name: /eks/techops-prod/keeperhub-staging/github-client-id
   GITHUB_CLIENT_SECRET:
     type: parameterStore
     name: github-client-secret
-    parameter_name: /eks/maker-staging/keeperhub/github-client-secret
+    parameter_name: /eks/techops-prod/keeperhub-staging/github-client-secret
   NEXT_PUBLIC_GITHUB_CLIENT_ID:
     type: parameterStore
     name: next-public-github-client-id
-    parameter_name: /eks/maker-staging/keeperhub/github-client-id
+    parameter_name: /eks/techops-prod/keeperhub-staging/github-client-id
   GOOGLE_CLIENT_ID:
     type: parameterStore
     name: google-client-id
-    parameter_name: /eks/maker-staging/keeperhub/google-client-id
+    parameter_name: /eks/techops-prod/keeperhub-staging/google-client-id
   GOOGLE_CLIENT_SECRET:
     type: parameterStore
     name: google-client-secret
-    parameter_name: /eks/maker-staging/keeperhub/google-client-secret
+    parameter_name: /eks/techops-prod/keeperhub-staging/google-client-secret
   NEXT_PUBLIC_GOOGLE_CLIENT_ID:
     type: parameterStore
     name: next-public-google-client-id
-    parameter_name: /eks/maker-staging/keeperhub/google-client-id
+    parameter_name: /eks/techops-prod/keeperhub-staging/google-client-id
   BETTER_AUTH_SECRET:
     type: parameterStore
     name: better-auth-secret
-    parameter_name: /eks/maker-staging/keeperhub/better-auth-secret
+    parameter_name: /eks/techops-prod/keeperhub-staging/better-auth-secret
   OPENAI_API_KEY:
     type: parameterStore
     name: openai-api-key
-    parameter_name: /eks/maker-staging/keeperhub/openai-api-key
+    parameter_name: /eks/techops-prod/keeperhub-staging/openai-api-key
   AI_MODEL:
     type: kv
     value: "gpt-4o-mini"
   PARA_API_KEY:
     type: parameterStore
     name: para-api-key
-    parameter_name: /eks/maker-staging/keeperhub/para-api-key
+    parameter_name: /eks/techops-prod/keeperhub-staging/para-api-key
   WALLET_ENCRYPTION_KEY:
     type: parameterStore
     name: wallet-encryption-key
-    parameter_name: /eks/maker-staging/keeperhub/wallet-encryption-key
+    parameter_name: /eks/techops-prod/keeperhub-staging/wallet-encryption-key
   INTEGRATION_ENCRYPTION_KEY:
     type: parameterStore
     name: integration-encryption-key
-    parameter_name: /eks/maker-staging/keeperhub/integration-encryption-key
+    parameter_name: /eks/techops-prod/keeperhub-staging/integration-encryption-key
   ETHERSCAN_API_KEY:
     type: parameterStore
     name: etherscan-api-key
-    parameter_name: /eks/maker-staging/keeper-app/etherscan-api-key
+    parameter_name: /eks/techops-prod/keeperhub-staging/etherscan-api-key
   SENDGRID_API_KEY:
     type: parameterStore
     name: sendgrid-api-key
-    parameter_name: /eks/maker-staging/keeper-app/sendgrid-api-key
+    parameter_name: /eks/techops-prod/keeperhub-staging/sendgrid-api-key
   FROM_ADDRESS:
     type: kv
     value: "noreply@keeperhub.com"
   SENTRY_DSN:
     type: parameterStore
     name: sentry-dsn
-    parameter_name: /eks/maker-staging/keeperhub/sentry-dsn
+    parameter_name: /eks/techops-prod/keeperhub-staging/sentry-dsn
   NEXT_PUBLIC_SENTRY_DSN:
     type: parameterStore
     name: next-public-sentry-dsn
-    parameter_name: /eks/maker-staging/keeperhub/next-public-sentry-dsn
+    parameter_name: /eks/techops-prod/keeperhub-staging/next-public-sentry-dsn
   SENTRY_ORG:
     type: parameterStore
     name: sentry-org
-    parameter_name: /eks/maker-staging/keeperhub/sentry-org
+    parameter_name: /eks/techops-prod/keeperhub-staging/sentry-org
   SENTRY_PROJECT:
     type: parameterStore
     name: sentry-project
-    parameter_name: /eks/maker-staging/keeperhub/sentry-project
+    parameter_name: /eks/techops-prod/keeperhub-staging/sentry-project
   SENTRY_AUTH_TOKEN:
     type: parameterStore
     name: sentry-auth-token
-    parameter_name: /eks/maker-staging/keeperhub/sentry-auth-token
+    parameter_name: /eks/techops-prod/keeperhub-staging/sentry-auth-token
   FEEDBACK_SERVICE_URL:
     type: kv
     value: "http://keeperhub-feedback-common.keeperhub:3001/api/feedback"
   FEEDBACK_API_KEY:
     type: parameterStore
     name: feedback-api-key
-    parameter_name: /eks/maker-staging/keeperhub-feedback/feedback-api-key
+    parameter_name: /eks/techops-prod/keeperhub-feedback/feedback-api-key
   MCP_SERVICE_API_KEY:
     type: parameterStore
     name: mcp-service-api-key
-    parameter_name: /eks/maker-staging/keeperhub-mcp/keeperhub-api-key
+    parameter_name: /eks/techops-prod/keeperhub-mcp/keeperhub-api-key
   EVENTS_SERVICE_API_KEY:
     type: parameterStore
     name: events-service-api-key
-    parameter_name: /eks/maker-staging/keeperhub-events/keeperhub-api-key
+    parameter_name: /eks/techops-prod/keeperhub-events/keeperhub-api-key
   SCHEDULER_SERVICE_API_KEY:
     type: parameterStore
     name: scheduler-service-api-key
-    parameter_name: /eks/maker-staging/keeperhub-scheduler/keeperhub-api-key
+    parameter_name: /eks/techops-prod/keeperhub-scheduler/keeperhub-api-key
   HUB_SERVICE_API_KEY:
     type: parameterStore
     name: hub-service-api-key
-    parameter_name: /eks/maker-staging/keeperhub-hub/keeperhub-api-key
+    parameter_name: /eks/techops-prod/keeperhub-hub/keeperhub-api-key
   TEST_API_KEY:
     type: parameterStore
     name: test-api-key
-    parameter_name: /eks/maker-staging/keeperhub/test-api-key
+    parameter_name: /eks/techops-prod/keeperhub-staging/test-api-key
   # PR-specific SQS configuration (using LocalStack)
   AWS_REGION:
     type: kv
@@ -264,7 +264,7 @@ env:
     value: "http://localstack.pr-${PR_NUMBER}.svc.cluster.local:4566/000000000000/keeperhub-workflow-queue"
 
 externalSecrets:
-  clusterSecretStoreName: maker-staging
+  clusterSecretStoreName: techops-prod
 
 livenessProbe:
   initialDelaySeconds: 15
@@ -276,3 +276,34 @@ readinessProbe:
   periodSeconds: 30
   tcpSocket:
     port: 3000
+
+cronjob:
+  enabled: true
+  jobs:
+    - name: reaper
+      image:
+        repository: ${ECR_REGISTRY}/keeperhub-staging
+        tag: app-${IMAGE_TAG}
+        imagePullPolicy: Always
+      schedule: "* * * * *" # every minute
+      command: ["/bin/sh"]
+      args:
+        - "/app/deploy/scripts/reaper.sh"
+        - "http://keeperhub-pr-${PR_NUMBER}-common:3000/api/internal/reaper"
+      env:
+        SCHEDULER_SERVICE_API_KEY:
+          type: parameterStore
+          name: scheduler-service-api-key
+          parameter_name: /eks/techops-prod/keeperhub-scheduler/keeperhub-api-key
+      resources:
+        requests:
+          memory: "32Mi"
+          cpu: "10m"
+        limits:
+          memory: "32Mi"
+          cpu: "10m"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 3
+      restartPolicy: OnFailure
+      backoffLimit: 2
