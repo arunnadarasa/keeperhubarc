@@ -58,6 +58,7 @@ deployment:
         - -c
       args:
         - |
+          set -e
           echo "Setting up workflow postgres tables..."
           export WORKFLOW_POSTGRES_URL=$(tsx scripts/encode-pg-url.ts)
           pnpm exec workflow-postgres-setup
