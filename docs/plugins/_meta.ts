@@ -6,6 +6,7 @@ export default {
   safe: "Safe",
   "aave-v3": "Aave V3",
   ajna: "Ajna",
+  compound: "Compound V3",
   cowswap: "CoW Swap",
   morpho: "Morpho",
   pendle: "Pendle",
