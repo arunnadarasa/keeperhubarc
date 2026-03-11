@@ -192,7 +192,7 @@ async function getWorkflowCounts(
       success: sql<number>`SUM(CASE WHEN ${workflowExecutions.status} = 'success' THEN 1 ELSE 0 END)`,
       error: sql<number>`SUM(CASE WHEN ${workflowExecutions.status} = 'error' THEN 1 ELSE 0 END)`,
       cancelled: sql<number>`SUM(CASE WHEN ${workflowExecutions.status} = 'cancelled' THEN 1 ELSE 0 END)`,
-      durationSum: sql<number>`COALESCE(SUM(CAST(${workflowExecutions.duration} AS BIGINT)), 0)`,
+      durationSum: sql<number>`COALESCE(SUM(CAST(${workflowExecutions.duration} AS NUMERIC)), 0)`,
       durationCount: sql<number>`SUM(CASE WHEN ${workflowExecutions.duration} IS NOT NULL THEN 1 ELSE 0 END)`,
     })
     .from(workflowExecutions)
