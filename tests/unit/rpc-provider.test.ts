@@ -560,6 +560,58 @@ describe("RpcProviderManager", () => {
         expect(metricsCollector.recordFallbackAttempt).not.toHaveBeenCalled();
       });
 
+      it("should retry BAD_DATA with 'missing response for request' message", async () => {
+        const manager = new RpcProviderManager({
+          config: {
+            primaryRpcUrl: "https://primary.example.com",
+            fallbackRpcUrl: "https://fallback.example.com",
+            maxRetries: 3,
+            timeoutMs: 100,
+            chainName: "Ethereum",
+          },
+          metricsCollector,
+        });
+
+        let callCount = 0;
+        const result = await manager.executeWithFailover(() => {
+          callCount++;
+          if (callCount === 1) {
+            throw makeEthersError(
+              "BAD_DATA",
+              "missing response for request (value=[...], info={ payload: { id: 7, method: 'eth_blockNumber' } })"
+            );
+          }
+          return Promise.resolve("ok");
+        });
+
+        expect(result).toBe("ok");
+        expect(callCount).toBe(2);
+        expect(metricsCollector.recordPrimaryAttempt).toHaveBeenCalledTimes(2);
+        expect(metricsCollector.recordFallbackAttempt).not.toHaveBeenCalled();
+      });
+
+      it("should throw immediately on BAD_DATA with non-batch error message", async () => {
+        const manager = new RpcProviderManager({
+          config: {
+            primaryRpcUrl: "https://primary.example.com",
+            fallbackRpcUrl: "https://fallback.example.com",
+            maxRetries: 3,
+            timeoutMs: 100,
+            chainName: "Ethereum",
+          },
+          metricsCollector,
+        });
+
+        await expect(
+          manager.executeWithFailover(() => {
+            throw makeEthersError("BAD_DATA", "could not decode result data");
+          })
+        ).rejects.toThrow("could not decode result data");
+
+        expect(metricsCollector.recordPrimaryAttempt).toHaveBeenCalledTimes(1);
+        expect(metricsCollector.recordFallbackAttempt).not.toHaveBeenCalled();
+      });
+
       it("should still retry transient SERVER_ERROR (non-429)", async () => {
         const manager = new RpcProviderManager({
           config: {
