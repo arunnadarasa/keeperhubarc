@@ -341,20 +341,63 @@ function ProrationSection({
   );
 }
 
+function ProrationStatus({
+  needsProration,
+  loading,
+  error,
+  proration,
+}: {
+  needsProration: boolean;
+  loading: boolean;
+  error: boolean;
+  proration: ProrationData | null;
+}): React.ReactElement | null {
+  if (needsProration && loading) {
+    return (
+      <div className="rounded-md border border-border/50 bg-sidebar p-3 space-y-2">
+        <Skeleton className="h-3 w-36" />
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-full" />
+        <div className="pt-2 border-t border-border/50">
+          <Skeleton className="h-4 w-28" />
+        </div>
+      </div>
+    );
+  }
+
+  if (needsProration && error) {
+    return (
+      <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3">
+        <p className="text-xs text-destructive">
+          Unable to load pricing details. Please close and try again.
+        </p>
+      </div>
+    );
+  }
+
+  if (proration !== null && proration.lineItems.length > 0) {
+    return <ProrationSection proration={proration} />;
+  }
+
+  return null;
+}
+
 function useProrationPreview(
   open: boolean,
   newPlanName: PlanName,
   currentPlanName: PlanName,
   newTier: TierKey | null,
   interval: string
-): { proration: ProrationData | null; loading: boolean } {
+): { proration: ProrationData | null; loading: boolean; error: boolean } {
   const [proration, setProration] = useState<ProrationData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setProration(null);
       setLoading(false);
+      setError(false);
       return;
     }
 
@@ -363,6 +406,7 @@ function useProrationPreview(
     }
 
     setLoading(true);
+    setError(false);
     const controller = new AbortController();
 
     fetch(BILLING_API.PREVIEW_PRORATION, {
@@ -377,15 +421,20 @@ function useProrationPreview(
     })
       .then(async (response) => {
         if (!response.ok) {
+          setError(true);
           return;
         }
         const data = (await response.json()) as ProrationData;
         setProration(data);
       })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") {
+      .catch((fetchError: unknown) => {
+        if (
+          fetchError instanceof DOMException &&
+          fetchError.name === "AbortError"
+        ) {
           return;
         }
+        setError(true);
       })
       .finally(() => {
         if (!controller.signal.aborted) {
@@ -398,7 +447,7 @@ function useProrationPreview(
     };
   }, [open, newPlanName, currentPlanName, newTier, interval]);
 
-  return { proration, loading };
+  return { proration, loading, error };
 }
 
 export function ConfirmPlanChangeDialog({
@@ -416,13 +465,21 @@ export function ConfirmPlanChangeDialog({
   onConfirm,
 }: ConfirmPlanChangeDialogProps): React.ReactElement {
   const [loading, setLoading] = useState(false);
-  const { proration, loading: prorationLoading } = useProrationPreview(
+  const {
+    proration,
+    loading: prorationLoading,
+    error: prorationError,
+  } = useProrationPreview(
     open,
     newPlanName,
     currentPlanName,
     newTier,
     interval
   );
+
+  const needsProration = currentPlanName !== "free" && newPlanName !== "free";
+  const confirmDisabled =
+    loading || (needsProration && (prorationLoading || prorationError));
 
   async function handleConfirm(
     e: React.MouseEvent<HTMLButtonElement>
@@ -501,24 +558,12 @@ export function ConfirmPlanChangeDialog({
                 </span>
               </p>
 
-              {currentPlanName !== "free" &&
-                newPlanName !== "free" &&
-                prorationLoading && (
-                  <div className="rounded-md border border-border/50 bg-sidebar p-3 space-y-2">
-                    <Skeleton className="h-3 w-36" />
-                    <Skeleton className="h-3 w-full" />
-                    <Skeleton className="h-3 w-full" />
-                    <div className="pt-2 border-t border-border/50">
-                      <Skeleton className="h-4 w-28" />
-                    </div>
-                  </div>
-                )}
-
-              {!prorationLoading &&
-                proration !== null &&
-                proration.lineItems.length > 0 && (
-                  <ProrationSection proration={proration} />
-                )}
+              <ProrationStatus
+                error={prorationError}
+                loading={prorationLoading}
+                needsProration={needsProration}
+                proration={proration}
+              />
 
               {changes.length > 0 && (
                 <div className="rounded-md border border-border/50 bg-sidebar p-3">
@@ -546,10 +591,10 @@ export function ConfirmPlanChangeDialog({
           <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             className="bg-keeperhub-green-dark text-white hover:bg-keeperhub-green-dark/90"
-            disabled={loading}
+            disabled={confirmDisabled}
             onClick={handleConfirm}
           >
-            {loading ? <Spinner className="mr-2 size-4" /> : null}
+            {loading && <Spinner className="mr-2 size-4" />}
             Confirm
           </AlertDialogAction>
         </AlertDialogFooter>
