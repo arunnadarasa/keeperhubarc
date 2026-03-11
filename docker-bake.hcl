@@ -12,6 +12,7 @@ variable "IMAGE_TAG" { default = "latest" }
 variable "NEXT_PUBLIC_AUTH_PROVIDERS" { default = "" }
 variable "NEXT_PUBLIC_GITHUB_CLIENT_ID" { default = "" }
 variable "NEXT_PUBLIC_GOOGLE_CLIENT_ID" { default = "" }
+variable "NEXT_PUBLIC_BILLING_ENABLED" { default = "" }
 variable "ENVIRONMENT_TAG" { default = "" }
 
 group "default" {
@@ -26,6 +27,7 @@ target "app" {
     NEXT_PUBLIC_AUTH_PROVIDERS    = NEXT_PUBLIC_AUTH_PROVIDERS
     NEXT_PUBLIC_GITHUB_CLIENT_ID = NEXT_PUBLIC_GITHUB_CLIENT_ID
     NEXT_PUBLIC_GOOGLE_CLIENT_ID = NEXT_PUBLIC_GOOGLE_CLIENT_ID
+    NEXT_PUBLIC_BILLING_ENABLED  = NEXT_PUBLIC_BILLING_ENABLED
   }
   tags = compact([
     "${ECR_REGISTRY}/${ECR_REPO}:app-${IMAGE_TAG}",
