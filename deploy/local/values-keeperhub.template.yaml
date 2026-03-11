@@ -104,6 +104,16 @@ env:
   NEXT_PUBLIC_API_URL:
     type: kv
     value: "https://workflow.keeperhub.local"
+  # Internal service API keys (must match scheduler-env ConfigMap)
+  SCHEDULER_SERVICE_API_KEY:
+    type: kv
+    value: "local-scheduler-key-for-dev"
+  MCP_SERVICE_API_KEY:
+    type: kv
+    value: "local-mcp-key-for-dev"
+  EVENTS_SERVICE_API_KEY:
+    type: kv
+    value: "local-events-key-for-dev"
 
 livenessProbe:
   initialDelaySeconds: 120

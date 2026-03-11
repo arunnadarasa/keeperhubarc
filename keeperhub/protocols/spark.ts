@@ -1,45 +1,41 @@
 import { defineProtocol } from "@/keeperhub/lib/protocol-registry";
 
 export default defineProtocol({
-  name: "Aave V3",
-  slug: "aave",
+  name: "Spark",
+  slug: "spark",
   description:
-    "Aave V3 lending and borrowing protocol -- supply, borrow, repay, and monitor account health",
-  website: "https://aave.com",
-  icon: "/protocols/aave.png",
+    "Spark Protocol (Aave V3 fork) -- lending, borrowing, and sDAI savings in the Sky/Maker ecosystem",
+  website: "https://spark.fi",
+  icon: "/protocols/spark.png",
 
   contracts: {
     pool: {
-      label: "Aave V3 Pool",
+      label: "SparkLend Pool",
       addresses: {
         // Ethereum Mainnet
-        "1": "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
-        // Base
-        "8453": "0xA238Dd80C259a72e81d7e4664a9801593F98d1c5",
-        // Arbitrum One
-        "42161": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
-        // Optimism
-        "10": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
-        // Sepolia Testnet
-        "11155111": "0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951",
+        "1": "0xC13e21B648A5Ee794902342038FF3aDAB66BE987",
+        // Gnosis Chain
+        "100": "0x2Dae5307c5E3FD1CF5A72Cb6F698f915860607e0",
       },
       // Proxy contract -- ABI auto-resolved via abi-cache
     },
     poolDataProvider: {
-      label: "Aave V3 Pool Data Provider",
+      label: "Spark Pool Data Provider",
       addresses: {
         // Ethereum Mainnet
-        "1": "0x7B4EB56E7CD4b454BA8ff71E4518426c03584755",
-        // Base
-        "8453": "0x2d8A3C5677189723C4cB8873CfC9C8976FDF38Ac",
-        // Arbitrum One
-        "42161": "0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654",
-        // Optimism
-        "10": "0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654",
-        // Sepolia Testnet
-        "11155111": "0x3e9708d80f7B3e43118013075F7e95CE3AB31F31",
+        "1": "0xFc21d6d146E6086B8359705C8b28512a983db0cb",
+        // Gnosis Chain
+        "100": "0x2a002054A06546bB5a264D57A81347e23Af91D18",
       },
       // ABI auto-resolved via abi-cache
+    },
+    sdai: {
+      label: "sDAI (Savings DAI)",
+      addresses: {
+        // Ethereum Mainnet
+        "1": "0x83F20F44975D03b1b09e64809B757c47f942BEeA",
+      },
+      // Proxy contract -- ABI auto-resolved via abi-cache
     },
   },
 
@@ -50,7 +46,7 @@ export default defineProtocol({
       slug: "supply",
       label: "Supply Asset",
       description:
-        "Supply an asset to the Aave V3 lending pool to earn interest",
+        "Supply an asset to the SparkLend lending pool to earn interest",
       type: "write",
       contract: "pool",
       function: "supply",
@@ -73,7 +69,7 @@ export default defineProtocol({
     {
       slug: "withdraw",
       label: "Withdraw Asset",
-      description: "Withdraw a supplied asset from the Aave V3 lending pool",
+      description: "Withdraw a supplied asset from the SparkLend lending pool",
       type: "write",
       contract: "pool",
       function: "withdraw",
@@ -89,8 +85,7 @@ export default defineProtocol({
     {
       slug: "borrow",
       label: "Borrow Asset",
-      description:
-        "Borrow an asset from the Aave V3 lending pool against supplied collateral",
+      description: "Borrow an asset from SparkLend against supplied collateral",
       type: "write",
       contract: "pool",
       function: "borrow",
@@ -119,7 +114,7 @@ export default defineProtocol({
     {
       slug: "repay",
       label: "Repay Debt",
-      description: "Repay a borrowed asset to the Aave V3 lending pool",
+      description: "Repay a borrowed asset to the SparkLend lending pool",
       type: "write",
       contract: "pool",
       function: "repay",
@@ -146,7 +141,7 @@ export default defineProtocol({
       slug: "set-collateral",
       label: "Set Asset as Collateral",
       description:
-        "Enable or disable a supplied asset as collateral in Aave V3",
+        "Enable or disable a supplied asset as collateral in SparkLend",
       type: "write",
       contract: "pool",
       function: "setUserUseReserveAsCollateral",
@@ -157,8 +152,37 @@ export default defineProtocol({
           type: "bool",
           label: "Use as Collateral",
           helpTip:
-            "Toggles the entire supplied balance of this asset as collateral. There is no partial collateral in Aave V3.",
+            "Toggles the entire supplied balance of this asset as collateral. There is no partial collateral in Aave V3/Spark.",
         },
+      ],
+    },
+
+    // sDAI (ERC-4626 Savings Vault)
+
+    {
+      slug: "deposit-sdai",
+      label: "Deposit DAI to sDAI",
+      description:
+        "Deposit DAI into the sDAI savings vault to earn the DSR (ERC-4626)",
+      type: "write",
+      contract: "sdai",
+      function: "deposit",
+      inputs: [
+        { name: "assets", type: "uint256", label: "DAI Amount (wei)" },
+        { name: "receiver", type: "address", label: "Receiver Address" },
+      ],
+    },
+    {
+      slug: "redeem-sdai",
+      label: "Redeem sDAI for DAI",
+      description: "Redeem sDAI shares for DAI from the savings vault",
+      type: "write",
+      contract: "sdai",
+      function: "redeem",
+      inputs: [
+        { name: "shares", type: "uint256", label: "sDAI Shares (wei)" },
+        { name: "receiver", type: "address", label: "Receiver Address" },
+        { name: "owner", type: "address", label: "Share Owner Address" },
       ],
     },
 
@@ -226,7 +250,7 @@ export default defineProtocol({
         {
           name: "currentATokenBalance",
           type: "uint256",
-          label: "Supplied Balance (aToken)",
+          label: "Supplied Balance (spToken)",
         },
         {
           name: "currentStableDebtTokenBalance",
@@ -269,6 +293,59 @@ export default defineProtocol({
           name: "usageAsCollateralEnabled",
           type: "bool",
           label: "Used as Collateral",
+        },
+      ],
+    },
+    {
+      slug: "get-sdai-balance",
+      label: "Get sDAI Balance",
+      description: "Check the sDAI balance of an address",
+      type: "read",
+      contract: "sdai",
+      function: "balanceOf",
+      inputs: [{ name: "account", type: "address", label: "Wallet Address" }],
+      outputs: [
+        {
+          name: "balance",
+          type: "uint256",
+          label: "sDAI Balance (wei)",
+          decimals: 18,
+        },
+      ],
+    },
+    {
+      slug: "get-sdai-total-assets",
+      label: "Get sDAI Total Assets",
+      description:
+        "Get total DAI held in the sDAI vault (total value locked in DSR)",
+      type: "read",
+      contract: "sdai",
+      function: "totalAssets",
+      inputs: [],
+      outputs: [
+        {
+          name: "totalAssets",
+          type: "uint256",
+          label: "Total DAI in Vault (wei)",
+          decimals: 18,
+        },
+      ],
+    },
+    {
+      slug: "get-sdai-convert-to-assets",
+      label: "Convert sDAI to DAI Value",
+      description:
+        "Preview how much DAI a given amount of sDAI is worth at the current rate",
+      type: "read",
+      contract: "sdai",
+      function: "convertToAssets",
+      inputs: [{ name: "shares", type: "uint256", label: "sDAI Shares (wei)" }],
+      outputs: [
+        {
+          name: "assets",
+          type: "uint256",
+          label: "DAI Value (wei)",
+          decimals: 18,
         },
       ],
     },

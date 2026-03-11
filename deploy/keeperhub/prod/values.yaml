@@ -264,3 +264,34 @@ readinessProbe:
   periodSeconds: 30
   tcpSocket:
     port: 3000
+
+cronjob:
+  enabled: true
+  jobs:
+    - name: reaper
+      image:
+        repository: ${ECR_REGISTRY}/keeperhub-prod
+        tag: app-${IMAGE_TAG}
+        imagePullPolicy: Always
+      schedule: "*/10 * * * *" # every 10 minutes
+      command: ["/bin/sh"]
+      args:
+        - "/app/deploy/scripts/reaper.sh"
+        - "http://keeperhub-common:3000/api/internal/reaper"
+      env:
+        SCHEDULER_SERVICE_API_KEY:
+          type: parameterStore
+          name: scheduler-service-api-key
+          parameter_name: /eks/maker-prod/keeperhub-scheduler/keeperhub-api-key
+      resources:
+        requests:
+          memory: "32Mi"
+          cpu: "10m"
+        limits:
+          memory: "32Mi"
+          cpu: "10m"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 3
+      restartPolicy: OnFailure
+      backoffLimit: 2

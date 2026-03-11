@@ -207,4 +207,6 @@ Success Criteria:
 - "use step" files: NEVER export functions (only step fn + `_integrationType` + type exports)
 - Share logic between step files via `*-core.ts` files without "use step"
 - Security-critical steps: set `stepFunction.maxRetries = 0`
+- Protocol additions include example workflow creation as a recommended post-IMPLEMENT step (scale count to match protocol complexity)
+- Use postgres MCP (mcp__postgres__execute_sql) to INSERT workflows directly into the local DB -- never use KeeperHub MCP for this
 </project_conventions>

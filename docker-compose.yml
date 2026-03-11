@@ -249,6 +249,32 @@ services:
       - minikube
 
   # ===========================================================================
+  # Reaper (stale execution cleanup)
+  # Runs every 10 minutes to mark stuck workflow executions as timed out
+  # ===========================================================================
+  reaper:
+    image: curlimages/curl:latest
+    container_name: keeperhub-reaper
+    restart: unless-stopped
+    environment:
+      SCHEDULER_SERVICE_API_KEY: ${KEEPERHUB_API_KEY:-local-scheduler-key-for-dev}
+    depends_on:
+      app-dev:
+        condition: service_started
+    command: |
+      sh -c 'while true; do
+        echo "[Reaper] Running at $$(date)"
+        curl -sS -f -H "X-Service-Key: $$SCHEDULER_SERVICE_API_KEY" \
+          http://app-dev:3000/api/internal/reaper || echo "[Reaper] Failed"
+        echo ""
+        echo "[Reaper] Sleeping 600s..."
+        sleep 600
+      done'
+    profiles:
+      - dev
+      - minikube
+
+  # ===========================================================================
   # Event Worker (keeperhub-events submodule)
   # Fetches workflows from KeeperHub API and dispatches executions
   # ===========================================================================

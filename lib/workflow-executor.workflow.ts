@@ -27,16 +27,7 @@ import {
   detectTriggerType,
   recordWorkflowComplete,
 } from "@/keeperhub/lib/metrics/instrumentation/workflow";
-import { fallbackCompleteExecution } from "@/keeperhub/lib/execution-fallback";
-import {
-  getFailedMaxRetriesNodeIds,
-  reconcileMaxRetriesFailures,
-  reconcileSdkFailures,
-} from "@/keeperhub/lib/max-retries-reconciler";
-import {
-  clearExecution,
-  getSuccessfulSteps,
-} from "@/keeperhub/lib/step-success-tracker";
+import { clearExecution } from "@/keeperhub/lib/step-success-tracker";
 import { ARRAY_SOURCE_RE } from "@/keeperhub/lib/for-each-utils";
 import {
   buildEdgesBySourceHandle,
@@ -1201,6 +1192,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
 
     return processedConfig;
   }
+  // end keeperhub code //
 
   // -------------------------------------------------------------------
   // For Each: body-node executor (scoped outputs, body-only edges)
@@ -1636,6 +1628,24 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     };
   }
 
+  // start custom keeperhub code //
+  function processSettledResults(
+    settled: PromiseSettledResult<void>[],
+    nodeIds: string[]
+  ): void {
+    for (const [i, outcome] of settled.entries()) {
+      if (outcome.status === "rejected") {
+        const nodeId = nodeIds[i];
+        if (!(nodeId in results)) {
+          const errorMessage =
+            outcome.reason instanceof Error
+              ? outcome.reason.message
+              : String(outcome.reason);
+          results[nodeId] = { success: false, error: errorMessage };
+        }
+      }
+    }
+  }
   // end keeperhub code //
 
   // Helper to execute a single node
@@ -1667,9 +1677,10 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       };
 
       const nextNodes = edgesBySource.get(nodeId) || [];
-      await Promise.all(
+      const settled = await Promise.allSettled(
         nextNodes.map((nextNodeId) => executeNode(nextNodeId, visited))
       );
+      processSettledResults(settled, nextNodes);
       return;
     }
 
@@ -1910,9 +1921,10 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             currentEdgesBySource: edgesBySource,
             continueAfterCollect: async (collectId) => {
               const nextNodes = edgesBySource.get(collectId) ?? [];
-              await Promise.all(
+              const settled = await Promise.allSettled(
                 nextNodes.map((nextNodeId) => executeNode(nextNodeId, visited))
               );
+              processSettledResults(settled, nextNodes);
             },
           });
 
@@ -1946,20 +1958,22 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
                 edgesBySourceHandle
               ),
             });
-            await Promise.all(
+            const handleSettled = await Promise.allSettled(
               handleTargets.map((nextNodeId) =>
                 executeNode(nextNodeId, visited)
               )
             );
+            processSettledResults(handleSettled, handleTargets);
           } else {
             // Legacy fallback: no sourceHandle on edges, use old gate behavior
             if (conditionResult === true) {
               const nextNodes = edgesBySource.get(nodeId) ?? [];
-              await Promise.all(
+              const legacySettled = await Promise.allSettled(
                 nextNodes.map((nextNodeId) =>
                   executeNode(nextNodeId, visited)
                 )
               );
+              processSettledResults(legacySettled, nextNodes);
             }
           }
           // end keeperhub code //
@@ -1971,9 +1985,10 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             nextNodes.length,
             "next nodes in parallel"
           );
-          await Promise.all(
+          const nextSettled = await Promise.allSettled(
             nextNodes.map((nextNodeId) => executeNode(nextNodeId, visited))
           );
+          processSettledResults(nextSettled, nextNodes);
         }
       }
     } catch (error) {
@@ -2013,56 +2028,13 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     incrementConcurrentExecutions();
     // end keeperhub code //
 
-    await Promise.all(triggerNodes.map((trigger) => executeNode(trigger.id)));
+    const triggerNodeIds = triggerNodes.map((trigger) => trigger.id);
+    const triggerSettled = await Promise.allSettled(
+      triggerNodeIds.map((id) => executeNode(id))
+    );
+    processSettledResults(triggerSettled, triggerNodeIds);
 
     // start custom keeperhub code //
-    // KEEP-1541: Reconcile spurious SDK failures.
-    // The Workflow DevKit's durability layer can throw errors (e.g. "exceeded
-    // max retries", event log corruption, state replay mismatches) AFTER
-    // withStepLogging has already recorded a success. Two passes:
-    //   1. reconcileMaxRetriesFailures - targets known "max retries" errors
-    //   2. reconcileSdkFailures - catches any remaining SDK-induced failures
-    // See max-retries-reconciler.ts for details.
-    if (executionId) {
-      const successfulSteps = getSuccessfulSteps(executionId);
-
-      if (successfulSteps) {
-        // Pass 1: targeted max-retries reconciliation
-        const failedNodeIds = getFailedMaxRetriesNodeIds(results);
-
-        if (failedNodeIds.length > 0) {
-          const { overriddenNodeIds } = reconcileMaxRetriesFailures({
-            results,
-            successfulSteps,
-            workflowId,
-            executionId,
-          });
-
-          if (overriddenNodeIds.length > 0) {
-            console.warn(
-              "[Workflow Executor] Reconciled spurious max-retries failures:",
-              overriddenNodeIds
-            );
-          }
-        }
-
-        // Pass 2: general SDK error reconciliation for remaining failures
-        const { overriddenNodeIds: sdkOverrides } = reconcileSdkFailures({
-          results,
-          successfulSteps,
-          workflowId,
-          executionId,
-        });
-
-        if (sdkOverrides.length > 0) {
-          console.warn(
-            "[Workflow Executor] Reconciled SDK-induced failures:",
-            sdkOverrides
-          );
-        }
-      }
-    }
-
     // Branch-aware finalSuccess: exclude nodes on dead (not-taken) condition branches
     const allSkippedTargets = collectAllSkippedTargets(conditionDecisions);
     const finalSuccess = Object.entries(results).every(
@@ -2116,28 +2088,22 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             executionId,
             status: finalSuccess ? "success" : "error",
             output: Object.values(results).at(-1)?.data,
-            error: Object.values(results).find((r) => !r.success)?.error,
+            error: finalSuccess
+              ? undefined
+              : Object.values(results).find((r) => !r.success)?.error,
             startTime: workflowStartTime,
           },
         });
-        console.log("[Workflow Executor] Updated execution record");
-      } catch (error) {
+      } catch (completeError) {
         logSystemError(
-          ErrorCategory.DATABASE,
+          ErrorCategory.WORKFLOW_ENGINE,
           "[Workflow Executor] Failed to update execution record:",
-          error,
+          completeError,
           {
             ...(workflowId ? { workflow_id: workflowId } : {}),
             ...(executionId ? { execution_id: executionId } : {}),
           }
         );
-        // start custom keeperhub code //
-        await fallbackCompleteExecution({
-          executionId,
-          status: finalSuccess ? "success" : "error",
-          error: Object.values(results).find((r) => !r.success)?.error,
-        });
-        // end keeperhub code //
       }
     }
 
@@ -2193,13 +2159,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             ...(executionId ? { execution_id: executionId } : {}),
           }
         );
-        // start custom keeperhub code //
-        await fallbackCompleteExecution({
-          executionId,
-          status: "error",
-          error: errorMessage,
-        });
-        // end keeperhub code //
       }
     }
 

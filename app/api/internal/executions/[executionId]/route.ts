@@ -20,7 +20,7 @@ export async function PATCH(
 
   const { executionId } = await context.params;
   const body = await request.json();
-  const { status, error } = body;
+  const { status, error, duration } = body;
 
   type ExecutionStatus = "running" | "success" | "error";
   const validStatuses: ExecutionStatus[] = ["running", "success", "error"];
@@ -51,10 +51,14 @@ export async function PATCH(
   }
 
   // Build update payload
+  const isTerminal = status === "success" || status === "error";
   const updateData: {
     status: ExecutionStatus;
     error?: string | null;
     completedAt?: Date;
+    duration?: string;
+    currentNodeId?: null;
+    currentNodeName?: null;
   } = { status: typedStatus };
 
   if (status === "error") {
@@ -62,6 +66,14 @@ export async function PATCH(
     updateData.completedAt = new Date();
   } else if (status === "success") {
     updateData.completedAt = new Date();
+  }
+
+  if (isTerminal) {
+    updateData.currentNodeId = null;
+    updateData.currentNodeName = null;
+    if (typeof duration === "string") {
+      updateData.duration = duration;
+    }
   }
 
   await db

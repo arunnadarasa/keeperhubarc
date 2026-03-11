@@ -2,6 +2,7 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
+import { getProtocol } from "@/keeperhub/lib/protocol-registry";
 import { db } from "@/lib/db";
 import { type Chain, chains, workflows } from "@/lib/db/schema";
 import type { WorkflowNode } from "@/lib/workflow-store";
@@ -83,6 +84,30 @@ export async function GET(request: Request) {
 
           if (triggerType !== WorkflowTriggerEnum.EVENT) {
             return null;
+          }
+
+          // Try to infer contract address from protocol and event slug
+          const config = triggerNode.data?.config;
+          if (config && !config.contractAddress) {
+            const protocolSlug = config._eventProtocolSlug as
+              | string
+              | undefined;
+            const eventSlug = config._eventSlug as string | undefined;
+            const network = config.network as string | undefined;
+
+            if (protocolSlug && eventSlug && network) {
+              const protocol = getProtocol(protocolSlug);
+              const event = protocol?.events?.find(
+                (e) => e.slug === eventSlug
+              );
+              if (protocol && event) {
+                const contract = protocol.contracts[event.contract];
+                const address = contract?.addresses[network];
+                if (address) {
+                  config.contractAddress = address;
+                }
+              }
+            }
           }
 
           return {
