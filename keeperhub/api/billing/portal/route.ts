@@ -26,7 +26,10 @@ export async function POST(_request: Request): Promise<NextResponse> {
       );
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL ??
+      process.env.BETTER_AUTH_URL ??
+      "http://localhost:3000";
     const provider = getBillingProvider();
 
     const { url } = await provider.createPortalSession(

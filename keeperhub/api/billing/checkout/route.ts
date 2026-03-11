@@ -195,7 +195,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       sub
     );
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL ??
+      process.env.BETTER_AUTH_URL ??
+      "http://localhost:3000";
 
     const { url } = await provider.createCheckoutSession({
       customerId: providerCustomerId,
