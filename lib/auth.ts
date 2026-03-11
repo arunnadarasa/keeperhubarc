@@ -24,6 +24,7 @@ import {
   memberRelations,
   member as memberTable,
   organizationRelations,
+  organizationSubscriptions,
   // start custom keeperhub code //
   organization as organizationTable,
   sessions,
@@ -256,8 +257,18 @@ const plugins = [
 
     // Hooks for custom business logic
     organizationHooks: {
-      async afterCreateOrganization() {
-        await Promise.resolve();
+      async afterCreateOrganization(data) {
+        const { organization: org } = data;
+        await db
+          .insert(organizationSubscriptions)
+          .values({
+            organizationId: org.id,
+            plan: "free",
+            status: "active",
+          })
+          .onConflictDoNothing({
+            target: organizationSubscriptions.organizationId,
+          });
       },
 
       async afterAddMember() {

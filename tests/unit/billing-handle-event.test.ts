@@ -1,0 +1,671 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
+const mockClearDebtForInvoice = vi.fn().mockResolvedValue(0);
+const mockClearAllDebtForOrg = vi.fn().mockResolvedValue(0);
+
+vi.mock("@/keeperhub/lib/billing/execution-debt", () => ({
+  clearDebtForInvoice: (...args: unknown[]) => mockClearDebtForInvoice(...args),
+  clearAllDebtForOrg: (...args: unknown[]) => mockClearAllDebtForOrg(...args),
+}));
+
+const mockBillOverageForOrg = vi
+  .fn()
+  .mockResolvedValue({ billed: false, reason: "no overage" });
+
+vi.mock("@/keeperhub/lib/billing/overage", () => ({
+  billOverageForOrg: (...args: unknown[]) => mockBillOverageForOrg(...args),
+}));
+
+import { handleBillingEvent } from "@/keeperhub/lib/billing/handle-billing-event";
+import type {
+  BillingProvider,
+  BillingWebhookEvent,
+} from "@/keeperhub/lib/billing/provider";
+import { db } from "@/lib/db";
+
+const mockSet = vi.fn().mockReturnValue({ where: vi.fn() });
+const mockWhere = vi.fn();
+const mockOnConflictDoUpdate = vi.fn();
+const mockInsertValues = vi.fn().mockReturnValue({
+  onConflictDoUpdate: mockOnConflictDoUpdate,
+});
+
+vi.mocked(db.update).mockReturnValue({
+  set: mockSet,
+} as unknown as ReturnType<typeof db.update>);
+
+vi.mocked(db.insert).mockReturnValue({
+  values: mockInsertValues,
+} as unknown as ReturnType<typeof db.insert>);
+
+vi.mocked(db.select).mockReturnValue({
+  from: vi.fn().mockReturnValue({
+    where: vi.fn().mockReturnValue({
+      limit: vi.fn().mockResolvedValue([]),
+    }),
+  }),
+} as unknown as ReturnType<typeof db.select>);
+
+function mockSelectReturning(rows: Record<string, unknown>[]): void {
+  vi.mocked(db.select).mockReturnValue({
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        limit: vi.fn().mockResolvedValue(rows),
+      }),
+    }),
+  } as unknown as ReturnType<typeof db.select>);
+}
+
+function createMockProvider(
+  overrides: Partial<BillingProvider> = {}
+): BillingProvider {
+  return {
+    name: "test",
+    createCustomer: vi.fn(),
+    createCheckoutSession: vi.fn(),
+    createPortalSession: vi.fn(),
+    verifyWebhook: vi.fn(),
+    getSubscriptionDetails: vi.fn().mockResolvedValue({
+      priceId: process.env.STRIPE_PRICE_PRO_25K_MONTHLY,
+      status: "active",
+      cancelAtPeriodEnd: false,
+      periodStart: new Date("2025-01-01"),
+      periodEnd: new Date("2025-02-01"),
+    }),
+    listInvoices: vi.fn(),
+    updateSubscription: vi.fn(),
+    cancelSubscription: vi.fn(),
+    previewProration: vi.fn(),
+    createInvoiceItem: vi.fn(),
+    getInvoiceStatus: vi.fn().mockResolvedValue({ status: "paid", paid: true }),
+    getInvoiceForItem: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
+function makeEvent(
+  type: BillingWebhookEvent["type"],
+  data: BillingWebhookEvent["data"]
+): BillingWebhookEvent {
+  return { type, providerEventId: `evt_${type}`, data };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockSet.mockReturnValue({ where: mockWhere });
+  mockInsertValues.mockReturnValue({
+    onConflictDoUpdate: mockOnConflictDoUpdate,
+  });
+  mockBillOverageForOrg.mockResolvedValue({
+    billed: false,
+    reason: "no overage",
+  });
+});
+
+describe("handleBillingEvent", () => {
+  describe("checkout.completed", () => {
+    it("updates subscription with resolved plan and tier", async () => {
+      const provider = createMockProvider();
+      const event = makeEvent("checkout.completed", {
+        organizationId: "org_1",
+        providerSubscriptionId: "sub_1",
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(provider.getSubscriptionDetails).toHaveBeenCalledWith("sub_1");
+      expect(db.insert).toHaveBeenCalled();
+      expect(mockInsertValues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organizationId: "org_1",
+          providerSubscriptionId: "sub_1",
+          plan: "pro",
+          tier: "25k",
+          status: "active",
+        })
+      );
+      expect(mockOnConflictDoUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          set: expect.objectContaining({
+            providerSubscriptionId: "sub_1",
+            plan: "pro",
+            tier: "25k",
+            status: "active",
+          }),
+        })
+      );
+    });
+
+    it("skips when organizationId is missing", async () => {
+      const provider = createMockProvider();
+      const event = makeEvent("checkout.completed", {
+        providerSubscriptionId: "sub_1",
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(provider.getSubscriptionDetails).not.toHaveBeenCalled();
+      expect(db.insert).not.toHaveBeenCalled();
+    });
+
+    it("skips when providerSubscriptionId is missing", async () => {
+      const provider = createMockProvider();
+      const event = makeEvent("checkout.completed", {
+        organizationId: "org_1",
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(provider.getSubscriptionDetails).not.toHaveBeenCalled();
+      expect(db.insert).not.toHaveBeenCalled();
+    });
+
+    it("returns early when priceId cannot be resolved", async () => {
+      const provider = createMockProvider({
+        getSubscriptionDetails: vi.fn().mockResolvedValue({
+          priceId: "price_unknown_xyz",
+          status: "active",
+          cancelAtPeriodEnd: false,
+          periodStart: new Date("2025-01-01"),
+          periodEnd: new Date("2025-02-01"),
+        }),
+      });
+      const event = makeEvent("checkout.completed", {
+        organizationId: "org_1",
+        providerSubscriptionId: "sub_1",
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(provider.getSubscriptionDetails).toHaveBeenCalledWith("sub_1");
+      expect(db.insert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("subscription.updated", () => {
+    it("updates plan when price changes", async () => {
+      mockSelectReturning([
+        {
+          providerSubscriptionId: "sub_1",
+          providerPriceId: process.env.STRIPE_PRICE_PRO_25K_MONTHLY,
+          plan: "pro",
+          tier: "25k",
+          status: "active",
+          cancelAtPeriodEnd: false,
+          currentPeriodStart: new Date("2025-01-01"),
+          currentPeriodEnd: new Date("2025-02-01"),
+        },
+      ]);
+
+      const provider = createMockProvider();
+      const event = makeEvent("subscription.updated", {
+        providerSubscriptionId: "sub_1",
+        priceId: process.env.STRIPE_PRICE_PRO_50K_MONTHLY,
+        status: "active",
+        cancelAtPeriodEnd: false,
+        periodStart: new Date("2025-01-01"),
+        periodEnd: new Date("2025-02-01"),
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(db.update).toHaveBeenCalled();
+      expect(mockSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          plan: "pro",
+          tier: "50k",
+          providerPriceId: process.env.STRIPE_PRICE_PRO_50K_MONTHLY,
+        })
+      );
+    });
+
+    it("preserves plan on cancel-at-period-end (same priceId)", async () => {
+      mockSelectReturning([
+        {
+          providerSubscriptionId: "sub_1",
+          providerPriceId: process.env.STRIPE_PRICE_PRO_25K_MONTHLY,
+          plan: "pro",
+          tier: "25k",
+          status: "active",
+          cancelAtPeriodEnd: false,
+          currentPeriodStart: new Date("2025-01-01"),
+          currentPeriodEnd: new Date("2025-02-01"),
+        },
+      ]);
+
+      const provider = createMockProvider();
+      const event = makeEvent("subscription.updated", {
+        providerSubscriptionId: "sub_1",
+        priceId: process.env.STRIPE_PRICE_PRO_25K_MONTHLY,
+        status: "active",
+        cancelAtPeriodEnd: true,
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(db.update).toHaveBeenCalled();
+      const setArg = mockSet.mock.calls[0][0] as Record<string, unknown>;
+      expect(setArg.plan).toBeUndefined();
+      expect(setArg.tier).toBeUndefined();
+      expect(setArg.cancelAtPeriodEnd).toBe(true);
+    });
+
+    it("skips when no matching subscription row found", async () => {
+      mockSelectReturning([]);
+
+      const provider = createMockProvider();
+      const event = makeEvent("subscription.updated", {
+        providerSubscriptionId: "sub_unknown",
+        status: "active",
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it("skips when providerSubscriptionId is missing", async () => {
+      const provider = createMockProvider();
+      const event = makeEvent("subscription.updated", {});
+
+      await handleBillingEvent(event, provider);
+
+      expect(db.select).not.toHaveBeenCalled();
+    });
+
+    it("bills overage before updating subscription on period rollover", async () => {
+      const oldStart = new Date("2025-01-01");
+      const oldEnd = new Date("2025-02-01");
+      const newStart = new Date("2025-02-01");
+      const newEnd = new Date("2025-03-01");
+
+      mockSelectReturning([
+        {
+          providerSubscriptionId: "sub_1",
+          organizationId: "org_1",
+          providerPriceId: process.env.STRIPE_PRICE_PRO_25K_MONTHLY,
+          plan: "pro",
+          tier: "25k",
+          status: "active",
+          cancelAtPeriodEnd: false,
+          currentPeriodStart: oldStart,
+          currentPeriodEnd: oldEnd,
+        },
+      ]);
+
+      const provider = createMockProvider();
+      const event = makeEvent("subscription.updated", {
+        providerSubscriptionId: "sub_1",
+        priceId: process.env.STRIPE_PRICE_PRO_25K_MONTHLY,
+        status: "active",
+        cancelAtPeriodEnd: false,
+        periodStart: newStart,
+        periodEnd: newEnd,
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(mockBillOverageForOrg).toHaveBeenCalledWith(
+        "org_1",
+        oldStart,
+        oldEnd
+      );
+      expect(db.update).toHaveBeenCalled();
+    });
+
+    it("still updates subscription when overage billing fails", async () => {
+      const oldStart = new Date("2025-01-01");
+      const oldEnd = new Date("2025-02-01");
+      const newStart = new Date("2025-02-01");
+      const newEnd = new Date("2025-03-01");
+
+      mockSelectReturning([
+        {
+          providerSubscriptionId: "sub_1",
+          organizationId: "org_1",
+          providerPriceId: process.env.STRIPE_PRICE_PRO_25K_MONTHLY,
+          plan: "pro",
+          tier: "25k",
+          status: "active",
+          cancelAtPeriodEnd: false,
+          currentPeriodStart: oldStart,
+          currentPeriodEnd: oldEnd,
+        },
+      ]);
+
+      mockBillOverageForOrg.mockRejectedValue(new Error("Stripe error"));
+
+      const provider = createMockProvider();
+      const event = makeEvent("subscription.updated", {
+        providerSubscriptionId: "sub_1",
+        priceId: process.env.STRIPE_PRICE_PRO_25K_MONTHLY,
+        status: "active",
+        cancelAtPeriodEnd: false,
+        periodStart: newStart,
+        periodEnd: newEnd,
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(mockBillOverageForOrg).toHaveBeenCalled();
+      expect(db.update).toHaveBeenCalled();
+    });
+
+    it("skips overage billing when period has not rolled", async () => {
+      const sameStart = new Date("2025-01-01");
+      const sameEnd = new Date("2025-02-01");
+
+      mockSelectReturning([
+        {
+          providerSubscriptionId: "sub_1",
+          organizationId: "org_1",
+          providerPriceId: process.env.STRIPE_PRICE_PRO_25K_MONTHLY,
+          plan: "pro",
+          tier: "25k",
+          status: "active",
+          cancelAtPeriodEnd: false,
+          currentPeriodStart: sameStart,
+          currentPeriodEnd: sameEnd,
+        },
+      ]);
+
+      const provider = createMockProvider();
+      const event = makeEvent("subscription.updated", {
+        providerSubscriptionId: "sub_1",
+        priceId: process.env.STRIPE_PRICE_PRO_25K_MONTHLY,
+        status: "active",
+        cancelAtPeriodEnd: false,
+        periodStart: sameStart,
+        periodEnd: sameEnd,
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(mockBillOverageForOrg).not.toHaveBeenCalled();
+      expect(db.update).toHaveBeenCalled();
+    });
+  });
+
+  describe("subscription.deleted", () => {
+    it("keeps plan active when period has not ended", async () => {
+      const futureDate = new Date(Date.now() + 86_400_000 * 30);
+      mockSelectReturning([
+        {
+          providerSubscriptionId: "sub_1",
+          currentPeriodEnd: futureDate,
+          plan: "pro",
+        },
+      ]);
+
+      const provider = createMockProvider();
+      const event = makeEvent("subscription.deleted", {
+        providerSubscriptionId: "sub_1",
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(db.update).toHaveBeenCalled();
+      expect(mockSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "canceled",
+          cancelAtPeriodEnd: false,
+        })
+      );
+      const setArg = mockSet.mock.calls[0][0] as Record<string, unknown>;
+      expect(setArg.plan).toBeUndefined();
+    });
+
+    it("resets to free when period has ended", async () => {
+      const pastDate = new Date(Date.now() - 86_400_000);
+      mockSelectReturning([
+        {
+          providerSubscriptionId: "sub_1",
+          currentPeriodEnd: pastDate,
+          plan: "pro",
+        },
+      ]);
+
+      const provider = createMockProvider();
+      const event = makeEvent("subscription.deleted", {
+        providerSubscriptionId: "sub_1",
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(db.update).toHaveBeenCalled();
+      expect(mockSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          plan: "free",
+          tier: null,
+          status: "canceled",
+          providerSubscriptionId: null,
+          providerPriceId: null,
+        })
+      );
+    });
+
+    it("uses event periodEnd over DB periodEnd", async () => {
+      const pastDbDate = new Date(Date.now() - 86_400_000);
+      const futureEventDate = new Date(Date.now() + 86_400_000 * 30);
+      mockSelectReturning([
+        {
+          providerSubscriptionId: "sub_1",
+          currentPeriodEnd: pastDbDate,
+          plan: "pro",
+        },
+      ]);
+
+      const provider = createMockProvider();
+      const event = makeEvent("subscription.deleted", {
+        providerSubscriptionId: "sub_1",
+        periodEnd: futureEventDate,
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(db.update).toHaveBeenCalled();
+      expect(mockSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "canceled",
+          cancelAtPeriodEnd: false,
+        })
+      );
+      const setArg = mockSet.mock.calls[0][0] as Record<string, unknown>;
+      expect(setArg.plan).toBeUndefined();
+    });
+
+    it("clears all debt when resetting to free", async () => {
+      const pastDate = new Date(Date.now() - 86_400_000);
+      mockSelectReturning([
+        {
+          providerSubscriptionId: "sub_1",
+          organizationId: "org_1",
+          currentPeriodEnd: pastDate,
+          plan: "pro",
+        },
+      ]);
+
+      const provider = createMockProvider();
+      const event = makeEvent("subscription.deleted", {
+        providerSubscriptionId: "sub_1",
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(mockClearAllDebtForOrg).toHaveBeenCalledWith("org_1");
+    });
+
+    it("clears debt even when period still active", async () => {
+      const futureDate = new Date(Date.now() + 86_400_000 * 30);
+      mockSelectReturning([
+        {
+          providerSubscriptionId: "sub_1",
+          organizationId: "org_1",
+          currentPeriodEnd: futureDate,
+          plan: "pro",
+        },
+      ]);
+
+      const provider = createMockProvider();
+      const event = makeEvent("subscription.deleted", {
+        providerSubscriptionId: "sub_1",
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(mockClearAllDebtForOrg).toHaveBeenCalledWith("org_1");
+    });
+
+    it("skips when providerSubscriptionId is missing", async () => {
+      const provider = createMockProvider();
+      const event = makeEvent("subscription.deleted", {});
+
+      await handleBillingEvent(event, provider);
+
+      expect(db.select).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("invoice.paid", () => {
+    it("sets status active and clears billing alerts", async () => {
+      const provider = createMockProvider();
+      const event = makeEvent("invoice.paid", {
+        providerSubscriptionId: "sub_1",
+        invoiceId: "inv_1",
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(db.update).toHaveBeenCalled();
+      expect(mockSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "active",
+          billingAlert: null,
+          billingAlertUrl: null,
+        })
+      );
+    });
+
+    it("clears debt when invoiceId is present", async () => {
+      const provider = createMockProvider();
+      const event = makeEvent("invoice.paid", {
+        providerSubscriptionId: "sub_1",
+        invoiceId: "inv_123",
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(mockClearDebtForInvoice).toHaveBeenCalledWith("inv_123");
+    });
+
+    it("handles invoice without subscriptionId via customer ID fallback", async () => {
+      mockSelectReturning([
+        {
+          organizationId: "org_1",
+          providerCustomerId: "cus_123",
+          providerSubscriptionId: null,
+        },
+      ]);
+
+      const provider = createMockProvider();
+      const event = makeEvent("invoice.paid", {
+        invoiceId: "inv_standalone",
+        providerCustomerId: "cus_123",
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(mockClearDebtForInvoice).toHaveBeenCalledWith("inv_standalone");
+      expect(db.update).toHaveBeenCalled();
+      expect(mockSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          billingAlert: null,
+          billingAlertUrl: null,
+        })
+      );
+    });
+
+    it("does not clear debt when no invoiceId", async () => {
+      const provider = createMockProvider();
+      const event = makeEvent("invoice.paid", {
+        providerSubscriptionId: "sub_1",
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(mockClearDebtForInvoice).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("invoice.payment_failed", () => {
+    it("sets past_due status and payment_failed alert", async () => {
+      const provider = createMockProvider();
+      const event = makeEvent("invoice.payment_failed", {
+        providerSubscriptionId: "sub_1",
+        invoiceUrl: "https://invoice.stripe.com/i/123",
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(db.update).toHaveBeenCalled();
+      expect(mockSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "past_due",
+          billingAlert: "payment_failed",
+          billingAlertUrl: "https://invoice.stripe.com/i/123",
+        })
+      );
+    });
+
+    it("skips when providerSubscriptionId is missing", async () => {
+      const provider = createMockProvider();
+      const event = makeEvent("invoice.payment_failed", {});
+
+      await handleBillingEvent(event, provider);
+
+      expect(db.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("invoice.overdue", () => {
+    it("sets overdue alert", async () => {
+      const provider = createMockProvider();
+      const event = makeEvent("invoice.overdue", {
+        providerSubscriptionId: "sub_1",
+        invoiceUrl: "https://invoice.stripe.com/i/456",
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(db.update).toHaveBeenCalled();
+      expect(mockSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          billingAlert: "overdue",
+          billingAlertUrl: "https://invoice.stripe.com/i/456",
+        })
+      );
+    });
+  });
+
+  describe("invoice.payment_action_required", () => {
+    it("sets payment_action_required alert", async () => {
+      const provider = createMockProvider();
+      const event = makeEvent("invoice.payment_action_required", {
+        providerSubscriptionId: "sub_1",
+        invoiceUrl: "https://invoice.stripe.com/i/789",
+      });
+
+      await handleBillingEvent(event, provider);
+
+      expect(db.update).toHaveBeenCalled();
+      expect(mockSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          billingAlert: "payment_action_required",
+          billingAlertUrl: "https://invoice.stripe.com/i/789",
+        })
+      );
+    });
+  });
+});

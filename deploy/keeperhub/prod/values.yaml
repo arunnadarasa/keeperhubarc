@@ -57,6 +57,7 @@ deployment:
         - -c
       args:
         - |
+          set -e
           echo "Setting up workflow postgres tables..."
           export WORKFLOW_POSTGRES_URL=$(tsx scripts/encode-pg-url.ts)
           pnpm exec workflow-postgres-setup
@@ -222,6 +223,74 @@ env:
     type: parameterStore
     name: sentry-auth-token
     parameter_name: /eks/maker-prod/keeperhub/sentry-auth-token
+  # Billing (Stripe)
+  NEXT_PUBLIC_BILLING_ENABLED:
+    type: kv
+    value: "false"
+  STRIPE_SECRET_KEY:
+    type: parameterStore
+    name: stripe-secret-key
+    parameter_name: /eks/maker-prod/keeperhub/stripe-secret-key
+  STRIPE_WEBHOOK_SECRET:
+    type: parameterStore
+    name: stripe-webhook-secret
+    parameter_name: /eks/maker-prod/keeperhub/stripe-webhook-secret
+  STRIPE_PRICE_PRO_25K_MONTHLY:
+    type: parameterStore
+    name: stripe-price-pro-25k-monthly
+    parameter_name: /eks/maker-prod/keeperhub/stripe-price-pro-25k-monthly
+  STRIPE_PRICE_PRO_25K_YEARLY:
+    type: parameterStore
+    name: stripe-price-pro-25k-yearly
+    parameter_name: /eks/maker-prod/keeperhub/stripe-price-pro-25k-yearly
+  STRIPE_PRICE_PRO_50K_MONTHLY:
+    type: parameterStore
+    name: stripe-price-pro-50k-monthly
+    parameter_name: /eks/maker-prod/keeperhub/stripe-price-pro-50k-monthly
+  STRIPE_PRICE_PRO_50K_YEARLY:
+    type: parameterStore
+    name: stripe-price-pro-50k-yearly
+    parameter_name: /eks/maker-prod/keeperhub/stripe-price-pro-50k-yearly
+  STRIPE_PRICE_PRO_100K_MONTHLY:
+    type: parameterStore
+    name: stripe-price-pro-100k-monthly
+    parameter_name: /eks/maker-prod/keeperhub/stripe-price-pro-100k-monthly
+  STRIPE_PRICE_PRO_100K_YEARLY:
+    type: parameterStore
+    name: stripe-price-pro-100k-yearly
+    parameter_name: /eks/maker-prod/keeperhub/stripe-price-pro-100k-yearly
+  STRIPE_PRICE_BUSINESS_250K_MONTHLY:
+    type: parameterStore
+    name: stripe-price-business-250k-monthly
+    parameter_name: /eks/maker-prod/keeperhub/stripe-price-business-250k-monthly
+  STRIPE_PRICE_BUSINESS_250K_YEARLY:
+    type: parameterStore
+    name: stripe-price-business-250k-yearly
+    parameter_name: /eks/maker-prod/keeperhub/stripe-price-business-250k-yearly
+  STRIPE_PRICE_BUSINESS_500K_MONTHLY:
+    type: parameterStore
+    name: stripe-price-business-500k-monthly
+    parameter_name: /eks/maker-prod/keeperhub/stripe-price-business-500k-monthly
+  STRIPE_PRICE_BUSINESS_500K_YEARLY:
+    type: parameterStore
+    name: stripe-price-business-500k-yearly
+    parameter_name: /eks/maker-prod/keeperhub/stripe-price-business-500k-yearly
+  STRIPE_PRICE_BUSINESS_1M_MONTHLY:
+    type: parameterStore
+    name: stripe-price-business-1m-monthly
+    parameter_name: /eks/maker-prod/keeperhub/stripe-price-business-1m-monthly
+  STRIPE_PRICE_BUSINESS_1M_YEARLY:
+    type: parameterStore
+    name: stripe-price-business-1m-yearly
+    parameter_name: /eks/maker-prod/keeperhub/stripe-price-business-1m-yearly
+  STRIPE_PRICE_ENTERPRISE_MONTHLY:
+    type: parameterStore
+    name: stripe-price-enterprise-monthly
+    parameter_name: /eks/maker-prod/keeperhub/stripe-price-enterprise-monthly
+  STRIPE_PRICE_ENTERPRISE_YEARLY:
+    type: parameterStore
+    name: stripe-price-enterprise-yearly
+    parameter_name: /eks/maker-prod/keeperhub/stripe-price-enterprise-yearly
   # Internal service API keys for service-to-service auth
   MCP_SERVICE_API_KEY:
     type: parameterStore

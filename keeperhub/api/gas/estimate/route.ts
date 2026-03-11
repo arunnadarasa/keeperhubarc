@@ -6,7 +6,7 @@ import { getOrganizationWalletAddress } from "@/keeperhub/lib/para/wallet-helper
 import { getChainGasDefaults } from "@/keeperhub/lib/web3/gas-defaults";
 import { auth } from "@/lib/auth";
 import { ERC20_ABI } from "@/lib/contracts";
-import { resolveRpcConfig } from "@/lib/rpc";
+import { getRpcProvider } from "@/lib/rpc/provider-factory";
 
 type EstimateConfig = {
   contractAddress?: string;
@@ -241,13 +241,6 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const { chainId, actionSlug, config, activeOrgId } = validated;
 
-    const rpcConfig = await resolveRpcConfig(chainId);
-    if (!rpcConfig) {
-      return badRequest(`Chain ${chainId} not found or not enabled`);
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcConfig.primaryRpcUrl);
-
     let walletAddress: string;
     try {
       walletAddress = await getOrganizationWalletAddress(activeOrgId);
@@ -255,21 +248,20 @@ export async function POST(request: Request): Promise<NextResponse> {
       return badRequest("No wallet configured. Create a wallet first.");
     }
 
-    let result: NextResponse | bigint;
+    const rpcManager = await getRpcProvider({ chainId });
 
-    switch (actionSlug) {
-      case "transfer-funds":
-        result = await estimateTransferFunds(config, provider, walletAddress);
-        break;
-      case "transfer-token":
-        result = await estimateTransferToken(config, provider, walletAddress);
-        break;
-      case "write-contract":
-        result = await estimateWriteContract(config, provider, walletAddress);
-        break;
-      default:
-        return badRequest(`Unsupported action: ${actionSlug as string}`);
-    }
+    const result = await rpcManager.executeWithFailover(async (provider) => {
+      switch (actionSlug) {
+        case "transfer-funds":
+          return await estimateTransferFunds(config, provider, walletAddress);
+        case "transfer-token":
+          return await estimateTransferToken(config, provider, walletAddress);
+        case "write-contract":
+          return await estimateWriteContract(config, provider, walletAddress);
+        default:
+          return badRequest(`Unsupported action: ${actionSlug as string}`);
+      }
+    });
 
     // If the estimator returned a NextResponse, it's an error
     if (result instanceof NextResponse) {

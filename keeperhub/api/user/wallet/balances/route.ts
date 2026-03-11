@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { ERC20_ABI } from "@/lib/contracts";
 import { db } from "@/lib/db";
 import { chains, organizationTokens } from "@/lib/db/schema";
+import { getRpcProvider } from "@/lib/rpc/provider-factory";
 
 type TokenBalance = {
   address: string;
@@ -93,10 +94,14 @@ export async function GET(request: Request) {
         const isTestnet = chain.isTestnet === true;
 
         try {
-          const provider = new ethers.JsonRpcProvider(chain.defaultPrimaryRpc);
+          const rpcManager = await getRpcProvider({
+            chainId: chain.chainId,
+          });
 
-          // Fetch native balance
-          const nativeBalanceRaw = await provider.getBalance(walletAddress);
+          // Fetch native balance with retry/failover
+          const nativeBalanceRaw = await rpcManager.executeWithFailover(
+            (provider) => provider.getBalance(walletAddress)
+          );
           const nativeBalance = ethers.formatEther(nativeBalanceRaw);
 
           // Fetch ERC20 token balances for this chain
@@ -105,14 +110,16 @@ export async function GET(request: Request) {
 
           for (const token of chainTokens) {
             try {
-              const contract = new ethers.Contract(
-                token.tokenAddress,
-                ERC20_ABI,
-                provider
+              const balanceRaw = await rpcManager.executeWithFailover(
+                async (provider) => {
+                  const contract = new ethers.Contract(
+                    token.tokenAddress,
+                    ERC20_ABI,
+                    provider
+                  );
+                  return (await contract.balanceOf(walletAddress)) as bigint;
+                }
               );
-              const balanceRaw = (await contract.balanceOf(
-                walletAddress
-              )) as bigint;
               const balance = ethers.formatUnits(balanceRaw, token.decimals);
 
               tokenBalances.push({
@@ -129,7 +136,6 @@ export async function GET(request: Request) {
                 `[Balances] Failed to fetch balance for token ${token.symbol}:`,
                 tokenError
               );
-              // Include token with error state
               tokenBalances.push({
                 address: token.tokenAddress,
                 symbol: token.symbol,

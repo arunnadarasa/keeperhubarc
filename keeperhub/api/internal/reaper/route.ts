@@ -64,7 +64,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         status: "error",
         error: `Execution timed out: no activity for ${thresholdMinutes} minutes`,
         completedAt: new Date(),
-        duration: sql`EXTRACT(EPOCH FROM (NOW() - ${workflowExecutions.startedAt})) * 1000`,
+        duration: sql`ROUND(EXTRACT(EPOCH FROM (NOW() - ${workflowExecutions.startedAt})) * 1000)`,
       })
       .where(staleConditions)
       .returning({ id: workflowExecutions.id });

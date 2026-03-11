@@ -17,7 +17,6 @@ Users and Agents can build and deploy Web3 automation workflows through a visual
 
 You can view the plugin source code here https://github.com/techops-services/claude-plugins/tree/main/plugins/keeperhub
 
-
 **2. Run setup**
 
 ```
@@ -25,6 +24,7 @@ You can view the plugin source code here https://github.com/techops-services/cla
 ```
 
 This walks you through:
+
 - Creating an organization API key (`kh_` prefix) at app.keeperhub.com
 - Auto-installing the keeperhub-mcp server
 - Saving config to `~/.claude/keeperhub/config.json`
@@ -46,17 +46,20 @@ That's it. Try asking Claude to "create a workflow that monitors a wallet" or ru
 ## Key Features
 
 ### Triggers
+
 - **Scheduled**: Run at intervals (every 5 minutes, hourly, daily, custom cron)
 - **Webhook**: Execute when external services call your workflow URL
 - **Event**: React to blockchain events (token transfers, contract state changes)
 - **Manual**: On-demand execution via UI or API
 
 ### Actions
+
 - **Web3**: Check Balance, Read Contract, Write Contract, Transfer Funds, Transfer Tokens
 - **Notifications**: Send Email, Discord Message, Slack Message, Telegram Message
 - **Integrations**: Send Webhook, custom HTTP requests
 
 ### Conditions
+
 - Low balance detection
 - Value comparisons
 - Custom logic with AND/OR operators
@@ -198,13 +201,13 @@ Base URL: `https://app.keeperhub.com/api`
 
 ### Endpoints
 
-| Resource | Description |
-|----------|-------------|
-| `/api/workflows` | CRUD for workflows |
-| `/api/workflows/{id}/execute` | Execute a workflow |
-| `/api/workflows/{id}/executions` | Execution history |
-| `/api/integrations` | Manage connections |
-| `/api/chains` | Supported networks |
+| Resource                         | Description        |
+| -------------------------------- | ------------------ |
+| `/api/workflows`                 | CRUD for workflows |
+| `/api/workflows/{id}/execute`    | Execute a workflow |
+| `/api/workflows/{id}/executions` | Execution history  |
+| `/api/integrations`              | Manage connections |
+| `/api/chains`                    | Supported networks |
 
 See [API Documentation](docs/api/index.md) for full reference.
 

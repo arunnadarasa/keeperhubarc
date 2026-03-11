@@ -35,7 +35,7 @@ export function useOrganization() {
     getDefaultStore().set(resetWorkflowStateForOrgSwitchAtom);
     refetchSidebar();
 
-    // Stay on non-workflow pages (e.g. /analytics, /hub) after switching orgs
+    // Stay on non-workflow pages (e.g. /analytics, /hub, /billing) after switching orgs
     const isWorkflowPage = pathname.startsWith("/workflows/");
     if (!isWorkflowPage) {
       router.refresh();
