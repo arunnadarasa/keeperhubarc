@@ -232,6 +232,13 @@
       "when": 1773292800000,
       "tag": "0032_duration_text_to_numeric",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1773552000000,
+      "tag": "0033_backfill-billing-tables",
+      "breakpoints": true
     }
   ]
 }
