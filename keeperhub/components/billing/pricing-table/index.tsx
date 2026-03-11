@@ -114,8 +114,9 @@ export function PricingTable({
           </div>
         </div>
         <p className="text-xs text-muted-foreground mt-3">
-          Executions never stop running. On paid tiers, overages billed at end
-          of cycle. Free tier: hard cap, must upgrade.
+          On paid tiers, overages are billed at end of cycle. Unpaid overage
+          invoices may result in reduced execution limits. Free tier: hard cap,
+          must upgrade.
         </p>
       </div>
     </div>
