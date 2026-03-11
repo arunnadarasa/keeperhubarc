@@ -440,8 +440,9 @@ export class StripeBillingProvider implements BillingProvider {
     }
 
     const subtotal = preview.subtotal ?? 0;
+    const total = preview.total ?? subtotal;
     const amountDue = preview.amount_due ?? 0;
-    const appliedBalance = amountDue - subtotal;
+    const appliedBalance = amountDue - total;
 
     return {
       amountDue,

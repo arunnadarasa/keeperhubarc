@@ -501,10 +501,42 @@ describe("StripeBillingProvider", () => {
 
       expect(result.amountDue).toBe(4000);
       expect(result.subtotal).toBe(4000);
+      expect(result.appliedBalance).toBe(0);
       expect(result.currency).toBe("usd");
       expect(result.lineItems).toHaveLength(2);
       expect(result.lineItems[0].proration).toBe(true);
       expect(result.lineItems[1].proration).toBe(false);
+    });
+
+    it("computes appliedBalance from total, not subtotal, when tax is present", async () => {
+      vi.mocked(s.subscriptions.retrieve).mockResolvedValue({
+        id: "sub_1",
+        items: {
+          data: [
+            {
+              id: "si_1",
+              price: { id: "price_old", recurring: { interval: "month" } },
+            },
+          ],
+        },
+      } as unknown as Awaited<ReturnType<typeof s.subscriptions.retrieve>>);
+      vi.mocked(s.prices.retrieve).mockResolvedValue({
+        recurring: { interval: "month" },
+      } as Awaited<ReturnType<typeof s.prices.retrieve>>);
+      vi.mocked(s.invoices.createPreview).mockResolvedValue({
+        period_end: 1_706_745_600,
+        subtotal: 4000,
+        total: 4400,
+        amount_due: 3900,
+        currency: "usd",
+        lines: { data: [] },
+      } as unknown as Awaited<ReturnType<typeof s.invoices.createPreview>>);
+
+      const result = await provider.previewProration("sub_1", "price_new");
+
+      expect(result.subtotal).toBe(4000);
+      expect(result.amountDue).toBe(3900);
+      expect(result.appliedBalance).toBe(-500);
     });
 
     it("includes proration_date for same-interval changes", async () => {
