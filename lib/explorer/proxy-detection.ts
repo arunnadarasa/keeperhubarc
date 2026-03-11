@@ -10,7 +10,9 @@
  */
 
 import { ethers } from "ethers";
-import { resolveRpcConfig } from "@/lib/rpc";
+// start custom keeperhub code //
+import { getRpcProvider } from "@/lib/rpc/provider-factory";
+// end keeperhub code //
 
 export type ProxyDetectionResult = {
   isProxy: boolean;
@@ -238,24 +240,26 @@ export async function detectProxyViaRpc(
     `[Proxy Detection] Starting RPC-based proxy detection for ${contractAddress} on chain ${chainId}`
   );
 
-  // Get RPC config
-  const rpcConfig = await resolveRpcConfig(chainId);
-  if (!rpcConfig) {
+  // start custom keeperhub code //
+  let rpcManager: Awaited<ReturnType<typeof getRpcProvider>>;
+  try {
+    rpcManager = await getRpcProvider({ chainId });
+  } catch {
     console.warn(
       `[Proxy Detection] No RPC config found for chain ${chainId}, skipping detection`
     );
     return { isProxy: false };
   }
 
-  const provider = new ethers.JsonRpcProvider(rpcConfig.primaryRpcUrl);
-
-  // Run common checks in parallel:
-  // - EIP-1967 with admin (covers both EIP-1967 and OpenZeppelin)
-  // - EIP-1167 (uses getCode, independent of storage checks)
-  const [eip1967Result, eip1167Impl] = await Promise.all([
-    checkEip1967WithAdmin(provider, contractAddress),
-    checkEip1167Proxy(provider, contractAddress),
-  ]);
+  // Run common checks in parallel with retry/failover
+  const [eip1967Result, eip1167Impl] = await rpcManager.executeWithFailover(
+    async (provider) =>
+      Promise.all([
+        checkEip1967WithAdmin(provider, contractAddress),
+        checkEip1167Proxy(provider, contractAddress),
+      ])
+  );
+  // end keeperhub code //
 
   // Check EIP-1967/OpenZeppelin result first (most common)
   if (eip1967Result.implementation) {
@@ -275,8 +279,11 @@ export async function detectProxyViaRpc(
     };
   }
 
+  // start custom keeperhub code //
   // Check EIP-1822 (UUPS) - less common, separate call
-  const eip1822Impl = await checkEip1822Proxy(provider, contractAddress);
+  const eip1822Impl = await rpcManager.executeWithFailover((provider) =>
+    checkEip1822Proxy(provider, contractAddress)
+  );
   if (eip1822Impl) {
     return {
       isProxy: true,
@@ -286,7 +293,9 @@ export async function detectProxyViaRpc(
   }
 
   // Check Gnosis Safe (least common, requires contract call to verify)
-  const gnosisImpl = await checkGnosisSafeProxy(provider, contractAddress);
+  const gnosisImpl = await rpcManager.executeWithFailover((provider) =>
+    checkGnosisSafeProxy(provider, contractAddress)
+  );
   if (gnosisImpl) {
     return {
       isProxy: true,
@@ -294,6 +303,7 @@ export async function detectProxyViaRpc(
       proxyType: "gnosis-safe",
     };
   }
+  // end keeperhub code //
 
   console.log(
     `[Proxy Detection] No proxy pattern detected for ${contractAddress}`

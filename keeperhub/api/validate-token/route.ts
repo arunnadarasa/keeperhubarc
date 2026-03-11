@@ -2,7 +2,8 @@ import { ethers } from "ethers";
 import { NextResponse } from "next/server";
 import { normalizeAddressForStorage } from "@/keeperhub/lib/address-utils";
 import { ERC20_ABI } from "@/lib/contracts";
-import { getChainIdFromNetwork, resolveRpcConfig } from "@/lib/rpc";
+import { getChainIdFromNetwork } from "@/lib/rpc";
+import { getRpcProvider } from "@/lib/rpc/provider-factory";
 
 /**
  * Validate Token API
@@ -41,27 +42,30 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Get chain ID and RPC URL
+    // Get chain ID and RPC provider
     const chainId = getChainIdFromNetwork(network);
-    const rpcConfig = await resolveRpcConfig(chainId);
 
-    if (!rpcConfig) {
+    let rpcManager: Awaited<ReturnType<typeof getRpcProvider>>;
+    try {
+      rpcManager = await getRpcProvider({ chainId });
+    } catch {
       return NextResponse.json(
         { valid: false, error: "Network not supported" },
         { status: 200 }
       );
     }
 
-    // Create provider and contract
-    const provider = new ethers.JsonRpcProvider(rpcConfig.primaryRpcUrl);
-    const contract = new ethers.Contract(address, ERC20_ABI, provider);
-
-    // Try to fetch ERC20 metadata - if this fails, it's not a valid ERC20
-    const [symbol, name, decimals] = await Promise.all([
-      contract.symbol() as Promise<string>,
-      contract.name() as Promise<string>,
-      contract.decimals() as Promise<bigint>,
-    ]);
+    // Fetch ERC20 metadata with retry/failover
+    const [symbol, name, decimals] = await rpcManager.executeWithFailover(
+      (provider) => {
+        const contract = new ethers.Contract(address, ERC20_ABI, provider);
+        return Promise.all([
+          contract.symbol() as Promise<string>,
+          contract.name() as Promise<string>,
+          contract.decimals() as Promise<bigint>,
+        ]);
+      }
+    );
 
     return NextResponse.json({
       valid: true,
