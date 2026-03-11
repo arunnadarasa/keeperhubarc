@@ -7,7 +7,7 @@ description: "Lending and borrowing protocol (Aave V3 fork) in the Sky/Maker eco
 
 Spark is a decentralized lending protocol built as an Aave V3 fork within the Sky/Maker ecosystem. Users can supply assets to earn interest, borrow against collateral, and deposit DAI into the sDAI savings vault to earn the DAI Savings Rate (DSR). SparkLend uses the same Pool interface as Aave V3 for core lending operations.
 
-Supported chains: Ethereum only (all contracts are mainnet). Read-only actions work without credentials. Write actions require a connected wallet.
+Supported chains: Ethereum (all contracts) and Gnosis Chain (lending contracts only, no sDAI). Read-only actions work without credentials. Write actions require a connected wallet.
 
 ## Actions
 
@@ -17,9 +17,11 @@ Supported chains: Ethereum only (all contracts are mainnet). Read-only actions w
 | Withdraw Asset | Write | Wallet | Withdraw a supplied asset |
 | Borrow Asset | Write | Wallet | Borrow against supplied collateral |
 | Repay Debt | Write | Wallet | Repay a borrowed asset |
+| Set Asset as Collateral | Write | Wallet | Enable or disable a supplied asset as collateral |
 | Deposit DAI to sDAI | Write | Wallet | Deposit DAI into the sDAI vault (DSR) |
 | Redeem sDAI for DAI | Write | Wallet | Redeem sDAI shares for DAI |
 | Get User Account Data | Read | No | Get overall account health and balances |
+| Get User Reserve Data | Read | No | Get per-asset position data and rates |
 | Get sDAI Balance | Read | No | Check sDAI balance of an address |
 | Get sDAI Total Assets | Read | No | Get total DAI locked in the sDAI vault |
 | Convert sDAI to DAI Value | Read | No | Preview sDAI to DAI conversion at current rate |
@@ -102,6 +104,23 @@ Repay a borrowed asset to the SparkLend lending pool. Use `type(uint256).max` as
 
 ---
 
+## Set Asset as Collateral
+
+Enable or disable a supplied asset as collateral in SparkLend. This toggles the entire supplied balance of the asset -- there is no partial collateral in Aave V3/Spark.
+
+**Inputs:**
+
+| Input | Type | Description |
+|-------|------|-------------|
+| asset | address | Asset Token Address |
+| useAsCollateral | bool | Use as Collateral (toggles entire supplied balance) |
+
+**Outputs:** `success`, `transactionHash`, `transactionLink`, `error`
+
+**When to use:** Enable collateral on a newly supplied asset before borrowing, disable collateral to protect an asset from liquidation, automate collateral management based on market conditions.
+
+---
+
 ## Deposit DAI to sDAI
 
 Deposit DAI into the sDAI savings vault (ERC-4626) to earn the DAI Savings Rate. Requires prior DAI approval for the sDAI contract. The DSR yield accrues automatically via the exchange rate between sDAI and DAI.
@@ -159,6 +178,35 @@ Get overall account health including total collateral, total debt, available bor
 | healthFactor | uint256 | Health Factor, 18 decimals (1e18 = 1.0) |
 
 **When to use:** Monitor account health factor for liquidation protection, check borrow capacity before opening new positions, track portfolio-level collateral and debt.
+
+---
+
+## Get User Reserve Data
+
+Get per-asset position data including supplied balance (spToken), stable and variable debt, borrow rates, and whether the asset is used as collateral. Uses the Pool Data Provider contract.
+
+**Inputs:**
+
+| Input | Type | Description |
+|-------|------|-------------|
+| asset | address | Asset Token Address |
+| user | address | User Address |
+
+**Outputs:**
+
+| Output | Type | Description |
+|--------|------|-------------|
+| currentATokenBalance | uint256 | Supplied Balance (spToken) |
+| currentStableDebtTokenBalance | uint256 | Stable Debt Balance |
+| currentVariableDebtTokenBalance | uint256 | Variable Debt Balance |
+| principalStableDebt | uint256 | Principal Stable Debt |
+| scaledVariableDebt | uint256 | Scaled Variable Debt |
+| stableBorrowRate | uint256 | Stable Borrow Rate (ray), 27 decimals |
+| liquidityRate | uint256 | Supply APY (ray), 27 decimals |
+| stableRateLastUpdated | uint40 | Stable Rate Last Updated (timestamp) |
+| usageAsCollateralEnabled | bool | Whether asset is used as collateral |
+
+**When to use:** Check per-asset balances and debt, monitor supply APY for rate-based strategies, verify collateral status before borrowing.
 
 ---
 
@@ -251,5 +299,6 @@ Monitor the total DAI locked in the sDAI vault and send hourly updates to an ext
 | Chain | Contracts Available |
 |-------|-------------------|
 | Ethereum (1) | SparkLend Pool, Pool Data Provider, sDAI |
+| Gnosis (100) | SparkLend Pool, Pool Data Provider |
 
-All contracts are Ethereum mainnet only. SparkLend uses the same Aave V3 Pool interface for supply, withdraw, borrow, and repay. The sDAI contract is an ERC-4626 vault wrapping DAI in the DAI Savings Rate.
+SparkLend uses the same Aave V3 Pool interface for supply, withdraw, borrow, and repay. The sDAI contract is an ERC-4626 vault wrapping DAI in the DAI Savings Rate and is available on Ethereum only (Gnosis uses sxDAI instead).
