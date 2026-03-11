@@ -470,7 +470,14 @@ async function executeTestWorkflow({
     });
 
     if (!response.ok) {
-      throw new Error("Failed to execute workflow");
+      // start custom keeperhub code //
+      const body = await response.json().catch(() => null);
+      const message =
+        typeof body?.error === "string"
+          ? body.error
+          : "Failed to execute workflow";
+      throw new Error(message);
+      // end keeperhub code //
     }
 
     const result = await response.json();

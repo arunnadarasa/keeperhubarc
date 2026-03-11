@@ -309,6 +309,18 @@ export function useAnalytics(): UseAnalyticsReturn {
     };
   }, [fetchData]);
 
+  // Re-fetch when org switches
+  const prevOrgIdRef = useRef(activeOrgId);
+  useEffect(() => {
+    if (prevOrgIdRef.current === activeOrgId) {
+      return;
+    }
+    prevOrgIdRef.current = activeOrgId;
+    fetchData().catch(() => {
+      /* org-switch refetch errors handled in fetchData */
+    });
+  }, [activeOrgId, fetchData]);
+
   // Manage SSE / polling based on live state
   useEffect(() => {
     if (live) {

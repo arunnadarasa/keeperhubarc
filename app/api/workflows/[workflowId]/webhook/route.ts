@@ -9,6 +9,10 @@ import {
   MetricNames,
 } from "@/keeperhub/lib/metrics";
 // start custom keeperhub code //
+import {
+  EXECUTION_LIMIT_ERROR,
+  enforceExecutionLimit,
+} from "@/keeperhub/lib/billing/execution-guard";
 import { checkConcurrencyLimit } from "@/keeperhub/api/execute/_lib/concurrency-limit";
 import { recordWebhookMetrics } from "@/keeperhub/lib/metrics/instrumentation/api";
 import { db } from "@/lib/db";
@@ -232,6 +236,21 @@ export async function POST(
     }
 
     // start custom keeperhub code //
+    const executionGuard = await enforceExecutionLimit(workflow.organizationId);
+    if (executionGuard.blocked) {
+      recordWebhookMetrics({
+        workflowId,
+        durationMs: timer(),
+        statusCode: 429,
+        error: EXECUTION_LIMIT_ERROR,
+      });
+      const body = await executionGuard.response.json();
+      return NextResponse.json(body, {
+        status: 429,
+        headers: corsHeaders,
+      });
+    }
+
     const concurrencyCheck = await checkConcurrencyLimit();
     if (!concurrencyCheck.allowed) {
       recordWebhookMetrics({
