@@ -29,7 +29,7 @@ jobs:
       ecr_repo: ${{ steps.vars.outputs.ecr_repo }}
       ecr_region: ${{ steps.vars.outputs.ecr_region }}
     env:
-      REGION: us-east-2
+      REGION: ${{ vars.TO_REGION }}
       AWS_ECR_NAME: keeperhub-staging
       ENVIRONMENT_TAG: staging
       NEXT_PUBLIC_AUTH_PROVIDERS: ${{ vars.NEXT_PUBLIC_AUTH_PROVIDERS_STAGING }}
@@ -52,8 +52,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          aws-access-key-id: ${{ secrets.TECHOPS_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.TECHOPS_AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.TO_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.TO_AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.REGION }}
 
       - name: Login to AWS ECR
