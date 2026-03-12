@@ -8,7 +8,11 @@ import {
   resetMetricsCollector,
   setMetricsCollector,
 } from "@/keeperhub/lib/metrics";
-import { LabelKeys, MetricNames, type MetricsCollector } from "@/keeperhub/lib/metrics/types";
+import {
+  LabelKeys,
+  MetricNames,
+  type MetricsCollector,
+} from "@/keeperhub/lib/metrics/types";
 
 describe("Unified Logging Helpers", () => {
   let mockCollector: MetricsCollector;

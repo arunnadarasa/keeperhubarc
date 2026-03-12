@@ -10,9 +10,9 @@ import {
   getTransactionUrl,
   type NormalizedTransaction,
 } from "@/lib/explorer";
-import type { RpcProviderManager } from "@/lib/rpc-provider";
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
+import type { RpcProviderManager } from "@/lib/rpc-provider";
 import { getErrorMessage } from "@/lib/utils";
 
 const DEFAULT_BLOCK_LOOKBACK = 6500;

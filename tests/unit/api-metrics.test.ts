@@ -3,11 +3,14 @@ import {
   resetMetricsCollector,
   setMetricsCollector,
 } from "@/keeperhub/lib/metrics";
-import { MetricNames, type MetricsCollector } from "@/keeperhub/lib/metrics/types";
 import {
   recordStatusPollMetrics,
   recordWebhookMetrics,
 } from "@/keeperhub/lib/metrics/instrumentation/api";
+import {
+  MetricNames,
+  type MetricsCollector,
+} from "@/keeperhub/lib/metrics/types";
 
 describe("API Metrics Instrumentation", () => {
   let mockCollector: MetricsCollector;

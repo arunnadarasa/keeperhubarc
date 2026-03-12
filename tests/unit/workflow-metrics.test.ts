@@ -3,12 +3,15 @@ import {
   resetMetricsCollector,
   setMetricsCollector,
 } from "@/keeperhub/lib/metrics";
-import { MetricNames, type MetricsCollector } from "@/keeperhub/lib/metrics/types";
 import {
   detectTriggerType,
   recordStepMetrics,
   recordWorkflowComplete,
 } from "@/keeperhub/lib/metrics/instrumentation/workflow";
+import {
+  MetricNames,
+  type MetricsCollector,
+} from "@/keeperhub/lib/metrics/types";
 
 describe("Workflow Metrics Instrumentation", () => {
   let mockCollector: MetricsCollector;

@@ -592,4 +592,3 @@ export function getAllFailoverStates(): Map<
 export function clearRpcProviderManagerCache(): void {
   managerCache.clear();
 }
-

@@ -3,7 +3,6 @@ import {
   resetMetricsCollector,
   setMetricsCollector,
 } from "@/keeperhub/lib/metrics";
-import { MetricNames, type MetricsCollector } from "@/keeperhub/lib/metrics/types";
 import {
   decrementConcurrentExecutions,
   getConcurrentExecutions,
@@ -14,6 +13,10 @@ import {
   resetConcurrentExecutions,
   withConcurrentTracking,
 } from "@/keeperhub/lib/metrics/instrumentation/saturation";
+import {
+  MetricNames,
+  type MetricsCollector,
+} from "@/keeperhub/lib/metrics/types";
 
 describe("Saturation Metrics Instrumentation", () => {
   let mockCollector: MetricsCollector;

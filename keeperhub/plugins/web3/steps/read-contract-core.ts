@@ -15,9 +15,9 @@ import { formatContractError } from "@/keeperhub/lib/web3/decode-revert-error";
 import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
 import { getAddressUrl } from "@/lib/explorer";
-import type { RpcProviderManager } from "@/lib/rpc-provider";
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
+import type { RpcProviderManager } from "@/lib/rpc-provider";
 import { getErrorMessage } from "@/lib/utils";
 
 export type ReadContractCoreInput = {

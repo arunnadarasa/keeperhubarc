@@ -12,7 +12,11 @@ import {
   createPrefixedConsoleCollector,
 } from "@/keeperhub/lib/metrics/collectors/console";
 import { noopMetricsCollector } from "@/keeperhub/lib/metrics/collectors/noop";
-import { LabelKeys, MetricNames, type MetricsCollector } from "@/keeperhub/lib/metrics/types";
+import {
+  LabelKeys,
+  MetricNames,
+  type MetricsCollector,
+} from "@/keeperhub/lib/metrics/types";
 
 describe("Metrics Collectors", () => {
   beforeEach(() => {
