@@ -108,7 +108,7 @@ jobs:
         if: steps.skip.outputs.skip_deploy != 'true'
         run: |
           echo "Waiting for https://migration-staging.keeperhub.com/api/health to return 200..."
-          CURL_ARGS=(-s -o /dev/null -w "%{http_code}")
+          CURL_ARGS=(-s -o /dev/null -w "%{http_code}" -L)
           if [[ -n "$CF_ACCESS_CLIENT_ID" && -n "$CF_ACCESS_CLIENT_SECRET" ]]; then
             CURL_ARGS+=(-H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
           fi
