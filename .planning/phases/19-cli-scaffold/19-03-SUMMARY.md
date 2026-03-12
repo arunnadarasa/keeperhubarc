@@ -178,3 +178,10 @@ None - no external service configuration required.
 ---
 *Phase: 19-cli-scaffold*
 *Completed: 2026-03-13*
+
+## Self-Check: PASSED
+
+- All 27 cmd files FOUND on disk
+- Commits 51f154a and 0baf956 FOUND in git log
+- `go build ./cmd/kh` PASS
+- `go test ./...` PASS (5 test packages pass, 20 packages with no test files)
