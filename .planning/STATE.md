@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: planning
-stopped_at: Completed 19-05-PLAN.md
-last_updated: "2026-03-12T21:40:50.445Z"
-last_activity: 2026-03-12 -- v1.5 roadmap created (6 phases, 89 requirements mapped)
+stopped_at: Completed 20-02-PLAN.md
+last_updated: "2026-03-12T22:31:38.246Z"
+last_activity: 2026-03-13 -- Phase 19 (CLI Scaffold) executed and verified, 5/5 plans complete
 progress:
   total_phases: 6
   completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
-  percent: 0
+  total_plans: 9
+  completed_plans: 8
+  percent: 19
 ---
 
 # Project State
@@ -21,29 +21,29 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-12)
 
 **Core value:** Users can build and deploy Web3 automation workflows through a visual builder without writing code.
-**Current focus:** v1.5 KeeperHub CLI -- Phase 19 (CLI Scaffold) ready to plan
+**Current focus:** v1.5 KeeperHub CLI -- Phase 20 (Auth and HTTP Client)
 
 ## Current Position
 
-Phase: 19 of 24 (CLI Scaffold)
+Phase: 20 of 24 (Auth and HTTP Client)
 Plan: 0 of ? in current phase
 Status: Ready to plan
-Last activity: 2026-03-12 -- v1.5 roadmap created (6 phases, 89 requirements mapped)
+Last activity: 2026-03-13 -- Phase 19 (CLI Scaffold) executed and verified, 5/5 plans complete
 
-Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (phases 19-24 not started)
+Progress: [████░░░░░░░░░░░░░░░░] 17% (1/6 phases complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0 (v1.5)
-- Average duration: -- min
-- Total execution time: --
+- Total plans completed: 5 (v1.5)
+- Average duration: ~7 min
+- Total execution time: ~25 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 19-cli-scaffold | 5/5 | ~25 min | ~5 min |
 
 *Updated after each plan completion*
 | Phase 19-cli-scaffold P01 | 7 | 2 tasks | 13 files |
@@ -51,6 +51,7 @@ Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (pha
 | Phase 19-cli-scaffold P03 | 7 | 2 tasks | 28 files |
 | Phase 19-cli-scaffold P02 | 4 | 2 tasks | 8 files |
 | Phase 19-cli-scaffold P05 | 15 | 3 tasks | 6 files |
+| Phase 20-auth-and-http-client P01 | 2 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -63,14 +64,15 @@ Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (pha
 - Use 99designs/keyring (not zalando/go-keyring) per research pitfall on macOS security-level
 - Use modelcontextprotocol/go-sdk v1.4.0 (not mark3labs/mcp-go)
 - MCP stdout isolation must be the first commit of Phase 23, before any tools are implemented
-- [Phase 19-cli-scaffold]: XDG path resolution uses os.Getenv directly (not adrg/xdg variables) so t.Setenv() works in tests
-- [Phase 19-cli-scaffold]: CLI repo created at /Users/skp/Dev/TechOps Services/cli as sibling to keeperhub Next.js repo
-- [Phase 19-cli-scaffold]: Updated main.go to wire all commands into cobra root (Rule 3 auto-fix for plan 19-03)
-- [Phase 19-cli-scaffold]: completion command takes no Factory -- uses cmd.Root() Cobra built-in
-- [Phase 19-cli-scaffold]: Factory.HTTPClient returns *khhttp.Client for version-aware requests; callers use StandardClient() for net/http compat
-- [Phase 19-cli-scaffold]: HTTPClient closure captures rootCmd pointer to read --host flag after Cobra parses flags
-- [Phase 19-cli-scaffold]: api-key is the cobra Use name (not apikey) -- test checks api-key in help output
-- [Phase 19-cli-scaffold]: macOS binary links libSystem/libresolv/Security with CGO_ENABLED=0 -- expected behavior, Linux CI builds are fully static
+- [Phase 19]: XDG path resolution uses os.Getenv directly (not adrg/xdg) so t.Setenv() works in tests
+- [Phase 19]: CLI repo created at /Users/skp/Dev/TechOps Services/cli as sibling to keeperhub Next.js repo
+- [Phase 19]: Factory.HTTPClient returns *khhttp.Client for version-aware requests; callers use StandardClient() for net/http compat
+- [Phase 19]: api-key is the cobra Use name (not apikey)
+- [Phase 19]: macOS binary links libSystem/libresolv/Security with CGO_ENABLED=0 -- expected, Linux CI is fully static
+- [Phase 20-auth-and-http-client]: deviceAuthorization uses TimeString format (15m, 5s) not numeric seconds
+- [Phase 20-auth-and-http-client]: Better Auth deviceCode table created at runtime via internal schema management, not drizzle-kit push
+- [Phase 20-auth-and-http-client]: go-pretty header rendering uppercases text by default; tests must accept NAME or Name
+- [Phase 20-auth-and-http-client]: ApplyJQFilter returns single value directly when jq produces exactly one result, slice otherwise
 
 ### Pending Todos
 
@@ -84,6 +86,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T21:40:50.443Z
-Stopped at: Completed 19-05-PLAN.md
+Last session: 2026-03-12T22:31:38.244Z
+Stopped at: Completed 20-02-PLAN.md
 Resume file: None
