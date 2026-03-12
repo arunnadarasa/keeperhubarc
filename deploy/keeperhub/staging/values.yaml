@@ -31,7 +31,6 @@ ingress:
   enabled: true
   hosts:
     - app-staging.keeperhub.com
-    - app-staging-migration.keeperhub.com
   annotations:
     external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
