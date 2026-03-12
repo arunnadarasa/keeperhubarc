@@ -1,8 +1,6 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-import "@/plugins";
-import "@/keeperhub/plugins";
 import {
   BUILTIN_NODE_ID,
   BUILTIN_NODE_LABEL,
