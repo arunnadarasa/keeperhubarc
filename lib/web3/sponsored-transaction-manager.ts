@@ -1,0 +1,208 @@
+import "server-only";
+import type { Address, Hex } from "viem";
+import { createPublicClient, encodeFunctionData, http } from "viem";
+import {
+  checkGasCredits,
+  getEthPriceUsd,
+  recordGasUsage,
+} from "@/keeperhub/lib/billing/gas-credits";
+import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
+import { isSponsorshipSupported } from "@/keeperhub/lib/web3/pimlico-config";
+import { createSponsoredClient } from "@/keeperhub/lib/web3/sponsored-client";
+
+type SponsoredTransactionResult = {
+  success: true;
+  transactionHash: string;
+  gasUsed: string;
+  sponsored: true;
+} | null;
+
+type SponsoredTxParams = {
+  organizationId: string;
+  executionId: string;
+  chainId: number;
+  rpcUrl: string;
+  walletAddress: string;
+  to: string;
+  value?: bigint;
+  data?: Hex;
+};
+
+type SponsoredContractTxParams = {
+  organizationId: string;
+  executionId: string;
+  chainId: number;
+  rpcUrl: string;
+  walletAddress: string;
+  to: string;
+  // biome-ignore lint/suspicious/noExplicitAny: ABI types from viem are deeply nested generics
+  abi: any;
+  functionName: string;
+  args: unknown[];
+  value?: bigint;
+};
+
+/**
+ * Attempt to execute a transaction via gas sponsorship (ERC-4337 + Pimlico).
+ *
+ * Returns the result if sponsorship succeeds, or null if sponsorship is
+ * unavailable (unsupported chain, no credits, client creation failed).
+ * Callers should fall back to direct signing when null is returned.
+ */
+export async function executeSponsoredTransaction(
+  params: SponsoredTxParams
+): Promise<SponsoredTransactionResult> {
+  if (!isSponsorshipSupported(params.chainId)) {
+    return null;
+  }
+
+  const creditCheck = await checkGasCredits(params.organizationId);
+  if (!creditCheck.allowed) {
+    return null;
+  }
+
+  const client = await createSponsoredClient(
+    params.organizationId,
+    params.chainId,
+    params.rpcUrl
+  );
+
+  if (client === null) {
+    return null;
+  }
+
+  try {
+    const txHash: Hex = await client.smartAccountClient.sendTransaction({
+      to: params.to as Address,
+      value: params.value ?? BigInt(0),
+      data: params.data ?? ("0x" as Hex),
+    });
+
+    return await finalizeSponsoredTx(
+      txHash,
+      params.rpcUrl,
+      params.organizationId,
+      params.chainId,
+      params.executionId
+    );
+  } catch (error) {
+    logSystemError(
+      ErrorCategory.TRANSACTION,
+      "[Sponsorship] Sponsored transaction failed, falling back to direct signing",
+      error instanceof Error ? error : new Error(String(error)),
+      {
+        organizationId: params.organizationId,
+        chainId: params.chainId.toString(),
+      }
+    );
+    return null;
+  }
+}
+
+/**
+ * Attempt to execute a contract call via gas sponsorship.
+ *
+ * Same semantics as executeSponsoredTransaction -- returns null on failure
+ * so callers can fall back to direct signing.
+ */
+export async function executeSponsoredContractTransaction(
+  params: SponsoredContractTxParams
+): Promise<SponsoredTransactionResult> {
+  if (!isSponsorshipSupported(params.chainId)) {
+    return null;
+  }
+
+  const creditCheck = await checkGasCredits(params.organizationId);
+  if (!creditCheck.allowed) {
+    return null;
+  }
+
+  const client = await createSponsoredClient(
+    params.organizationId,
+    params.chainId,
+    params.rpcUrl
+  );
+
+  if (client === null) {
+    return null;
+  }
+
+  try {
+    const callData = encodeFunctionData({
+      abi: params.abi,
+      functionName: params.functionName,
+      args: params.args,
+    });
+
+    const txHash: Hex = await client.smartAccountClient.sendTransaction({
+      to: params.to as Address,
+      value: params.value ?? BigInt(0),
+      data: callData,
+    });
+
+    return await finalizeSponsoredTx(
+      txHash,
+      params.rpcUrl,
+      params.organizationId,
+      params.chainId,
+      params.executionId
+    );
+  } catch (error) {
+    logSystemError(
+      ErrorCategory.TRANSACTION,
+      "[Sponsorship] Sponsored contract call failed, falling back to direct signing",
+      error instanceof Error ? error : new Error(String(error)),
+      {
+        organizationId: params.organizationId,
+        chainId: params.chainId.toString(),
+      }
+    );
+    return null;
+  }
+}
+
+/**
+ * Wait for receipt, record gas usage, and build the result.
+ */
+async function finalizeSponsoredTx(
+  txHash: Hex,
+  rpcUrl: string,
+  organizationId: string,
+  chainId: number,
+  executionId: string
+): Promise<SponsoredTransactionResult> {
+  const publicClient = createPublicClient({
+    transport: http(rpcUrl),
+  });
+
+  const receipt = await publicClient.waitForTransactionReceipt({
+    hash: txHash,
+  });
+
+  if (receipt.status !== "success") {
+    throw new Error(`Sponsored transaction reverted: ${txHash}`);
+  }
+
+  const gasUsed = receipt.gasUsed;
+  const effectiveGasPrice = receipt.effectiveGasPrice;
+  const gasCostWei = gasUsed * effectiveGasPrice;
+
+  const ethPriceUsd = await getEthPriceUsd();
+
+  await recordGasUsage({
+    organizationId,
+    chainId,
+    txHash,
+    executionId,
+    gasUsed,
+    gasPrice: effectiveGasPrice,
+    ethPriceUsd,
+  });
+
+  return {
+    success: true,
+    transactionHash: txHash,
+    gasUsed: gasCostWei.toString(),
+    sponsored: true,
+  };
+}

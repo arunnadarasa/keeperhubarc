@@ -11,6 +11,8 @@
  * - supportedTokens: System-wide default tokens (stablecoins) available on each chain
  * - directExecutions: Audit log for direct API execution requests (transfer, contract-call, check-and-execute)
  * - organizationSpendCaps: Per-organization daily spending limits for direct execution API
+ * - gasSponsorshipDelegations: EIP-7702 delegation status per org per chain
+ * - gasCreditUsage: Gas cost records for sponsored transactions (credit metering)
  */
 
 import {
@@ -514,3 +516,87 @@ export const billingEvents = pgTable("billing_events", {
 // Type exports for Billing Events table
 export type BillingEvent = typeof billingEvents.$inferSelect;
 export type NewBillingEvent = typeof billingEvents.$inferInsert;
+
+/**
+ * Gas Sponsorship Delegations table
+ *
+ * Tracks EIP-7702 delegations per organization per chain.
+ * Delegation is a one-time operation that upgrades an EOA to also function
+ * as a smart account, enabling ERC-4337 gas sponsorship via Pimlico.
+ *
+ * Unique constraint on (organizationId, chainId) ensures at most one
+ * active delegation per org per chain.
+ *
+ * Status lifecycle: pending -> active
+ */
+export const gasSponsorshipDelegations = pgTable(
+  "gas_sponsorship_delegations",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => generateId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    walletAddress: text("wallet_address").notNull(),
+    chainId: integer("chain_id").notNull(),
+    delegationTxHash: text("delegation_tx_hash").notNull(),
+    implementationAddress: text("implementation_address").notNull(),
+    status: text("status").notNull().default("pending"),
+    delegatedAt: timestamp("delegated_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    unique("gas_delegation_org_chain").on(table.organizationId, table.chainId),
+    index("idx_gas_delegation_org").on(table.organizationId),
+  ]
+);
+
+export type GasSponsorshipDelegation =
+  typeof gasSponsorshipDelegations.$inferSelect;
+export type NewGasSponsorshipDelegation =
+  typeof gasSponsorshipDelegations.$inferInsert;
+
+/**
+ * Gas Credit Usage table
+ *
+ * Records gas costs for sponsored transactions, used to track credit
+ * consumption against the org's monthly gas credit allowance.
+ *
+ * Wei amounts are stored as text to avoid PostgreSQL bigint overflow.
+ * USD cents conversion happens at transaction time using the ETH price
+ * at that moment.
+ *
+ * Unique constraint on (organizationId, txHash) prevents double-counting.
+ * Index on (organizationId, createdAt) supports monthly aggregation queries.
+ */
+export const gasCreditUsage = pgTable(
+  "gas_credit_usage",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => generateId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    chainId: integer("chain_id").notNull(),
+    txHash: text("tx_hash").notNull(),
+    executionId: text("execution_id"),
+    gasUsed: text("gas_used").notNull(),
+    gasPriceWei: text("gas_price_wei").notNull(),
+    gasCostWei: text("gas_cost_wei").notNull(),
+    gasCostUsdCents: integer("gas_cost_usd_cents").notNull(),
+    ethPriceUsd: text("eth_price_usd").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    unique("gas_usage_org_tx").on(table.organizationId, table.txHash),
+    index("idx_gas_usage_org_created").on(
+      table.organizationId,
+      table.createdAt
+    ),
+  ]
+);
+
+export type GasCreditUsageRecord = typeof gasCreditUsage.$inferSelect;
+export type NewGasCreditUsageRecord = typeof gasCreditUsage.$inferInsert;
