@@ -24,6 +24,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
   TooltipContent,
@@ -50,6 +51,41 @@ type ProtocolDetailProps = {
   modalUrl?: string;
 };
 
+const TAB_TRIGGER_CLASS =
+  "h-auto flex-none border-0 border-b-2 border-transparent rounded-none px-0 pb-2 data-[state=active]:border-b-[var(--color-text-accent)] data-[state=active]:bg-transparent data-[state=active]:shadow-none dark:data-[state=active]:border-b-[var(--color-text-accent)] dark:data-[state=active]:bg-transparent";
+
+type WorkflowNodeShape = {
+  data?: {
+    type?: string;
+    label?: string;
+    config?: { actionType?: string };
+  };
+};
+
+const NON_PROTOCOL_ACTIONS = new Set([
+  "discord/send-message",
+  "sendgrid/send-email",
+]);
+
+function getProtocolActionLabels(nodes: unknown): string[] {
+  const typedNodes = nodes as WorkflowNodeShape[];
+  return typedNodes
+    .filter((node) => {
+      const actionType = node.data?.config?.actionType;
+      return (
+        node.data?.type === "action" &&
+        actionType !== undefined &&
+        actionType.includes("/") &&
+        !NON_PROTOCOL_ACTIONS.has(actionType)
+      );
+    })
+    .map((node) => {
+      const label = node.data?.label ?? "";
+      const colonIndex = label.indexOf(": ");
+      return colonIndex >= 0 ? label.slice(colonIndex + 2) : label;
+    });
+}
+
 function ActionTypeBadge({
   type,
 }: {
@@ -67,6 +103,183 @@ function ActionTypeBadge({
     <span className="rounded-full bg-[var(--color-bg-accent)] px-2 py-0.5 font-medium text-[var(--color-text-accent)] text-[10px] uppercase tracking-wider">
       WRITE
     </span>
+  );
+}
+
+function WorkflowTemplateCard({
+  workflow,
+  isDuplicating,
+  onDuplicate,
+  onView,
+}: {
+  workflow: SavedWorkflow;
+  isDuplicating: boolean;
+  onDuplicate: () => void;
+  onView: () => void;
+}): React.ReactElement {
+  const actionLabels = getProtocolActionLabels(workflow.nodes);
+
+  return (
+    <Card className="flex w-[260px] shrink-0 flex-col gap-0 overflow-hidden border border-border/30 bg-sidebar py-0">
+      <div className="relative flex h-[130px] w-full items-center justify-center overflow-hidden px-8">
+        <WorkflowMiniMap
+          edges={workflow.edges}
+          height={120}
+          nodes={workflow.nodes}
+          width={220}
+        />
+      </div>
+      <CardHeader className="pt-0 pb-2">
+        <CardTitle className="line-clamp-2">{workflow.name}</CardTitle>
+        {workflow.description && (
+          <CardDescription className="line-clamp-2">
+            {workflow.description}
+          </CardDescription>
+        )}
+        {actionLabels.length > 0 && (
+          <div className="flex flex-wrap gap-1 pt-1">
+            {actionLabels.map((label) => (
+              <span
+                className="rounded-full bg-[var(--color-bg-accent)] px-2 py-0.5 font-medium text-[var(--color-text-accent)] text-[10px]"
+                key={label}
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+        )}
+        <WorkflowNodeIcons nodes={workflow.nodes} />
+      </CardHeader>
+      <div className="flex-1" />
+      <CardFooter className="gap-2 pt-1 pb-3">
+        <Button
+          className="flex-1"
+          disabled={isDuplicating}
+          onClick={onDuplicate}
+          variant="default"
+        >
+          {isDuplicating ? "Duplicating..." : "Use Template"}
+        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button onClick={onView} variant="outline">
+              <Eye className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">View Template</TooltipContent>
+        </Tooltip>
+      </CardFooter>
+    </Card>
+  );
+}
+
+function ActionRow({
+  action,
+  isLast,
+  isCreating,
+  onUse,
+}: {
+  action: ProtocolAction;
+  isLast: boolean;
+  isCreating: boolean;
+  onUse: () => void;
+}): React.ReactElement {
+  return (
+    <div
+      className={`flex items-center justify-between px-4 py-4 transition-colors hover:bg-muted/50 ${isLast ? "" : "border-b border-border/30"}`}
+    >
+      <div className="flex-1">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-sm">{action.label}</span>
+          <ActionTypeBadge type={action.type} />
+        </div>
+        <p className="mt-0.5 text-muted-foreground text-xs">
+          {action.description}
+        </p>
+        {action.inputs.length > 0 ? (
+          <p className="mt-1 text-muted-foreground text-xs">
+            Inputs:{" "}
+            {action.inputs.map((inp) => `${inp.name} (${inp.type})`).join(", ")}
+          </p>
+        ) : (
+          <p className="mt-1 text-muted-foreground text-xs">
+            No inputs required
+          </p>
+        )}
+        {action.outputs && action.outputs.length > 0 && (
+          <p className="mt-0.5 text-muted-foreground text-xs">
+            Outputs:{" "}
+            {action.outputs
+              .map((out) => `${out.name} (${out.type})`)
+              .join(", ")}
+          </p>
+        )}
+        {(!action.outputs || action.outputs.length === 0) &&
+          action.type === "read" && (
+            <p className="mt-0.5 text-muted-foreground text-xs">
+              Returns: success status
+            </p>
+          )}
+      </div>
+      <Button
+        className="ml-4 shrink-0"
+        disabled={isCreating}
+        onClick={onUse}
+        size="sm"
+        variant="outline"
+      >
+        {isCreating ? "Creating..." : "Use in Workflow"}
+      </Button>
+    </div>
+  );
+}
+
+function EventRow({
+  event,
+  isLast,
+  isCreating,
+  onListen,
+}: {
+  event: ProtocolEvent;
+  isLast: boolean;
+  isCreating: boolean;
+  onListen: () => void;
+}): React.ReactElement {
+  return (
+    <div
+      className={`flex items-center justify-between px-4 py-4 transition-colors hover:bg-muted/50 ${isLast ? "" : "border-b border-border/30"}`}
+    >
+      <div className="flex-1">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-sm">{event.label}</span>
+          <span className="rounded-full bg-blue-500/10 px-2 py-0.5 font-medium text-blue-400 text-[10px] uppercase tracking-wider">
+            EVENT
+          </span>
+        </div>
+        <p className="mt-0.5 text-muted-foreground text-xs">
+          {event.description}
+        </p>
+        <p className="mt-1 text-muted-foreground text-xs">
+          {event.eventName}(
+          {event.inputs
+            .map(
+              (inp) => `${inp.type}${inp.indexed ? " indexed" : ""} ${inp.name}`
+            )
+            .join(", ")}
+          )
+        </p>
+      </div>
+      <Button
+        className="ml-4 shrink-0"
+        disabled={isCreating}
+        onClick={onListen}
+        size="sm"
+        variant="outline"
+      >
+        <Headphones className="mr-1.5 size-3.5" />
+        {isCreating ? "Creating..." : "Listen to Event"}
+      </Button>
+    </div>
   );
 }
 
@@ -396,216 +609,97 @@ export function ProtocolDetail({
         </div>
       </div>
 
-      {featuredWorkflows.length > 0 && (
-        <>
-          <div className="my-6 border-t border-border/30" />
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="font-bold text-lg">Automate {protocol.name}</h3>
-            <div className={`gap-2 ${arrowVisibility}`}>
-              <Button
-                aria-label="Scroll left"
-                onClick={() => scroll("left")}
-                size="icon"
-                variant="outline"
-              >
-                <ChevronLeft className="size-4" />
-              </Button>
-              <Button
-                aria-label="Scroll right"
-                onClick={() => scroll("right")}
-                size="icon"
-                variant="outline"
-              >
-                <ChevronRight className="size-4" />
-              </Button>
-            </div>
-          </div>
-          <div
-            className="flex gap-4 overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            ref={scrollRef}
-          >
-            {featuredWorkflows.map((workflow) => {
-              const isDuplicating = duplicatingIds.has(workflow.id);
+      <Tabs className="mt-6" defaultValue="actions">
+        <TabsList className="mb-4 h-auto w-full justify-start gap-4 rounded-none border-b border-border/30 bg-transparent p-0">
+          <TabsTrigger className={TAB_TRIGGER_CLASS} value="actions">
+            Actions ({protocol.actions.length})
+          </TabsTrigger>
+          {protocol.events && protocol.events.length > 0 && (
+            <TabsTrigger className={TAB_TRIGGER_CLASS} value="events">
+              Events ({protocol.events.length})
+            </TabsTrigger>
+          )}
+          <TabsTrigger className={TAB_TRIGGER_CLASS} value="workflows">
+            Workflows ({featuredWorkflows.length})
+          </TabsTrigger>
+        </TabsList>
 
-              return (
-                <Card
-                  className="flex w-[260px] shrink-0 flex-col gap-0 overflow-hidden border border-border/30 bg-sidebar py-0"
-                  key={workflow.id}
-                >
-                  <div className="relative flex h-[130px] w-full items-center justify-center overflow-hidden px-8">
-                    <WorkflowMiniMap
-                      edges={workflow.edges}
-                      height={120}
-                      nodes={workflow.nodes}
-                      width={220}
-                    />
-                  </div>
-                  <CardHeader className="pt-0 pb-2">
-                    <CardTitle className="line-clamp-2">
-                      {workflow.name}
-                    </CardTitle>
-                    {workflow.description && (
-                      <CardDescription className="line-clamp-2">
-                        {workflow.description}
-                      </CardDescription>
-                    )}
-                    <WorkflowNodeIcons nodes={workflow.nodes} />
-                  </CardHeader>
-                  <div className="flex-1" />
-                  <CardFooter className="gap-2 pb-3">
-                    <Button
-                      className="flex-1"
-                      disabled={isDuplicating}
-                      onClick={() => handleDuplicate(workflow.id)}
-                      variant="default"
-                    >
-                      {isDuplicating ? "Duplicating..." : "Use Template"}
-                    </Button>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          onClick={() =>
-                            router.push(`/workflows/${workflow.id}`)
-                          }
-                          variant="outline"
-                        >
-                          <Eye className="size-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">View Template</TooltipContent>
-                    </Tooltip>
-                  </CardFooter>
-                </Card>
-              );
-            })}
-          </div>
-        </>
-      )}
-
-      <div className="my-6 border-t border-border/30" />
-
-      <h3 className="mb-4 font-bold text-lg">
-        Actions ({protocol.actions.length})
-      </h3>
-
-      <div>
-        {protocol.actions.map((action, index) => {
-          const isLast = index === protocol.actions.length - 1;
-
-          return (
-            <div
-              className={`flex items-center justify-between px-4 py-4 transition-colors hover:bg-muted/50 ${isLast ? "" : "border-b border-border/30"}`}
-              key={action.slug}
-            >
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-sm">{action.label}</span>
-                  <ActionTypeBadge type={action.type} />
-                </div>
-                <p className="mt-0.5 text-muted-foreground text-xs">
-                  {action.description}
-                </p>
-                {action.inputs.length > 0 ? (
-                  <p className="mt-1 text-muted-foreground text-xs">
-                    Inputs:{" "}
-                    {action.inputs
-                      .map((inp) => `${inp.name} (${inp.type})`)
-                      .join(", ")}
-                  </p>
-                ) : (
-                  <p className="mt-1 text-muted-foreground text-xs">
-                    No inputs required
-                  </p>
-                )}
-                {action.outputs && action.outputs.length > 0 && (
-                  <p className="mt-0.5 text-muted-foreground text-xs">
-                    Outputs:{" "}
-                    {action.outputs
-                      .map((out) => `${out.name} (${out.type})`)
-                      .join(", ")}
-                  </p>
-                )}
-                {(!action.outputs || action.outputs.length === 0) &&
-                  action.type === "read" && (
-                    <p className="mt-0.5 text-muted-foreground text-xs">
-                      Returns: success status
-                    </p>
-                  )}
-              </div>
-              <Button
-                className="ml-4 shrink-0"
-                disabled={creatingActionSlug === action.slug}
-                onClick={() => handleUseInWorkflow(protocol, action)}
-                size="sm"
-                variant="outline"
-              >
-                {creatingActionSlug === action.slug
-                  ? "Creating..."
-                  : "Use in Workflow"}
-              </Button>
-            </div>
-          );
-        })}
-      </div>
-
-      {protocol.events && protocol.events.length > 0 && (
-        <>
-          <div className="my-6 border-t border-border/30" />
-
-          <h3 className="mb-4 font-bold text-lg">
-            Events ({protocol.events.length})
-          </h3>
-
+        <TabsContent value="actions">
           <div>
-            {protocol.events.map((event, index) => {
-              const isLast = index === (protocol.events?.length ?? 0) - 1;
+            {protocol.actions.map((action, index) => (
+              <ActionRow
+                action={action}
+                isCreating={creatingActionSlug === action.slug}
+                isLast={index === protocol.actions.length - 1}
+                key={action.slug}
+                onUse={() => handleUseInWorkflow(protocol, action)}
+              />
+            ))}
+          </div>
+        </TabsContent>
 
-              return (
-                <div
-                  className={`flex items-center justify-between px-4 py-4 transition-colors hover:bg-muted/50 ${isLast ? "" : "border-b border-border/30"}`}
+        {protocol.events && protocol.events.length > 0 && (
+          <TabsContent value="events">
+            <div>
+              {protocol.events.map((event, index) => (
+                <EventRow
+                  event={event}
+                  isCreating={creatingEventSlug === event.slug}
+                  isLast={index === (protocol.events?.length ?? 0) - 1}
                   key={event.slug}
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm">
-                        {event.label}
-                      </span>
-                      <span className="rounded-full bg-blue-500/10 px-2 py-0.5 font-medium text-blue-400 text-[10px] uppercase tracking-wider">
-                        EVENT
-                      </span>
-                    </div>
-                    <p className="mt-0.5 text-muted-foreground text-xs">
-                      {event.description}
-                    </p>
-                    <p className="mt-1 text-muted-foreground text-xs">
-                      {event.eventName}(
-                      {event.inputs
-                        .map(
-                          (inp) =>
-                            `${inp.type}${inp.indexed ? " indexed" : ""} ${inp.name}`
-                        )
-                        .join(", ")}
-                      )
-                    </p>
-                  </div>
+                  onListen={() => handleListenToEvent(protocol, event)}
+                />
+              ))}
+            </div>
+          </TabsContent>
+        )}
+
+        <TabsContent value="workflows">
+          {featuredWorkflows.length > 0 ? (
+            <>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="font-bold text-lg">Automate {protocol.name}</h3>
+                <div className={`gap-2 ${arrowVisibility}`}>
                   <Button
-                    className="ml-4 shrink-0"
-                    disabled={creatingEventSlug === event.slug}
-                    onClick={() => handleListenToEvent(protocol, event)}
-                    size="sm"
+                    aria-label="Scroll left"
+                    onClick={() => scroll("left")}
+                    size="icon"
                     variant="outline"
                   >
-                    <Headphones className="mr-1.5 size-3.5" />
-                    {creatingEventSlug === event.slug
-                      ? "Creating..."
-                      : "Listen to Event"}
+                    <ChevronLeft className="size-4" />
+                  </Button>
+                  <Button
+                    aria-label="Scroll right"
+                    onClick={() => scroll("right")}
+                    size="icon"
+                    variant="outline"
+                  >
+                    <ChevronRight className="size-4" />
                   </Button>
                 </div>
-              );
-            })}
-          </div>
-        </>
-      )}
+              </div>
+              <div
+                className="flex gap-4 overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                ref={scrollRef}
+              >
+                {featuredWorkflows.map((workflow) => (
+                  <WorkflowTemplateCard
+                    isDuplicating={duplicatingIds.has(workflow.id)}
+                    key={workflow.id}
+                    onDuplicate={() => handleDuplicate(workflow.id)}
+                    onView={() => router.push(`/workflows/${workflow.id}`)}
+                    workflow={workflow}
+                  />
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="py-8 text-center text-muted-foreground text-sm">
+              No workflows available for this protocol yet.
+            </p>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
