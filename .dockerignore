@@ -20,6 +20,7 @@ dist
 # Development files
 .git
 .gitignore
+.worktrees
 README.md
 Dockerfile
 .dockerignore
