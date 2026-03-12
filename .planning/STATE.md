@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: planning
-stopped_at: Completed 20-02-PLAN.md
-last_updated: "2026-03-12T22:31:38.246Z"
+stopped_at: Completed 20-04-PLAN.md
+last_updated: "2026-03-12T22:43:22.140Z"
 last_activity: 2026-03-13 -- Phase 19 (CLI Scaffold) executed and verified, 5/5 plans complete
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 9
-  completed_plans: 8
-  percent: 19
+  completed_plans: 9
+  percent: 17
 ---
 
 # Project State
@@ -52,6 +52,8 @@ Progress: [████░░░░░░░░░░░░░░░░] 17% (1/
 | Phase 19-cli-scaffold P02 | 4 | 2 tasks | 8 files |
 | Phase 19-cli-scaffold P05 | 15 | 3 tasks | 6 files |
 | Phase 20-auth-and-http-client P01 | 2 | 2 tasks | 3 files |
+| Phase 20-auth-and-http-client P03 | 12 | 2 tasks | 11 files |
+| Phase 20-auth-and-http-client P04 | 8 | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -73,6 +75,9 @@ Progress: [████░░░░░░░░░░░░░░░░] 17% (1/
 - [Phase 20-auth-and-http-client]: Better Auth deviceCode table created at runtime via internal schema management, not drizzle-kit push
 - [Phase 20-auth-and-http-client]: go-pretty header rendering uppercases text by default; tests must accept NAME or Name
 - [Phase 20-auth-and-http-client]: ApplyJQFilter returns single value directly when jq produces exactly one result, slice otherwise
+- [Phase 20-auth-and-http-client]: FileBackend Remove returns os.ErrNotExist (not keyring.ErrKeyNotFound) -- DeleteToken checks both
+- [Phase 20-auth-and-http-client]: browserOpener global must be set before BrowserLogin goroutine to avoid race; tests use channel-based capture
+- [Phase 20-auth-and-http-client]: Injectable function vars in cmd/auth package for testability (BrowserLoginFunc, DeviceLoginFunc, etc.) -- no mocking framework needed
 
 ### Pending Todos
 
@@ -86,6 +91,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T22:31:38.244Z
-Stopped at: Completed 20-02-PLAN.md
+Last session: 2026-03-12T22:43:18.155Z
+Stopped at: Completed 20-04-PLAN.md
 Resume file: None
