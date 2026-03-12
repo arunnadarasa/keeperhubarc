@@ -270,15 +270,24 @@ const integrationRegistry = new Map<IntegrationType, IntegrationPlugin>();
 
 /**
  * Ensures all plugins have registered themselves.
- * Uses require() instead of import to avoid ESM hoisting, which would cause
- * a TDZ error on integrationRegistry during circular module resolution.
+ * Uses require() to avoid ESM hoisting, which would cause a TDZ error
+ * on integrationRegistry during circular module resolution.
  * Guarded to run only once — subsequent calls are no-ops.
+ * Falls back gracefully when require() cannot resolve the module
+ * (e.g. in Vitest where @/ aliases and .ts files are not resolved
+ * by Node's native require). In test environments, plugins should be
+ * loaded via the test setup file instead.
  */
 let _pluginsLoaded = false;
 function ensurePluginsLoaded(): void {
-  if (_pluginsLoaded) return;
+  if (_pluginsLoaded || integrationRegistry.size > 0) return;
   _pluginsLoaded = true;
-  require("@/plugins");
+  try {
+    require("@/plugins");
+  } catch {
+    // In Vitest, Node's require() can't resolve TypeScript path aliases.
+    // Plugins must be loaded via tests/setup.ts instead.
+  }
 }
 
 /**
