@@ -4,7 +4,7 @@ name: CI Pipeline (TechOps)
 
 on:
   push:
-    branches: [staging]
+    branches: [staging, KEEP-1188-Deploy-to-our-own-K8s]
   workflow_dispatch: {}
 
 jobs:
