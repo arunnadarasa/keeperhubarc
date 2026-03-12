@@ -4,13 +4,8 @@
  * Helper functions to instrument workflow execution with golden signal metrics.
  */
 
-import {
-  createTimer,
-  getMetricsCollector,
-  LabelKeys,
-  MetricNames,
-  type TriggerType,
-} from "../index";
+import { createTimer, getMetricsCollector } from "../index";
+import { LabelKeys, MetricNames, type TriggerType } from "../types";
 
 /**
  * Record workflow execution start and return a timer function

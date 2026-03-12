@@ -19,7 +19,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { ethers } from "ethers";
 import postgres from "postgres";
 import { supportedTokens } from "../../keeperhub/db/schema-extensions";
-import { ERC20_ABI } from "../../lib/contracts";
+import ERC20_ABI from "../../lib/contracts/abis/erc20.json";
 import { getDatabaseUrl } from "../../lib/db/connection-utils";
 import { getRpcUrlByChainId } from "../../lib/rpc/rpc-config";
 

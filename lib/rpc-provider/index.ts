@@ -593,5 +593,3 @@ export function clearRpcProviderManagerCache(): void {
   managerCache.clear();
 }
 
-// Re-export Solana provider
-export * from "./solana";

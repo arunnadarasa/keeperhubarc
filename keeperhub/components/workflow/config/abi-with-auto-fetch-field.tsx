@@ -16,7 +16,7 @@ import {
   truncateAddress,
 } from "@/keeperhub/lib/address-utils";
 import { buildAddressUrl } from "@/keeperhub/lib/build-explorer-url";
-import type { ActionConfigFieldBase } from "@/plugins";
+import type { ActionConfigFieldBase } from "@/plugins/registry";
 
 const AUTO_FETCH_DEBOUNCE_MS = 600;
 

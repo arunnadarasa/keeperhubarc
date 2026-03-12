@@ -133,10 +133,16 @@ vi.mock("@/lib/explorer", () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Mock: @/lib/rpc
+// Mock: @/lib/rpc/network-utils
 // ---------------------------------------------------------------------------
-vi.mock("@/lib/rpc", () => ({
+vi.mock("@/lib/rpc/network-utils", () => ({
   getChainIdFromNetwork: mockGetChainIdFromNetwork,
+}));
+
+// ---------------------------------------------------------------------------
+// Mock: @/lib/rpc/provider-factory
+// ---------------------------------------------------------------------------
+vi.mock("@/lib/rpc/provider-factory", () => ({
   getRpcProvider: mockGetRpcProvider,
 }));
 

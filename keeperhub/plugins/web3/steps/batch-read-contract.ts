@@ -4,11 +4,12 @@ import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
 import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
 import { withPluginMetrics } from "@/keeperhub/lib/metrics/instrumentation/plugin";
-import { MULTICALL3_ABI, MULTICALL3_ADDRESS } from "@/lib/contracts";
+import { MULTICALL3_ABI, MULTICALL3_ADDRESS } from "@/lib/contracts/multicall3";
 import { db } from "@/lib/db";
 import { workflowExecutions } from "@/lib/db/schema";
-import type { RpcProviderManager } from "@/lib/rpc";
-import { getChainIdFromNetwork, getRpcProvider } from "@/lib/rpc";
+import type { RpcProviderManager } from "@/lib/rpc-provider";
+import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
+import { getRpcProvider } from "@/lib/rpc/provider-factory";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import { getErrorMessage } from "@/lib/utils";
 

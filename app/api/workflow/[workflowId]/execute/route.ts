@@ -5,11 +5,8 @@ import { start } from "workflow/api";
 import { authenticateApiKey } from "@/keeperhub/lib/api-key-auth";
 import { enforceExecutionLimit } from "@/keeperhub/lib/billing/execution-guard";
 import { authenticateInternalService } from "@/keeperhub/lib/internal-service-auth";
-import {
-  getMetricsCollector,
-  LabelKeys,
-  MetricNames,
-} from "@/keeperhub/lib/metrics";
+import { getMetricsCollector } from "@/keeperhub/lib/metrics";
+import { LabelKeys, MetricNames } from "@/keeperhub/lib/metrics/types";
 import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
 import { checkConcurrencyLimit } from "@/keeperhub/api/execute/_lib/concurrency-limit";
 // end keeperhub code //

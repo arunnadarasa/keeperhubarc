@@ -15,7 +15,7 @@ import {
 } from "@/keeperhub/components/database-connection-form";
 import { getCustomIntegrationFormHandler } from "@/lib/extension-registry";
 import type { IntegrationConfig } from "@/lib/types/integration";
-import { getIntegration, getIntegrationLabels } from "@/plugins";
+import { getIntegration, getIntegrationLabels } from "@/plugins/registry";
 // end keeperhub
 import { ConfirmOverlay } from "./confirm-overlay";
 import { Overlay } from "./overlay";

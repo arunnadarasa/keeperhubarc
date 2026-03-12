@@ -39,16 +39,19 @@ vi.mock("drizzle-orm", () => ({
 const mockGetChainIdFromNetwork = vi.fn();
 const mockGetRpcProvider = vi.fn();
 
-vi.mock("@/lib/rpc", () => ({
+vi.mock("@/lib/rpc/network-utils", () => ({
   getChainIdFromNetwork: (...args: unknown[]) =>
     mockGetChainIdFromNetwork(...args),
+}));
+
+vi.mock("@/lib/rpc/provider-factory", () => ({
   getRpcProvider: (...args: unknown[]) => mockGetRpcProvider(...args),
 }));
 
 // Mock ethers with enough fidelity for encoding/decoding tests
 const mockStaticCall = vi.fn();
 
-vi.mock("@/lib/contracts", () => ({
+vi.mock("@/lib/contracts/multicall3", () => ({
   MULTICALL3_ADDRESS: "0xcA11bde05977b3631167028862bE2a173976CA11",
   MULTICALL3_ABI: [
     {

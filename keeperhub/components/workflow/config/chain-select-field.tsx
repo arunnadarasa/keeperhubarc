@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import type { ActionConfigFieldBase } from "@/plugins";
+import type { ActionConfigFieldBase } from "@/plugins/registry";
 
 type Chain = {
   id: string;

@@ -5,7 +5,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import {
   findActionById,
   getIntegration as getPluginDefinition,
-} from "@/plugins";
+} from "@/plugins/registry";
 import type { IntegrationConfig, IntegrationType } from "../types/integration";
 import { db } from "./index";
 import { integrations, type NewIntegration } from "./schema";

@@ -7,14 +7,16 @@
 
 import {
   consoleMetricsCollector,
-  consoleSolanaMetricsCollector,
   createRpcProviderManager,
-  createSolanaProviderManager,
   type FailoverStateChangeCallback,
   type RpcProviderManager,
+} from "@/lib/rpc-provider";
+import {
+  consoleSolanaMetricsCollector,
+  createSolanaProviderManager,
   type SolanaFailoverStateChangeCallback,
   type SolanaProviderManager,
-} from "@/lib/rpc-provider";
+} from "@/lib/rpc-provider/solana";
 import { resolveRpcConfig } from "./config-service";
 
 // Solana chain IDs (non-EVM)

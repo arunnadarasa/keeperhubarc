@@ -60,7 +60,7 @@ import {
   workflowNotFoundAtom,
 } from "@/lib/workflow-store";
 // start custom keeperhub code //
-import { findActionById, flattenConfigFields } from "@/plugins";
+import { findActionById, flattenConfigFields } from "@/plugins/registry";
 // end keeperhub code //
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { ActionConfig } from "./config/action-config";

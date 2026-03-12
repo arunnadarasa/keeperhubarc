@@ -4,7 +4,8 @@
  * Track resource utilization metrics for capacity planning and alerting.
  */
 
-import { getMetricsCollector, MetricNames } from "../index";
+import { getMetricsCollector } from "../index";
+import { MetricNames } from "../types";
 
 /**
  * In-memory counter for concurrent workflow executions

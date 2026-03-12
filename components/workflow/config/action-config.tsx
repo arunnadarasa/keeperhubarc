@@ -64,7 +64,7 @@ import {
   getActionsByCategory,
   getAllIntegrations,
   getIntegration,
-} from "@/plugins";
+} from "@/plugins/registry";
 import { ActionConfigRenderer } from "./action-config-renderer";
 import { SchemaBuilder, type SchemaField } from "./schema-builder";
 

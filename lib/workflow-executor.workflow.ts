@@ -14,11 +14,8 @@ import {
   logSystemError,
   logUserError,
 } from "@/keeperhub/lib/logging";
-import {
-  getMetricsCollector,
-  LabelKeys,
-  MetricNames,
-} from "@/keeperhub/lib/metrics";
+import { getMetricsCollector } from "@/keeperhub/lib/metrics";
+import { LabelKeys, MetricNames } from "@/keeperhub/lib/metrics/types";
 import {
   decrementConcurrentExecutions,
   incrementConcurrentExecutions,

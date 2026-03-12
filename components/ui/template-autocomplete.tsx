@@ -21,7 +21,7 @@ import {
   WorkflowTriggerEnum,
   type WorkflowNode,
 } from "@/lib/workflow-store";
-import { findActionById } from "@/plugins";
+import { findActionById } from "@/plugins/registry";
 // start custom keeperhub code //
 import { getReadContractOutputFields } from "@/keeperhub/lib/action-output-fields";
 import { resolveForEachSyntheticOutput } from "@/keeperhub/lib/for-each-utils";

@@ -1,18 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  consoleMetricsCollector,
-  createPrefixedConsoleCollector,
   createTimer,
   getMetricsCollector,
-  LabelKeys,
-  MetricNames,
-  type MetricsCollector,
-  noopMetricsCollector,
   resetMetricsCollector,
   setMetricsCollector,
   withLatencyTracking,
   withMetrics,
 } from "@/keeperhub/lib/metrics";
+import {
+  consoleMetricsCollector,
+  createPrefixedConsoleCollector,
+} from "@/keeperhub/lib/metrics/collectors/console";
+import { noopMetricsCollector } from "@/keeperhub/lib/metrics/collectors/noop";
+import { LabelKeys, MetricNames, type MetricsCollector } from "@/keeperhub/lib/metrics/types";
 
 describe("Metrics Collectors", () => {
   beforeEach(() => {

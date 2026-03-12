@@ -34,7 +34,7 @@ import {
   selectedExecutionIdAtom,
   type WorkflowNodeData,
 } from "@/lib/workflow-store";
-import { findActionById, getIntegration } from "@/plugins";
+import { findActionById, getIntegration } from "@/plugins/registry";
 
 // Helper to get display name for AI model
 const getModelDisplayName = (modelId: string): string => {

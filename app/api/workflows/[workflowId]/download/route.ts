@@ -11,7 +11,7 @@ import { db } from "@/lib/db";
 import { workflows } from "@/lib/db/schema";
 import { generateWorkflowModule } from "@/lib/workflow-codegen";
 import type { WorkflowEdge, WorkflowNode } from "@/lib/workflow-store";
-import { getAllEnvVars, getDependenciesForActions } from "@/plugins";
+import { getAllEnvVars, getDependenciesForActions } from "@/plugins/registry";
 
 // Path to the Next.js boilerplate directory
 const BOILERPLATE_PATH = join(process.cwd(), "lib", "next-boilerplate");

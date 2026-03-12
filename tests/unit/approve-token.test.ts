@@ -56,9 +56,12 @@ vi.mock("drizzle-orm", () => ({
 const mockGetChainIdFromNetwork = vi.fn();
 const mockGetRpcProvider = vi.fn();
 
-vi.mock("@/lib/rpc", () => ({
+vi.mock("@/lib/rpc/network-utils", () => ({
   getChainIdFromNetwork: (...args: unknown[]) =>
     mockGetChainIdFromNetwork(...args),
+}));
+
+vi.mock("@/lib/rpc/provider-factory", () => ({
   getRpcProvider: (...args: unknown[]) => mockGetRpcProvider(...args),
 }));
 
@@ -142,8 +145,8 @@ vi.mock("ethers", async () => {
   };
 });
 
-vi.mock("@/lib/contracts", () => ({
-  ERC20_ABI: [
+vi.mock("@/lib/contracts/abis/erc20.json", () => ({
+  default: [
     { name: "approve", type: "function", inputs: [], outputs: [] },
     { name: "decimals", type: "function", inputs: [], outputs: [] },
     { name: "symbol", type: "function", inputs: [], outputs: [] },

@@ -31,7 +31,7 @@ import {
   getIntegration,
   getIntegrationLabels,
   getSortedIntegrationTypes,
-} from "@/plugins";
+} from "@/plugins/registry";
 import { getIntegrationDescriptions } from "@/plugins/registry";
 import { AiGatewayConsentOverlay } from "./ai-gateway-consent-overlay";
 import { ConfirmOverlay } from "./confirm-overlay";
