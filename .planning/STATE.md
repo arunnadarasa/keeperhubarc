@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: planning
-stopped_at: Completed 19-04-PLAN.md
-last_updated: "2026-03-12T21:33:37.192Z"
+stopped_at: Completed 19-02-PLAN.md
+last_updated: "2026-03-12T21:35:19.121Z"
 last_activity: 2026-03-12 -- v1.5 roadmap created (6 phases, 89 requirements mapped)
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 5
-  completed_plans: 2
+  completed_plans: 4
   percent: 0
 ---
 
@@ -48,6 +48,8 @@ Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (pha
 *Updated after each plan completion*
 | Phase 19-cli-scaffold P01 | 7 | 2 tasks | 13 files |
 | Phase 19-cli-scaffold P04 | 3 | 2 tasks | 33 files |
+| Phase 19-cli-scaffold P03 | 7 | 2 tasks | 28 files |
+| Phase 19-cli-scaffold P02 | 4 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -62,6 +64,10 @@ Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (pha
 - MCP stdout isolation must be the first commit of Phase 23, before any tools are implemented
 - [Phase 19-cli-scaffold]: XDG path resolution uses os.Getenv directly (not adrg/xdg variables) so t.Setenv() works in tests
 - [Phase 19-cli-scaffold]: CLI repo created at /Users/skp/Dev/TechOps Services/cli as sibling to keeperhub Next.js repo
+- [Phase 19-cli-scaffold]: Updated main.go to wire all commands into cobra root (Rule 3 auto-fix for plan 19-03)
+- [Phase 19-cli-scaffold]: completion command takes no Factory -- uses cmd.Root() Cobra built-in
+- [Phase 19-cli-scaffold]: Factory.HTTPClient returns *khhttp.Client for version-aware requests; callers use StandardClient() for net/http compat
+- [Phase 19-cli-scaffold]: HTTPClient closure captures rootCmd pointer to read --host flag after Cobra parses flags
 
 ### Pending Todos
 
@@ -75,6 +81,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T21:33:37.190Z
-Stopped at: Completed 19-04-PLAN.md
+Last session: 2026-03-12T21:35:19.119Z
+Stopped at: Completed 19-02-PLAN.md
 Resume file: None
