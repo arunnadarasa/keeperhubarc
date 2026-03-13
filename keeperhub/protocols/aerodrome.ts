@@ -15,7 +15,60 @@ export default defineProtocol({
         // Base
         "8453": "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43",
       },
-      // Proxy -- ABI auto-resolved via abi-cache
+      // Inline ABI -- BaseScan auto-fetch fails for this contract
+      abi: JSON.stringify([
+        {
+          type: "function",
+          name: "getReserves",
+          stateMutability: "view",
+          inputs: [
+            { name: "tokenA", type: "address" },
+            { name: "tokenB", type: "address" },
+            { name: "stable", type: "bool" },
+            { name: "factory", type: "address" },
+          ],
+          outputs: [
+            { name: "reserveA", type: "uint256" },
+            { name: "reserveB", type: "uint256" },
+          ],
+        },
+        {
+          type: "function",
+          name: "getAmountOut",
+          stateMutability: "view",
+          inputs: [
+            { name: "amountIn", type: "uint256" },
+            { name: "tokenIn", type: "address" },
+            { name: "tokenOut", type: "address" },
+          ],
+          outputs: [
+            { name: "amount", type: "uint256" },
+            { name: "stable", type: "bool" },
+          ],
+        },
+        {
+          type: "function",
+          name: "swapExactTokensForTokens",
+          stateMutability: "nonpayable",
+          inputs: [
+            { name: "amountIn", type: "uint256" },
+            { name: "amountOutMin", type: "uint256" },
+            {
+              name: "routes",
+              type: "tuple[]",
+              components: [
+                { name: "from", type: "address" },
+                { name: "to", type: "address" },
+                { name: "stable", type: "bool" },
+                { name: "factory", type: "address" },
+              ],
+            },
+            { name: "to", type: "address" },
+            { name: "deadline", type: "uint256" },
+          ],
+          outputs: [{ name: "amounts", type: "uint256[]" }],
+        },
+      ]),
     },
     voter: {
       label: "Aerodrome Voter",
@@ -23,7 +76,41 @@ export default defineProtocol({
         // Base
         "8453": "0x16613524e02ad97eDfeF371bC883F2F5d6C480A5",
       },
-      // Proxy -- ABI auto-resolved via abi-cache
+      // Inline ABI -- BaseScan auto-fetch fails for this contract
+      abi: JSON.stringify([
+        {
+          type: "function",
+          name: "totalWeight",
+          stateMutability: "view",
+          inputs: [],
+          outputs: [{ name: "", type: "uint256" }],
+        },
+        {
+          type: "function",
+          name: "isAlive",
+          stateMutability: "view",
+          inputs: [{ name: "_gauge", type: "address" }],
+          outputs: [{ name: "", type: "bool" }],
+        },
+        {
+          type: "function",
+          name: "vote",
+          stateMutability: "nonpayable",
+          inputs: [
+            { name: "_tokenId", type: "uint256" },
+            { name: "_poolVote", type: "address[]" },
+            { name: "_weights", type: "uint256[]" },
+          ],
+          outputs: [],
+        },
+        {
+          type: "function",
+          name: "claimRewards",
+          stateMutability: "nonpayable",
+          inputs: [{ name: "_gauges", type: "address[]" }],
+          outputs: [],
+        },
+      ]),
     },
     poolFactory: {
       label: "Aerodrome Pool Factory",
@@ -31,7 +118,16 @@ export default defineProtocol({
         // Base
         "8453": "0x420DD381b31aEf6683db6B902084cB0FFECe40Da",
       },
-      // Proxy -- ABI auto-resolved via abi-cache
+      // Inline ABI -- BaseScan auto-fetch fails for this contract
+      abi: JSON.stringify([
+        {
+          type: "function",
+          name: "allPoolsLength",
+          stateMutability: "view",
+          inputs: [],
+          outputs: [{ name: "", type: "uint256" }],
+        },
+      ]),
     },
     votingEscrow: {
       label: "Aerodrome VotingEscrow (veAERO)",
@@ -39,7 +135,26 @@ export default defineProtocol({
         // Base
         "8453": "0xeBf418Fe2512e7E6bd9b87a8F0f294aCDC67e6B4",
       },
-      // Proxy -- ABI auto-resolved via abi-cache
+      // Inline ABI -- BaseScan auto-fetch fails for this contract
+      abi: JSON.stringify([
+        {
+          type: "function",
+          name: "balanceOfNFT",
+          stateMutability: "view",
+          inputs: [{ name: "_tokenId", type: "uint256" }],
+          outputs: [{ name: "", type: "uint256" }],
+        },
+        {
+          type: "function",
+          name: "create_lock",
+          stateMutability: "nonpayable",
+          inputs: [
+            { name: "_value", type: "uint256" },
+            { name: "_lockDuration", type: "uint256" },
+          ],
+          outputs: [{ name: "", type: "uint256" }],
+        },
+      ]),
     },
     aeroToken: {
       label: "AERO Token",
@@ -47,7 +162,26 @@ export default defineProtocol({
         // Base
         "8453": "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
       },
-      // ABI auto-resolved via abi-cache
+      // Inline ABI -- BaseScan auto-fetch fails for this contract
+      abi: JSON.stringify([
+        {
+          type: "function",
+          name: "balanceOf",
+          stateMutability: "view",
+          inputs: [{ name: "account", type: "address" }],
+          outputs: [{ name: "", type: "uint256" }],
+        },
+        {
+          type: "function",
+          name: "approve",
+          stateMutability: "nonpayable",
+          inputs: [
+            { name: "spender", type: "address" },
+            { name: "amount", type: "uint256" },
+          ],
+          outputs: [{ name: "", type: "bool" }],
+        },
+      ]),
     },
   },
 
