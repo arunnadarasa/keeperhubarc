@@ -32,11 +32,12 @@ echo "Running pre-commit checks..." >&2
 
 # Run lint check and save output
 echo "Checking lint (pnpm check)..." >&2
-LINT_OUTPUT=$(pnpm check 2>&1) || true
+LINT_EXIT=0
+LINT_OUTPUT=$(pnpm check 2>&1) || LINT_EXIT=$?
 echo "$LINT_OUTPUT" > .claude/lint-output.txt
 echo "Lint output saved to .claude/lint-output.txt" >&2
 
-if echo "$LINT_OUTPUT" | grep -q "error\|Error"; then
+if [ "$LINT_EXIT" -ne 0 ]; then
     echo "" >&2
     echo "COMMIT BLOCKED: Lint check failed." >&2
     echo "Read .claude/lint-output.txt for errors, or run 'pnpm fix' to auto-fix." >&2

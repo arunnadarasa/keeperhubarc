@@ -17,16 +17,30 @@ export function apiError(
   status = 500
 ): NextResponse {
   const message = error instanceof Error ? error.message : String(error);
+  const rootCause = getRootCause(error);
   const stack = error instanceof Error ? error.stack : undefined;
 
-  // Log with context - will be formatted by our logger
   console.error(`[API] ${context}:`, message, stack ?? "");
 
   return NextResponse.json(
     {
-      error: message,
+      error: rootCause ?? message,
       context,
     },
     { status }
   );
+}
+
+function getRootCause(error: unknown): string | undefined {
+  if (!(error instanceof Error && error.cause)) {
+    return undefined;
+  }
+  const cause = error.cause;
+  if (cause instanceof Error) {
+    return cause.message;
+  }
+  if (typeof cause === "string") {
+    return cause;
+  }
+  return undefined;
 }
