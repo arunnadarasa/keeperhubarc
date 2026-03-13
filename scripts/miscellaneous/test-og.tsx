@@ -3,10 +3,10 @@ import { resolve } from "node:path";
 import { ImageResponse } from "@vercel/og";
 
 const fontRegular = readFileSync(
-  resolve(process.cwd(), "keeperhub/api/og/fonts/AnekLatin-Regular.ttf")
+  resolve(process.cwd(), "app/api/og/fonts/AnekLatin-Regular.ttf")
 );
 const fontSemiBold = readFileSync(
-  resolve(process.cwd(), "keeperhub/api/og/fonts/AnekLatin-SemiBold.ttf")
+  resolve(process.cwd(), "app/api/og/fonts/AnekLatin-SemiBold.ttf")
 );
 const FONT_OPTIONS = [
   {
