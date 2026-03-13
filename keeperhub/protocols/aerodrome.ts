@@ -34,6 +34,18 @@ export default defineProtocol({
         },
         {
           type: "function",
+          name: "poolFor",
+          stateMutability: "view",
+          inputs: [
+            { name: "tokenA", type: "address" },
+            { name: "tokenB", type: "address" },
+            { name: "stable", type: "bool" },
+            { name: "factory", type: "address" },
+          ],
+          outputs: [{ name: "pool", type: "address" }],
+        },
+        {
+          type: "function",
           name: "swapExactTokensForTokens",
           stateMutability: "nonpayable",
           inputs: [
@@ -53,6 +65,46 @@ export default defineProtocol({
             { name: "deadline", type: "uint256" },
           ],
           outputs: [{ name: "amounts", type: "uint256[]" }],
+        },
+        {
+          type: "function",
+          name: "addLiquidity",
+          stateMutability: "nonpayable",
+          inputs: [
+            { name: "tokenA", type: "address" },
+            { name: "tokenB", type: "address" },
+            { name: "stable", type: "bool" },
+            { name: "amountADesired", type: "uint256" },
+            { name: "amountBDesired", type: "uint256" },
+            { name: "amountAMin", type: "uint256" },
+            { name: "amountBMin", type: "uint256" },
+            { name: "to", type: "address" },
+            { name: "deadline", type: "uint256" },
+          ],
+          outputs: [
+            { name: "amountA", type: "uint256" },
+            { name: "amountB", type: "uint256" },
+            { name: "liquidity", type: "uint256" },
+          ],
+        },
+        {
+          type: "function",
+          name: "removeLiquidity",
+          stateMutability: "nonpayable",
+          inputs: [
+            { name: "tokenA", type: "address" },
+            { name: "tokenB", type: "address" },
+            { name: "stable", type: "bool" },
+            { name: "liquidity", type: "uint256" },
+            { name: "amountAMin", type: "uint256" },
+            { name: "amountBMin", type: "uint256" },
+            { name: "to", type: "address" },
+            { name: "deadline", type: "uint256" },
+          ],
+          outputs: [
+            { name: "amountA", type: "uint256" },
+            { name: "amountB", type: "uint256" },
+          ],
         },
       ]),
     },
@@ -80,6 +132,13 @@ export default defineProtocol({
         },
         {
           type: "function",
+          name: "gauges",
+          stateMutability: "view",
+          inputs: [{ name: "_pool", type: "address" }],
+          outputs: [{ name: "", type: "address" }],
+        },
+        {
+          type: "function",
           name: "vote",
           stateMutability: "nonpayable",
           inputs: [
@@ -87,6 +146,13 @@ export default defineProtocol({
             { name: "_poolVote", type: "address[]" },
             { name: "_weights", type: "uint256[]" },
           ],
+          outputs: [],
+        },
+        {
+          type: "function",
+          name: "reset",
+          stateMutability: "nonpayable",
+          inputs: [{ name: "_tokenId", type: "uint256" }],
           outputs: [],
         },
         {
@@ -132,6 +198,16 @@ export default defineProtocol({
         },
         {
           type: "function",
+          name: "locked",
+          stateMutability: "view",
+          inputs: [{ name: "_tokenId", type: "uint256" }],
+          outputs: [
+            { name: "amount", type: "int128" },
+            { name: "end", type: "uint256" },
+          ],
+        },
+        {
+          type: "function",
           name: "create_lock",
           stateMutability: "nonpayable",
           inputs: [
@@ -139,6 +215,33 @@ export default defineProtocol({
             { name: "_lockDuration", type: "uint256" },
           ],
           outputs: [{ name: "", type: "uint256" }],
+        },
+        {
+          type: "function",
+          name: "increase_amount",
+          stateMutability: "nonpayable",
+          inputs: [
+            { name: "_tokenId", type: "uint256" },
+            { name: "_value", type: "uint256" },
+          ],
+          outputs: [],
+        },
+        {
+          type: "function",
+          name: "increase_unlock_time",
+          stateMutability: "nonpayable",
+          inputs: [
+            { name: "_tokenId", type: "uint256" },
+            { name: "_lockDuration", type: "uint256" },
+          ],
+          outputs: [],
+        },
+        {
+          type: "function",
+          name: "withdraw",
+          stateMutability: "nonpayable",
+          inputs: [{ name: "_tokenId", type: "uint256" }],
+          outputs: [],
         },
       ]),
     },
@@ -199,7 +302,7 @@ export default defineProtocol({
       slug: "get-reserves",
       label: "Get Pool Reserves",
       description:
-        "Get the current reserves and block timestamp for an Aerodrome pool",
+        "Get the current reserves for an Aerodrome pool by token pair",
       type: "read",
       contract: "router",
       function: "getReserves",
@@ -218,14 +321,39 @@ export default defineProtocol({
         {
           name: "reserveA",
           type: "uint256",
-          label: "Reserve A",
-          decimals: 18,
+          label: "Reserve A (raw wei)",
         },
         {
           name: "reserveB",
           type: "uint256",
-          label: "Reserve B",
-          decimals: 18,
+          label: "Reserve B (raw wei)",
+        },
+      ],
+    },
+    {
+      slug: "get-pool-for-pair",
+      label: "Get Pool Address",
+      description:
+        "Resolve the pool address for a token pair and pool type (stable/volatile)",
+      type: "read",
+      contract: "router",
+      function: "poolFor",
+      inputs: [
+        { name: "tokenA", type: "address", label: "Token A Address" },
+        { name: "tokenB", type: "address", label: "Token B Address" },
+        { name: "stable", type: "bool", label: "Stable Pool (true/false)" },
+        {
+          name: "factory",
+          type: "address",
+          label: "Pool Factory Address",
+          default: "0x420DD381b31aEf6683db6B902084cB0FFECe40Da",
+        },
+      ],
+      outputs: [
+        {
+          name: "pool",
+          type: "address",
+          label: "Pool Address",
         },
       ],
     },
@@ -296,6 +424,17 @@ export default defineProtocol({
       inputs: [{ name: "_gauge", type: "address", label: "Gauge Address" }],
       outputs: [{ name: "alive", type: "bool", label: "Is Alive" }],
     },
+    {
+      slug: "get-gauge-for-pool",
+      label: "Get Gauge for Pool",
+      description:
+        "Look up the gauge address for a pool to check status or vote",
+      type: "read",
+      contract: "voter",
+      function: "gauges",
+      inputs: [{ name: "_pool", type: "address", label: "Pool Address" }],
+      outputs: [{ name: "gauge", type: "address", label: "Gauge Address" }],
+    },
 
     // veNFT Reads
 
@@ -319,6 +458,34 @@ export default defineProtocol({
           type: "uint256",
           label: "Voting Power",
           decimals: 18,
+        },
+      ],
+    },
+    {
+      slug: "get-lock-details",
+      label: "Get Lock Details",
+      description:
+        "Get the locked AERO amount and unlock timestamp for a veNFT position",
+      type: "read",
+      contract: "votingEscrow",
+      function: "locked",
+      inputs: [
+        {
+          name: "_tokenId",
+          type: "uint256",
+          label: "veNFT Token ID",
+        },
+      ],
+      outputs: [
+        {
+          name: "amount",
+          type: "int128",
+          label: "Locked Amount (raw)",
+        },
+        {
+          name: "end",
+          type: "uint256",
+          label: "Unlock Timestamp (unix)",
         },
       ],
     },
@@ -360,6 +527,87 @@ export default defineProtocol({
           type: "uint256",
           label: "Minimum Output (wei)",
         },
+        {
+          name: "routes",
+          type: "tuple[]",
+          label: "Swap Routes (JSON array of {from, to, stable, factory})",
+          helpTip:
+            "Each route is an object with from (address), to (address), stable (bool), factory (address). For single-hop swaps use one route entry.",
+        },
+        { name: "to", type: "address", label: "Recipient Address" },
+        {
+          name: "deadline",
+          type: "uint256",
+          label: "Deadline (unix timestamp)",
+        },
+      ],
+    },
+    {
+      slug: "add-liquidity",
+      label: "Add Liquidity",
+      description: "Add liquidity to an Aerodrome pool and receive LP tokens",
+      type: "write",
+      contract: "router",
+      function: "addLiquidity",
+      inputs: [
+        { name: "tokenA", type: "address", label: "Token A Address" },
+        { name: "tokenB", type: "address", label: "Token B Address" },
+        { name: "stable", type: "bool", label: "Stable Pool (true/false)" },
+        {
+          name: "amountADesired",
+          type: "uint256",
+          label: "Desired Amount A (wei)",
+        },
+        {
+          name: "amountBDesired",
+          type: "uint256",
+          label: "Desired Amount B (wei)",
+        },
+        {
+          name: "amountAMin",
+          type: "uint256",
+          label: "Minimum Amount A (wei)",
+        },
+        {
+          name: "amountBMin",
+          type: "uint256",
+          label: "Minimum Amount B (wei)",
+        },
+        { name: "to", type: "address", label: "Recipient Address" },
+        {
+          name: "deadline",
+          type: "uint256",
+          label: "Deadline (unix timestamp)",
+        },
+      ],
+    },
+    {
+      slug: "remove-liquidity",
+      label: "Remove Liquidity",
+      description:
+        "Remove liquidity from an Aerodrome pool by burning LP tokens",
+      type: "write",
+      contract: "router",
+      function: "removeLiquidity",
+      inputs: [
+        { name: "tokenA", type: "address", label: "Token A Address" },
+        { name: "tokenB", type: "address", label: "Token B Address" },
+        { name: "stable", type: "bool", label: "Stable Pool (true/false)" },
+        {
+          name: "liquidity",
+          type: "uint256",
+          label: "LP Token Amount (wei)",
+        },
+        {
+          name: "amountAMin",
+          type: "uint256",
+          label: "Minimum Amount A (wei)",
+        },
+        {
+          name: "amountBMin",
+          type: "uint256",
+          label: "Minimum Amount B (wei)",
+        },
         { name: "to", type: "address", label: "Recipient Address" },
         {
           name: "deadline",
@@ -394,6 +642,22 @@ export default defineProtocol({
       ],
     },
     {
+      slug: "reset-votes",
+      label: "Reset Votes",
+      description:
+        "Reset all gauge votes for a veNFT, required before changing vote allocations in a new epoch",
+      type: "write",
+      contract: "voter",
+      function: "reset",
+      inputs: [
+        {
+          name: "_tokenId",
+          type: "uint256",
+          label: "veNFT Token ID",
+        },
+      ],
+    },
+    {
       slug: "create-lock",
       label: "Create veAERO Lock",
       description:
@@ -416,9 +680,65 @@ export default defineProtocol({
       ],
     },
     {
+      slug: "increase-lock-amount",
+      label: "Increase Lock Amount",
+      description: "Add more AERO tokens to an existing veNFT lock position",
+      type: "write",
+      contract: "votingEscrow",
+      function: "increase_amount",
+      inputs: [
+        {
+          name: "_tokenId",
+          type: "uint256",
+          label: "veNFT Token ID",
+        },
+        {
+          name: "_value",
+          type: "uint256",
+          label: "Additional AERO Amount (wei)",
+          decimals: 18,
+        },
+      ],
+    },
+    {
+      slug: "increase-lock-duration",
+      label: "Increase Lock Duration",
+      description: "Extend the lock duration of an existing veNFT position",
+      type: "write",
+      contract: "votingEscrow",
+      function: "increase_unlock_time",
+      inputs: [
+        {
+          name: "_tokenId",
+          type: "uint256",
+          label: "veNFT Token ID",
+        },
+        {
+          name: "_lockDuration",
+          type: "uint256",
+          label: "New Lock Duration (seconds)",
+        },
+      ],
+    },
+    {
+      slug: "withdraw-lock",
+      label: "Withdraw Expired Lock",
+      description: "Withdraw AERO tokens from an expired veNFT lock position",
+      type: "write",
+      contract: "votingEscrow",
+      function: "withdraw",
+      inputs: [
+        {
+          name: "_tokenId",
+          type: "uint256",
+          label: "veNFT Token ID",
+        },
+      ],
+    },
+    {
       slug: "claim-rewards",
       label: "Claim Gauge Rewards",
-      description: "Claim accumulated AERO rewards from a gauge for a veNFT",
+      description: "Claim accumulated AERO rewards from gauges",
       type: "write",
       contract: "voter",
       function: "claimRewards",
@@ -440,6 +760,118 @@ export default defineProtocol({
       inputs: [
         { name: "spender", type: "address", label: "Spender Address" },
         { name: "amount", type: "uint256", label: "Amount (wei)" },
+      ],
+    },
+  ],
+
+  events: [
+    // Pool Events
+
+    {
+      slug: "pool-swap",
+      label: "Pool Swap",
+      description: "Fires when a swap occurs in an Aerodrome pool",
+      eventName: "Swap",
+      contract: "pool",
+      inputs: [
+        { name: "sender", type: "address", indexed: true },
+        { name: "to", type: "address", indexed: true },
+        { name: "amount0In", type: "uint256", indexed: false },
+        { name: "amount1In", type: "uint256", indexed: false },
+        { name: "amount0Out", type: "uint256", indexed: false },
+        { name: "amount1Out", type: "uint256", indexed: false },
+      ],
+    },
+    {
+      slug: "pool-sync",
+      label: "Pool Reserves Synced",
+      description:
+        "Fires when pool reserves are updated after any operation (swap, mint, burn)",
+      eventName: "Sync",
+      contract: "pool",
+      inputs: [
+        { name: "reserve0", type: "uint256", indexed: false },
+        { name: "reserve1", type: "uint256", indexed: false },
+      ],
+    },
+
+    // VotingEscrow Events
+
+    {
+      slug: "ve-deposit",
+      label: "veAERO Deposit",
+      description:
+        "Fires when AERO tokens are locked or added to a veNFT position",
+      eventName: "Deposit",
+      contract: "votingEscrow",
+      inputs: [
+        { name: "provider", type: "address", indexed: true },
+        { name: "tokenId", type: "uint256", indexed: true },
+        { name: "value", type: "uint256", indexed: false },
+        { name: "locktime", type: "uint256", indexed: false },
+        { name: "depositType", type: "uint256", indexed: false },
+        { name: "ts", type: "uint256", indexed: false },
+      ],
+    },
+    {
+      slug: "ve-withdraw",
+      label: "veAERO Withdrawal",
+      description:
+        "Fires when AERO tokens are withdrawn from an expired veNFT lock",
+      eventName: "Withdraw",
+      contract: "votingEscrow",
+      inputs: [
+        { name: "provider", type: "address", indexed: true },
+        { name: "tokenId", type: "uint256", indexed: true },
+        { name: "value", type: "uint256", indexed: false },
+        { name: "ts", type: "uint256", indexed: false },
+      ],
+    },
+
+    // Voter Events
+
+    {
+      slug: "voter-voted",
+      label: "Gauge Vote Cast",
+      description: "Fires when a veNFT holder casts votes for a pool gauge",
+      eventName: "Voted",
+      contract: "voter",
+      inputs: [
+        { name: "voter", type: "address", indexed: true },
+        { name: "pool", type: "address", indexed: true },
+        { name: "tokenId", type: "uint256", indexed: true },
+        { name: "weight", type: "uint256", indexed: false },
+        { name: "totalWeight", type: "uint256", indexed: false },
+        { name: "timestamp", type: "uint256", indexed: false },
+      ],
+    },
+    {
+      slug: "gauge-created",
+      label: "Gauge Created",
+      description: "Fires when a new gauge is created for a pool",
+      eventName: "GaugeCreated",
+      contract: "voter",
+      inputs: [
+        { name: "poolFactory", type: "address", indexed: true },
+        { name: "votingRewardsFactory", type: "address", indexed: true },
+        { name: "gaugeFactory", type: "address", indexed: true },
+        { name: "pool", type: "address", indexed: false },
+        { name: "bribeVotingReward", type: "address", indexed: false },
+        { name: "feeVotingReward", type: "address", indexed: false },
+        { name: "gauge", type: "address", indexed: false },
+        { name: "creator", type: "address", indexed: false },
+      ],
+    },
+    {
+      slug: "distribute-reward",
+      label: "Reward Distributed",
+      description: "Fires when AERO emissions are distributed to a gauge",
+      eventName: "DistributeReward",
+      contract: "voter",
+      inputs: [
+        { name: "sender", type: "address", indexed: true },
+        { name: "gauge", type: "address", indexed: true },
+        { name: "amount", type: "uint256", indexed: false },
       ],
     },
   ],
