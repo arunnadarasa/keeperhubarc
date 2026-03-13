@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { AuthDialog } from "@/components/auth/dialog";
+import { isAnonymousUser } from "@/keeperhub/lib/is-anonymous";
 
 function SuccessState(): React.JSX.Element {
   return (
@@ -89,12 +90,10 @@ function DevicePageContent(): React.JSX.Element {
       if (res.ok) {
         const data = (await res.json().catch(() => null)) as {
           session?: unknown;
-          user?: { isAnonymous?: boolean; email?: string };
+          user?: { name?: string | null; email?: string | null } | null;
         } | null;
         const hasSession = Boolean(data?.session);
-        const isAnonymous =
-          data?.user?.isAnonymous || data?.user?.email?.startsWith("temp-");
-        setIsAuthenticated(hasSession && !isAnonymous);
+        setIsAuthenticated(hasSession && !isAnonymousUser(data?.user));
       } else {
         setIsAuthenticated(false);
       }
