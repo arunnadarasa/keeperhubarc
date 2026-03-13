@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: planning
-stopped_at: Completed 20-04-PLAN.md
-last_updated: "2026-03-12T22:43:22.140Z"
+stopped_at: Completed 21-04-PLAN.md
+last_updated: "2026-03-13T00:22:11.656Z"
 last_activity: 2026-03-13 -- Phase 19 (CLI Scaffold) executed and verified, 5/5 plans complete
 progress:
   total_phases: 6
   completed_phases: 2
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 13
+  completed_plans: 12
   percent: 17
 ---
 
@@ -54,6 +54,9 @@ Progress: [████░░░░░░░░░░░░░░░░] 17% (1/
 | Phase 20-auth-and-http-client P01 | 2 | 2 tasks | 3 files |
 | Phase 20-auth-and-http-client P03 | 12 | 2 tasks | 11 files |
 | Phase 20-auth-and-http-client P04 | 8 | 2 tasks | 10 files |
+| Phase 21-core-execution-commands P02 | 6 | 2 tasks | 7 files |
+| Phase 21-core-execution-commands P03 | 7 | 2 tasks | 6 files |
+| Phase 21-core-execution-commands P04 | 7 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -78,6 +81,16 @@ Progress: [████░░░░░░░░░░░░░░░░] 17% (1/
 - [Phase 20-auth-and-http-client]: FileBackend Remove returns os.ErrNotExist (not keyring.ErrKeyNotFound) -- DeleteToken checks both
 - [Phase 20-auth-and-http-client]: browserOpener global must be set before BrowserLogin goroutine to avoid race; tests use channel-based capture
 - [Phase 20-auth-and-http-client]: Injectable function vars in cmd/auth package for testability (BrowserLoginFunc, DeviceLoginFunc, etc.) -- no mocking framework needed
+- [Phase 21-core-execution-commands]: --json and --jq added as persistent flags on NewWorkflowCmd for proper test isolation without root command
+- [Phase 21-core-execution-commands]: pause --yes flag defined locally so tests can pass it via workflow parent command
+- [Phase 21-core-execution-commands]: runWaitLoop polls immediately then sleeps to avoid 2s initial delay in tests
+- [Phase 21-core-execution-commands]: buildBaseURL helper in run package: if host already has http:// or https:// scheme, use as-is; otherwise prepend https://
+- [Phase 21-core-execution-commands]: Watch mode has no timeout -- --watch is purely observational; user presses Ctrl+C (distinct from --wait on wf run which blocks)
+- [Phase 21-core-execution-commands]: Cancel --yes flag not redefined locally -- inherited as persistent flag from root; local definition removed to avoid cobra panic on flag shadowing
+- [Phase 21-core-execution-commands]: Cancel URL is /api/executions/{id}/cancel (NOT /api/workflows/executions/...); different URL pattern from status/logs endpoints
+- [Phase 21-core-execution-commands]: --args changed from StringSlice to String: cobra CSV parsing breaks JSON array input
+- [Phase 21-core-execution-commands]: Read/write detection by HTTP status: 200=read-only result, 202=write with executionId
+- [Phase 21-core-execution-commands]: ExecStatusResponse exported from status.go for shared use by transfer and status commands
 
 ### Pending Todos
 
@@ -91,6 +104,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T22:43:18.155Z
-Stopped at: Completed 20-04-PLAN.md
+Last session: 2026-03-13T00:22:11.654Z
+Stopped at: Completed 21-04-PLAN.md
 Resume file: None
