@@ -13,10 +13,8 @@ import { Button } from "@/components/ui/button";
 import { IntegrationIcon } from "@/components/ui/integration-icon";
 import { Spinner } from "@/components/ui/spinner";
 import { api, type Integration } from "@/lib/api-client";
-// start keeperhub - sync to global atom for singleConnection filtering
 import { integrationsAtom } from "@/lib/integrations-store";
-// end keeperhub
-import { getIntegrationLabels } from "@/plugins";
+import { getIntegrationLabels } from "@/plugins/registry";
 
 // System integrations that don't have plugins
 const SYSTEM_INTEGRATION_LABELS: Record<string, string> = {
@@ -36,18 +34,14 @@ export function IntegrationsManager({
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [_testingId, setTestingId] = useState<string | null>(null);
-  // start keeperhub - sync to global atom for singleConnection filtering
   const setGlobalIntegrations = useSetAtom(integrationsAtom);
-  // end keeperhub
 
   const loadIntegrations = useCallback(async () => {
     try {
       setLoading(true);
       const data = await api.integration.getAll();
       setIntegrations(data);
-      // start keeperhub - sync to global atom for singleConnection filtering
       setGlobalIntegrations(data);
-      // end keeperhub
     } catch (error) {
       console.error("Failed to load integrations:", error);
       toast.error("Failed to load integrations");
@@ -187,7 +181,6 @@ export function IntegrationsManager({
               </span>
             </div>
             <div className="flex items-center gap-1">
-              {/* start custom keeperhub code */}
               {/* Test button hidden - unreliable functionality */}
               {/* <Button
                 className="h-7 px-2"
@@ -202,7 +195,6 @@ export function IntegrationsManager({
                   <span className="text-xs">Test</span>
                 )}
               </Button> */}
-              {/* end keeperhub code */}
               <Button
                 className="size-7"
                 onClick={() => handleEdit(integration)}

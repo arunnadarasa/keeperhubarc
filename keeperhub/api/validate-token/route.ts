@@ -1,8 +1,8 @@
 import { ethers } from "ethers";
 import { NextResponse } from "next/server";
 import { normalizeAddressForStorage } from "@/keeperhub/lib/address-utils";
-import { ERC20_ABI } from "@/lib/contracts";
-import { getChainIdFromNetwork } from "@/lib/rpc";
+import ERC20_ABI from "@/lib/contracts/abis/erc20.json";
+import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
 
 /**

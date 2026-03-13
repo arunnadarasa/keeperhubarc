@@ -15,9 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
-// start custom keeperhub code //
 import { setPendingClaim } from "@/keeperhub/lib/hooks/use-claim-workflow";
-// end keeperhub code //
 import { refetchOrganizations } from "@/keeperhub/lib/refetch-organizations";
 import { authClient, signIn, signUp } from "@/lib/auth-client";
 import {
@@ -25,22 +23,18 @@ import {
   getSingleProvider,
 } from "@/lib/auth-providers";
 
-// start custom keeperhub code //
 const WORKFLOW_PATH_REGEX = /^\/workflows\/([^/]+)$/;
-// end keeperhub code //
 
 type AuthDialogProps = {
   children?: ReactNode;
 };
 
-// start custom keeperhub code //
 type ModalView =
   | "signin"
   | "signup"
   | "verify"
   | "forgot-password"
   | "reset-password";
-// end keeperhub code //
 
 const VercelIcon = ({ className = "mr-2 h-3 w-3" }: { className?: string }) => (
   <svg
@@ -186,9 +180,7 @@ type SignInFormProps = {
   onPasswordChange: (v: string) => void;
   onSubmit: (e: React.FormEvent) => void;
   onCreateAccount: () => void;
-  // start custom keeperhub code //
   onForgotPassword: () => void;
-  // end keeperhub code //
 };
 
 const SignInForm = ({
@@ -200,9 +192,7 @@ const SignInForm = ({
   onPasswordChange,
   onSubmit,
   onCreateAccount,
-  // start custom keeperhub code //
   onForgotPassword,
-  // end keeperhub code //
 }: SignInFormProps) => (
   <div className="space-y-4">
     <form className="space-y-4" onSubmit={onSubmit}>
@@ -220,7 +210,6 @@ const SignInForm = ({
         />
       </div>
       <div className="space-y-2">
-        {/* start custom keeperhub code */}
         <div className="flex items-center justify-between">
           <Label className="ml-1" htmlFor="password">
             Password
@@ -234,7 +223,6 @@ const SignInForm = ({
             Forgot password?
           </button>
         </div>
-        {/* end keeperhub code */}
         <Input
           id="password"
           onChange={(e) => onPasswordChange(e.target.value)}
@@ -319,12 +307,10 @@ const getViewTitle = (view: ModalView) => {
       return "Create account";
     case "verify":
       return "Verify your email";
-    // start custom keeperhub code //
     case "forgot-password":
       return "Reset password";
     case "reset-password":
       return "Set new password";
-    // end keeperhub code //
     default:
       return "Sign in";
   }
@@ -340,14 +326,12 @@ const getViewDescription = (view: ModalView, email?: string) => {
       return email
         ? `Enter the 6-digit code sent to ${email}`
         : "Enter the verification code sent to your email.";
-    // start custom keeperhub code //
     case "forgot-password":
       return "Enter your email to receive a password reset code.";
     case "reset-password":
       return email
         ? `Enter the 6-digit code sent to ${email} and your new password.`
         : "Enter the reset code and your new password.";
-    // end keeperhub code //
     default:
       return null;
   }
@@ -371,11 +355,9 @@ export const AuthDialog = ({ children }: AuthDialogProps) => {
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  // start custom keeperhub code //
   const [forgotEmail, setForgotEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
-  // end keeperhub code //
   const [loadingProvider, setLoadingProvider] = useState<
     "github" | "google" | "vercel" | null
   >(null);
@@ -408,14 +390,11 @@ export const AuthDialog = ({ children }: AuthDialogProps) => {
     setVerifyPassword("");
     setOtp("");
     setError("");
-    // start custom keeperhub code //
     setForgotEmail("");
     setNewPassword("");
     setConfirmNewPassword("");
-    // end keeperhub code //
   };
 
-  // start custom keeperhub code //
   const getClaimContext = async () => {
     const workflowMatch = window.location.pathname.match(WORKFLOW_PATH_REGEX);
     if (!workflowMatch) {
@@ -436,7 +415,6 @@ export const AuthDialog = ({ children }: AuthDialogProps) => {
       setPendingClaim(claimContext);
     }
   };
-  // end keeperhub code //
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
@@ -453,10 +431,8 @@ export const AuthDialog = ({ children }: AuthDialogProps) => {
   ) => {
     try {
       setLoadingProvider(provider);
-      // start custom keeperhub code //
       const claimContext = await getClaimContext();
       storeClaimIfNeeded(claimContext);
-      // end keeperhub code //
       await signIn.social({ provider, callbackURL: window.location.pathname });
     } catch {
       toast.error(`Failed to sign in with ${getProviderLabel(provider)}`);
@@ -470,9 +446,7 @@ export const AuthDialog = ({ children }: AuthDialogProps) => {
     setError("");
     setLoading(true);
 
-    // start custom keeperhub code //
     const claimContext = await getClaimContext();
-    // end keeperhub code //
 
     try {
       const response = await signIn.email({ email, password });
@@ -529,9 +503,7 @@ export const AuthDialog = ({ children }: AuthDialogProps) => {
         return;
       }
 
-      // start custom keeperhub code //
       storeClaimIfNeeded(claimContext);
-      // end keeperhub code //
 
       await new Promise((resolve) => setTimeout(resolve, 300));
       await authClient.getSession();
@@ -654,10 +626,8 @@ export const AuthDialog = ({ children }: AuthDialogProps) => {
     setError("");
     setLoading(true);
 
-    // start custom keeperhub code //
     // Capture claim context BEFORE verification (while still anonymous)
     const claimContext = await getClaimContext();
-    // end keeperhub code //
 
     try {
       const response = await authClient.emailOtp.verifyEmail({
@@ -694,10 +664,8 @@ export const AuthDialog = ({ children }: AuthDialogProps) => {
         }
       }
 
-      // start custom keeperhub code //
       // Store claim context after successful sign-in
       storeClaimIfNeeded(claimContext);
-      // end keeperhub code //
 
       // Refresh session
       await authClient.getSession();
@@ -741,7 +709,6 @@ export const AuthDialog = ({ children }: AuthDialogProps) => {
     }
   };
 
-  // start custom keeperhub code //
   const handleForgotPasswordRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -851,7 +818,6 @@ export const AuthDialog = ({ children }: AuthDialogProps) => {
       setLoading(false);
     }
   };
-  // end keeperhub code //
 
   if (singleProvider && singleProvider !== "email") {
     return (
@@ -921,13 +887,11 @@ export const AuthDialog = ({ children }: AuthDialogProps) => {
                     setError("");
                   }}
                   onEmailChange={setEmail}
-                  // start custom keeperhub code //
                   onForgotPassword={() => {
                     setForgotEmail(email);
                     setView("forgot-password");
                     setError("");
                   }}
-                  // end keeperhub code //
                   onPasswordChange={setPassword}
                   onSubmit={handleSignIn}
                   password={password}
@@ -1056,7 +1020,6 @@ export const AuthDialog = ({ children }: AuthDialogProps) => {
             </div>
           )}
 
-          {/* start custom keeperhub code */}
           {view === "forgot-password" && (
             <div className="space-y-4">
               <form
@@ -1198,7 +1161,6 @@ export const AuthDialog = ({ children }: AuthDialogProps) => {
               </div>
             </div>
           )}
-          {/* end keeperhub code */}
         </div>
       </DialogContent>
     </Dialog>

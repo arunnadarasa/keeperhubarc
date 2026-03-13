@@ -14,7 +14,6 @@ import {
 import type { IntegrationType } from "../types/integration";
 import { generateId } from "../utils/id";
 
-// start custom keeperhub code //
 // These enums are created by @workflow/world-postgres migrations in the public
 // schema and referenced by workflow.workflow_runs / workflow.workflow_steps.
 // Declaring them here prevents drizzle-kit from trying to drop them.
@@ -32,7 +31,6 @@ export const workflowStepStatus = pgEnum("step_status", [
   "failed",
   "cancelled",
 ]);
-// end keeperhub code //
 
 // Better Auth tables
 export const users = pgTable("users", {
@@ -45,9 +43,7 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").notNull(),
   // Anonymous user tracking
   isAnonymous: boolean("is_anonymous").default(false),
-  // start custom keeperhub code //
   deactivatedAt: timestamp("deactivated_at"),
-  // end keeperhub code //
 });
 
 export const sessions = pgTable("sessions", {
@@ -61,9 +57,7 @@ export const sessions = pgTable("sessions", {
   userId: text("user_id")
     .notNull()
     .references(() => users.id),
-  // start custom keeperhub code //
   activeOrganizationId: text("active_organization_id"),
-  // end keeperhub code //
 });
 
 export const accounts = pgTable("accounts", {
@@ -93,7 +87,6 @@ export const verifications = pgTable("verifications", {
   updatedAt: timestamp("updated_at"),
 });
 
-// start custom keeperhub code //
 // Organization tables
 export const organization = pgTable("organization", {
   id: text("id").primaryKey(),
@@ -191,9 +184,6 @@ export const tags = pgTable(
   },
   (table) => [index("idx_tags_org").on(table.organizationId)]
 );
-
-// end keeperhub code //
-
 // Workflow visibility type
 export type WorkflowVisibility = "private" | "public";
 
@@ -207,7 +197,6 @@ export const workflows = pgTable("workflows", {
   userId: text("user_id")
     .notNull()
     .references(() => users.id),
-  // start custom keeperhub code //
   organizationId: text("organization_id").references(() => organization.id, {
     onDelete: "cascade",
   }),
@@ -222,7 +211,6 @@ export const workflows = pgTable("workflows", {
   tagId: text("tag_id").references(() => tags.id, {
     onDelete: "set null",
   }),
-  // end keeperhub code //
   // biome-ignore lint/suspicious/noExplicitAny: JSONB type - structure validated at application level
   nodes: jsonb("nodes").notNull().$type<any[]>(),
   // biome-ignore lint/suspicious/noExplicitAny: JSONB type - structure validated at application level
@@ -244,11 +232,9 @@ export const integrations = pgTable("integrations", {
   userId: text("user_id")
     .notNull()
     .references(() => users.id),
-  // start custom keeperhub code //
   organizationId: text("organization_id").references(() => organization.id, {
     onDelete: "cascade",
   }),
-  // end keeperhub code //
   name: text("name").notNull(),
   type: text("type").notNull().$type<IntegrationType>(),
   // biome-ignore lint/suspicious/noExplicitAny: JSONB type - encrypted credentials stored as JSON
@@ -291,9 +277,7 @@ export const workflowExecutions = pgTable(
     lastSuccessfulNodeId: text("last_successful_node_id"),
     lastSuccessfulNodeName: text("last_successful_node_name"),
     executionTrace: jsonb("execution_trace").$type<string[]>(),
-    // start custom keeperhub code //
     runId: text("run_id"),
-    // end keeperhub code //
   },
   (table) => [index("idx_workflow_executions_status").on(table.status)]
 );
@@ -321,10 +305,8 @@ export const workflowExecutionLogs = pgTable("workflow_execution_logs", {
   completedAt: timestamp("completed_at"),
   duration: numeric("duration"), // Duration in milliseconds
   timestamp: timestamp("timestamp").notNull().defaultNow(),
-  // start custom keeperhub code //
   iterationIndex: integer("iteration_index"), // 0-based loop iteration (null for non-loop nodes)
   forEachNodeId: text("for_each_node_id"), // parent For Each node ID (null for non-loop nodes)
-  // end keeperhub code //
 });
 
 // KeeperHub: Para Wallets, Organization API Keys, and Organization Tokens (imported from KeeperHub schema extensions)
@@ -523,7 +505,6 @@ export const workflowSchedulesRelations = relations(
   })
 );
 
-// start custom keeperhub code //
 // Organization relations
 export const organizationRelations = relations(organization, ({ many }) => ({
   members: many(member),
@@ -598,9 +579,6 @@ export const tagsRelations = relations(tags, ({ one }) => ({
     references: [users.id],
   }),
 }));
-
-// end keeperhub code //
-
 export const chainsRelations = relations(chains, ({ one, many }) => ({
   explorerConfig: one(explorerConfigs, {
     fields: [chains.chainId],
@@ -646,7 +624,6 @@ export type BetaAccessRequest = typeof betaAccessRequests.$inferSelect;
 export type NewBetaAccessRequest = typeof betaAccessRequests.$inferInsert;
 export type WorkflowSchedule = typeof workflowSchedules.$inferSelect;
 export type NewWorkflowSchedule = typeof workflowSchedules.$inferInsert;
-// start custom keeperhub code //
 export type Organization = typeof organization.$inferSelect;
 export type NewOrganization = typeof organization.$inferInsert;
 export type Member = typeof member.$inferSelect;
@@ -659,7 +636,6 @@ export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type Tag = typeof tags.$inferSelect;
 export type NewTag = typeof tags.$inferInsert;
-// end keeperhub code //
 export type Chain = typeof chains.$inferSelect;
 export type NewChain = typeof chains.$inferInsert;
 export type ExplorerConfig = typeof explorerConfigs.$inferSelect;

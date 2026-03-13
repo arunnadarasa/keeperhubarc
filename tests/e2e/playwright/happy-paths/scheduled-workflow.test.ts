@@ -5,7 +5,7 @@ import {
   createWorkflow,
   saveWorkflow,
   waitForCanvas,
-} from "../utils";
+} from "../utils/workflow";
 
 // Top-level regex for URL matching
 const WORKFLOW_URL_REGEX = /workflow/;

@@ -1,16 +1,11 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-// start custom keeperhub code //
 import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 import { getDualAuthContext } from "@/keeperhub/lib/middleware/auth-helpers";
 import { db } from "@/lib/db";
 import { validateWorkflowIntegrations } from "@/lib/db/integrations";
 import { projects, publicTags, tags, workflowPublicTags, workflows } from "@/lib/db/schema";
 import { syncWorkflowSchedule } from "@/lib/schedule-service";
-
-// end keeperhub code //
-
-// start custom keeperhub code //
 async function fetchWorkflowPublicTags(
   workflowId: string
 ): Promise<Array<{ id: string; name: string; slug: string }>> {
@@ -25,7 +20,6 @@ async function fetchWorkflowPublicTags(
     .where(eq(workflowPublicTags.workflowId, workflowId));
   return rows;
 }
-// end keeperhub code //
 
 // Helper to strip sensitive data from nodes for public viewing
 function sanitizeNodesForPublicView(
@@ -62,7 +56,6 @@ export async function GET(
   try {
     const { workflowId } = await context.params;
 
-    // start custom keeperhub code //
     const authContext = await getDualAuthContext(request, { required: false });
     if ("error" in authContext) {
       return NextResponse.json(
@@ -71,7 +64,6 @@ export async function GET(
       );
     }
     const { userId, organizationId } = authContext;
-    // end keeperhub code //
 
     // First, try to find the workflow
     const workflow = await db.query.workflows.findFirst({
@@ -87,7 +79,6 @@ export async function GET(
 
     const isOwner = userId === workflow.userId;
 
-    // start custom keeperhub code //
     // Check organization membership for private workflows
     const isSameOrg =
       !workflow.isAnonymous &&
@@ -108,7 +99,6 @@ export async function GET(
     const hasFullAccess = isOwner || isSameOrg;
 
     const workflowTags = await fetchWorkflowPublicTags(workflowId);
-    // end keeperhub code //
 
     // For public workflows viewed by non-owners, sanitize sensitive data
     const responseData = {
@@ -208,7 +198,6 @@ async function validateWorkflowAccess(
   };
 }
 
-// start custom keeperhub code //
 async function handlePostUpdateSideEffects(
   workflowId: string,
   body: Record<string, unknown>
@@ -232,7 +221,6 @@ async function handlePostUpdateSideEffects(
     }
   }
 }
-// end keeperhub code //
 
 export async function PATCH(
   request: Request,
@@ -241,7 +229,6 @@ export async function PATCH(
   try {
     const { workflowId } = await context.params;
 
-    // start custom keeperhub code //
     const authContext = await getDualAuthContext(request);
     if ("error" in authContext) {
       return NextResponse.json(
@@ -260,7 +247,6 @@ export async function PATCH(
         { status: 404 }
       );
     }
-    // end keeperhub code //
 
     const body = await request.json();
 
@@ -287,7 +273,6 @@ export async function PATCH(
       );
     }
 
-    // start custom keeperhub code //
     // Validate projectId/tagId ownership when provided
     if (body.projectId !== undefined || body.tagId !== undefined) {
       const targetOrgId = existingWorkflow.organizationId || organizationId;
@@ -326,7 +311,6 @@ export async function PATCH(
         }
       }
     }
-    // end keeperhub code //
 
     const updateData = buildUpdateData(body);
 
@@ -343,9 +327,7 @@ export async function PATCH(
       );
     }
 
-    // start custom keeperhub code //
     await handlePostUpdateSideEffects(workflowId, body);
-    // end keeperhub code //
 
     return NextResponse.json({
       ...updatedWorkflow,
@@ -374,7 +356,6 @@ export async function DELETE(
   try {
     const { workflowId } = await context.params;
 
-    // start custom keeperhub code //
     const authContext = await getDualAuthContext(request);
     if ("error" in authContext) {
       return NextResponse.json(
@@ -396,7 +377,6 @@ export async function DELETE(
         { status: 404 }
       );
     }
-    // end keeperhub code //
 
     await db.delete(workflows).where(eq(workflows.id, workflowId));
 

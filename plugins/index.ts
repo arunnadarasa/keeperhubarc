@@ -20,35 +20,3 @@ import "./slack";
 
 // Import KeeperHub custom plugins
 import "@/keeperhub/plugins";
-
-export type {
-  ActionConfigField,
-  ActionConfigFieldBase,
-  ActionConfigFieldGroup,
-  ActionWithFullId,
-  IntegrationPlugin,
-  PluginAction,
-} from "./registry";
-
-// Export the registry utilities
-export {
-  computeActionId,
-  findActionById,
-  flattenConfigFields,
-  generateAIActionPrompts,
-  getActionsByCategory,
-  getAllActions,
-  getAllDependencies,
-  getAllEnvVars,
-  getAllIntegrations,
-  getCredentialMapping,
-  getDependenciesForActions,
-  getIntegration,
-  getIntegrationLabels,
-  getIntegrationTypes,
-  getPluginEnvVars,
-  getSortedIntegrationTypes,
-  isFieldGroup,
-  parseActionId,
-  registerIntegration,
-} from "./registry";

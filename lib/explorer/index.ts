@@ -20,9 +20,6 @@ import {
   fetchEtherscanTransactions,
 } from "./etherscan";
 
-export type { BlockscoutTransaction } from "./blockscout";
-export type { AbiResult, EtherscanTransaction } from "./etherscan";
-
 export type NormalizedTransaction = {
   hash: string;
   from: string;

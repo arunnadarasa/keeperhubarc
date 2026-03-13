@@ -1,7 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  MetricNames,
-  type MetricsCollector,
   resetMetricsCollector,
   setMetricsCollector,
 } from "@/keeperhub/lib/metrics";
@@ -10,6 +8,10 @@ import {
   recordStepMetrics,
   recordWorkflowComplete,
 } from "@/keeperhub/lib/metrics/instrumentation/workflow";
+import {
+  MetricNames,
+  type MetricsCollector,
+} from "@/keeperhub/lib/metrics/types";
 
 describe("Workflow Metrics Instrumentation", () => {
   let mockCollector: MetricsCollector;

@@ -15,7 +15,7 @@
  */
 import "server-only";
 
-import { getCredentialMapping, getIntegration } from "@/plugins";
+import { getCredentialMapping, getIntegration } from "@/plugins/registry";
 import { buildDatabaseUrlFromConfig } from "./db/connection-utils";
 import { getIntegrationById } from "./db/integrations";
 import type { IntegrationConfig, IntegrationType } from "./types/integration";

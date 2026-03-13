@@ -45,7 +45,7 @@ import {
   selectedNodeAtom,
   updateNodeDataAtom,
 } from "@/lib/workflow-store";
-import { findActionById } from "@/plugins";
+import { findActionById } from "@/plugins/registry";
 import { ActionConfig } from "../workflow/config/action-config";
 import { ActionGrid } from "../workflow/config/action-grid";
 import { TriggerConfig } from "../workflow/config/trigger-config";
@@ -163,10 +163,8 @@ export function ConfigurationOverlay({ overlayId }: ConfigurationOverlayProps) {
     }
   }, [selectedNode, globalIntegrations, isOwner, updateNodeData]);
 
-  // start custom keeperhub code //
   const handleUpdateConfig = useCallback(
     (key: string, value: string | Record<string, unknown> | undefined) => {
-    // end keeperhub code //
       if (!selectedNode) {
         return;
       }

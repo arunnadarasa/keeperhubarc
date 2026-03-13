@@ -28,7 +28,7 @@ import {
 } from "@/lib/integrations-store";
 import type { IntegrationType } from "@/lib/types/integration";
 import { cn } from "@/lib/utils";
-import { getIntegration } from "@/plugins";
+import { getIntegration } from "@/plugins/registry";
 
 // System integrations that don't have plugins - human-readable labels for selector
 const SYSTEM_INTEGRATION_LABELS: Partial<Record<IntegrationType, string>> = {

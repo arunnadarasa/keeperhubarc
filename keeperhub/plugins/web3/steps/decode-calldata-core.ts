@@ -12,7 +12,7 @@ import { ethers } from "ethers";
 import { db } from "@/lib/db";
 import { explorerConfigs } from "@/lib/db/schema";
 import { fetchContractAbi } from "@/lib/explorer";
-import { getChainIdFromNetwork } from "@/lib/rpc";
+import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY ?? "";
 const FOURBYTE_API_URL = "https://www.4byte.directory/api/v1/signatures/";

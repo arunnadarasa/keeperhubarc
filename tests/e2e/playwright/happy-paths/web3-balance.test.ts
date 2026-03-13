@@ -6,7 +6,7 @@ import {
   saveWorkflow,
   triggerWorkflowManually,
   waitForCanvas,
-} from "../utils";
+} from "../utils/workflow";
 
 // Top-level regex patterns
 const MAINNET_OPTION_REGEX = /mainnet/i;

@@ -88,7 +88,6 @@ function getOrCreateGauge(
   return new Gauge({ name, help, labelNames, registers: [registry] });
 }
 
-// start custom keeperhub code //
 // DB-sourced workflow metrics → dbRegistry (identical across pods, scrape one)
 // Workflow runner jobs exit before Prometheus can scrape - data must come from DB.
 //
@@ -382,7 +381,6 @@ const sessionActive = getOrCreateGauge(
   "Active (non-expired) sessions",
   []
 );
-// end keeperhub code //
 
 // API-process metrics → apiRegistry (per-pod in-memory, scrape all pods)
 const webhookLatency = getOrCreateHistogram(
@@ -709,7 +707,6 @@ export const prometheusMetricsCollector: MetricsCollector = {
   },
 };
 
-// start custom keeperhub code //
 // Duration histogram bucket boundaries in milliseconds
 const WORKFLOW_DURATION_BUCKETS = [
   100, 250, 500, 1000, 2000, 5000, 10_000, 30_000,
@@ -919,7 +916,6 @@ export async function updateDbMetrics(): Promise<void> {
     // Don't throw - allow other metrics to still be returned
   }
 }
-// end keeperhub code //
 
 /**
  * Get all metrics in Prometheus format (backward compat: /api/metrics)

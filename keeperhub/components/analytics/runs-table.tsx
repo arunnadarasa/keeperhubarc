@@ -24,6 +24,8 @@ import {
 import { cn } from "@/lib/utils";
 import { ProjectDrawer } from "./project-drawer";
 
+const WHITESPACE_RE = /\s+/;
+
 function formatDuration(ms: number | null): string {
   if (ms === null) {
     return "--";
@@ -439,14 +441,14 @@ export function RunsTable(): ReactNode {
     if (!query) {
       return allRuns;
     }
+    const terms = query.split(WHITESPACE_RE);
     return allRuns.filter((run) => {
-      const name = run.workflowName ?? run.directType ?? "";
-      const network = run.network ?? "";
-      return (
-        name.toLowerCase().includes(query) ||
-        network.toLowerCase().includes(query) ||
-        run.status.includes(query)
-      );
+      const name = (run.workflowName ?? run.directType ?? "").toLowerCase();
+      const network = (run.network ?? "").toLowerCase();
+      const status = run.status.toLowerCase();
+      const id = run.id.toLowerCase();
+      const searchable = `${name} ${network} ${status} ${id}`;
+      return terms.every((term) => searchable.includes(term));
     });
   }, [allRuns, search]);
 

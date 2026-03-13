@@ -4,7 +4,6 @@ import { withWorkflow } from "workflow/next";
 
 const nextConfig = {
   output: "standalone",
-  // start custom keeperhub code //
   // The SDK loads @workflow/world-postgres via dynamic
   // require(process.env.WORKFLOW_TARGET_WORLD) which the standalone output
   // tracer cannot follow. serverExternalPackages keeps it out of the bundle
@@ -210,7 +209,6 @@ const nextConfig = {
       "./node_modules/next/dist/compiled/@vercel/og/**/*",
     ],
   },
-  // end keeperhub code //
   logging: {
     fetches: {
       fullUrl: true,

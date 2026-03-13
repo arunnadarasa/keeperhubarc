@@ -99,7 +99,6 @@ const OPERATOR_TOKEN_PATTERN =
   /^(===|!==|==|!=|>=|<=|>|<|&&|\|\||\*\*|!|\(|\))$/;
 const IDENTIFIER_TOKEN_PATTERN = /^[a-zA-Z_]\w*$/;
 
-// start custom keeperhub code
 // Regex patterns for UI validation
 const EXTRA_SPACES_PATTERN = /\s{2,}/;
 const WHITESPACE_CHAR_PATTERN = /\s/;
@@ -114,7 +113,6 @@ const OPERATOR_AFTER_PATTERN =
 const OPERATOR_PATTERN = /(===|!==|==|!=|>=|<=|>|<|&&|\|\||\*\*|\+|-|\*|\/|%)/g;
 const OPERATOR_CHAR_PATTERN = /[=!<>&|+\-*/%]/;
 const WHITESPACE_TEST_PATTERN = /\s/;
-// end keeperhub code
 
 export type ValidationResult =
   | { valid: true }
@@ -360,11 +358,9 @@ export function preValidateConditionExpression(
     "prototype",
   ];
 
-  // start custom keeperhub code //
   // Strip template variables before keyword check — node IDs like @process
   // are safe and should not trigger false positives
   const expressionWithoutTemplates = expression.replace(/\{\{@[^}]+\}\}/g, "");
-  // end keeperhub code //
 
   const lowerExpression = expressionWithoutTemplates.toLowerCase();
   for (const keyword of dangerousKeywords) {
@@ -391,7 +387,6 @@ export function sanitizeForDisplay(expression: string): string {
     .replace(/'/g, "&#39;");
 }
 
-// start custom keeperhub code
 type Token = { type: string; value: string; start: number };
 
 const VALID_OPERATORS_UI = new Set([
@@ -994,4 +989,3 @@ export function validateConditionExpressionUI(
   // Validate operators
   return validateOperators(tokens);
 }
-// end keeperhub code

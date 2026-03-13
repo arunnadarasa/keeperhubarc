@@ -1,6 +1,6 @@
 import "server-only";
 
-import { findActionById } from "@/plugins";
+import { findActionById } from "@/plugins/registry";
 // System action codegen templates (not in plugin registry)
 import conditionTemplate from "./codegen-templates/condition";
 import databaseQueryTemplate from "./codegen-templates/database-query";

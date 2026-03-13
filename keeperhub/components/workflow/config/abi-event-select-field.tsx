@@ -1,6 +1,5 @@
 "use client";
 
-// start custom keeperhub code //
 import React from "react";
 import {
   Select,
@@ -9,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { ActionConfigFieldBase } from "@/plugins";
+import type { ActionConfigFieldBase } from "@/plugins/registry";
 
 type FieldProps = {
   field: ActionConfigFieldBase;
@@ -89,4 +88,3 @@ export function AbiEventSelectField({
     </Select>
   );
 }
-// end keeperhub code //

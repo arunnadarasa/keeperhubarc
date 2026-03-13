@@ -1,4 +1,4 @@
-import { findActionById } from "@/plugins";
+import { findActionById } from "@/plugins/registry";
 import { BUILTIN_NODE_ID } from "./builtin-variables";
 
 const TEMPLATE_REF_PATTERN = /\{\{@([^:]+):([^}]+)\}\}/;

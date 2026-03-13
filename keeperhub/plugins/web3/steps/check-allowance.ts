@@ -3,14 +3,12 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
 import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
-import { ERC20_ABI } from "@/lib/contracts";
+import ERC20_ABI from "@/lib/contracts/abis/erc20.json";
 import { db } from "@/lib/db";
 import { workflowExecutions } from "@/lib/db/schema";
-import {
-  getChainIdFromNetwork,
-  getRpcProvider,
-  type RpcProviderManager,
-} from "@/lib/rpc";
+import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
+import { getRpcProvider } from "@/lib/rpc/provider-factory";
+import type { RpcProviderManager } from "@/lib/rpc-provider";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import { getErrorMessage } from "@/lib/utils";
 import { parseTokenAddress } from "./transfer-token-core";

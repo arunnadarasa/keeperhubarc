@@ -29,7 +29,6 @@ import {
   member as memberTable,
   organizationRelations,
   organizationSubscriptions,
-  // start custom keeperhub code //
   organization as organizationTable,
   sessions,
   users,
@@ -38,10 +37,8 @@ import {
   workflowExecutions,
   workflowExecutionsRelations,
   workflows,
-  // end keeperhub code //
 } from "./db/schema";
 
-// start custom keeperhub code //
 // Define custom access control for organization resources
 const statement = {
   workflow: ["create", "read", "update", "delete"],
@@ -80,7 +77,6 @@ const ownerRole = ac.newRole({
   member: ["create", "update", "delete"],
   invitation: ["create", "cancel"],
 });
-// end keeperhub code //
 
 // Construct schema object for drizzle adapter
 const schema = {
@@ -92,14 +88,12 @@ const schema = {
   workflowExecutions,
   workflowExecutionLogs,
   workflowExecutionsRelations,
-  // start custom keeperhub code //
   organization: organizationTable,
   member: memberTable,
   invitation: invitationTable,
   organizationRelations,
   memberRelations,
   invitationRelations,
-  // end keeperhub code //
 };
 
 // Determine the base URL for authentication
@@ -196,7 +190,6 @@ const plugins = [
       //   throw error;
       // }
 
-      // start custom keeperhub code //
       // When anonymous user links account, transfer ownership to the new user.
       // Workflows stay as isAnonymous=true with no org - the client-side claim
       // dialog will offer to move them into the user's organization.
@@ -222,10 +215,8 @@ const plugins = [
         console.error("[Anonymous Migration] Error:", error);
         throw error;
       }
-      // end keeperhub code //
     },
   }),
-  // start custom keeperhub code //
   organization({
     // Access control with custom roles
     ac,
@@ -291,7 +282,6 @@ const plugins = [
       },
     },
   }),
-  // end keeperhub code //
   ...(process.env.VERCEL_CLIENT_ID
     ? [
         genericOAuth({
@@ -345,7 +335,6 @@ export const auth = betterAuth({
     level: "debug",
     disabled: false,
   },
-  // start custom keeperhub code //
   databaseHooks: {
     user: {
       create: {
@@ -421,7 +410,6 @@ export const auth = betterAuth({
       },
     },
   },
-  // end keeperhub code //
   onAPIError: {
     onError: (error, ctx) => {
       console.error("[Better Auth API Error]", {
@@ -453,7 +441,6 @@ export const auth = betterAuth({
       enabled: !!process.env.GOOGLE_CLIENT_ID,
     },
   },
-  // start custom keeperhub code //
   rateLimit: {
     enabled: !(process.env.CI || process.env.NODE_ENV === "test"),
     customRules: {
@@ -470,7 +457,6 @@ export const auth = betterAuth({
       },
     },
   },
-  // end keeperhub code //
   advanced: {
     // Use secure cookies in production (HTTPS only)
     useSecureCookies: process.env.NODE_ENV === "production",

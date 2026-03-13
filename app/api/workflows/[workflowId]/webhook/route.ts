@@ -5,10 +5,8 @@ import { start } from "workflow/api";
 import {
   createTimer,
   getMetricsCollector,
-  LabelKeys,
-  MetricNames,
 } from "@/keeperhub/lib/metrics";
-// start custom keeperhub code //
+import { LabelKeys, MetricNames } from "@/keeperhub/lib/metrics/types";
 import {
   EXECUTION_LIMIT_ERROR,
   enforceExecutionLimit,
@@ -20,9 +18,6 @@ import { validateWorkflowIntegrations } from "@/lib/db/integrations";
 import { apiKeys, workflowExecutions, workflows } from "@/lib/db/schema";
 import { executeWorkflow } from "@/lib/workflow-executor.workflow";
 import type { WorkflowEdge, WorkflowNode } from "@/lib/workflow-store";
-
-// end keeperhub code //
-
 // Validate API key and return the user ID if valid
 async function validateApiKey(
   authHeader: string | null,
@@ -112,12 +107,10 @@ async function executeWorkflowBackground(
 
     console.log("[Webhook] Workflow started, runId:", run.runId);
 
-    // start custom keeperhub code //
     await db
       .update(workflowExecutions)
       .set({ runId: run.runId })
       .where(eq(workflowExecutions.id, executionId));
-    // end keeperhub code //
   } catch (error) {
     console.error("[Webhook] Error during execution:", error);
     console.error(
@@ -144,9 +137,7 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ workflowId: string }> }
 ) {
-  // start custom keeperhub code //
   const timer = createTimer();
-  // end keeperhub code //
 
   try {
     const { workflowId } = await context.params;
@@ -157,14 +148,12 @@ export async function POST(
     });
 
     if (!workflow) {
-      // start custom keeperhub code //
       recordWebhookMetrics({
         workflowId,
         durationMs: timer(),
         statusCode: 404,
         error: "Workflow not found",
       });
-      // end keeperhub code //
       return NextResponse.json(
         { error: "Workflow not found" },
         { status: 404, headers: corsHeaders }
@@ -177,14 +166,12 @@ export async function POST(
 
     if (!apiKeyValidation.valid) {
       const statusCode = apiKeyValidation.statusCode || 401;
-      // start custom keeperhub code //
       recordWebhookMetrics({
         workflowId,
         durationMs: timer(),
         statusCode,
         error: apiKeyValidation.error,
       });
-      // end keeperhub code //
       return NextResponse.json(
         { error: apiKeyValidation.error },
         { status: statusCode, headers: corsHeaders }
@@ -197,14 +184,12 @@ export async function POST(
     );
 
     if (!triggerNode || triggerNode.data.config?.triggerType !== "Webhook") {
-      // start custom keeperhub code //
       recordWebhookMetrics({
         workflowId,
         durationMs: timer(),
         statusCode: 400,
         error: "This workflow is not configured for webhook triggers",
       });
-      // end keeperhub code //
       return NextResponse.json(
         { error: "This workflow is not configured for webhook triggers" },
         { status: 400, headers: corsHeaders }
@@ -221,21 +206,18 @@ export async function POST(
         "[Webhook] Invalid integration references:",
         validation.invalidIds
       );
-      // start custom keeperhub code //
       recordWebhookMetrics({
         workflowId,
         durationMs: timer(),
         statusCode: 403,
         error: "Workflow contains invalid integration references",
       });
-      // end keeperhub code //
       return NextResponse.json(
         { error: "Workflow contains invalid integration references" },
         { status: 403, headers: corsHeaders }
       );
     }
 
-    // start custom keeperhub code //
     const executionGuard = await enforceExecutionLimit(workflow.organizationId);
     if (executionGuard.blocked) {
       recordWebhookMetrics({
@@ -268,7 +250,6 @@ export async function POST(
         { status: 429, headers: { ...corsHeaders, "Retry-After": "30" } }
       );
     }
-    // end keeperhub code //
 
     // Parse request body
     const body = await request.json().catch(() => ({}));
@@ -286,14 +267,12 @@ export async function POST(
 
     console.log("[Webhook] Created execution:", execution.id);
 
-    // start custom keeperhub code //
     // Record workflow execution metric in API process (workflow runs in separate context)
     const metrics = getMetricsCollector();
     metrics.incrementCounter(MetricNames.WORKFLOW_EXECUTIONS_TOTAL, {
       [LabelKeys.TRIGGER_TYPE]: "webhook",
       [LabelKeys.WORKFLOW_ID]: workflowId,
     });
-    // end keeperhub code //
 
     // Execute the workflow in the background (don't await)
     executeWorkflowBackground(
@@ -304,14 +283,12 @@ export async function POST(
       body
     );
 
-    // start custom keeperhub code //
     recordWebhookMetrics({
       workflowId,
       executionId: execution.id,
       durationMs: timer(),
       statusCode: 200,
     });
-    // end keeperhub code //
 
     // Return immediately with the execution ID
     return NextResponse.json(
@@ -324,7 +301,6 @@ export async function POST(
   } catch (error) {
     console.error("[Webhook] Failed to start workflow execution:", error);
 
-    // start custom keeperhub code //
     const { workflowId } = await context.params;
     recordWebhookMetrics({
       workflowId,
@@ -333,7 +309,6 @@ export async function POST(
       error:
         error instanceof Error ? error.message : "Failed to execute workflow",
     });
-    // end keeperhub code //
 
     return NextResponse.json(
       {

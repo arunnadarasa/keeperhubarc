@@ -12,15 +12,15 @@ on:
 name: deploy-keeperhub-to
 jobs:
   deploy:
-    environment: staging
+    environment: ${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
     runs-on: ubuntu-latest
     env:
-      HELM_FILE: deploy/keeperhub/staging/values.yaml
-      REGION: us-east-2
-      CLUSTER_NAME: techops-prod
-      NAMESPACE: keeperhub-staging
+      HELM_FILE: deploy/keeperhub/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/values.yaml
+      REGION: ${{ vars.TO_REGION }}
+      CLUSTER_NAME: ${{ vars.TO_CLUSTER_NAME }}
+      NAMESPACE: keeperhub
       SERVICE_NAME: keeperhub
-      SERVICE_ACCOUNT_ROLE_ARN: ${{ vars.TECHOPS_SERVICE_ACCOUNT_ROLE_ARN }}
+      SERVICE_ACCOUNT_ROLE_ARN: ${{ vars.TO_SERVICE_ACCOUNT_ROLE_ARN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -37,8 +37,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          aws-access-key-id: ${{ secrets.TECHOPS_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.TECHOPS_AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.TO_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.TO_AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.REGION }}
 
       - name: Login to AWS ECR
@@ -64,7 +64,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ steps.vars.outputs.sha_short }}
           SERVICE_ACCOUNT_ROLE_ARN: ${{ env.SERVICE_ACCOUNT_ROLE_ARN }}
-          AWS_ACCOUNT_ID: ${{ vars.TECHOPS_AWS_ACCOUNT_ID }}
+          AWS_ACCOUNT_ID: ${{ vars.TO_AWS_ACCOUNT_ID }}
         run: |
           sed -i "s|\${ECR_REGISTRY}|${ECR_REGISTRY}|g" "$HELM_FILE"
           sed -i "s|\${IMAGE_TAG}|${IMAGE_TAG}|g" "$HELM_FILE"
@@ -99,7 +99,7 @@ jobs:
       - name: Apply RBAC for Job Spawner
         if: steps.skip.outputs.skip_deploy != 'true'
         run: |
-          kubectl apply -f deploy/keeperhub/staging/rbac.yaml
+          kubectl apply -f deploy/keeperhub/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/rbac.yaml
 
       # NOTE: Satellite services (events tracker/worker, scheduler) are deployed
       # by their own repo workflows.
@@ -108,12 +108,12 @@ jobs:
         if: steps.skip.outputs.skip_deploy != 'true'
         run: |
           echo "Waiting for https://migration-staging.keeperhub.com/api/health to return 200..."
-          CURL_ARGS=(-s -o /dev/null -w "%{http_code}")
+          CURL_ARGS=(-s -o /dev/null -w "%{http_code}" -L)
           if [[ -n "$CF_ACCESS_CLIENT_ID" && -n "$CF_ACCESS_CLIENT_SECRET" ]]; then
             CURL_ARGS+=(-H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
           fi
           for i in {1..30}; do
-            STATUS=$(curl "${CURL_ARGS[@]}" "https://migration-staging.keeperhub.com/api/health" || echo "000")
+            STATUS=$(curl "${CURL_ARGS[@]}" "https://app-staging.keeperhub.com/api/health" || echo "000")
             if [[ "$STATUS" == "200" ]]; then
               echo "Deployment is ready!"
               exit 0

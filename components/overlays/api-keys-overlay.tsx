@@ -7,9 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
-// start custom keeperhub code //
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-// end keeperhub code //
 import { ConfirmOverlay } from "./confirm-overlay";
 import { Overlay } from "./overlay";
 import { useOverlay } from "./overlay-provider";
@@ -20,9 +18,7 @@ type ApiKey = {
   keyPrefix: string;
   createdAt: string;
   lastUsedAt: string | null;
-  // start custom keeperhub code //
   createdByName?: string | null;
-  // end keeperhub code //
   key?: string;
 };
 
@@ -37,17 +33,13 @@ type ApiKeysOverlayProps = {
 function CreateApiKeyOverlay({
   overlayId,
   onCreated,
-  // start custom keeperhub code //
   endpoint,
   keyType,
-  // end keeperhub code //
 }: {
   overlayId: string;
   onCreated: (key: ApiKey) => void;
-  // start custom keeperhub code //
   endpoint: string;
   keyType: "webhook" | "organisation";
-  // end keeperhub code //
 }) {
   const { pop } = useOverlay();
   const [keyName, setKeyName] = useState("");
@@ -81,12 +73,10 @@ function CreateApiKeyOverlay({
     }
   };
 
-  // start custom keeperhub code //
   const description =
     keyType === "webhook"
       ? "Create a new API key for webhook authentication"
       : "Create a new API key for MCP server and external integrations";
-  // end keeperhub code //
 
   return (
     <Overlay
@@ -115,7 +105,6 @@ function CreateApiKeyOverlay({
   );
 }
 
-// start custom keeperhub code //
 /**
  * Shared component for displaying and managing API keys list
  */
@@ -241,7 +230,6 @@ function ApiKeysList({
     </div>
   );
 }
-// end keeperhub code //
 
 /**
  * Hook for managing API keys state and operations
@@ -313,7 +301,6 @@ function useApiKeys(
   };
 }
 
-// start custom keeperhub code //
 /**
  * Main API Keys management overlay with tabs for Webhook and Organisation keys.
  */
@@ -410,4 +397,3 @@ export function ApiKeysOverlay({ overlayId }: ApiKeysOverlayProps) {
     </Overlay>
   );
 }
-// end keeperhub code //

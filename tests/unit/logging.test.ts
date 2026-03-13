@@ -5,12 +5,14 @@ import {
   logUserError,
 } from "@/keeperhub/lib/logging";
 import {
-  LabelKeys,
-  MetricNames,
-  type MetricsCollector,
   resetMetricsCollector,
   setMetricsCollector,
 } from "@/keeperhub/lib/metrics";
+import {
+  LabelKeys,
+  MetricNames,
+  type MetricsCollector,
+} from "@/keeperhub/lib/metrics/types";
 
 describe("Unified Logging Helpers", () => {
   let mockCollector: MetricsCollector;

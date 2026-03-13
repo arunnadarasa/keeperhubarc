@@ -1,4 +1,5 @@
 import "dotenv/config";
+import "@/plugins";
 import { vi } from "vitest";
 
 // Set default environment variables (only if not already set)

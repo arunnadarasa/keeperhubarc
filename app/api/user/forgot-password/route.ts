@@ -1,4 +1,3 @@
-// start custom keeperhub code //
 import { randomInt } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -224,4 +223,3 @@ async function handleReset(
     message: "Password has been reset successfully",
   });
 }
-// end keeperhub code //

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-// start custom keeperhub code //
 import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
 import { auth } from "@/lib/auth";
@@ -8,7 +7,6 @@ import type {
   IntegrationConfig,
   IntegrationType,
 } from "@/lib/types/integration";
-// end keeperhub code //
 
 export type GetIntegrationsResponse = {
   id: string;
@@ -48,10 +46,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // start custom keeperhub code //
     const context = await getOrgContext();
     const organizationId = context.organization?.id || null;
-    // end keeperhub code //
 
     // Get optional type filter from query params
     const { searchParams } = new URL(request.url);
@@ -60,9 +56,7 @@ export async function GET(request: Request) {
     const integrations = await getIntegrations(
       session.user.id,
       typeFilter || undefined,
-      // start custom keeperhub code //
       organizationId
-      // end keeperhub code //
     );
 
     // Return integrations without config for security
@@ -112,10 +106,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // start custom keeperhub code //
     const context = await getOrgContext();
     const organizationId = context.organization?.id || null;
-    // end keeperhub code //
 
     const body: CreateIntegrationRequest = await request.json();
 
@@ -131,9 +123,7 @@ export async function POST(request: Request) {
       name: body.name || "",
       type: body.type,
       config: body.config,
-      // start custom keeperhub code //
       organizationId,
-      // end keeperhub code //
     });
 
     const response: CreateIntegrationResponse = {

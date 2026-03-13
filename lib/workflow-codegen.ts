@@ -1,9 +1,6 @@
-// start custom keeperhub code //
-
 import { resolveConditionExpression } from "@/keeperhub/lib/condition-resolver";
 import { buildEdgesBySourceHandle } from "@/keeperhub/lib/edge-handle-utils";
-// end keeperhub code //
-import { findActionById, flattenConfigFields } from "@/plugins";
+import { findActionById, flattenConfigFields } from "@/plugins/registry";
 import {
   analyzeNodeUsage,
   buildAccessPath,
@@ -54,9 +51,7 @@ export function generateWorkflowCode(
   // Build a map of node connections
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const edgesBySource = new Map<string, string[]>();
-  // start custom keeperhub code //
   const edgesBySourceHandle = buildEdgesBySourceHandle(edges);
-  // end keeperhub code //
   for (const edge of edges) {
     const targets = edgesBySource.get(edge.source) || [];
     targets.push(edge.target);
@@ -846,7 +841,6 @@ export function generateWorkflowCode(
     return lines;
   }
 
-  // start custom keeperhub code //
   /** Resolve true/false targets for a condition node, using handle edges with positional fallback. */
   function resolveConditionTargets(nodeId: string): {
     trueTargets: string[];
@@ -872,7 +866,6 @@ export function generateWorkflowCode(
       falseTargets: nextNodes.slice(1, 2),
     };
   }
-  // end keeperhub code //
 
   function generateConditionNodeCode(
     node: WorkflowNode,
@@ -887,12 +880,10 @@ export function generateWorkflowCode(
 
     const condition = resolveConditionExpression(node.data.config);
 
-    // start custom keeperhub code //
     const {
       trueTargets: effectiveTrueTargets,
       falseTargets: effectiveFalseTargets,
     } = resolveConditionTargets(nodeId);
-    // end keeperhub code //
 
     if (effectiveTrueTargets.length > 0 || effectiveFalseTargets.length > 0) {
       let convertedCondition: string;
@@ -1010,12 +1001,10 @@ export function generateWorkflowCode(
     const lines: string[] = [`${indent}// Condition: ${node.data.label}`];
     const condition = resolveConditionExpression(node.data.config);
 
-    // start custom keeperhub code //
     const {
       trueTargets: effectiveTrueTargets,
       falseTargets: effectiveFalseTargets,
     } = resolveConditionTargets(nodeId);
-    // end keeperhub code //
 
     if (effectiveTrueTargets.length > 0 || effectiveFalseTargets.length > 0) {
       let convertedCondition: string;

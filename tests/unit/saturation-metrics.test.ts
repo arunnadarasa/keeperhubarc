@@ -1,7 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  MetricNames,
-  type MetricsCollector,
   resetMetricsCollector,
   setMetricsCollector,
 } from "@/keeperhub/lib/metrics";
@@ -15,6 +13,10 @@ import {
   resetConcurrentExecutions,
   withConcurrentTracking,
 } from "@/keeperhub/lib/metrics/instrumentation/saturation";
+import {
+  MetricNames,
+  type MetricsCollector,
+} from "@/keeperhub/lib/metrics/types";
 
 describe("Saturation Metrics Instrumentation", () => {
   let mockCollector: MetricsCollector;

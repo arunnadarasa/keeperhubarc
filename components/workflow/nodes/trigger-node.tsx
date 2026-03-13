@@ -41,13 +41,11 @@ export const TriggerNode = memo(({ data, selected, id }: TriggerNodeProps) => {
 
   const TriggerIcon = triggerIcons[triggerType as WorkflowTriggerType] || Play;
 
-  // start custom keeperhub code //
   const protocolIconPath = data.config?._eventProtocolIconPath as
     | string
     | undefined;
   const hasProtocolIcon =
     triggerType === "Event" && protocolIconPath && protocolIconPath.length > 0;
-  // end keeperhub code //
 
   return (
     <Node
@@ -78,7 +76,6 @@ export const TriggerNode = memo(({ data, selected, id }: TriggerNodeProps) => {
       )}
 
       <div className="flex flex-col items-center justify-center gap-3 p-6">
-        {/* start custom keeperhub code // */}
         {hasProtocolIcon ? (
           <Image
             alt="Protocol"
@@ -90,7 +87,6 @@ export const TriggerNode = memo(({ data, selected, id }: TriggerNodeProps) => {
         ) : (
           <TriggerIcon className="size-12 text-blue-500" strokeWidth={1.5} />
         )}
-        {/* end keeperhub code // */}
         <div className="flex flex-col items-center gap-1 text-center">
           <NodeTitle className="text-base">{displayTitle}</NodeTitle>
           {displayDescription && (

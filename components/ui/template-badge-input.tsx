@@ -2,9 +2,7 @@
 
 import { useAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
-// start custom keeperhub code //
 import { doesNodeExist, getDisplayTextForTemplate } from "@/keeperhub/lib/template-utils";
-// end keeperhub code //
 import { cn } from "@/lib/utils";
 import { nodesAtom, selectedNodeAtom } from "@/lib/workflow-store";
 import { TemplateAutocomplete } from "./template-autocomplete";
@@ -18,7 +16,6 @@ export interface TemplateBadgeInputProps {
   id?: string;
 }
 
-// start keeperhub custom code //
 // Helper to find all template pattern ranges in text
 function findTemplateRanges(text: string): Array<{ start: number; end: number }> {
   const templatePattern = /\{\{@[^}]+\}\}/g;
@@ -88,7 +85,6 @@ function findActiveAtSign(text: string, cursorOffset?: number): number {
   // No cursor info, return the last @
   return activeAtSigns[activeAtSigns.length - 1];
 }
-// end keeperhub custom code //
 
 /**
  * An input component that renders template variables as styled badges
@@ -395,7 +391,6 @@ export function TemplateBadgeInput({
       onChange?.(newValue);
       // Don't trigger display update - this prevents cursor reset!
       
-      // start keeperhub custom code //
 
       // Check for @ sign to show autocomplete (moved here so it works with existing badges)
       // Get cursor position first to find the closest @
@@ -448,7 +443,6 @@ export function TemplateBadgeInput({
       } else {
         setShowAutocomplete(false);
       }
-      // end keeperhub custom code //
       
       return;
     }
@@ -466,7 +460,6 @@ export function TemplateBadgeInput({
     setInternalValue(newValue);
     onChange?.(newValue);
     
-    // start keeperhub custom code //
 
     // Check for @ sign to show autocomplete
     // Get cursor position first to find the closest @
@@ -519,7 +512,6 @@ export function TemplateBadgeInput({
     } else {
       setShowAutocomplete(false);
     }
-    // end keeperhub custom code //
   };
 
   const handleAutocompleteSelect = (template: string) => {
@@ -575,7 +567,6 @@ export function TemplateBadgeInput({
     document.execCommand("insertText", false, text);
   };
 
-  // start custom keeperhub code //
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && showAutocomplete) {
       e.preventDefault();
@@ -673,7 +664,6 @@ export function TemplateBadgeInput({
       }
     }
   };
-  // end keeperhub code //
 
   // Update display only when needed (not while typing)
   useEffect(() => {

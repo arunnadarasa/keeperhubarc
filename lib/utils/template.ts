@@ -8,7 +8,6 @@
 const TEMPLATE_PATTERN = /\{\{([^}]+)\}\}/g;
 const ARRAY_ACCESS_PATTERN = /^([^[]+)\[(\d+)\]$/;
 
-// start custom keeperhub code //
 /** Pattern for {{@nodeId:DisplayName.field}} template references */
 const TEMPLATE_REF_PATTERN = /\{\{@([^:]+):([^}]+)\}\}/g;
 
@@ -25,7 +24,6 @@ export function remapTemplateRefsInString(
     return `{{@${newId}:${rest}}}`;
   });
 }
-// end keeperhub code //
 
 export type NodeOutputs = {
   [nodeId: string]: {

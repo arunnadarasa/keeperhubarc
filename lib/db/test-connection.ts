@@ -9,7 +9,7 @@ import type { IntegrationType } from "@/lib/types/integration";
 import {
   getCredentialMapping,
   getIntegration as getPluginFromRegistry,
-} from "@/plugins";
+} from "@/plugins/registry";
 
 export type TestConnectionResult = {
   status: "success" | "error";

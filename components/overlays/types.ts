@@ -22,12 +22,10 @@ export type OverlayAction = {
   loading?: boolean;
 };
 
-// start custom keeperhub code //
 /**
  * Size options for overlays
  */
 export type OverlaySize = "sm" | "md" | "lg" | "xl" | "2xl" | "4xl" | "full";
-// end keeperhub code //
 
 /**
  * Configuration options when opening an overlay
@@ -45,10 +43,8 @@ export type OverlayOptions = {
   closeOnEscape?: boolean;
   /** Callback when overlay is closed */
   onClose?: () => void;
-  // start custom keeperhub code //
   /** Size of the overlay (default: "lg") */
   size?: OverlaySize;
-  // end keeperhub code //
 };
 
 /**

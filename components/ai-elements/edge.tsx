@@ -49,13 +49,11 @@ const getHandleCoordsByPosition = (
   // Choose the handle type based on position - Left is for target, Right is for source
   const handleType = handlePosition === Position.Left ? "target" : "source";
 
-  // start custom keeperhub code //
   // When a handle ID is provided (multi-handle nodes), find by ID; otherwise by position
   const handles = node.internals.handleBounds?.[handleType];
   const handle = handleId
     ? handles?.find((h) => h.id === handleId)
     : handles?.find((h) => h.position === handlePosition);
-  // end keeperhub code //
 
   if (!handle) {
     return [0, 0] as const;
@@ -90,7 +88,6 @@ const getHandleCoordsByPosition = (
   return [x, y] as const;
 };
 
-// start custom keeperhub code //
 const getEdgeParams = (
   source: InternalNode<Node>,
   target: InternalNode<Node>,
@@ -111,7 +108,6 @@ const getEdgeParams = (
     targetPos,
   };
 };
-// end keeperhub code //
 
 const Animated = ({ id, source, target, sourceHandleId, targetHandleId, style, selected }: EdgeProps) => {
   const sourceNode = useInternalNode(source);

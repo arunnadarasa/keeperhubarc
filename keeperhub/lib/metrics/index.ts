@@ -10,7 +10,8 @@
  *
  * @example
  * ```typescript
- * import { getMetricsCollector, MetricNames, LabelKeys } from "@/keeperhub/lib/metrics";
+ * import { getMetricsCollector } from "@/keeperhub/lib/metrics";
+ * import { MetricNames, LabelKeys } from "@/keeperhub/lib/metrics/types";
  *
  * const metrics = getMetricsCollector();
  *
@@ -28,25 +29,6 @@
  * );
  * ```
  */
-
-// Re-export collectors (only non-Node.js specific ones)
-export {
-  consoleMetricsCollector,
-  createPrefixedConsoleCollector,
-} from "./collectors/console";
-export { noopMetricsCollector } from "./collectors/noop";
-// Re-export types
-export type {
-  ErrorContext,
-  ExecutionStatus,
-  MetricEvent,
-  MetricLabels,
-  MetricsCollector,
-  MetricType,
-  TriggerType,
-} from "./types";
-// Re-export constants
-export { LabelKeys, MetricNames } from "./types";
 
 import { consoleMetricsCollector } from "./collectors/console";
 import { noopMetricsCollector } from "./collectors/noop";
