@@ -5,12 +5,10 @@ import { nanoid } from "nanoid";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
-// start custom keeperhub code //
 import { isAnonymousUser } from "@/keeperhub/lib/is-anonymous";
 import { refetchSidebar } from "@/keeperhub/lib/refetch-sidebar";
 import { api } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
-// end keeperhub code //
 import {
   currentWorkflowIdAtom,
   currentWorkflowNameAtom,
@@ -21,7 +19,6 @@ import {
   type WorkflowNode,
 } from "@/lib/workflow-store";
 
-// start custom keeperhub code //
 function createDefaultNodes() {
   const triggerId = nanoid();
   const actionId = nanoid();
@@ -63,7 +60,6 @@ function createDefaultNodes() {
 
   return { nodes: [triggerNode, actionNode], edges: [edge] };
 }
-// end keeperhub code //
 
 const Home = () => {
   const router = useRouter();
@@ -97,7 +93,6 @@ const Home = () => {
     }
   }, [session]);
 
-  // start custom keeperhub code //
   // Handler to add initial nodes and create the workflow.
   // If the user already has workflows, navigate to the most recent one instead
   // of creating a new one. Anonymous users are limited to a single workflow.
@@ -151,7 +146,6 @@ const Home = () => {
     router,
     setIsTransitioningFromHomepage,
   ]);
-  // end keeperhub code //
 
   // Initialize with a temporary "add" node on mount
   useEffect(() => {

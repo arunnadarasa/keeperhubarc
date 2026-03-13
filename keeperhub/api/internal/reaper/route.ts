@@ -1,4 +1,3 @@
-// start custom keeperhub code //
 import { and, eq, gt, lt, notInArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -88,4 +87,3 @@ export async function GET(request: Request): Promise<NextResponse> {
     );
   }
 }
-// end keeperhub code //

@@ -17,7 +17,6 @@ import Image from "next/image";
 import type { JSX } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toChecksumAddress } from "@/keeperhub/lib/address-utils";
-// start custom keeperhub code //
 import {
   FOR_EACH_GROUP_TYPE,
   buildChildLogsLookup,
@@ -25,7 +24,6 @@ import {
   type ChildLogsLookup,
   type IterationGroup,
 } from "@/keeperhub/lib/iteration-grouping";
-// end keeperhub code //
 import { api } from "@/lib/api-client";
 import {
   OUTPUT_DISPLAY_CONFIGS,
@@ -54,10 +52,8 @@ type ExecutionLog = {
   input?: unknown;
   output?: unknown;
   error: string | null;
-  // start custom keeperhub code //
   iterationIndex: number | null;
   forEachNodeId: string | null;
-  // end keeperhub code //
 };
 
 type WorkflowExecution = {
@@ -587,7 +583,6 @@ function ExecutionProgress({ execution }: { execution: WorkflowExecution }) {
   );
 }
 
-// start custom keeperhub code //
 // Types and functions (ExecutionLog, IterationGroup, GroupedLogEntry,
 // buildIterationGroups, groupLogsByIteration) imported from
 // @/keeperhub/lib/iteration-grouping
@@ -788,9 +783,6 @@ function ForEachLogGroup({
     </div>
   );
 }
-
-// end keeperhub code //
-
 // Component for rendering individual execution log entries
 function ExecutionLogEntry({
   log,
@@ -907,9 +899,7 @@ export function WorkflowRuns({
     selectedExecutionIdAtom
   );
   const [, setExecutionLogs] = useAtom(executionLogsAtom);
-  // start custom keeperhub code //
   const runsRefreshTrigger = useAtomValue(runsRefreshTriggerAtom);
-  // end keeperhub code //
   const [executions, setExecutions] = useState<WorkflowExecution[]>([]);
   const [logs, setLogs] = useState<Record<string, ExecutionLog[]>>({});
   const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set());
@@ -919,10 +909,8 @@ export function WorkflowRuns({
   // Track which execution we've already auto-expanded to prevent loops
   const autoExpandedExecutionRef = useRef<string | null>(null);
 
-  // start custom keeperhub code //
   // Track terminal executions that have had their final log refresh
   const finalizedExecutionsRef = useRef<Set<string>>(new Set());
-  // end keeperhub code //
 
   const loadExecutions = useCallback(
     async (showLoading = true) => {
@@ -960,14 +948,12 @@ export function WorkflowRuns({
     loadExecutions();
   }, [loadExecutions]);
 
-  // start custom keeperhub code //
   // Immediate refresh when toolbar signals a new execution started
   useEffect(() => {
     if (runsRefreshTrigger > 0) {
       loadExecutions(false);
     }
   }, [runsRefreshTrigger, loadExecutions]);
-  // end keeperhub code //
 
   // Clear expanded runs when workflow changes to prevent stale state
   useEffect(() => {
@@ -991,10 +977,8 @@ export function WorkflowRuns({
         startedAt: Date;
         completedAt: Date | null;
         duration: string | null;
-        // start custom keeperhub code //
         iterationIndex?: number | null;
         forEachNodeId?: string | null;
-        // end keeperhub code //
       }>,
       _workflow?: {
         nodes: unknown;
@@ -1012,10 +996,8 @@ export function WorkflowRuns({
         input: log.input,
         output: log.output,
         error: log.error,
-        // start custom keeperhub code //
         iterationIndex: log.iterationIndex ?? null,
         forEachNodeId: log.forEachNodeId ?? null,
-        // end keeperhub code //
       })),
     []
   );
@@ -1114,7 +1096,6 @@ export function WorkflowRuns({
         const data = await api.workflow.getExecutions(currentWorkflowId);
         setExecutions(data as WorkflowExecution[]);
 
-        // start custom keeperhub code //
         // Refresh logs for expanded runs: always for running, once more for newly-terminal
         const terminalStatuses = new Set(["cancelled", "success", "error"]);
         const executionMap = new Map(data.map((e) => [e.id, e]));
@@ -1135,7 +1116,6 @@ export function WorkflowRuns({
             finalizedExecutionsRef.current.add(executionId);
           }
         }
-        // end keeperhub code //
       } catch (error) {
         console.error("Failed to poll executions:", error);
       }
@@ -1274,12 +1254,10 @@ export function WorkflowRuns({
 
               <button
                 className="min-w-0 flex-1 text-left transition-colors hover:opacity-80"
-                // start custom keeperhub code //
                 onClick={() => {
                   selectRun(execution.id);
                   toggleRun(execution.id);
                 }}
-                // end keeperhub code //
                 type="button"
               >
                 <div className="mb-1 flex items-center gap-2">
@@ -1340,7 +1318,6 @@ export function WorkflowRuns({
                   </div>
                 ) : (
                   <div className="p-4">
-                    {/* start custom keeperhub code */}
                     {(() => {
                       const lookup = buildChildLogsLookup(executionLogs);
                       const grouped = groupLogsByIteration(executionLogs, lookup);
@@ -1378,7 +1355,6 @@ export function WorkflowRuns({
                         }
                       );
                     })()}
-                    {/* end keeperhub code */}
                   </div>
                 )}
               </div>

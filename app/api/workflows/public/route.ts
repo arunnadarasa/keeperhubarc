@@ -3,9 +3,6 @@ import { NextResponse } from "next/server";
 import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 import { db } from "@/lib/db";
 import { publicTags, workflowPublicTags, workflows } from "@/lib/db/schema";
-
-// start custom KeeperHub code
-
 type TagInfo = { id: string; name: string; slug: string };
 
 async function resolveTagFilter(tagSlug: string): Promise<string[] | "empty"> {
@@ -155,4 +152,3 @@ export async function GET(request: Request): Promise<NextResponse> {
     );
   }
 }
-// end custom KeeperHub code

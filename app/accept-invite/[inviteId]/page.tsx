@@ -814,9 +814,7 @@ export default function AcceptInvitePage() {
   // unmount the form and reset its local state (OTP field, submitting flag).
   if (verificationData.showVerification && invitation) {
     return (
-      // start custom keeperhub code //
       <div data-page-state={pageState}>
-        {/* end keeperhub code */}
         <VerificationFormState
           invitation={invitation}
           onBack={() =>
@@ -825,40 +823,32 @@ export default function AcceptInvitePage() {
           onSuccess={handleSuccess}
           storedPassword={verificationData.storedPassword}
         />
-        {/* start custom keeperhub code */}
       </div>
-      // end keeperhub code //
     );
   }
 
   if (pageState === "loading") {
-    // start custom keeperhub code //
     return (
       <div data-page-state={pageState}>
         <LoadingState />
       </div>
     );
-    // end keeperhub code //
   }
 
   if (pageState === "error" && inviteError) {
-    // start custom keeperhub code //
     return (
       <div data-page-state={pageState}>
         <ErrorState inviteError={inviteError} />
       </div>
     );
-    // end keeperhub code //
   }
 
   if (pageState === "not-found" || !invitation) {
-    // start custom keeperhub code //
     return (
       <div data-page-state={pageState}>
         <NotFoundState />
       </div>
     );
-    // end keeperhub code //
   }
 
   if (pageState === "logged-in-match") {
@@ -868,9 +858,7 @@ export default function AcceptInvitePage() {
     // button that would flash and auto-resolve.
     if (isAcceptingViaAuth) {
       return (
-        // start custom keeperhub code //
         <div data-page-state={pageState}>
-          {/* end keeperhub code */}
           <div className="flex min-h-screen items-center justify-center p-4">
             <div className="w-full max-w-md space-y-6 rounded-lg border bg-card p-8 text-center">
               <Spinner className="mx-auto size-8" />
@@ -884,42 +872,30 @@ export default function AcceptInvitePage() {
               </div>
             </div>
           </div>
-          {/* start custom keeperhub code */}
         </div>
-        // end keeperhub code //
       );
     }
 
     return (
-      // start custom keeperhub code //
       <div data-page-state={pageState}>
-        {/* end keeperhub code */}
         <AcceptDirectState invitation={invitation} onSuccess={handleSuccess} />
-        {/* start custom keeperhub code */}
       </div>
-      // end keeperhub code //
     );
   }
 
   if (pageState === "logged-in-mismatch" && session?.user?.email) {
     return (
-      // start custom keeperhub code //
       <div data-page-state={pageState}>
-        {/* end keeperhub code */}
         <EmailMismatchState
           currentEmail={session.user.email}
           invitation={invitation}
         />
-        {/* start custom keeperhub code */}
       </div>
-      // end keeperhub code //
     );
   }
 
   return (
-    // start custom keeperhub code //
     <div data-page-state={pageState}>
-      {/* end keeperhub code */}
       <AuthFormState
         invitation={invitation}
         onAccepting={() => setIsAcceptingViaAuth(true)}
@@ -931,8 +907,6 @@ export default function AcceptInvitePage() {
         }
         onSuccess={handleSuccess}
       />
-      {/* start custom keeperhub code */}
     </div>
-    // end keeperhub code //
   );
 }

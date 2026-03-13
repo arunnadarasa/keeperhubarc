@@ -10,9 +10,7 @@
  */
 
 import { ethers } from "ethers";
-// start custom keeperhub code //
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
-// end keeperhub code //
 
 export type ProxyDetectionResult = {
   isProxy: boolean;
@@ -240,7 +238,6 @@ export async function detectProxyViaRpc(
     `[Proxy Detection] Starting RPC-based proxy detection for ${contractAddress} on chain ${chainId}`
   );
 
-  // start custom keeperhub code //
   let rpcManager: Awaited<ReturnType<typeof getRpcProvider>>;
   try {
     rpcManager = await getRpcProvider({ chainId });
@@ -259,7 +256,6 @@ export async function detectProxyViaRpc(
         checkEip1167Proxy(provider, contractAddress),
       ])
   );
-  // end keeperhub code //
 
   // Check EIP-1967/OpenZeppelin result first (most common)
   if (eip1967Result.implementation) {
@@ -279,7 +275,6 @@ export async function detectProxyViaRpc(
     };
   }
 
-  // start custom keeperhub code //
   // Check EIP-1822 (UUPS) - less common, separate call
   const eip1822Impl = await rpcManager.executeWithFailover((provider) =>
     checkEip1822Proxy(provider, contractAddress)
@@ -303,7 +298,6 @@ export async function detectProxyViaRpc(
       proxyType: "gnosis-safe",
     };
   }
-  // end keeperhub code //
 
   console.log(
     `[Proxy Detection] No proxy pattern detected for ${contractAddress}`

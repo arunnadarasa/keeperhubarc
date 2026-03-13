@@ -1,6 +1,5 @@
 "use client";
 
-// start custom keeperhub code //
 import React from "react";
 import {
   Select,
@@ -89,4 +88,3 @@ export function AbiEventSelectField({
     </Select>
   );
 }
-// end keeperhub code //

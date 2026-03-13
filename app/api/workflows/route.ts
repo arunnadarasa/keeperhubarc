@@ -1,17 +1,14 @@
 import { and, asc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-// start custom keeperhub code //
 import { authenticateApiKey } from "@/keeperhub/lib/api-key-auth";
 import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { workflows } from "@/lib/db/schema";
-// end keeperhub code //
 
 export async function GET(request: Request) {
   try {
-    // start custom keeperhub code //
     // Try API key authentication first
     const apiKeyAuth = await authenticateApiKey(request);
     let organizationId: string | null;
@@ -62,7 +59,6 @@ export async function GET(request: Request) {
       .from(workflows)
       .where(and(...conditions))
       .orderBy(asc(workflows.createdAt));
-    // end keeperhub code //
 
     const mappedWorkflows = userWorkflows.map((workflow) => ({
       ...workflow,

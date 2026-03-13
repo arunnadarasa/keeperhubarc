@@ -1,4 +1,3 @@
-// start custom keeperhub code //
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
@@ -40,4 +39,3 @@ type HubLayoutProps = {
 export default function HubLayout({ children }: HubLayoutProps) {
   return children;
 }
-// end keeperhub code //

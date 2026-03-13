@@ -5,7 +5,6 @@
  */
 import "server-only";
 
-// start custom keeperhub code //
 import { recordStepMetrics } from "@/keeperhub/lib/metrics/instrumentation/workflow";
 import { recordStepSuccess } from "@/keeperhub/lib/step-success-tracker";
 import { redactSensitiveData } from "../utils/redact";
@@ -16,18 +15,15 @@ import {
   logWorkflowCompleteDb,
   updateCurrentStep,
 } from "../workflow-logging";
-// end keeperhub code //
 
 export type StepContext = {
   executionId?: string;
   nodeId: string;
   nodeName: string;
   nodeType: string;
-  // start custom keeperhub code //
   triggerType?: string;
   iterationIndex?: number;
   forEachNodeId?: string;
-  // end keeperhub code //
 };
 
 /**
@@ -63,10 +59,8 @@ async function logStepStart(
       nodeName: context.nodeName,
       nodeType: context.nodeType,
       input: redactedInput,
-      // start custom keeperhub code //
       iterationIndex: context.iterationIndex,
       forEachNodeId: context.forEachNodeId,
-      // end keeperhub code //
     });
 
     return result;
@@ -84,9 +78,7 @@ async function logStepComplete(
   status: "success" | "error",
   output?: unknown,
   error?: string,
-  // start custom keeperhub code //
   executionId?: string
-  // end keeperhub code //
 ): Promise<void> {
   if (!logInfo.logId) {
     return;
@@ -101,9 +93,7 @@ async function logStepComplete(
       status,
       output: redactedOutput,
       error,
-      // start custom keeperhub code //
       executionId,
-      // end keeperhub code //
     });
   } catch (err) {
     console.error("[stepHandler] Failed to log completion:", err);
@@ -221,7 +211,6 @@ export async function withStepLogging<TInput extends StepInput, TOutput>(
         context?.executionId
       );
 
-      // start custom keeperhub code //
       recordStepMetrics({
         executionId: context?.executionId,
         nodeId: context?.nodeId || "",
@@ -231,7 +220,6 @@ export async function withStepLogging<TInput extends StepInput, TOutput>(
         success: false,
         error: errorResult.error,
       });
-      // end keeperhub code //
     } else {
       await logStepComplete(
         logInfo,
@@ -241,7 +229,6 @@ export async function withStepLogging<TInput extends StepInput, TOutput>(
         context?.executionId
       );
 
-      // start custom keeperhub code //
       if (context?.executionId && context.nodeId) {
         recordStepSuccess(context.executionId, context.nodeId, result);
       }
@@ -254,7 +241,6 @@ export async function withStepLogging<TInput extends StepInput, TOutput>(
         durationMs: Date.now() - logInfo.startTime,
         success: true,
       });
-      // end keeperhub code //
     }
 
     // Update progress: increment completed steps
@@ -294,7 +280,6 @@ export async function withStepLogging<TInput extends StepInput, TOutput>(
       context?.executionId
     );
 
-    // start custom keeperhub code //
     recordStepMetrics({
       executionId: context?.executionId,
       nodeId: context?.nodeId || "",
@@ -304,7 +289,6 @@ export async function withStepLogging<TInput extends StepInput, TOutput>(
       success: false,
       error: errorMessage,
     });
-    // end keeperhub code //
 
     // Update progress on error too
     if (context?.executionId && context.nodeId) {

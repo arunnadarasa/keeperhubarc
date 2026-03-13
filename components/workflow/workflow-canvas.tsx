@@ -77,14 +77,12 @@ const edgeTypes = {
   temporary: Edge.Temporary,
 };
 
-// start custom keeperhub code //
 /** Extract actionType from a workflow node's data. */
 function getActionType(node: { data?: unknown }): string | undefined {
   const config = (node.data as Record<string, unknown> | undefined)
     ?.config as Record<string, unknown> | undefined;
   return config?.actionType as string | undefined;
 }
-// end keeperhub code //
 
 export function WorkflowCanvas() {
   const [nodes, setNodes] = useAtom(nodesAtom);
@@ -236,7 +234,6 @@ export function WorkflowCanvas() {
     []
   );
 
-  // start custom keeperhub code //
   // Auto-assign sourceHandle on For Each and Condition edges that lack one.
   // Runs once when edges load and whenever nodes change type.
   // Uses functional setEdges to avoid overwriting concurrent edge additions.
@@ -313,7 +310,6 @@ export function WorkflowCanvas() {
       return changed ? updated : currentEdges;
     });
   }, [nodes, setEdges]);
-  // end keeperhub code //
 
   const isValidConnection = useCallback(
     (connection: XYFlowConnection | XYFlowEdge) => {
@@ -327,7 +323,6 @@ export function WorkflowCanvas() {
         return false;
       }
 
-      // start custom keeperhub code //
       const sourceHandle = "sourceHandle" in connection
         ? (connection.sourceHandle as string | undefined)
         : undefined;
@@ -350,7 +345,6 @@ export function WorkflowCanvas() {
       if (sourceHandle === "loop" && targetIsCollect) {
         return false;
       }
-      // end keeperhub code //
 
       return true;
     },
@@ -359,7 +353,6 @@ export function WorkflowCanvas() {
 
   const onConnect: OnConnect = useCallback(
     (connection: XYFlowConnection) => {
-      // start custom keeperhub code //
       // Auto-assign sourceHandle for For Each and Condition connections.
       // Uses functional updater to read current edges and avoid stale closures.
       setEdges((currentEdges) => {
@@ -391,7 +384,6 @@ export function WorkflowCanvas() {
             sourceHandle = hasTrueEdge ? "false" : "true";
           }
         }
-        // end keeperhub code //
 
         const newEdge = {
           id: nanoid(),
@@ -415,16 +407,12 @@ export function WorkflowCanvas() {
     [setSelectedNode]
   );
 
-  // start custom keeperhub code //
   const connectingHandleId = useRef<string | null>(null);
-  // end keeperhub code //
 
   const onConnectStart = useCallback(
     (_event: MouseEvent | TouchEvent, params: OnConnectStartParams) => {
       connectingNodeId.current = params.nodeId;
-      // start custom keeperhub code //
       connectingHandleId.current = params.handleId ?? null;
-      // end keeperhub code //
     },
     []
   );
@@ -538,7 +526,6 @@ export function WorkflowCanvas() {
           );
         }, 50);
 
-        // start custom keeperhub code //
         // Create connection from the source node to the new node.
         // Defer edge creation: addNode deselects the source node (new object
         // reference), which makes React Flow re-measure its handles via
@@ -566,7 +553,6 @@ export function WorkflowCanvas() {
           setHasUnsavedChanges(true);
           triggerAutosave({ immediate: true });
         });
-        // end keeperhub code //
 
         // Set flag to prevent immediate deselection
         justCreatedNodeFromConnection.current = true;
@@ -576,9 +562,7 @@ export function WorkflowCanvas() {
       }
 
       connectingNodeId.current = null;
-      // start custom keeperhub code //
       connectingHandleId.current = null;
-      // end keeperhub code //
     },
     [
       getClientPosition,
@@ -625,9 +609,7 @@ export function WorkflowCanvas() {
     <div
       className="relative h-full bg-background"
       data-testid="workflow-canvas"
-      // start custom keeperhub code //
       data-ready={isCanvasReady}
-      // end keeperhub code //
       style={{
         opacity: isCanvasReady ? 1 : 0,
         width: rightPanelWidth ? `calc(100% - ${rightPanelWidth})` : "100%",

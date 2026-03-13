@@ -21,7 +21,6 @@ type DatabaseQueryResult =
   | { success: true; rows: unknown; count: number }
   | { success: false; error: string };
 
-// start custom keeperhub code //
 /** Primitive types accepted by postgres.js, plus objects/arrays that get JSON-stringified */
 export type SqlParam =
   | null
@@ -33,15 +32,12 @@ export type SqlParam =
   | Uint8Array
   | Record<string, unknown>
   | readonly SqlParam[];
-// end keeperhub code //
 
 export type DatabaseQueryInput = StepInput & {
   integrationId?: string;
   dbQuery?: string;
   query?: string;
-  // start custom keeperhub code //
   _dbParams?: SqlParam[];
-  // end keeperhub code //
 };
 
 function validateInput(input: DatabaseQueryInput): string | null {
@@ -66,7 +62,6 @@ function createDatabaseClient(
   });
 }
 
-// start custom keeperhub code //
 /** Serialize template-resolved values into types postgres.js can bind directly */
 export function serializeSqlParams(
   params: SqlParam[]
@@ -84,16 +79,12 @@ export function serializeSqlParams(
     return p;
   });
 }
-// end keeperhub code //
 
 async function executeQuery(
   client: postgres.Sql,
   queryString: string,
-  // start custom keeperhub code //
   params?: SqlParam[]
-  // end keeperhub code //
 ): Promise<unknown> {
-  // start custom keeperhub code //
   if (params && params.length > 0) {
     const serialized = serializeSqlParams(params);
     return await client.unsafe(
@@ -101,7 +92,6 @@ async function executeQuery(
       serialized as postgres.ParameterOrJSON<never>[]
     );
   }
-  // end keeperhub code //
   const db = drizzle(client);
   return await db.execute(sql.raw(queryString));
 }
@@ -151,9 +141,7 @@ async function databaseQuery(
 
   try {
     client = createDatabaseClient(normalizedUrl, ssl);
-    // start custom keeperhub code //
     const result = await executeQuery(client, queryString, input._dbParams);
-    // end keeperhub code //
     return {
       success: true,
       rows: result,

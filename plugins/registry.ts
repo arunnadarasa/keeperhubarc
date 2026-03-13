@@ -35,13 +35,11 @@ export type ActionConfigFieldBase = {
     | "abi-with-auto-fetch" // ABI textarea with automatic fetch from Etherscan
     | "token-select" // Token selector with supported/custom toggle
     | "abi-event-select" // Dynamic dropdown that parses ABI and shows events
-    // start custom keeperhub code //
     | "gas-limit-multiplier" // Gas limit multiplier with chain default display
     | "code-editor" // Monaco-based JavaScript code editor
     | "json-editor" // Monaco-based JSON editor
     | "call-list-builder" // Dynamic list of contract calls for batch operations
     | "args-list-builder"; // Dynamic list of argument sets for batch uniform mode
-  // end keeperhub code //
 
   // For chain-select: filter by chain type (e.g., "evm" or "solana")
   chainTypeFilter?: string;
@@ -64,22 +62,18 @@ export type ActionConfigFieldBase = {
   // Min value (for number fields)
   min?: number;
 
-  // start custom keeperhub code //
   max?: number;
   step?: number;
   actionSlug?: string;
-  // end keeperhub code //
 
   // Whether this field is required (defaults to false)
   required?: boolean;
 
   // Conditional rendering: only show if another field has a specific value
-  // start custom keeperhub code //
   // Use `equals` for single value match, `oneOf` for multiple value match
   showWhen?:
     | { field: string; equals: string }
     | { field: string; oneOf: string[] };
-  // end keeperhub code //
 
   // For abi-function-select and abi-event-select: which field contains the ABI JSON
   abiField?: string;
@@ -99,13 +93,11 @@ export type ActionConfigFieldBase = {
   // For abi-with-auto-fetch: "read" or "write" so the node shows the right proxy option label (Read as Proxy / Write as Proxy)
   contractInteractionType?: "read" | "write";
 
-  // start custom keeperhub code //
   // Tooltip text shown next to the label via an info icon
   helpTip?: string;
 
   // Whether this field represents an Ethereum address (enables address book support)
   isAddressField?: boolean;
-  // end keeperhub code //
 };
 
 /**

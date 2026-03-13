@@ -1,8 +1,6 @@
 import { pgTable, foreignKey, unique, text, timestamp, jsonb, boolean, index, uniqueIndex, integer, serial, primaryKey } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
-
-
 export const sessions = pgTable("sessions", {
 	id: text().primaryKey().notNull(),
 	expiresAt: timestamp("expires_at", { mode: 'string' }).notNull(),

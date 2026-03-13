@@ -6,7 +6,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api, type Integration } from "@/lib/api-client";
-// start keeperhub
 import {
   DatabaseConnectionForm,
   detectDefaultTab,
@@ -16,7 +15,6 @@ import {
 import { getCustomIntegrationFormHandler } from "@/lib/extension-registry";
 import type { IntegrationConfig } from "@/lib/types/integration";
 import { getIntegration, getIntegrationLabels } from "@/plugins/registry";
-// end keeperhub
 import { ConfirmOverlay } from "./confirm-overlay";
 import { Overlay } from "./overlay";
 import { useOverlay } from "./overlay-provider";
@@ -131,7 +129,6 @@ export function EditConnectionOverlay({
     setConfig((prev) => ({ ...prev, [key]: value }));
   };
 
-  // start custom keeperhub code //
   // For database integrations, secret fields (password, url) are stripped from
   // the server response. We check if the user entered new secret values to
   // decide whether to test client-side or use the server-side test endpoint.
@@ -166,19 +163,16 @@ export function EditConnectionOverlay({
     }
     return result;
   };
-  // end keeperhub code //
 
   const doSave = async () => {
     try {
       setSaving(true);
-      // start custom keeperhub code //
       const nonEmptyConfig = getNonEmptyConfig();
       const hasNewConfig = Object.keys(nonEmptyConfig).length > 0;
       await api.integration.update(integration.id, {
         name: name.trim(),
         ...(hasNewConfig ? { config: nonEmptyConfig } : {}),
       });
-      // end keeperhub code //
       toast.success("Connection updated");
       onSuccess?.();
       closeAll();
@@ -189,7 +183,6 @@ export function EditConnectionOverlay({
     }
   };
 
-  // start custom keeperhub code //
   const runConnectionTest = (): Promise<{
     status: "success" | "error";
     message: string;
@@ -224,7 +217,6 @@ export function EditConnectionOverlay({
     const hasNewConfig = Object.values(config).some((v) => v && v.length > 0);
     return !hasNewConfig;
   };
-  // end keeperhub code //
 
   const handleSave = async () => {
     if (saving) {
@@ -318,7 +310,6 @@ export function EditConnectionOverlay({
 
   // Render config fields
   const renderConfigFields = () => {
-    // start keeperhub - check for custom form handlers (e.g., web3 wallet display)
     const customHandler = getCustomIntegrationFormHandler(integration.type);
     if (customHandler) {
       return customHandler({
@@ -328,7 +319,6 @@ export function EditConnectionOverlay({
         updateConfig,
       });
     }
-    // end keeperhub
 
     if (integration.type === "database") {
       return (

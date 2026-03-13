@@ -163,10 +163,8 @@ export function ConfigurationOverlay({ overlayId }: ConfigurationOverlayProps) {
     }
   }, [selectedNode, globalIntegrations, isOwner, updateNodeData]);
 
-  // start custom keeperhub code //
   const handleUpdateConfig = useCallback(
     (key: string, value: string | Record<string, unknown> | undefined) => {
-    // end keeperhub code //
       if (!selectedNode) {
         return;
       }

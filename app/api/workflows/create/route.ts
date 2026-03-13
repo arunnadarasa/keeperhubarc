@@ -1,7 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { NextResponse } from "next/server";
-// start custom keeperhub code //
 import { authenticateApiKey } from "@/keeperhub/lib/api-key-auth";
 import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
@@ -10,10 +9,6 @@ import { db } from "@/lib/db";
 import { validateWorkflowIntegrations } from "@/lib/db/integrations";
 import { projects, tags, workflows } from "@/lib/db/schema";
 import { generateId } from "@/lib/utils/id";
-
-// end keeperhub code //
-
-// start custom keeperhub code //
 function createDefaultNodes() {
   const triggerId = nanoid();
   const actionId = nanoid();
@@ -55,9 +50,7 @@ function createDefaultNodes() {
 
   return { nodes: [triggerNode, actionNode], edges: [edge] };
 }
-// end keeperhub code //
 
-// start custom keeperhub code //
 // Helper to authenticate and get user context
 async function getUserContext(request: Request) {
   // Try API key authentication first
@@ -121,11 +114,9 @@ async function generateWorkflowName(
   const count = userWorkflows.length + 1;
   return `Untitled ${count}`;
 }
-// end keeperhub code //
 
 export async function POST(request: Request) {
   try {
-    // start custom keeperhub code //
     const userContext = await getUserContext(request);
     if ("error" in userContext) {
       const status = userContext.error === "Unauthorized" ? 401 : 400;
@@ -133,7 +124,6 @@ export async function POST(request: Request) {
     }
 
     const { userId, organizationId } = userContext;
-    // end keeperhub code //
 
     const body = await request.json();
 
@@ -157,7 +147,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // start custom keeperhub code //
     // Ensure there are always default nodes (trigger + action) if nodes array is empty
     let nodes = body.nodes;
     let edges = body.edges;
@@ -166,9 +155,7 @@ export async function POST(request: Request) {
       nodes = defaults.nodes;
       edges = defaults.edges;
     }
-    // end keeperhub code //
 
-    // start custom keeperhub code //
     const isAnonymous = !organizationId;
     const workflowName = await generateWorkflowName(
       body.name,
@@ -221,7 +208,6 @@ export async function POST(request: Request) {
         }
       }
     }
-    // end keeperhub code //
 
     // Generate workflow ID first
     const workflowId = generateId();
@@ -235,12 +221,10 @@ export async function POST(request: Request) {
         nodes,
         edges,
         userId,
-        // start custom keeperhub code //
         organizationId,
         isAnonymous,
         projectId: body.projectId || null,
         tagId: body.tagId || null,
-        // end keeperhub code //
       })
       .returning();
 

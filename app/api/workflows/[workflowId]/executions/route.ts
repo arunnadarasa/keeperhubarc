@@ -1,9 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-// start custom keeperhub code //
 import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 import { getDualAuthContext } from "@/keeperhub/lib/middleware/auth-helpers";
-// end keeperhub code //
 import { db } from "@/lib/db";
 import { workflowExecutions, workflows } from "@/lib/db/schema";
 
@@ -14,7 +12,6 @@ export async function GET(
   try {
     const { workflowId } = await context.params;
 
-    // start custom keeperhub code //
     const authContext = await getDualAuthContext(request);
     if ("error" in authContext) {
       return NextResponse.json(
@@ -48,7 +45,6 @@ export async function GET(
         { status: 404 }
       );
     }
-    // end keeperhub code //
 
     // Fetch executions
     const executions = await db.query.workflowExecutions.findMany({
@@ -80,7 +76,6 @@ export async function DELETE(
   try {
     const { workflowId } = await context.params;
 
-    // start custom keeperhub code //
     const authContext = await getDualAuthContext(request);
     if ("error" in authContext) {
       return NextResponse.json(
@@ -114,7 +109,6 @@ export async function DELETE(
         { status: 404 }
       );
     }
-    // end keeperhub code //
 
     // Get all execution IDs for this workflow
     const executions = await db.query.workflowExecutions.findMany({

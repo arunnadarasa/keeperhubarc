@@ -1,13 +1,9 @@
 "use client";
 
 import { useAtom } from "jotai";
-// start keeperhub custom code //
 import type { CSSProperties } from "react";
-// end keeperhub custom code //
 import { useEffect, useRef, useState } from "react";
-// start custom keeperhub code //
 import { doesNodeExist, getDisplayTextForTemplate } from "@/keeperhub/lib/template-utils";
-// end keeperhub code //
 import { cn } from "@/lib/utils";
 import { nodesAtom, selectedNodeAtom } from "@/lib/workflow-store";
 import { TemplateAutocomplete } from "./template-autocomplete";
@@ -20,13 +16,10 @@ export interface TemplateBadgeTextareaProps {
   className?: string;
   id?: string;
   rows?: number;
-  // start keeperhub custom code //
   /** When set, limits visible height to this many rows and makes content scrollable */
   maxRows?: number;
-  // end keeperhub custom code //
 }
 
-// start keeperhub custom code //
 // Helper to find all template pattern ranges in text
 function findTemplateRanges(text: string): Array<{ start: number; end: number }> {
   const templatePattern = /\{\{@[^}]+\}\}/g;
@@ -96,7 +89,6 @@ function findActiveAtSign(text: string, cursorOffset?: number): number {
   // No cursor info, return the last @
   return activeAtSigns[activeAtSigns.length - 1];
 }
-// end keeperhub custom code //
 
 /**
  * A textarea component that renders template variables as styled badges
@@ -110,9 +102,7 @@ export function TemplateBadgeTextarea({
   className,
   id,
   rows = 3,
-  // start keeperhub custom code //
   maxRows,
-  // end keeperhub custom code //
 }: TemplateBadgeTextareaProps) {
   const [isFocused, setIsFocused] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -459,7 +449,6 @@ export function TemplateBadgeTextarea({
       onChange?.(newValue);
       // Don't trigger display update - this prevents cursor reset!
       
-      // start keeperhub custom code //
 
       // Check for @ sign to show autocomplete (moved here so it works with existing badges)
       // Get cursor position first to find the closest @
@@ -512,7 +501,6 @@ export function TemplateBadgeTextarea({
       } else {
         setShowAutocomplete(false);
       }
-      // end keeperhub custom code //
       
       return;
     }
@@ -532,7 +520,6 @@ export function TemplateBadgeTextarea({
     setInternalValue(newValue);
     onChange?.(newValue);
     
-    // start keeperhub custom code //
 
     // Check for @ sign to show autocomplete
     // Get cursor position first to find the closest @
@@ -585,7 +572,6 @@ export function TemplateBadgeTextarea({
     } else {
       setShowAutocomplete(false);
     }
-    // end keeperhub custom code //
   };
 
   const handleAutocompleteSelect = (template: string) => {
@@ -655,13 +641,11 @@ export function TemplateBadgeTextarea({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Handle Enter key to insert line breaks
     if (e.key === "Enter") {
-      // start custom keeperhub code //
       // prevent Enter key from inserting line breaks if autocomplete is open
       if (showAutocomplete) {
         e.preventDefault();
         return;
       }
-      // end keeperhub code //
       e.preventDefault();
       document.execCommand("insertLineBreak");
     }
@@ -674,7 +658,6 @@ export function TemplateBadgeTextarea({
     }
   }, [internalValue, isFocused]);
 
-  // start keeperhub custom code //
   // Calculate min height based on rows; max height when maxRows is set (truncates display, scrollable)
   const minHeight = `${rows * 1.5}rem`;
   const style: CSSProperties = { minHeight };
@@ -682,7 +665,6 @@ export function TemplateBadgeTextarea({
     style.maxHeight = `${maxRows * 1.5}rem`;
     style.overflowY = "auto";
   }
-  // end keeperhub custom code //
 
   return (
     <>

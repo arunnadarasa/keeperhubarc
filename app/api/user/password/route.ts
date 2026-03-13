@@ -1,4 +1,3 @@
-// start custom keeperhub code //
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
@@ -119,4 +118,3 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 }
-// end keeperhub code //

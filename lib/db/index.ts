@@ -4,7 +4,6 @@ import postgres from "postgres";
 import { getDatabaseUrl } from "./connection-utils";
 import {
   accounts,
-  // start custom keeperhub code //
   addressBookEntry,
   addressBookEntryRelations,
   apiKeys,
@@ -19,7 +18,6 @@ import {
   overageBillingRecords,
   pendingTransactions,
   publicTags,
-  // end keeperhub code //
   sessions,
   tags,
   tagsRelations,
@@ -50,7 +48,6 @@ const schema = {
   workflowSchedules,
   workflowSchedulesRelations,
   apiKeys,
-  // start custom keeperhub code //
   executionDebt,
   organizationApiKeys,
   organizationSubscriptions,
@@ -63,7 +60,6 @@ const schema = {
   addressBookEntryRelations,
   tags,
   tagsRelations,
-  // end keeperhub code //
   integrations,
   chains,
   chainsRelations,
