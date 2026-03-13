@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: planning
-stopped_at: Completed 21-core-execution-commands/21-06-PLAN.md
-last_updated: "2026-03-13T01:18:15.117Z"
+stopped_at: Completed 21-core-execution-commands/21-05-PLAN.md
+last_updated: "2026-03-13T01:19:20.491Z"
 last_activity: 2026-03-13 -- Phase 19 (CLI Scaffold) executed and verified, 5/5 plans complete
 progress:
   total_phases: 6
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 15
-  completed_plans: 14
+  completed_plans: 15
   percent: 17
 ---
 
@@ -59,6 +59,7 @@ Progress: [████░░░░░░░░░░░░░░░░] 17% (1/
 | Phase 21-core-execution-commands P04 | 7 | 2 tasks | 6 files |
 | Phase 21-core-execution-commands P01 | 15 | 2 tasks | 9 files |
 | Phase 21-core-execution-commands P06 | 8 | 1 tasks | 3 files |
+| Phase 21-core-execution-commands P05 | 3 | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -97,6 +98,8 @@ Progress: [████░░░░░░░░░░░░░░░░] 17% (1/
 - [Phase 21-core-execution-commands]: ApplyJQFilter normalizes typed Go structs via JSON round-trip before gojq to prevent panic on typed slices/structs
 - [Phase 21-core-execution-commands]: ActiveHost checks cfg.DefaultHost != defaultHost guard before returning config.yml value, preventing DefaultConfig sentinel from masking hardcoded fallback when no config file exists
 - [Phase 21-core-execution-commands]: Test isolation for config-reading functions: always set XDG_CONFIG_HOME to t.TempDir() -- discovered when TestActiveHostFallback and TestLoginCmd_BrowserFlow read real config.yml after ActiveHost gained ReadConfig call
+- [Phase 21-core-execution-commands]: BuildBaseURL exported from internal/http (same package as Client) as single shared URL normalisation entry point
+- [Phase 21-core-execution-commands]: Trailing slash stripped in BuildBaseURL to prevent double-slash in constructed URLs; http:// scheme preserved as-is for local dev
 
 ### Pending Todos
 
@@ -110,6 +113,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T01:18:15.114Z
-Stopped at: Completed 21-core-execution-commands/21-06-PLAN.md
+Last session: 2026-03-13T01:19:20.489Z
+Stopped at: Completed 21-core-execution-commands/21-05-PLAN.md
 Resume file: None
