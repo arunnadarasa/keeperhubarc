@@ -59,9 +59,6 @@ jobs:
           if [ -z "$PREV_TAG" ]; then
             echo "No previous tag found. Scanning all files in release tag."
             RAW_FILES=$(git ls-tree -r --name-only "$RELEASE_TAG" -- \
-              'keeperhub/plugins/' \
-              'keeperhub/api/' \
-              'keeperhub/lib/' \
               'lib/' \
               'plugins/' \
               'app/api/' \
@@ -72,9 +69,6 @@ jobs:
           else
             echo "Previous release: $PREV_TAG"
             RAW_FILES=$(git diff --name-only "$PREV_TAG".."$RELEASE_TAG" -- \
-              'keeperhub/plugins/' \
-              'keeperhub/api/' \
-              'keeperhub/lib/' \
               'lib/' \
               'plugins/' \
               'app/api/' \
@@ -84,22 +78,7 @@ jobs:
               || true)
           fi
 
-          # Deduplicate: if keeperhub/ version exists, drop the app/ or lib/ mirror
-          CHANGED_FILES=""
-          while IFS= read -r f; do
-            [ -z "$f" ] && continue
-            MIRROR=""
-            case "$f" in
-              app/api/*) MIRROR="keeperhub/api/${f#app/api/}" ;;
-              lib/*) MIRROR="keeperhub/lib/${f#lib/}" ;;
-              plugins/*) MIRROR="keeperhub/plugins/${f#plugins/}" ;;
-            esac
-            if [ -n "$MIRROR" ] && echo "$RAW_FILES" | grep -qF "$MIRROR"; then
-              echo "Skipping mirror: $f (keeperhub version exists)"
-              continue
-            fi
-            CHANGED_FILES="${CHANGED_FILES}${f}"$'\n'
-          done <<< "$RAW_FILES"
+          CHANGED_FILES="$RAW_FILES"
 
           # Trim trailing newline and cap at 40 files, prioritizing plugins > api > lib
           CHANGED_FILES=$(echo "$CHANGED_FILES" | sed '/^$/d' \
@@ -146,10 +125,7 @@ jobs:
           # Exclusion pattern for non-doc-relevant files
           EXCLUDE_PATTERN='(og/|metrics/|internal/|db/|test-connection|extensions\.tsx)'
 
-          RAW_FILES=$(git log --since="${DAYS_BACK} days ago" --name-only --pretty=format: -- \
-            'keeperhub/plugins/' \
-            'keeperhub/api/' \
-            'keeperhub/lib/' \
+          CHANGED_FILES=$(git log --since="${DAYS_BACK} days ago" --name-only --pretty=format: -- \
             'lib/' \
             'plugins/' \
             'app/api/' \
@@ -158,23 +134,6 @@ jobs:
             | grep -vE '\.(test|spec|stories)\.' \
             | grep -vE "$EXCLUDE_PATTERN" \
             || true)
-
-          # Deduplicate: if keeperhub/ version exists, drop the app/ or lib/ mirror
-          CHANGED_FILES=""
-          while IFS= read -r f; do
-            [ -z "$f" ] && continue
-            MIRROR=""
-            case "$f" in
-              app/api/*) MIRROR="keeperhub/api/${f#app/api/}" ;;
-              lib/*) MIRROR="keeperhub/lib/${f#lib/}" ;;
-              plugins/*) MIRROR="keeperhub/plugins/${f#plugins/}" ;;
-            esac
-            if [ -n "$MIRROR" ] && echo "$RAW_FILES" | grep -qF "$MIRROR"; then
-              echo "Skipping mirror: $f (keeperhub version exists)"
-              continue
-            fi
-            CHANGED_FILES="${CHANGED_FILES}${f}"$'\n'
-          done <<< "$RAW_FILES"
 
           # Trim trailing newline and cap at 40 files, prioritizing plugins > api > lib
           CHANGED_FILES=$(echo "$CHANGED_FILES" | sed '/^$/d' \

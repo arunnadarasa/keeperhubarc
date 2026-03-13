@@ -34,7 +34,6 @@ jobs:
               - '**/Dockerfile*'
               - '.hadolint.yaml'
             plugins:
-              - 'keeperhub/plugins/**'
               - 'plugins/**'
 
   compose-validation:
@@ -300,8 +299,10 @@ jobs:
       - name: Validate plugin structure
         run: |
           failed=0
-          for plugin_dir in keeperhub/plugins/*/; do
-            plugin=$(basename "$plugin_dir")
+          # Only validate plugins that are imported in the generated index
+          enabled_plugins=$(grep -oP '(?<=import "\./)[^"]+' plugins/index.ts || true)
+          for plugin in $enabled_plugins; do
+            plugin_dir="plugins/$plugin/"
             for required in index.ts icon.tsx; do
               if [ ! -f "$plugin_dir$required" ]; then
                 echo "::error::Plugin '$plugin' missing required file: $required"
@@ -317,17 +318,11 @@ jobs:
 
       - name: Verify discovery produces consistent registry
         run: |
-          cp keeperhub/plugins/index.ts /tmp/plugins-before.ts
-          cp plugins/index.ts /tmp/core-plugins-before.ts
+          cp plugins/index.ts /tmp/plugins-before.ts
           pnpm discover-plugins
-          if ! diff -q keeperhub/plugins/index.ts /tmp/plugins-before.ts > /dev/null 2>&1; then
-            echo "::error::keeperhub/plugins/index.ts is stale. Run 'pnpm discover-plugins' and commit the result."
-            diff keeperhub/plugins/index.ts /tmp/plugins-before.ts || true
-            exit 1
-          fi
-          if ! diff -q plugins/index.ts /tmp/core-plugins-before.ts > /dev/null 2>&1; then
+          if ! diff -q plugins/index.ts /tmp/plugins-before.ts > /dev/null 2>&1; then
             echo "::error::plugins/index.ts is stale. Run 'pnpm discover-plugins' and commit the result."
-            diff plugins/index.ts /tmp/core-plugins-before.ts || true
+            diff plugins/index.ts /tmp/plugins-before.ts || true
             exit 1
           fi
           echo "Plugin registry is up to date."
