@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: planning
-stopped_at: Completed 22-05-PLAN.md (template list/deploy + billing status/usage)
-last_updated: "2026-03-13T03:53:30.791Z"
+stopped_at: Completed 22-03-PLAN.md
+last_updated: "2026-03-13T03:55:12.810Z"
 last_activity: 2026-03-13 -- Phase 19 (CLI Scaffold) executed and verified, 5/5 plans complete
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 21
-  completed_plans: 17
+  completed_plans: 19
   percent: 17
 ---
 
@@ -62,6 +62,8 @@ Progress: [████░░░░░░░░░░░░░░░░] 17% (1/
 | Phase 21-core-execution-commands P05 | 3 | 2 tasks | 13 files |
 | Phase 22-management-commands P02 | 2 | 2 tasks | 7 files |
 | Phase 22-management-commands P05 | 3 | 2 tasks | 10 files |
+| Phase 22-management-commands P04 | 4 | 2 tasks | 10 files |
+| Phase 22-management-commands P03 | 4 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -107,6 +109,12 @@ Progress: [████░░░░░░░░░░░░░░░░] 17% (1/
 - [Phase 22-management-commands]: switch confirmation includes (N members, TIER tier) only when metadata fields memberCount and plan are both present; gracefully omits when missing
 - [Phase 22-management-commands]: Template and billing parent commands need --json/--jq persistent flags for test isolation without root command (matches workflow parent pattern)
 - [Phase 22-management-commands]: Billing 404 returns nil (not error) and prints friendly message: 'Billing is not enabled for this instance.'
+- [Phase 22-management-commands]: Action get uses client-side filter: GET /api/integrations, match by ID or case-insensitive name
+- [Phase 22-management-commands]: Wallet balance zero-check hides chain when native=zero AND no non-zero tokens; JSON mode returns full unfiltered response
+- [Phase 22-management-commands]: tokens.go stub fix: added --limit (default 50) and --chain flags missing from original stub
+- [Phase 22-management-commands]: WriteRaw added to internal/cache for test injection of aged CacheEntry bytes
+- [Phase 22-management-commands]: loadProtocols shared between list and get commands to avoid duplicating cache-first fetch logic
+- [Phase 22-management-commands]: renderProtocolDetail uses fmt.Fprintf calls (not a single table) for reference card layout
 
 ### Pending Todos
 
@@ -120,6 +128,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T03:53:30.789Z
-Stopped at: Completed 22-05-PLAN.md (template list/deploy + billing status/usage)
+Last session: 2026-03-13T03:55:12.808Z
+Stopped at: Completed 22-03-PLAN.md
 Resume file: None
