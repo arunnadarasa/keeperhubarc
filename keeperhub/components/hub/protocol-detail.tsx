@@ -47,7 +47,6 @@ type ProtocolDetailProps = {
   protocol: ProtocolDefinition;
   onBack?: () => void;
   hideBackButton?: boolean;
-  pageUrl?: string;
   modalUrl?: string;
 };
 
@@ -299,7 +298,6 @@ export function ProtocolDetail({
   protocol,
   onBack,
   hideBackButton,
-  pageUrl,
   modalUrl,
 }: ProtocolDetailProps): React.ReactElement {
   const router = useRouter();

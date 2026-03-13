@@ -87,8 +87,7 @@ function HubPageContent(): React.ReactElement {
   );
 
   const isSearchActive = Boolean(
-    debouncedSearchQuery.trim() ||
-      selectedTagSlugs.length > 0
+    debouncedSearchQuery.trim() || selectedTagSlugs.length > 0
   );
 
   const searchResults = useMemo((): SavedWorkflow[] | null => {
@@ -114,12 +113,7 @@ function HubPageContent(): React.ReactElement {
     }
 
     return filtered;
-  }, [
-    isSearchActive,
-    allWorkflows,
-    selectedTagSlugs,
-    debouncedSearchQuery,
-  ]);
+  }, [isSearchActive, allWorkflows, selectedTagSlugs, debouncedSearchQuery]);
 
   const handleToggleTag = (slug: string): void => {
     setSelectedTagSlugs((prev) =>
@@ -214,9 +208,6 @@ function HubPageContent(): React.ReactElement {
                   <div className="h-px flex-1 bg-border/30" />
                   <h2 className="shrink-0 text-[var(--color-text-accent)]/60 text-xs uppercase tracking-widest">
                     Templates
-                    <span className="ml-1.5 text-muted-foreground/40">
-                      {allWorkflows.length}
-                    </span>
                   </h2>
                   <div className="h-px flex-1 bg-border/30" />
                 </div>

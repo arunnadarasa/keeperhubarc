@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 
 function SuccessState(): React.JSX.Element {
   return (
@@ -52,6 +52,14 @@ function IdleState({
 }
 
 export default function DevicePage(): React.JSX.Element {
+  return (
+    <Suspense>
+      <DevicePageContent />
+    </Suspense>
+  );
+}
+
+function DevicePageContent(): React.JSX.Element {
   const searchParams = useSearchParams();
   const userCode = searchParams.get("user_code") ?? "";
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
