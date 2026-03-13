@@ -231,10 +231,7 @@ function generateProtocolsIndexFile(): void {
  * Registered protocols: ${slugList.join(", ")}
  */
 
-import {
-  protocolToPlugin,
-  registerProtocol,
-} from "@/lib/protocol-registry";
+import { protocolToPlugin, registerProtocol } from "@/lib/protocol-registry";
 import { registerIntegration } from "@/plugins/registry";
 
 ${imports.join("\n")}
