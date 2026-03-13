@@ -100,8 +100,8 @@ describe("Aerodrome Protocol Definition", () => {
     expect(writeActions).toHaveLength(5);
   });
 
-  it("has 5 contracts", () => {
-    expect(Object.keys(aerodromeDef.contracts)).toHaveLength(5);
+  it("has 6 contracts", () => {
+    expect(Object.keys(aerodromeDef.contracts)).toHaveLength(6);
   });
 
   it("all contracts are available on Base (chain 8453)", () => {
@@ -121,11 +121,11 @@ describe("Aerodrome Protocol Definition", () => {
     expect(getReserves?.outputs).toHaveLength(2);
   });
 
-  it("get-amount-out action returns 2 output fields", () => {
+  it("get-amount-out action returns 1 output field", () => {
     const getAmountOut = aerodromeDef.actions.find(
       (a) => a.slug === "get-amount-out"
     );
     expect(getAmountOut).toBeDefined();
-    expect(getAmountOut?.outputs).toHaveLength(2);
+    expect(getAmountOut?.outputs).toHaveLength(1);
   });
 });

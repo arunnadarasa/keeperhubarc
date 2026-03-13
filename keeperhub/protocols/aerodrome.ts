@@ -34,20 +34,6 @@ export default defineProtocol({
         },
         {
           type: "function",
-          name: "getAmountOut",
-          stateMutability: "view",
-          inputs: [
-            { name: "amountIn", type: "uint256" },
-            { name: "tokenIn", type: "address" },
-            { name: "tokenOut", type: "address" },
-          ],
-          outputs: [
-            { name: "amount", type: "uint256" },
-            { name: "stable", type: "bool" },
-          ],
-        },
-        {
-          type: "function",
           name: "swapExactTokensForTokens",
           stateMutability: "nonpayable",
           inputs: [
@@ -156,6 +142,27 @@ export default defineProtocol({
         },
       ]),
     },
+    pool: {
+      label: "Aerodrome Pool",
+      addresses: {
+        // Base -- reference address (WETH/USDC pool); runtime address comes from user input
+        "8453": "0xcDAC0d6c6C59727a65F871236188350531885C43",
+      },
+      userSpecifiedAddress: true,
+      // Inline ABI -- pool-level getAmountOut
+      abi: JSON.stringify([
+        {
+          type: "function",
+          name: "getAmountOut",
+          stateMutability: "view",
+          inputs: [
+            { name: "amountIn", type: "uint256" },
+            { name: "tokenIn", type: "address" },
+          ],
+          outputs: [{ name: "", type: "uint256" }],
+        },
+      ]),
+    },
     aeroToken: {
       label: "AERO Token",
       addresses: {
@@ -226,22 +233,20 @@ export default defineProtocol({
       slug: "get-amount-out",
       label: "Get Expected Output",
       description:
-        "Get the expected output amount for a swap given an input amount",
+        "Get the expected output amount for a swap from a specific Aerodrome pool",
       type: "read",
-      contract: "router",
+      contract: "pool",
       function: "getAmountOut",
       inputs: [
         { name: "amountIn", type: "uint256", label: "Input Amount (wei)" },
         { name: "tokenIn", type: "address", label: "Input Token Address" },
-        { name: "tokenOut", type: "address", label: "Output Token Address" },
       ],
       outputs: [
         {
-          name: "amount",
+          name: "amountOut",
           type: "uint256",
           label: "Expected Output (wei)",
         },
-        { name: "stable", type: "bool", label: "Stable Pool Used" },
       ],
     },
     {
