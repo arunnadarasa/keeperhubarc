@@ -22,6 +22,7 @@ import { isAiGatewayManagedKeysEnabled } from "./ai-gateway/config";
 import { db } from "./db";
 import {
   accounts,
+  deviceCode,
   integrations,
   invitationRelations,
   invitation as invitationTable,
@@ -84,6 +85,7 @@ const schema = {
   session: sessions,
   account: accounts,
   verification: verifications,
+  deviceCode,
   workflows,
   workflowExecutions,
   workflowExecutionLogs,
