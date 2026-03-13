@@ -13,8 +13,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { BILLING_API } from "@/keeperhub/lib/billing/constants";
-import type { InvoiceItem } from "@/keeperhub/lib/billing/provider";
+import { BILLING_API } from "@/lib/billing/constants";
+import type { InvoiceItem } from "@/lib/billing/provider";
 
 type InvoiceResponse = {
   invoices: Array<{

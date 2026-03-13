@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/keeperhub/lib/stripe", () => ({
+vi.mock("@/lib/stripe", () => ({
   stripe: {
     customers: { create: vi.fn() },
     checkout: { sessions: { create: vi.fn() } },
@@ -16,8 +16,8 @@ vi.mock("@/keeperhub/lib/stripe", () => ({
 import {
   StripeBillingProvider,
   UnknownEventTypeError,
-} from "@/keeperhub/lib/billing/providers/stripe";
-import { stripe } from "@/keeperhub/lib/stripe";
+} from "@/lib/billing/providers/stripe";
+import { stripe } from "@/lib/stripe";
 
 // biome-ignore lint/style/noNonNullAssertion: stripe is mocked above and always defined in tests
 const s = stripe!;

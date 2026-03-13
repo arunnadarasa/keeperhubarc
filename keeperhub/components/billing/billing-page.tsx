@@ -3,15 +3,15 @@
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { BILLING_API } from "@/keeperhub/lib/billing/constants";
+import { BILLING_API } from "@/lib/billing/constants";
 import {
   type BillingInterval,
   type PlanName,
   parsePlanName,
   parseTierKey,
   type TierKey,
-} from "@/keeperhub/lib/billing/plans";
-import { useOrganization } from "@/keeperhub/lib/hooks/use-organization";
+} from "@/lib/billing/plans";
+import { useOrganization } from "@/lib/hooks/use-organization";
 import { BillingHistory } from "./billing-history";
 import { BillingStatus } from "./billing-status";
 import { PricingTable } from "./pricing-table";

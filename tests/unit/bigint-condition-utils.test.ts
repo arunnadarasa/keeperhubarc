@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyBigIntConversion,
   needsBigIntMode,
-} from "@/keeperhub/lib/bigint-condition-utils";
+} from "@/lib/bigint-condition-utils";
 
 describe("needsBigIntMode", () => {
   describe("returns true when large integers are present", () => {

@@ -1,9 +1,9 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { getAnalyticsSummary } from "@/keeperhub/lib/analytics/queries";
-import { parseTimeRange } from "@/keeperhub/lib/analytics/time-range";
-import { apiError } from "@/keeperhub/lib/api-error";
-import { requireOrganization } from "@/keeperhub/lib/middleware/require-org";
+import { getAnalyticsSummary } from "@/lib/analytics/queries";
+import { parseTimeRange } from "@/lib/analytics/time-range";
+import { apiError } from "@/lib/api-error";
+import { requireOrganization } from "@/lib/middleware/require-org";
 
 export const GET = requireOrganization(
   async (req: NextRequest, context): Promise<Response> => {

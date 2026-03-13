@@ -3,11 +3,11 @@ import { NextResponse } from "next/server";
 import {
   getAnalyticsChecksum,
   getAnalyticsSummary,
-} from "@/keeperhub/lib/analytics/queries";
-import { parseTimeRange } from "@/keeperhub/lib/analytics/time-range";
-import type { AnalyticsStreamEvent } from "@/keeperhub/lib/analytics/types";
-import { apiError } from "@/keeperhub/lib/api-error";
-import { requireOrganization } from "@/keeperhub/lib/middleware/require-org";
+} from "@/lib/analytics/queries";
+import { parseTimeRange } from "@/lib/analytics/time-range";
+import type { AnalyticsStreamEvent } from "@/lib/analytics/types";
+import { apiError } from "@/lib/api-error";
+import { requireOrganization } from "@/lib/middleware/require-org";
 
 const POLL_INTERVAL_MS = 2000;
 const HEARTBEAT_INTERVAL_MS = 30_000;

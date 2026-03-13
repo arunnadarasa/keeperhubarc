@@ -11,11 +11,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { TemplateBadgeTextarea } from "@/components/ui/template-badge-textarea";
-import {
-  toChecksumAddress,
-  truncateAddress,
-} from "@/keeperhub/lib/address-utils";
-import { buildAddressUrl } from "@/keeperhub/lib/build-explorer-url";
+import { toChecksumAddress, truncateAddress } from "@/lib/address-utils";
+import { buildAddressUrl } from "@/lib/build-explorer-url";
 import type { ActionConfigFieldBase } from "@/plugins/registry";
 
 const AUTO_FETCH_DEBOUNCE_MS = 600;

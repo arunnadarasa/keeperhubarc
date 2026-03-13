@@ -52,7 +52,7 @@ import {
   resetGasStrategy,
   TransactionStuckError,
   type TriggerType,
-} from "@/keeperhub/lib/web3/gas-strategy";
+} from "@/lib/web3/gas-strategy";
 
 // Helper to create mock provider
 function createMockProvider(

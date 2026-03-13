@@ -1,9 +1,9 @@
 import "server-only";
 
 import { ethers } from "ethers";
-import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
-import { withPluginMetrics } from "@/keeperhub/lib/metrics/instrumentation/plugin";
 import { fetchCredentials } from "@/lib/credential-fetcher";
+import { ErrorCategory, logUserError } from "@/lib/logging";
+import { withPluginMetrics } from "@/lib/metrics/instrumentation/plugin";
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import { getErrorMessage } from "@/lib/utils";

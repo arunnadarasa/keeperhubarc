@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getStepLogs } from "@/keeperhub/lib/analytics/queries";
-import { apiError } from "@/keeperhub/lib/api-error";
-import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
+import { getStepLogs } from "@/lib/analytics/queries";
+import { apiError } from "@/lib/api-error";
+import { getOrgContext } from "@/lib/middleware/org-context";
 
 export async function GET(
   _request: Request,

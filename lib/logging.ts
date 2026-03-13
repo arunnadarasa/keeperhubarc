@@ -21,8 +21,8 @@
  * logSystemError(ErrorCategory.INFRASTRUCTURE, "[Para] API key missing:", error, { component: "para-service" });
  */
 
-import { getMetricsCollector } from "@/keeperhub/lib/metrics";
-import { LabelKeys, MetricNames } from "@/keeperhub/lib/metrics/types";
+import { getMetricsCollector } from "@/lib/metrics";
+import { LabelKeys, MetricNames } from "@/lib/metrics/types";
 
 /**
  * Error/warning categories for metrics classification

@@ -1,8 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { resolveOrganizationId } from "@/keeperhub/lib/middleware/auth-helpers";
 import { db } from "@/lib/db";
 import { tags } from "@/lib/db/schema";
+import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 
 export async function PATCH(
   request: Request,

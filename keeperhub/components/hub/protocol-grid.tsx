@@ -1,6 +1,6 @@
 "use client";
 
-import type { ProtocolDefinition } from "@/keeperhub/lib/protocol-registry";
+import type { ProtocolDefinition } from "@/lib/protocol-registry";
 import { ProtocolCard } from "./protocol-card";
 
 type ProtocolGridProps = {

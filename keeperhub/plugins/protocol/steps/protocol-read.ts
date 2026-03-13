@@ -1,13 +1,13 @@
 import "server-only";
 import "@/keeperhub/protocols";
 
-import { resolveAbi } from "@/keeperhub/lib/abi-cache";
-import { getProtocol } from "@/keeperhub/lib/protocol-registry";
 import {
   type ReadContractCoreInput,
   type ReadContractResult,
   readContractCore,
 } from "@/keeperhub/plugins/web3/steps/read-contract-core";
+import { resolveAbi } from "@/lib/abi-cache";
+import { getProtocol } from "@/lib/protocol-registry";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import {
   type ProtocolMeta,

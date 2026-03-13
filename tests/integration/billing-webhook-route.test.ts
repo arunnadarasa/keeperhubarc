@@ -51,12 +51,12 @@ vi.mock("@/lib/db/schema", () => ({
 const mockVerifyWebhook = vi.fn();
 const mockGetSubscriptionDetails = vi.fn();
 
-vi.mock("@/keeperhub/lib/billing/execution-debt", () => ({
+vi.mock("@/lib/billing/execution-debt", () => ({
   clearDebtForInvoice: vi.fn().mockResolvedValue(0),
   clearAllDebtForOrg: vi.fn().mockResolvedValue(0),
 }));
 
-vi.mock("@/keeperhub/lib/billing/providers", () => ({
+vi.mock("@/lib/billing/providers", () => ({
   getBillingProvider: () => ({
     verifyWebhook: mockVerifyWebhook,
     getSubscriptionDetails: mockGetSubscriptionDetails,
@@ -64,7 +64,7 @@ vi.mock("@/keeperhub/lib/billing/providers", () => ({
 }));
 
 import { POST } from "@/keeperhub/api/billing/webhooks/stripe/route";
-import { UnknownEventTypeError } from "@/keeperhub/lib/billing/providers/stripe";
+import { UnknownEventTypeError } from "@/lib/billing/providers/stripe";
 
 function makeWebhookRequest(
   body: string,

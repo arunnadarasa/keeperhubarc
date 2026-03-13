@@ -1,4 +1,4 @@
-import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 type FallbackCompleteParams = {
   executionId: string;

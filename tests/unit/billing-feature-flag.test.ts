@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
+import { isBillingEnabled } from "@/lib/billing/feature-flag";
 
 describe("isBillingEnabled", () => {
   const original = process.env.NEXT_PUBLIC_BILLING_ENABLED;

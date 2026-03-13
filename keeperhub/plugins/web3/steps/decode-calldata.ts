@@ -1,4 +1,4 @@
-import { withPluginMetrics } from "@/keeperhub/lib/metrics/instrumentation/plugin";
+import { withPluginMetrics } from "@/lib/metrics/instrumentation/plugin";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import {
   type DecodeCalldataCoreInput,

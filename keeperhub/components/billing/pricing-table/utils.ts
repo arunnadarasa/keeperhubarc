@@ -1,11 +1,11 @@
 import { toast } from "sonner";
-import { BILLING_API } from "@/keeperhub/lib/billing/constants";
+import { BILLING_API } from "@/lib/billing/constants";
 import {
   type BillingInterval,
   PLANS,
   type PlanName,
   type TierKey,
-} from "@/keeperhub/lib/billing/plans";
+} from "@/lib/billing/plans";
 import type { PlanTierItem } from "./types";
 
 export function formatPrice(price: number): string {

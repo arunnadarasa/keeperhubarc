@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   analyticsLoadingAtom,
   analyticsNetworksAtom,
-} from "@/keeperhub/lib/atoms/analytics";
+} from "@/lib/atoms/analytics";
 
 const BAR_COLORS = [
   "var(--chart-1)",

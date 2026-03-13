@@ -10,8 +10,8 @@
  *
  * @example
  * ```typescript
- * import { getMetricsCollector } from "@/keeperhub/lib/metrics";
- * import { MetricNames, LabelKeys } from "@/keeperhub/lib/metrics/types";
+ * import { getMetricsCollector } from "@/lib/metrics";
+ * import { MetricNames, LabelKeys } from "@/lib/metrics/types";
  *
  * const metrics = getMetricsCollector();
  *

@@ -1,9 +1,8 @@
 import { and, eq, gt, lt, notInArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
-
-import { authenticateInternalService } from "@/keeperhub/lib/internal-service-auth";
 import { db } from "@/lib/db";
 import { workflowExecutionLogs, workflowExecutions } from "@/lib/db/schema";
+import { authenticateInternalService } from "@/lib/internal-service-auth";
 
 const DEFAULT_THRESHOLD_MINUTES = 30;
 

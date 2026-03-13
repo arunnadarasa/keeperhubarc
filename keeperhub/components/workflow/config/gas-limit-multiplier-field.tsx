@@ -4,7 +4,7 @@ import { AlertTriangle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { parseGasLimitConfig } from "@/keeperhub/lib/web3/gas-defaults";
+import { parseGasLimitConfig } from "@/lib/web3/gas-defaults";
 import type { ActionConfigFieldBase } from "@/plugins/registry";
 
 type GasLimitMultiplierFieldProps = {

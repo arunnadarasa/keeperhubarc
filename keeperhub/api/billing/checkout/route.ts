@@ -1,17 +1,17 @@
 import { eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { PAID_PLANS, VALID_INTERVALS } from "@/keeperhub/lib/billing/constants";
-import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
-import type { PlanName, TierKey } from "@/keeperhub/lib/billing/plans";
+import { PAID_PLANS, VALID_INTERVALS } from "@/lib/billing/constants";
+import { isBillingEnabled } from "@/lib/billing/feature-flag";
+import type { PlanName, TierKey } from "@/lib/billing/plans";
 import {
   getOrgSubscription,
   getPriceId,
   resolvePriceId,
-} from "@/keeperhub/lib/billing/plans-server";
-import type { BillingProvider } from "@/keeperhub/lib/billing/provider";
-import { getBillingProvider } from "@/keeperhub/lib/billing/providers";
-import { requireOrgOwner } from "@/keeperhub/lib/billing/require-org-owner";
+} from "@/lib/billing/plans-server";
+import type { BillingProvider } from "@/lib/billing/provider";
+import { getBillingProvider } from "@/lib/billing/providers";
+import { requireOrgOwner } from "@/lib/billing/require-org-owner";
 import { db } from "@/lib/db";
 import { organizationSubscriptions } from "@/lib/db/schema";
 

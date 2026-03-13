@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
-import { getOrgSubscription } from "@/keeperhub/lib/billing/plans-server";
-import { getBillingProvider } from "@/keeperhub/lib/billing/providers";
-import { requireOrgOwner } from "@/keeperhub/lib/billing/require-org-owner";
+import { isBillingEnabled } from "@/lib/billing/feature-flag";
+import { getOrgSubscription } from "@/lib/billing/plans-server";
+import { getBillingProvider } from "@/lib/billing/providers";
+import { requireOrgOwner } from "@/lib/billing/require-org-owner";
 
 export async function POST(_request: Request): Promise<NextResponse> {
   if (!isBillingEnabled()) {

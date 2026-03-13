@@ -1,8 +1,8 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { getSpendCapData } from "@/keeperhub/lib/analytics/queries";
-import { apiError } from "@/keeperhub/lib/api-error";
-import { requireOrganization } from "@/keeperhub/lib/middleware/require-org";
+import { getSpendCapData } from "@/lib/analytics/queries";
+import { apiError } from "@/lib/api-error";
+import { requireOrganization } from "@/lib/middleware/require-org";
 
 export const GET = requireOrganization(
   async (_req: NextRequest, context): Promise<Response> => {

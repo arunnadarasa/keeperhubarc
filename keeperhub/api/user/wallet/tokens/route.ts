@@ -2,14 +2,14 @@ import { and, eq } from "drizzle-orm";
 import { ethers } from "ethers";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { normalizeAddressForStorage } from "@/keeperhub/lib/address-utils";
-import { apiError } from "@/keeperhub/lib/api-error";
-import { getActiveOrgId } from "@/keeperhub/lib/middleware/org-context";
-import { organizationHasWallet } from "@/keeperhub/lib/para/wallet-helpers";
+import { normalizeAddressForStorage } from "@/lib/address-utils";
+import { apiError } from "@/lib/api-error";
 import { auth } from "@/lib/auth";
 import ERC20_ABI from "@/lib/contracts/abis/erc20.json";
 import { db } from "@/lib/db";
 import { chains, organizationTokens, supportedTokens } from "@/lib/db/schema";
+import { getActiveOrgId } from "@/lib/middleware/org-context";
+import { organizationHasWallet } from "@/lib/para/wallet-helpers";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
 
 /**

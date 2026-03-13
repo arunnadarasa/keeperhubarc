@@ -6,12 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BILLING_ALERTS, BILLING_API } from "@/keeperhub/lib/billing/constants";
-import {
-  PLANS,
-  type PlanName,
-  type TierKey,
-} from "@/keeperhub/lib/billing/plans";
+import { BILLING_ALERTS, BILLING_API } from "@/lib/billing/constants";
+import { PLANS, type PlanName, type TierKey } from "@/lib/billing/plans";
 
 type OverageCharge = {
   periodStart: string;

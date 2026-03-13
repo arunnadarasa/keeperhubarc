@@ -24,12 +24,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  toChecksumAddress,
-  truncateAddress,
-} from "@/keeperhub/lib/address-utils";
-import { useActiveMember } from "@/keeperhub/lib/hooks/use-organization";
-import { fetchAllSupportedTokenBalances } from "@/keeperhub/lib/wallet/fetch-balances";
+import { toChecksumAddress, truncateAddress } from "@/lib/address-utils";
+import { useSession } from "@/lib/auth-client";
+import { useActiveMember } from "@/lib/hooks/use-organization";
+import { fetchAllSupportedTokenBalances } from "@/lib/wallet/fetch-balances";
 import type {
   ChainBalance,
   ChainData,
@@ -38,9 +36,8 @@ import type {
   TokenBalance,
   TokenData,
   WalletData,
-} from "@/keeperhub/lib/wallet/types";
-import { useWalletBalances } from "@/keeperhub/lib/wallet/use-wallet-balances";
-import { useSession } from "@/lib/auth-client";
+} from "@/lib/wallet/types";
+import { useWalletBalances } from "@/lib/wallet/use-wallet-balances";
 import { type WithdrawableAsset, WithdrawModal } from "./withdraw-modal";
 
 type WalletOverlayProps = {

@@ -11,7 +11,7 @@
  */
 
 // Import extensions to register them
-import "@/keeperhub/lib/extensions";
+import "@/lib/extensions";
 
 export function KeeperHubExtensionLoader() {
   // This component doesn't render anything

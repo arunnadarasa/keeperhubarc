@@ -51,7 +51,7 @@ vi.mock("@/lib/db/schema", () => ({
   overageBillingRecords: "overageBillingRecords",
 }));
 
-vi.mock("@/keeperhub/lib/billing/execution-debt", () => ({
+vi.mock("@/lib/billing/execution-debt", () => ({
   getActiveDebtExecutions: vi.fn().mockResolvedValue(0),
 }));
 

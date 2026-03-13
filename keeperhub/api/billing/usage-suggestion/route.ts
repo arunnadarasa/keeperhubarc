@@ -1,9 +1,9 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
-import { getUpgradeSuggestion } from "@/keeperhub/lib/billing/tier-suggestions";
-import { getActiveOrgId } from "@/keeperhub/lib/middleware/org-context";
 import { auth } from "@/lib/auth";
+import { isBillingEnabled } from "@/lib/billing/feature-flag";
+import { getUpgradeSuggestion } from "@/lib/billing/tier-suggestions";
+import { getActiveOrgId } from "@/lib/middleware/org-context";
 
 export async function GET(): Promise<NextResponse> {
   if (!isBillingEnabled()) {

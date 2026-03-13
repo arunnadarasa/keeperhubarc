@@ -1,11 +1,11 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
-import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
-import { getOrganizationIdFromExecution } from "@/keeperhub/lib/workflow-helpers";
 import { db } from "@/lib/db";
 import { workflowExecutions } from "@/lib/db/schema";
+import { ErrorCategory, logUserError } from "@/lib/logging";
 import { getErrorMessage } from "@/lib/utils";
+import { getOrganizationIdFromExecution } from "@/lib/workflow-helpers";
 
 type WorkflowContext = {
   executionId?: string;

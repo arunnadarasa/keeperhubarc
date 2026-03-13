@@ -1,5 +1,5 @@
 import type Stripe from "stripe";
-import { stripe } from "@/keeperhub/lib/stripe";
+import { stripe } from "@/lib/stripe";
 import type {
   BillingProvider,
   BillingWebhookEvent,

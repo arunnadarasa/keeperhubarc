@@ -1,6 +1,6 @@
-import { authenticateApiKey } from "@/keeperhub/lib/api-key-auth";
-import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
+import { authenticateApiKey } from "@/lib/api-key-auth";
 import { auth } from "@/lib/auth";
+import { getOrgContext } from "@/lib/middleware/org-context";
 
 export type DualAuthContext =
   | { userId: string | null; organizationId: string | null }

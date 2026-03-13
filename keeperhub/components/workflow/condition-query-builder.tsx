@@ -14,14 +14,14 @@ import type {
   ConditionGroup,
   ConditionOperator,
   ConditionRule,
-} from "@/keeperhub/lib/condition-builder-types";
-import { isConditionGroup } from "@/keeperhub/lib/condition-builder-types";
+} from "@/lib/condition-builder-types";
+import { isConditionGroup } from "@/lib/condition-builder-types";
 import {
   createEmptyGroup,
   createEmptyRule,
   isUnaryOperator,
   OPERATOR_METADATA,
-} from "@/keeperhub/lib/condition-builder-utils";
+} from "@/lib/condition-builder-utils";
 import { cn } from "@/lib/utils";
 
 type ConditionQueryBuilderProps = {

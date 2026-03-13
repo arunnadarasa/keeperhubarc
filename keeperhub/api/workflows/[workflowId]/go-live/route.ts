@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
 import { db } from "@/lib/db";
 import { workflowPublicTags, workflows } from "@/lib/db/schema";
+import { getOrgContext } from "@/lib/middleware/org-context";
 
 export async function PUT(
   request: Request,

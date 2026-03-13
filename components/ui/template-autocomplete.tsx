@@ -4,7 +4,7 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { BUILTIN_NODE_ID, BUILTIN_NODE_LABEL, BUILTIN_VARIABLE_FIELDS } from "@/keeperhub/lib/builtin-variables";
+import { BUILTIN_NODE_ID, BUILTIN_NODE_LABEL, BUILTIN_VARIABLE_FIELDS } from "@/lib/builtin-variables";
 import { api } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import {
@@ -22,8 +22,8 @@ import {
   type WorkflowNode,
 } from "@/lib/workflow-store";
 import { findActionById } from "@/plugins/registry";
-import { getReadContractOutputFields } from "@/keeperhub/lib/action-output-fields";
-import { resolveForEachSyntheticOutput } from "@/keeperhub/lib/for-each-utils";
+import { getReadContractOutputFields } from "@/lib/action-output-fields";
+import { resolveForEachSyntheticOutput } from "@/lib/for-each-utils";
 import {
   type ExecutionLogsByNodeId,
   type SchemaField,
@@ -32,8 +32,8 @@ import {
   isActionType,
   sanitizeNodeId,
   schemaToFields,
-} from "@/keeperhub/lib/template-helpers";
-import { getTriggerOutputFields } from "@/keeperhub/lib/trigger-output-fields";
+} from "@/lib/template-helpers";
+import { getTriggerOutputFields } from "@/lib/trigger-output-fields";
 
 type TemplateAutocompleteProps = {
   isOpen: boolean;

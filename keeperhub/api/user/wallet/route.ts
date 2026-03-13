@@ -5,18 +5,18 @@ import { NextResponse } from "next/server";
 import {
   normalizeAddressForStorage,
   truncateAddress,
-} from "@/keeperhub/lib/address-utils";
-import { apiError } from "@/keeperhub/lib/api-error";
-import { encryptUserShare } from "@/keeperhub/lib/encryption";
-import { getActiveOrgId } from "@/keeperhub/lib/middleware/org-context";
-import {
-  getOrganizationWallet,
-  organizationHasWallet,
-} from "@/keeperhub/lib/para/wallet-helpers";
+} from "@/lib/address-utils";
+import { apiError } from "@/lib/api-error";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { createIntegration } from "@/lib/db/integrations";
 import { integrations, paraWallets } from "@/lib/db/schema";
+import { encryptUserShare } from "@/lib/encryption";
+import { getActiveOrgId } from "@/lib/middleware/org-context";
+import {
+  getOrganizationWallet,
+  organizationHasWallet,
+} from "@/lib/para/wallet-helpers";
 
 const PARA_API_KEY = process.env.PARA_API_KEY || "";
 const PARA_ENV = process.env.PARA_ENVIRONMENT || "beta";

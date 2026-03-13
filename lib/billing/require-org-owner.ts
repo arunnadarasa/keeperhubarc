@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { getActiveOrgId } from "@/keeperhub/lib/middleware/org-context";
 import { auth } from "@/lib/auth";
+import { getActiveOrgId } from "@/lib/middleware/org-context";
 
 type OrgOwnerResult =
   | { orgId: string; userId: string; email: string }

@@ -15,7 +15,7 @@ import {
   PopoverAnchor,
   PopoverContent,
 } from "@/components/ui/popover";
-import { truncateAddress } from "@/keeperhub/lib/address-utils";
+import { truncateAddress } from "@/lib/address-utils";
 import type { AddressBookEntry } from "@/lib/api-client";
 import { addressBookApi } from "@/lib/api-client";
 import { useSession } from "@/lib/auth-client";

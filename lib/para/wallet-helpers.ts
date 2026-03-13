@@ -2,10 +2,10 @@ import "server-only";
 import { ParaEthersSigner } from "@getpara/ethers-v6-integration";
 import { Environment, Para as ParaServer } from "@getpara/server-sdk";
 import { eq } from "drizzle-orm";
-import { decryptUserShare } from "@/keeperhub/lib/encryption";
-import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 import { db } from "@/lib/db";
 import { paraWallets } from "@/lib/db/schema";
+import { decryptUserShare } from "@/lib/encryption";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { getRpcProviderFromUrls } from "@/lib/rpc/provider-factory";
 
 /**

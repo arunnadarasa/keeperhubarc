@@ -1,14 +1,14 @@
 import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
 import { NextResponse } from "next/server";
-import { toChecksumAddress } from "@/keeperhub/lib/address-utils";
-import { apiError } from "@/keeperhub/lib/api-error";
-import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
+import { toChecksumAddress } from "@/lib/address-utils";
+import { apiError } from "@/lib/api-error";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { explorerConfigs } from "@/lib/db/schema";
 import { fetchEtherscanSourceCode } from "@/lib/explorer/etherscan";
 import { detectProxyViaRpc } from "@/lib/explorer/proxy-detection";
+import { ErrorCategory, logUserError } from "@/lib/logging";
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
 

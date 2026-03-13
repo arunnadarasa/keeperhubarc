@@ -2,7 +2,7 @@
  * Utility functions for fetching wallet balances via RPC
  */
 
-import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
+import { ErrorCategory, logUserError } from "@/lib/logging";
 import type {
   ChainBalance,
   ChainData,

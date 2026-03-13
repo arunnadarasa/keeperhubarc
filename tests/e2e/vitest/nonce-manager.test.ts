@@ -34,10 +34,7 @@ import {
   pendingTransactions,
   walletLocks,
 } from "@/keeperhub/db/schema-extensions";
-import {
-  NonceManager,
-  resetNonceManager,
-} from "@/keeperhub/lib/web3/nonce-manager";
+import { NonceManager, resetNonceManager } from "@/lib/web3/nonce-manager";
 
 // Skip if DATABASE_URL not set or SKIP_INFRA_TESTS is true
 const shouldSkip =

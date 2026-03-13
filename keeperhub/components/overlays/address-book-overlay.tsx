@@ -27,12 +27,12 @@ import {
 } from "@/components/ui/table";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AddressBookRow } from "@/keeperhub/components/address-book/address-book-row";
-import { toChecksumAddress } from "@/keeperhub/lib/address-utils";
-import { useDebounce } from "@/keeperhub/lib/hooks/use-debounce";
-import { usePagination } from "@/keeperhub/lib/hooks/use-pagination";
+import { toChecksumAddress } from "@/lib/address-utils";
 import type { AddressBookEntry } from "@/lib/api-client";
 import { addressBookApi } from "@/lib/api-client";
 import { useSession } from "@/lib/auth-client";
+import { useDebounce } from "@/lib/hooks/use-debounce";
+import { usePagination } from "@/lib/hooks/use-pagination";
 
 type AddressBookOverlayProps = {
   overlayId: string;

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import "@/keeperhub/protocols";
-import { getProtocol } from "@/keeperhub/lib/protocol-registry";
+import { getProtocol } from "@/lib/protocol-registry";
 
 export async function GET(
   _request: Request,

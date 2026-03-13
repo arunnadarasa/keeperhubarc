@@ -13,12 +13,12 @@ import {
   YAxis,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { TimeRange } from "@/keeperhub/lib/analytics/types";
+import type { TimeRange } from "@/lib/analytics/types";
 import {
   analyticsLoadingAtom,
   analyticsRangeAtom,
   analyticsTimeSeriesAtom,
-} from "@/keeperhub/lib/atoms/analytics";
+} from "@/lib/atoms/analytics";
 
 const CHART_COLORS = {
   success: "var(--color-keeperhub-green)",

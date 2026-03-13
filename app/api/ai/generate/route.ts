@@ -3,10 +3,10 @@ import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { streamText } from "ai";
 import { NextResponse } from "next/server";
-import { authenticateApiKey } from "@/keeperhub/lib/api-key-auth";
-import { createTimer, getMetricsCollector } from "@/keeperhub/lib/metrics";
-import { MetricNames } from "@/keeperhub/lib/metrics/types";
+import { authenticateApiKey } from "@/lib/api-key-auth";
 import { auth } from "@/lib/auth";
+import { createTimer, getMetricsCollector } from "@/lib/metrics";
+import { MetricNames } from "@/lib/metrics/types";
 import { generateAIActionPrompts } from "@/plugins/registry";
 
 // Simple type for operations

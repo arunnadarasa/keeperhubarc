@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { formatWeiToBalance } from "../../keeperhub/lib/wallet/fetch-balances";
+import { formatWeiToBalance } from "@/lib/wallet/fetch-balances";
 
 describe("formatWeiToBalance", () => {
   describe("18 decimals (ETH, MATIC, TEMPO native)", () => {

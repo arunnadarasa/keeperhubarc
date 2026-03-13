@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { scanAndCreateDebt } from "@/keeperhub/lib/billing/execution-debt";
-import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
-import { authenticateInternalService } from "@/keeperhub/lib/internal-service-auth";
+import { scanAndCreateDebt } from "@/lib/billing/execution-debt";
+import { isBillingEnabled } from "@/lib/billing/feature-flag";
+import { authenticateInternalService } from "@/lib/internal-service-auth";
 
 /**
  * Internal POST endpoint for scanning unpaid overage and creating debt records.

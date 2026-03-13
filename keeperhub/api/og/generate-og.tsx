@@ -829,8 +829,8 @@ export async function generateWorkflowOGImage(
 
 export async function generateProtocolOGImage(slug: string): Promise<Response> {
   await import("@/keeperhub/protocols");
-  const { getProtocol } = await import("@/keeperhub/lib/protocol-registry");
-  const { getChainName } = await import("@/keeperhub/lib/chain-utils");
+  const { getProtocol } = await import("@/lib/protocol-registry");
+  const { getChainName } = await import("@/lib/chain-utils");
 
   const protocol = getProtocol(slug);
 

@@ -4,7 +4,7 @@ import { useAtom } from "jotai";
 import { ChevronLeft, ChevronRight, Layers } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
-import { analyticsProjectIdAtom } from "@/keeperhub/lib/atoms/analytics";
+import { analyticsProjectIdAtom } from "@/lib/atoms/analytics";
 import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "keeperhub-analytics-drawer";

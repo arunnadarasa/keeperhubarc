@@ -3,11 +3,7 @@
  * Uses SendGrid API for transactional emails
  */
 
-import {
-  ErrorCategory,
-  logSystemError,
-  logUserError,
-} from "@/keeperhub/lib/logging";
+import { ErrorCategory, logSystemError, logUserError } from "@/lib/logging";
 
 const isTestEnv = !!process.env.CI || process.env.NODE_ENV === "test";
 

@@ -12,8 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { COLOR_PALETTE } from "@/keeperhub/lib/palette";
 import { api, type Tag } from "@/lib/api-client";
+import { COLOR_PALETTE } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 
 type TagFormDialogProps = {

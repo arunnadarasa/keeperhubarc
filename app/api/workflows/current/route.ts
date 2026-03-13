@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { workflows } from "@/lib/db/schema";

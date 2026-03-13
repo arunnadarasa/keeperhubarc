@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
-import { PAID_PLANS, VALID_INTERVALS } from "@/keeperhub/lib/billing/constants";
-import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
-import type { PlanName, TierKey } from "@/keeperhub/lib/billing/plans";
-import {
-  getOrgSubscription,
-  getPriceId,
-} from "@/keeperhub/lib/billing/plans-server";
-import { getBillingProvider } from "@/keeperhub/lib/billing/providers";
-import { requireOrgOwner } from "@/keeperhub/lib/billing/require-org-owner";
+import { PAID_PLANS, VALID_INTERVALS } from "@/lib/billing/constants";
+import { isBillingEnabled } from "@/lib/billing/feature-flag";
+import type { PlanName, TierKey } from "@/lib/billing/plans";
+import { getOrgSubscription, getPriceId } from "@/lib/billing/plans-server";
+import { getBillingProvider } from "@/lib/billing/providers";
+import { requireOrgOwner } from "@/lib/billing/require-org-owner";
 
 type PreviewRequestBody = {
   plan?: string;

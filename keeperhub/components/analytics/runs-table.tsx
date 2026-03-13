@@ -12,7 +12,7 @@ import type {
   NormalizedStatus,
   StepLog,
   UnifiedRun,
-} from "@/keeperhub/lib/analytics/types";
+} from "@/lib/analytics/types";
 import {
   analyticsLoadingAtom,
   analyticsRangeAtom,
@@ -20,7 +20,7 @@ import {
   analyticsSearchAtom,
   analyticsSourceFilterAtom,
   analyticsStatusFilterAtom,
-} from "@/keeperhub/lib/atoms/analytics";
+} from "@/lib/atoms/analytics";
 import { cn } from "@/lib/utils";
 import { ProjectDrawer } from "./project-drawer";
 

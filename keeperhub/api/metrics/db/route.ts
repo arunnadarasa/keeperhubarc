@@ -14,7 +14,7 @@ export async function GET(): Promise<NextResponse> {
 
   try {
     const { getDbMetrics, getPrometheusContentType, updateDbMetrics } =
-      await import("@/keeperhub/lib/metrics/prometheus-api");
+      await import("@/lib/metrics/prometheus-api");
 
     await updateDbMetrics();
 

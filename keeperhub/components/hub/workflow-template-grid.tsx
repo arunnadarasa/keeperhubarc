@@ -17,9 +17,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { refetchSidebar } from "@/keeperhub/lib/refetch-sidebar";
 import { api, type SavedWorkflow } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
+import { refetchSidebar } from "@/lib/refetch-sidebar";
 import { WorkflowMiniMap } from "./workflow-mini-map";
 import { WorkflowNodeIcons } from "./workflow-node-icons";
 

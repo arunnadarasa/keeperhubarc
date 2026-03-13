@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-vi.mock("@/keeperhub/lib/logging", () => ({
+vi.mock("@/lib/logging", () => ({
   ErrorCategory: {
     VALIDATION: "validation",
     NETWORK_RPC: "network_rpc",

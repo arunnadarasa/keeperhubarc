@@ -1,9 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import {
-  authenticateAdmin,
-  validateTestEmail,
-} from "@/keeperhub/lib/admin-auth";
+import { authenticateAdmin, validateTestEmail } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { verifications } from "@/lib/db/schema";
 

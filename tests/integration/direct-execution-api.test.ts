@@ -59,7 +59,7 @@ vi.mock("@/keeperhub/plugins/web3/steps/write-contract-core", () => ({
   writeContractCore: mocks.writeContractCore,
 }));
 
-vi.mock("@/keeperhub/lib/abi-cache", () => ({
+vi.mock("@/lib/abi-cache", () => ({
   resolveAbi: mocks.resolveAbi,
 }));
 

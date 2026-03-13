@@ -37,8 +37,8 @@ import { FeedbackOverlay } from "@/keeperhub/components/overlays/feedback-overla
 import { ProjectsOverlay } from "@/keeperhub/components/overlays/projects-overlay";
 import { TagsOverlay } from "@/keeperhub/components/overlays/tags-overlay";
 import { WalletOverlay } from "@/keeperhub/components/overlays/wallet-overlay";
-import { useOrganization } from "@/keeperhub/lib/hooks/use-organization";
 import { signOut, useSession } from "@/lib/auth-client";
+import { useOrganization } from "@/lib/hooks/use-organization";
 
 export const UserMenu = () => {
   const { data: session, isPending } = useSession();

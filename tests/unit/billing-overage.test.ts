@@ -30,13 +30,13 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/keeperhub/lib/billing/providers", () => ({
+vi.mock("@/lib/billing/providers", () => ({
   getBillingProvider: vi.fn(),
 }));
 
-import { billOverageForOrg } from "@/keeperhub/lib/billing/overage";
-import type { BillingProvider } from "@/keeperhub/lib/billing/provider";
-import { getBillingProvider } from "@/keeperhub/lib/billing/providers";
+import { billOverageForOrg } from "@/lib/billing/overage";
+import type { BillingProvider } from "@/lib/billing/provider";
+import { getBillingProvider } from "@/lib/billing/providers";
 import { db } from "@/lib/db";
 
 function mockExecutionCount(count: number): void {

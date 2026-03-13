@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  getProtocol,
-  registerProtocol,
-} from "@/keeperhub/lib/protocol-registry";
 import aaveV3Def from "@/keeperhub/protocols/aave-v3";
+import { getProtocol, registerProtocol } from "@/lib/protocol-registry";
 
 const KEBAB_CASE_REGEX = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const ETH_ADDRESS_REGEX = /^0x[0-9a-fA-F]{40}$/;

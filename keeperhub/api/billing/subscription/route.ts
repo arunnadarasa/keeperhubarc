@@ -1,20 +1,17 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
+import { auth } from "@/lib/auth";
+import { isBillingEnabled } from "@/lib/billing/feature-flag";
 import {
   getPlanLimits,
   parsePlanName,
   parseTierKey,
-} from "@/keeperhub/lib/billing/plans";
-import {
-  getOrgSubscription,
-  resolvePriceId,
-} from "@/keeperhub/lib/billing/plans-server";
-import { getActiveOrgId } from "@/keeperhub/lib/middleware/org-context";
-import { auth } from "@/lib/auth";
+} from "@/lib/billing/plans";
+import { getOrgSubscription, resolvePriceId } from "@/lib/billing/plans-server";
 import { db } from "@/lib/db";
 import { overageBillingRecords } from "@/lib/db/schema";
+import { getActiveOrgId } from "@/lib/middleware/org-context";
 
 export async function GET(): Promise<NextResponse> {
   if (!isBillingEnabled()) {

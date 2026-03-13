@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { resolveConditionExpression } from "@/keeperhub/lib/condition-resolver";
-import { buildEdgesBySourceHandle } from "@/keeperhub/lib/edge-handle-utils";
+import { resolveConditionExpression } from "@/lib/condition-resolver";
+import { buildEdgesBySourceHandle } from "@/lib/edge-handle-utils";
 import { evaluateConditionExpression } from "@/lib/workflow-executor.workflow";
 
 type EdgeLike = {

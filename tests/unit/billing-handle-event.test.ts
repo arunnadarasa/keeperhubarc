@@ -5,7 +5,7 @@ vi.mock("server-only", () => ({}));
 const mockClearDebtForInvoice = vi.fn().mockResolvedValue(0);
 const mockClearAllDebtForOrg = vi.fn().mockResolvedValue(0);
 
-vi.mock("@/keeperhub/lib/billing/execution-debt", () => ({
+vi.mock("@/lib/billing/execution-debt", () => ({
   clearDebtForInvoice: (...args: unknown[]) => mockClearDebtForInvoice(...args),
   clearAllDebtForOrg: (...args: unknown[]) => mockClearAllDebtForOrg(...args),
 }));
@@ -14,15 +14,15 @@ const mockBillOverageForOrg = vi
   .fn()
   .mockResolvedValue({ billed: false, reason: "no overage" });
 
-vi.mock("@/keeperhub/lib/billing/overage", () => ({
+vi.mock("@/lib/billing/overage", () => ({
   billOverageForOrg: (...args: unknown[]) => mockBillOverageForOrg(...args),
 }));
 
-import { handleBillingEvent } from "@/keeperhub/lib/billing/handle-billing-event";
+import { handleBillingEvent } from "@/lib/billing/handle-billing-event";
 import type {
   BillingProvider,
   BillingWebhookEvent,
-} from "@/keeperhub/lib/billing/provider";
+} from "@/lib/billing/provider";
 import { db } from "@/lib/db";
 
 const mockSet = vi.fn().mockReturnValue({ where: vi.fn() });

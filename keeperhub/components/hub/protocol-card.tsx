@@ -13,8 +13,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { getChainName, getExplorerUrl } from "@/keeperhub/lib/chain-utils";
-import type { ProtocolDefinition } from "@/keeperhub/lib/protocol-registry";
+import { getChainName, getExplorerUrl } from "@/lib/chain-utils";
+import type { ProtocolDefinition } from "@/lib/protocol-registry";
 
 type ProtocolCardProps = {
   protocol: ProtocolDefinition;

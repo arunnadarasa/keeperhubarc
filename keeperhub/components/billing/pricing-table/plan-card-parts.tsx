@@ -1,12 +1,8 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardFooter } from "@/components/ui/card";
-import { SUPPORT_LABELS } from "@/keeperhub/lib/billing/constants";
-import type {
-  BillingInterval,
-  PLANS,
-  PlanName,
-} from "@/keeperhub/lib/billing/plans";
+import { SUPPORT_LABELS } from "@/lib/billing/constants";
+import type { BillingInterval, PLANS, PlanName } from "@/lib/billing/plans";
 import { cn } from "@/lib/utils";
 import type { PlanTierItem } from "./types";
 import { formatPrice, getButtonLabel, getExecutionsDisplay } from "./utils";

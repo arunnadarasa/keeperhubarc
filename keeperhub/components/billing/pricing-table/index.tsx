@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { BillingInterval } from "@/keeperhub/lib/billing/plans";
-import { PLANS } from "@/keeperhub/lib/billing/plans";
+import type { BillingInterval } from "@/lib/billing/plans";
+import { PLANS } from "@/lib/billing/plans";
 import { cn } from "@/lib/utils";
 import { PlanCard } from "./plan-card";
 import type { PricingTableProps } from "./types";

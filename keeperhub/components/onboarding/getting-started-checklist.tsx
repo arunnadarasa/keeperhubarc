@@ -21,9 +21,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { WalletOverlay } from "@/keeperhub/components/overlays/wallet-overlay";
-import { useOnboardingStatus } from "@/keeperhub/lib/hooks/use-onboarding-status";
-import { isAnonymousUser } from "@/keeperhub/lib/is-anonymous";
 import { useSession } from "@/lib/auth-client";
+import { useOnboardingStatus } from "@/lib/hooks/use-onboarding-status";
+import { isAnonymousUser } from "@/lib/is-anonymous";
 import { cn } from "@/lib/utils";
 
 type StepConfig = {

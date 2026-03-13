@@ -1,6 +1,6 @@
 import "server-only";
 
-import { authenticateApiKey } from "@/keeperhub/lib/api-key-auth";
+import { authenticateApiKey } from "@/lib/api-key-auth";
 
 export type ApiKeyContext = {
   organizationId: string;

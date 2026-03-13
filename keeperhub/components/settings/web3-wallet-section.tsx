@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { toChecksumAddress } from "@/keeperhub/lib/address-utils";
+import { toChecksumAddress } from "@/lib/address-utils";
 import { useSession } from "@/lib/auth-client";
 import { integrationsVersionAtom } from "@/lib/integrations-store";
 

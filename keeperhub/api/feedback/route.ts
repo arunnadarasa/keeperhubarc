@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 import { auth } from "@/lib/auth";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 const FEEDBACK_SERVICE_URL = process.env.FEEDBACK_SERVICE_URL || "";
 const FEEDBACK_API_KEY = process.env.FEEDBACK_API_KEY || "";

@@ -6,7 +6,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { ProtocolDefinition } from "@/keeperhub/lib/protocol-registry";
+import type { ProtocolDefinition } from "@/lib/protocol-registry";
 import { ProtocolDetail } from "./protocol-detail";
 
 type ProtocolDetailModalProps = {

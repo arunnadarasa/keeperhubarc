@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { db } from "@/lib/db";
 import { publicTags, workflowPublicTags, workflows } from "@/lib/db/schema";
 type TagInfo = { id: string; name: string; slug: string };

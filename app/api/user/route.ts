@@ -1,10 +1,10 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
-import { getUserWallet } from "@/keeperhub/lib/para/wallet-helpers";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { accounts, users } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
+import { getUserWallet } from "@/lib/para/wallet-helpers";
 
 export async function GET(request: Request) {
   try {

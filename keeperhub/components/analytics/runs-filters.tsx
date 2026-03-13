@@ -6,15 +6,12 @@ import type { ReactNode } from "react";
 import { useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type {
-  NormalizedStatus,
-  RunSource,
-} from "@/keeperhub/lib/analytics/types";
+import type { NormalizedStatus, RunSource } from "@/lib/analytics/types";
 import {
   analyticsSearchAtom,
   analyticsSourceFilterAtom,
   analyticsStatusFilterAtom,
-} from "@/keeperhub/lib/atoms/analytics";
+} from "@/lib/atoms/analytics";
 import { cn } from "@/lib/utils";
 
 const STATUS_OPTIONS: Array<{

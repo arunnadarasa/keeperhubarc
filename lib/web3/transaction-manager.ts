@@ -11,8 +11,8 @@
  */
 
 import type { ethers } from "ethers";
-import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
-import { initializeParaSigner } from "@/keeperhub/lib/para/wallet-helpers";
+import { ErrorCategory, logUserError } from "@/lib/logging";
+import { initializeParaSigner } from "@/lib/para/wallet-helpers";
 import { getRpcProviderFromUrls } from "@/lib/rpc/provider-factory";
 import {
   type TriggerType as GasTriggerType,

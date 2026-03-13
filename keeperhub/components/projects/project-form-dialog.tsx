@@ -13,8 +13,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { COLOR_PALETTE } from "@/keeperhub/lib/palette";
 import { api, type Project } from "@/lib/api-client";
+import { COLOR_PALETTE } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 
 type ProjectFormDialogProps = {

@@ -10,8 +10,8 @@ import { AddAddressOverlay } from "@/keeperhub/components/overlays/address-book-
 import {
   ADDRESS_BOOK_SELECTION_KEY,
   parseAddressBookSelection,
-} from "@/keeperhub/lib/address-book-selection";
-import { normalizeAddressForStorage } from "@/keeperhub/lib/address-utils";
+} from "@/lib/address-book-selection";
+import { normalizeAddressForStorage } from "@/lib/address-utils";
 import { addressBookApi, api } from "@/lib/api-client";
 import { useSession } from "@/lib/auth-client";
 import {

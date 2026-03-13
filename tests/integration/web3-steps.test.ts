@@ -93,7 +93,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 // Mock Para wallet helpers
-vi.mock("@/keeperhub/lib/para/wallet-helpers", () => ({
+vi.mock("@/lib/para/wallet-helpers", () => ({
   initializeParaSigner: vi.fn().mockResolvedValue({
     getAddress: vi
       .fn()

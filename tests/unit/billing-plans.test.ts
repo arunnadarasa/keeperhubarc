@@ -4,11 +4,8 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db", () => ({ db: {} }));
 vi.mock("@/lib/db/schema", () => ({ organizationSubscriptions: {} }));
 
-import { getPlanLimits, PLANS } from "@/keeperhub/lib/billing/plans";
-import {
-  getPriceId,
-  resolvePriceId,
-} from "@/keeperhub/lib/billing/plans-server";
+import { getPlanLimits, PLANS } from "@/lib/billing/plans";
+import { getPriceId, resolvePriceId } from "@/lib/billing/plans-server";
 
 describe("getPriceId", () => {
   it("returns price ID for pro 25k monthly", () => {

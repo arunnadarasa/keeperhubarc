@@ -7,7 +7,7 @@ import type {
   NetworkBreakdown,
   RunsResponse,
   TimeSeriesBucket,
-} from "@/keeperhub/lib/analytics/types";
+} from "@/lib/analytics/types";
 import {
   analyticsErrorAtom,
   analyticsLastUpdatedAtom,
@@ -21,7 +21,7 @@ import {
   analyticsStatusFilterAtom,
   analyticsSummaryAtom,
   analyticsTimeSeriesAtom,
-} from "@/keeperhub/lib/atoms/analytics";
+} from "@/lib/atoms/analytics";
 import { authClient } from "@/lib/auth-client";
 
 const POLL_INTERVAL_MS = 10_000;

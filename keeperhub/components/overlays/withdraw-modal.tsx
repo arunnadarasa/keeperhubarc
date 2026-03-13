@@ -17,10 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SaveAddressBookmark } from "@/keeperhub/components/address-book/save-address-bookmark";
-import {
-  toChecksumAddress,
-  truncateAddress,
-} from "@/keeperhub/lib/address-utils";
+import { toChecksumAddress, truncateAddress } from "@/lib/address-utils";
 
 export type WithdrawableAsset = {
   type: "native" | "token";

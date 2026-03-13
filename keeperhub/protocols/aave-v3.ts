@@ -1,4 +1,4 @@
-import { defineProtocol } from "@/keeperhub/lib/protocol-registry";
+import { defineProtocol } from "@/lib/protocol-registry";
 
 export default defineProtocol({
   name: "Aave V3",

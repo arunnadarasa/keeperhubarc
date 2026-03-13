@@ -7,7 +7,7 @@ import type {
   RunsResponse,
   TimeRange,
   TimeSeriesBucket,
-} from "@/keeperhub/lib/analytics/types";
+} from "@/lib/analytics/types";
 
 export const analyticsRangeAtom = atom<TimeRange>("24h");
 

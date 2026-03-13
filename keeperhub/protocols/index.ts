@@ -11,10 +11,7 @@
  * Registered protocols: aave, ajna, compound, cowswap, curve, morpho, pendle, rocket-pool, safe, sky, spark, uniswap, weth
  */
 
-import {
-  protocolToPlugin,
-  registerProtocol,
-} from "@/keeperhub/lib/protocol-registry";
+import { protocolToPlugin, registerProtocol } from "@/lib/protocol-registry";
 import { registerIntegration } from "@/plugins/registry";
 
 import aaveDef from "./aave-v3";

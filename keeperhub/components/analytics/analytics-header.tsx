@@ -9,12 +9,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { TimeRange } from "@/keeperhub/lib/analytics/types";
+import type { TimeRange } from "@/lib/analytics/types";
 import {
   analyticsLastUpdatedAtom,
   analyticsLiveAtom,
   analyticsRangeAtom,
-} from "@/keeperhub/lib/atoms/analytics";
+} from "@/lib/atoms/analytics";
 import { cn } from "@/lib/utils";
 
 const RANGE_OPTIONS: Array<{ value: TimeRange; label: string }> = [

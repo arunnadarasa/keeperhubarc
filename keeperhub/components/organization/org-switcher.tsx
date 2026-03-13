@@ -16,11 +16,11 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ManageOrgsModal } from "@/keeperhub/components/organization/manage-orgs-modal";
+import { useSession } from "@/lib/auth-client";
 import {
   useOrganization,
   useOrganizations,
-} from "@/keeperhub/lib/hooks/use-organization";
-import { useSession } from "@/lib/auth-client";
+} from "@/lib/hooks/use-organization";
 
 export function OrgSwitcher() {
   const { data: session } = useSession();

@@ -1,13 +1,13 @@
 import { and, eq, lt, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
-import { billOverageForOrg } from "@/keeperhub/lib/billing/overage";
-import { authenticateInternalService } from "@/keeperhub/lib/internal-service-auth";
+import { isBillingEnabled } from "@/lib/billing/feature-flag";
+import { billOverageForOrg } from "@/lib/billing/overage";
 import { db } from "@/lib/db";
 import {
   organizationSubscriptions,
   overageBillingRecords,
 } from "@/lib/db/schema";
+import { authenticateInternalService } from "@/lib/internal-service-auth";
 
 type SingleOrgBody = {
   scan?: never;

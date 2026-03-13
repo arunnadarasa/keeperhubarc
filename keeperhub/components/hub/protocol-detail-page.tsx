@@ -2,7 +2,7 @@
 
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import type { ProtocolDefinition } from "@/keeperhub/lib/protocol-registry";
+import type { ProtocolDefinition } from "@/lib/protocol-registry";
 import { ProtocolDetail } from "./protocol-detail";
 
 export function ProtocolDetailPage({

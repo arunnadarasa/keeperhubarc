@@ -16,9 +16,9 @@ import { HubResults } from "@/keeperhub/components/hub/hub-results";
 import { ProtocolDetailModal } from "@/keeperhub/components/hub/protocol-detail-modal";
 import { ProtocolStrip } from "@/keeperhub/components/hub/protocol-strip";
 import { WorkflowSearchFilter } from "@/keeperhub/components/hub/workflow-search-filter";
-import { useDebounce } from "@/keeperhub/lib/hooks/use-debounce";
-import type { ProtocolDefinition } from "@/keeperhub/lib/protocol-registry";
 import { api, type PublicTag, type SavedWorkflow } from "@/lib/api-client";
+import { useDebounce } from "@/lib/hooks/use-debounce";
+import type { ProtocolDefinition } from "@/lib/protocol-registry";
 
 export default function HubPage(): React.ReactElement {
   return (

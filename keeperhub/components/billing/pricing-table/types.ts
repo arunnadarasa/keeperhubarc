@@ -3,7 +3,7 @@ import type {
   PLANS,
   PlanName,
   TierKey,
-} from "@/keeperhub/lib/billing/plans";
+} from "@/lib/billing/plans";
 
 export type PricingTableProps = {
   currentPlan?: PlanName;

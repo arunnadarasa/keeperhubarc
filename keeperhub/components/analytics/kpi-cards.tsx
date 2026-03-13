@@ -15,7 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   analyticsLoadingAtom,
   analyticsSummaryAtom,
-} from "@/keeperhub/lib/atoms/analytics";
+} from "@/lib/atoms/analytics";
 import { cn } from "@/lib/utils";
 
 function formatDuration(ms: number | null): string {

@@ -5,8 +5,8 @@
  */
 import "server-only";
 
-import { recordStepMetrics } from "@/keeperhub/lib/metrics/instrumentation/workflow";
-import { recordStepSuccess } from "@/keeperhub/lib/step-success-tracker";
+import { recordStepMetrics } from "@/lib/metrics/instrumentation/workflow";
+import { recordStepSuccess } from "@/lib/step-success-tracker";
 import { redactSensitiveData } from "../utils/redact";
 import {
   incrementCompletedSteps,

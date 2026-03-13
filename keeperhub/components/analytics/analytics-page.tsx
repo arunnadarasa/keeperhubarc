@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import {
   analyticsProjectIdAtom,
   analyticsSummaryAtom,
-} from "@/keeperhub/lib/atoms/analytics";
+} from "@/lib/atoms/analytics";
 import { useSession } from "@/lib/auth-client";
 import { AnalyticsHeader } from "./analytics-header";
 import { EmptyState } from "./empty-state";

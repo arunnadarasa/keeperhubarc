@@ -6,11 +6,11 @@ vi.mock("@/lib/steps/step-handler", () => ({
   withStepLogging: (_input: unknown, fn: () => unknown) => fn(),
 }));
 
-vi.mock("@/keeperhub/lib/metrics/instrumentation/plugin", () => ({
+vi.mock("@/lib/metrics/instrumentation/plugin", () => ({
   withPluginMetrics: (_opts: unknown, fn: () => unknown) => fn(),
 }));
 
-vi.mock("@/keeperhub/lib/logging", () => ({
+vi.mock("@/lib/logging", () => ({
   ErrorCategory: { VALIDATION: "VALIDATION" },
   // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op mock
   logUserError: () => {},

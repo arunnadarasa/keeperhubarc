@@ -14,12 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { toChecksumAddress } from "@/keeperhub/lib/address-utils";
+import { toChecksumAddress } from "@/lib/address-utils";
 import type {
   CustomToken,
   SupportedToken,
   TokenFieldValue,
-} from "@/keeperhub/lib/wallet/types";
+} from "@/lib/wallet/types";
 import type { ActionConfigFieldBase } from "@/plugins/registry";
 
 type TokenSelectFieldProps = {

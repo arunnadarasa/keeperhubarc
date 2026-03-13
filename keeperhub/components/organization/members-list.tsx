@@ -30,8 +30,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useActiveMember } from "@/keeperhub/lib/hooks/use-organization";
 import { authClient } from "@/lib/auth-client";
+import { useActiveMember } from "@/lib/hooks/use-organization";
 
 type Member = {
   id: string;

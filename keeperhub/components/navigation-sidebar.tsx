@@ -20,16 +20,16 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
-import { useActiveMember } from "@/keeperhub/lib/hooks/use-organization";
-import { isAnonymousUser } from "@/keeperhub/lib/is-anonymous";
-import { registerSidebarRefetch } from "@/keeperhub/lib/refetch-sidebar";
 import type { Project, SavedWorkflow, Tag } from "@/lib/api-client";
 import { api } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
+import { isBillingEnabled } from "@/lib/billing/feature-flag";
+import { useActiveMember } from "@/lib/hooks/use-organization";
+import type { NavPanelStates } from "@/lib/hooks/use-persisted-nav-state";
+import { usePersistedNavState } from "@/lib/hooks/use-persisted-nav-state";
+import { isAnonymousUser } from "@/lib/is-anonymous";
+import { registerSidebarRefetch } from "@/lib/refetch-sidebar";
 import { cn } from "@/lib/utils";
-import type { NavPanelStates } from "../lib/hooks/use-persisted-nav-state";
-import { usePersistedNavState } from "../lib/hooks/use-persisted-nav-state";
 import { FLYOUT_WIDTH, FlyoutPanel, STRIP_WIDTH } from "./flyout-panel";
 
 export const COLLAPSED_WIDTH = 60;

@@ -10,10 +10,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  toChecksumAddress,
-  truncateAddress,
-} from "@/keeperhub/lib/address-utils";
+import { toChecksumAddress, truncateAddress } from "@/lib/address-utils";
 import type { AddressBookEntry } from "@/lib/api-client";
 
 type AddressBookRowProps = {

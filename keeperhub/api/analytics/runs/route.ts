@@ -1,13 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { getUnifiedRuns } from "@/keeperhub/lib/analytics/queries";
-import { parseTimeRange } from "@/keeperhub/lib/analytics/time-range";
-import type {
-  NormalizedStatus,
-  RunSource,
-} from "@/keeperhub/lib/analytics/types";
-import { apiError } from "@/keeperhub/lib/api-error";
-import { requireOrganization } from "@/keeperhub/lib/middleware/require-org";
+import { getUnifiedRuns } from "@/lib/analytics/queries";
+import { parseTimeRange } from "@/lib/analytics/time-range";
+import type { NormalizedStatus, RunSource } from "@/lib/analytics/types";
+import { apiError } from "@/lib/api-error";
+import { requireOrganization } from "@/lib/middleware/require-org";
 
 const VALID_STATUSES = new Set<NormalizedStatus>([
   "pending",

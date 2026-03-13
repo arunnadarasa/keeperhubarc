@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
-import { getOrgSubscription } from "@/keeperhub/lib/billing/plans-server";
-import { getBillingProvider } from "@/keeperhub/lib/billing/providers";
-import { requireOrgOwner } from "@/keeperhub/lib/billing/require-org-owner";
+import { isBillingEnabled } from "@/lib/billing/feature-flag";
+import { getOrgSubscription } from "@/lib/billing/plans-server";
+import { getBillingProvider } from "@/lib/billing/providers";
+import { requireOrgOwner } from "@/lib/billing/require-org-owner";
 import { db } from "@/lib/db";
 import { organizationSubscriptions } from "@/lib/db/schema";
 

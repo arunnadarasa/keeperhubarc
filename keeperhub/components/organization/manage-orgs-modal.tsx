@@ -49,15 +49,15 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { ApiError, api } from "@/lib/api-client";
+import { authClient } from "@/lib/auth-client";
 import {
   useActiveMember,
   useOrganization,
   useOrganizations,
-} from "@/keeperhub/lib/hooks/use-organization";
-import { refetchOrganizations } from "@/keeperhub/lib/refetch-organizations";
-import type { MemberRole } from "@/keeperhub/lib/types/organization";
-import { ApiError, api } from "@/lib/api-client";
-import { authClient } from "@/lib/auth-client";
+} from "@/lib/hooks/use-organization";
+import { refetchOrganizations } from "@/lib/refetch-organizations";
+import type { MemberRole } from "@/lib/types/organization";
 
 // Helper function to get status badge classes
 function getStatusBadgeClasses(status: string): string {

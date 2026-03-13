@@ -100,7 +100,7 @@ function discoverProtocols(): string[] {
 type ProtocolEntry = {
   slug: string;
   fileStem: string;
-  definition: import("../keeperhub/lib/protocol-registry").ProtocolDefinition;
+  definition: import("@/lib/protocol-registry").ProtocolDefinition;
 };
 
 /**
@@ -121,7 +121,7 @@ async function loadProtocolDefinitions(): Promise<ProtocolEntry[]> {
     try {
       const mod = await import(filePath);
       const definition =
-        mod.default as import("../keeperhub/lib/protocol-registry").ProtocolDefinition;
+        mod.default as import("@/lib/protocol-registry").ProtocolDefinition;
 
       if (!definition?.slug) {
         console.warn(
@@ -152,7 +152,7 @@ async function loadProtocolDefinitions(): Promise<ProtocolEntry[]> {
  * Populates registeredProtocolSlugs and registeredProtocolEntries for use by other functions
  */
 async function registerProtocolPlugins(): Promise<string[]> {
-  const { protocolToPlugin, registerProtocol } = await import("../keeperhub/lib/protocol-registry");
+  const { protocolToPlugin, registerProtocol } = await import("@/lib/protocol-registry");
   const { registerIntegration } = await import("../plugins/registry");
 
   const definitions = await loadProtocolDefinitions();
@@ -233,7 +233,7 @@ function generateProtocolsIndexFile(): void {
 import {
   protocolToPlugin,
   registerProtocol,
-} from "@/keeperhub/lib/protocol-registry";
+} from "@/lib/protocol-registry";
 import { registerIntegration } from "@/plugins/registry";
 
 ${imports.join("\n")}

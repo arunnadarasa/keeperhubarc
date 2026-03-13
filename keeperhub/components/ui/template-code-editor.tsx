@@ -5,6 +5,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { AlertTriangle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { CodeEditor } from "@/components/ui/code-editor";
+import { api } from "@/lib/api-client";
 import {
   buildExecutionLogsMap,
   type ExecutionLogsByNodeId,
@@ -13,9 +14,8 @@ import {
   getCommonFields,
   getNodeDisplayName,
   sanitizeNodeId,
-} from "@/keeperhub/lib/template-helpers";
-import { useStableRef } from "@/keeperhub/lib/use-stable-ref";
-import { api } from "@/lib/api-client";
+} from "@/lib/template-helpers";
+import { useStableRef } from "@/lib/use-stable-ref";
 import { getAvailableFields, type NodeOutputs } from "@/lib/utils/template";
 import {
   currentWorkflowIdAtom,

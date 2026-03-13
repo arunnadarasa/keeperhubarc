@@ -14,7 +14,7 @@ export async function GET(): Promise<NextResponse> {
 
   try {
     const { getApiProcessMetrics, getPrometheusContentType } = await import(
-      "@/keeperhub/lib/metrics/prometheus-api"
+      "@/lib/metrics/prometheus-api"
     );
 
     const metrics = await getApiProcessMetrics();

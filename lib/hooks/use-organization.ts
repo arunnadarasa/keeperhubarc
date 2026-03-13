@@ -3,10 +3,10 @@
 import { getDefaultStore } from "jotai";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { registerOrganizationRefetch } from "@/keeperhub/lib/refetch-organizations";
-import { refetchSidebar } from "@/keeperhub/lib/refetch-sidebar";
 import { api } from "@/lib/api-client";
 import { authClient } from "@/lib/auth-client";
+import { registerOrganizationRefetch } from "@/lib/refetch-organizations";
+import { refetchSidebar } from "@/lib/refetch-sidebar";
 import { resetWorkflowStateForOrgSwitchAtom } from "@/lib/workflow-store";
 
 export function useOrganization() {

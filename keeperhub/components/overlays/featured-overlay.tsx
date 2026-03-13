@@ -17,10 +17,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { WorkflowMiniMap } from "@/keeperhub/components/hub/workflow-mini-map";
-import { useDebounce } from "@/keeperhub/lib/hooks/use-debounce";
-import { refetchSidebar } from "@/keeperhub/lib/refetch-sidebar";
 import { api, type SavedWorkflow } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
+import { useDebounce } from "@/lib/hooks/use-debounce";
+import { refetchSidebar } from "@/lib/refetch-sidebar";
 
 type FeaturedOverlayProps = OverlayComponentProps;
 

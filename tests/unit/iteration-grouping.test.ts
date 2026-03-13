@@ -4,7 +4,7 @@ import {
   buildIterationGroups,
   groupLogsByIteration,
   type IterationLogFields,
-} from "@/keeperhub/lib/iteration-grouping";
+} from "@/lib/iteration-grouping";
 
 // ---------------------------------------------------------------------------
 // Helpers

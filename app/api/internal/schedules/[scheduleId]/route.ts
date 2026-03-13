@@ -1,10 +1,9 @@
 import { CronExpressionParser } from "cron-parser";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-
-import { authenticateInternalService } from "@/keeperhub/lib/internal-service-auth";
 import { db } from "@/lib/db";
 import { workflowSchedules } from "@/lib/db/schema";
+import { authenticateInternalService } from "@/lib/internal-service-auth";
 
 type RouteContext = {
   params: Promise<{ scheduleId: string }>;

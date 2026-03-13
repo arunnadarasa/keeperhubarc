@@ -11,8 +11,8 @@ import {
 import Image from "next/image";
 import { useCallback, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { getChainName } from "@/keeperhub/lib/chain-utils";
-import type { ProtocolDefinition } from "@/keeperhub/lib/protocol-registry";
+import { getChainName } from "@/lib/chain-utils";
+import type { ProtocolDefinition } from "@/lib/protocol-registry";
 
 const MAX_VISIBLE_CHAINS = 3;
 

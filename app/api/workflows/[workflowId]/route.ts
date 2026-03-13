@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
-import { getDualAuthContext } from "@/keeperhub/lib/middleware/auth-helpers";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
+import { getDualAuthContext } from "@/lib/middleware/auth-helpers";
 import { db } from "@/lib/db";
 import { validateWorkflowIntegrations } from "@/lib/db/integrations";
 import { projects, publicTags, tags, workflowPublicTags, workflows } from "@/lib/db/schema";

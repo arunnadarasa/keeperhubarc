@@ -1,9 +1,9 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import { resolveAbi } from "@/keeperhub/lib/abi-cache";
 import { readContractCore } from "@/keeperhub/plugins/web3/steps/read-contract-core";
 import { writeContractCore } from "@/keeperhub/plugins/web3/steps/write-contract-core";
+import { resolveAbi } from "@/lib/abi-cache";
 import { getErrorMessage } from "@/lib/utils";
 import { validateApiKey } from "../_lib/auth";
 import type { ConditionInput, ConditionResult } from "../_lib/condition";

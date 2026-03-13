@@ -1,13 +1,13 @@
 import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
 import { NextResponse } from "next/server";
-import { apiError } from "@/keeperhub/lib/api-error";
-import { getActiveOrgId } from "@/keeperhub/lib/middleware/org-context";
-import { getOrganizationWallet } from "@/keeperhub/lib/para/wallet-helpers";
+import { apiError } from "@/lib/api-error";
 import { auth } from "@/lib/auth";
 import ERC20_ABI from "@/lib/contracts/abis/erc20.json";
 import { db } from "@/lib/db";
 import { chains, organizationTokens } from "@/lib/db/schema";
+import { getActiveOrgId } from "@/lib/middleware/org-context";
+import { getOrganizationWallet } from "@/lib/para/wallet-helpers";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
 
 type TokenBalance = {

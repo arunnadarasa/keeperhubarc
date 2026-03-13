@@ -6,7 +6,7 @@ const mockAuthResult = {
   authenticated: true,
   service: "scheduler" as const,
 };
-vi.mock("@/keeperhub/lib/internal-service-auth", () => ({
+vi.mock("@/lib/internal-service-auth", () => ({
   authenticateInternalService: vi.fn(() => mockAuthResult),
 }));
 
@@ -46,7 +46,7 @@ vi.mock("@/lib/db/schema", () => ({
 }));
 
 import { GET } from "@/keeperhub/api/internal/reaper/route";
-import { authenticateInternalService } from "@/keeperhub/lib/internal-service-auth";
+import { authenticateInternalService } from "@/lib/internal-service-auth";
 
 function createRequest(): Request {
   return new Request("http://localhost:3000/api/internal/reaper", {

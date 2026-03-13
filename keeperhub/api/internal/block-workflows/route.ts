@@ -1,9 +1,8 @@
 import { and, eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
-
-import { authenticateInternalService } from "@/keeperhub/lib/internal-service-auth";
 import { db } from "@/lib/db";
 import { type Chain, chains, workflows } from "@/lib/db/schema";
+import { authenticateInternalService } from "@/lib/internal-service-auth";
 import type { WorkflowNode } from "@/lib/workflow-store";
 
 export async function GET(request: Request): Promise<NextResponse> {

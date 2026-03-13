@@ -2,11 +2,11 @@ import { and, eq } from "drizzle-orm";
 import { ethers } from "ethers";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { normalizeAddressForStorage } from "@/keeperhub/lib/address-utils";
-import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
+import { normalizeAddressForStorage } from "@/lib/address-utils";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { addressBookEntry } from "@/lib/db/schema";
+import { getOrgContext } from "@/lib/middleware/org-context";
 
 // Helper: Validate authentication and owner permissions
 async function validateOwnerPermission(request: Request) {

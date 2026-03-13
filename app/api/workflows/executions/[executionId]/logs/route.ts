@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
+import { getOrgContext } from "@/lib/middleware/org-context";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { workflowExecutionLogs, workflowExecutions } from "@/lib/db/schema";

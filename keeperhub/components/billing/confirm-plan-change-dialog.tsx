@@ -18,13 +18,13 @@ import {
   BILLING_API,
   SUPPORT_LABELS,
   SUPPORT_RANK,
-} from "@/keeperhub/lib/billing/constants";
+} from "@/lib/billing/constants";
 import {
   PLANS,
   type PlanLimits,
   type PlanName,
   type TierKey,
-} from "@/keeperhub/lib/billing/plans";
+} from "@/lib/billing/plans";
 import { cn } from "@/lib/utils";
 
 type ChangeDirection = "upgrade" | "downgrade" | "same";

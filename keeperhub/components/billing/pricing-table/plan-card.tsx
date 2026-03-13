@@ -10,13 +10,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CONTACT_EMAIL } from "@/keeperhub/lib/billing/constants";
+import { CONTACT_EMAIL } from "@/lib/billing/constants";
 import type {
   BillingInterval,
   PLANS,
   PlanName,
   TierKey,
-} from "@/keeperhub/lib/billing/plans";
+} from "@/lib/billing/plans";
 import { cn } from "@/lib/utils";
 import { ConfirmPlanChangeDialog } from "../confirm-plan-change-dialog";
 import {

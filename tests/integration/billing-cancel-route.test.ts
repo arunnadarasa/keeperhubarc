@@ -42,7 +42,7 @@ vi.mock("@/lib/db/schema", () => ({
 
 const mockCancelSubscription = vi.fn();
 
-vi.mock("@/keeperhub/lib/billing/providers", () => ({
+vi.mock("@/lib/billing/providers", () => ({
   getBillingProvider: () => ({
     cancelSubscription: mockCancelSubscription,
   }),

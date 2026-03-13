@@ -56,7 +56,7 @@ const mockCreateCustomer = vi.fn();
 const mockUpdateSubscription = vi.fn();
 const mockGetSubscriptionDetails = vi.fn();
 
-vi.mock("@/keeperhub/lib/billing/providers", () => ({
+vi.mock("@/lib/billing/providers", () => ({
   getBillingProvider: () => ({
     createCheckoutSession: mockCreateCheckoutSession,
     createCustomer: mockCreateCustomer,

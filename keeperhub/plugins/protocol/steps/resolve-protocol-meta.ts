@@ -1,4 +1,4 @@
-import { getProtocol } from "@/keeperhub/lib/protocol-registry";
+import { getProtocol } from "@/lib/protocol-registry";
 
 export type ProtocolMeta = {
   protocolSlug: string;
