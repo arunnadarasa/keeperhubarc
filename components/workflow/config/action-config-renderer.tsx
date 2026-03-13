@@ -31,7 +31,7 @@ import {
   type ActionConfigField,
   type ActionConfigFieldBase,
   isFieldGroup,
-} from "@/plugins";
+} from "@/plugins/registry";
 import { SchemaBuilder, type SchemaField } from "./schema-builder";
 
 type FieldProps = {

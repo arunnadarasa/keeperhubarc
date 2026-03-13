@@ -5,14 +5,11 @@ import { streamText } from "ai";
 import { NextResponse } from "next/server";
 // start custom keeperhub code //
 import { authenticateApiKey } from "@/keeperhub/lib/api-key-auth";
-import {
-  createTimer,
-  getMetricsCollector,
-  MetricNames,
-} from "@/keeperhub/lib/metrics";
+import { createTimer, getMetricsCollector } from "@/keeperhub/lib/metrics";
+import { MetricNames } from "@/keeperhub/lib/metrics/types";
 // end keeperhub code //
 import { auth } from "@/lib/auth";
-import { generateAIActionPrompts } from "@/plugins";
+import { generateAIActionPrompts } from "@/plugins/registry";
 
 // Simple type for operations
 type Operation = {

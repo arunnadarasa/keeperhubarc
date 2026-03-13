@@ -12,5 +12,3 @@
 
 // Register all protocol definitions at import time (auto-generated barrel)
 import "@/keeperhub/protocols";
-
-export { ProtocolIcon } from "./icon";

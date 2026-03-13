@@ -21,7 +21,7 @@ import type {
   ProtocolDefinition,
   ProtocolEvent,
 } from "@/keeperhub/lib/protocol-registry";
-import type { ActionConfigField } from "@/plugins";
+import type { ActionConfigField } from "@/plugins/registry";
 import { ActionConfigRenderer } from "./action-config-renderer";
 import { SchemaBuilder, type SchemaField } from "./schema-builder";
 

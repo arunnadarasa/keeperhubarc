@@ -5,7 +5,7 @@ import { getActiveOrgId } from "@/keeperhub/lib/middleware/org-context";
 import { getOrganizationWalletAddress } from "@/keeperhub/lib/para/wallet-helpers";
 import { getChainGasDefaults } from "@/keeperhub/lib/web3/gas-defaults";
 import { auth } from "@/lib/auth";
-import { ERC20_ABI } from "@/lib/contracts";
+import ERC20_ABI from "@/lib/contracts/abis/erc20.json";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
 
 type EstimateConfig = {

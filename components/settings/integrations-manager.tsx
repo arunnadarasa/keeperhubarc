@@ -16,7 +16,7 @@ import { api, type Integration } from "@/lib/api-client";
 // start keeperhub - sync to global atom for singleConnection filtering
 import { integrationsAtom } from "@/lib/integrations-store";
 // end keeperhub
-import { getIntegrationLabels } from "@/plugins";
+import { getIntegrationLabels } from "@/plugins/registry";
 
 // System integrations that don't have plugins
 const SYSTEM_INTEGRATION_LABELS: Record<string, string> = {

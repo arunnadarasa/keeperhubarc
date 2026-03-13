@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils";
 // start custom keeperhub code //
 import { nodesAtom } from "@/lib/workflow-store";
 // end keeperhub code //
-import { getAllActions } from "@/plugins";
+import { getAllActions } from "@/plugins/registry";
 
 type ActionType = {
   id: string;

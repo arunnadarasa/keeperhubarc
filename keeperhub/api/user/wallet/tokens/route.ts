@@ -7,7 +7,7 @@ import { apiError } from "@/keeperhub/lib/api-error";
 import { getActiveOrgId } from "@/keeperhub/lib/middleware/org-context";
 import { organizationHasWallet } from "@/keeperhub/lib/para/wallet-helpers";
 import { auth } from "@/lib/auth";
-import { ERC20_ABI } from "@/lib/contracts";
+import ERC20_ABI from "@/lib/contracts/abis/erc20.json";
 import { db } from "@/lib/db";
 import { chains, organizationTokens, supportedTokens } from "@/lib/db/schema";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";

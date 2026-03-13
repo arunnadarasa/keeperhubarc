@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { signUpAndVerify as signUpAndVerifyBase } from "./utils";
+import { signUpAndVerify as signUpAndVerifyBase } from "./utils/auth";
 
 // Regex patterns (moved to top level for performance)
 const SLUG_PATTERN = /test-org-/;

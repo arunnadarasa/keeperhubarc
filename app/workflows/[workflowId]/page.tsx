@@ -57,7 +57,7 @@ import {
   type WorkflowVisibility,
   workflowNotFoundAtom,
 } from "@/lib/workflow-store";
-import { findActionById } from "@/plugins";
+import { findActionById } from "@/plugins/registry";
 
 type WorkflowPageProps = {
   params: Promise<{ workflowId: string }>;

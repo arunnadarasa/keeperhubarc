@@ -45,7 +45,7 @@ import {
   selectedNodeAtom,
   updateNodeDataAtom,
 } from "@/lib/workflow-store";
-import { findActionById } from "@/plugins";
+import { findActionById } from "@/plugins/registry";
 import { ActionConfig } from "../workflow/config/action-config";
 import { ActionGrid } from "../workflow/config/action-grid";
 import { TriggerConfig } from "../workflow/config/trigger-config";

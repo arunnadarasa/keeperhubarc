@@ -8,7 +8,7 @@ import {
   fetchEtherscanSourceCode,
 } from "@/lib/explorer/etherscan";
 import { detectProxyViaRpc } from "@/lib/explorer/proxy-detection";
-import { getChainIdFromNetwork } from "@/lib/rpc";
+import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 
 type AbiCacheEntry = {
   abi: string;

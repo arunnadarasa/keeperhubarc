@@ -84,7 +84,7 @@ import {
   flattenConfigFields,
   getIntegration,
   getIntegrationLabels,
-} from "@/plugins";
+} from "@/plugins/registry";
 import { Panel } from "../ai-elements/panel";
 import { ConfigurationOverlay } from "../overlays/configuration-overlay";
 import { ConfirmOverlay } from "../overlays/confirm-overlay";

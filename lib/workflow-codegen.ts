@@ -3,7 +3,7 @@
 import { resolveConditionExpression } from "@/keeperhub/lib/condition-resolver";
 import { buildEdgesBySourceHandle } from "@/keeperhub/lib/edge-handle-utils";
 // end keeperhub code //
-import { findActionById, flattenConfigFields } from "@/plugins";
+import { findActionById, flattenConfigFields } from "@/plugins/registry";
 import {
   analyzeNodeUsage,
   buildAccessPath,

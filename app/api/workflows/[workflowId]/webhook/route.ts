@@ -5,9 +5,8 @@ import { start } from "workflow/api";
 import {
   createTimer,
   getMetricsCollector,
-  LabelKeys,
-  MetricNames,
 } from "@/keeperhub/lib/metrics";
+import { LabelKeys, MetricNames } from "@/keeperhub/lib/metrics/types";
 // start custom keeperhub code //
 import {
   EXECUTION_LIMIT_ERROR,
