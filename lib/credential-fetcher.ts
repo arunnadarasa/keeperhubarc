@@ -65,8 +65,18 @@ function mapIntegrationConfig(
     return getCredentialMapping(plugin, config);
   }
 
-  // Fallback for unknown integrations
-  return {};
+  // Fallback: return raw config as credentials when plugin registry is unavailable.
+  // This handles Workflow DevKit step contexts where ensurePluginsLoaded() silently
+  // fails because the dynamic require("@/plugins") is not in the step bundle.
+  // Safe because config is already decrypted and most plugins use identical
+  // configKey/envVar names (e.g. Discord: webhookUrl → webhookUrl).
+  const fallbackCreds: WorkflowCredentials = {};
+  for (const [key, value] of Object.entries(config)) {
+    if (value !== undefined && value !== null) {
+      fallbackCreds[key] = String(value);
+    }
+  }
+  return fallbackCreds;
 }
 
 /**
