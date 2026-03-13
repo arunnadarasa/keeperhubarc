@@ -464,7 +464,7 @@ export const auth = betterAuth({
   trustedOrigins: [
     "http://localhost:3000",
     // start custom keeperhub code //
-    "http://127.0.0.1", // CLI browser auth callback
+    "http://127.0.0.1:*", // CLI browser auth callback (dynamic port)
     // end keeperhub code //
     "https://app-staging.keeperhub.com",
     "https://*.keeperhub.com",
