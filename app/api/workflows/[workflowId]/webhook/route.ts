@@ -11,7 +11,7 @@ import {
   EXECUTION_LIMIT_ERROR,
   enforceExecutionLimit,
 } from "@/lib/billing/execution-guard";
-import { checkConcurrencyLimit } from "@/keeperhub/api/execute/_lib/concurrency-limit";
+import { checkConcurrencyLimit } from "@/app/api/execute/_lib/concurrency-limit";
 import { recordWebhookMetrics } from "@/lib/metrics/instrumentation/api";
 import { db } from "@/lib/db";
 import { validateWorkflowIntegrations } from "@/lib/db/integrations";

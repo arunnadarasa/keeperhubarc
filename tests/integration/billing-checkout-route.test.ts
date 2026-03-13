@@ -65,7 +65,7 @@ vi.mock("@/lib/billing/providers", () => ({
   }),
 }));
 
-import { POST } from "@/keeperhub/api/billing/checkout/route";
+import { POST } from "@/app/api/billing/checkout/route";
 
 function makeRequest(body: Record<string, unknown>): Request {
   return new Request("http://localhost:3000/api/billing/checkout", {

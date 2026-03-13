@@ -48,7 +48,7 @@ vi.mock("@/lib/billing/providers", () => ({
   }),
 }));
 
-import { POST } from "@/keeperhub/api/billing/cancel/route";
+import { POST } from "@/app/api/billing/cancel/route";
 
 function mockSession(): void {
   mockGetSession.mockResolvedValue({

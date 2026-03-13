@@ -20,7 +20,7 @@ vi.mock("@/lib/db/schema", () => ({
   },
 }));
 
-import { checkConcurrencyLimit } from "@/keeperhub/api/execute/_lib/concurrency-limit";
+import { checkConcurrencyLimit } from "@/app/api/execute/_lib/concurrency-limit";
 
 describe("checkConcurrencyLimit", () => {
   beforeEach(() => {
@@ -69,7 +69,7 @@ describe("checkConcurrencyLimit", () => {
     process.env.MAX_CONCURRENT_WORKFLOW_EXECUTIONS = "10";
     vi.resetModules();
     const { checkConcurrencyLimit: freshCheck } = await import(
-      "@/keeperhub/api/execute/_lib/concurrency-limit"
+      "@/app/api/execute/_lib/concurrency-limit"
     );
     mockRunningCount = 10;
 
@@ -82,7 +82,7 @@ describe("checkConcurrencyLimit", () => {
     process.env.MAX_CONCURRENT_WORKFLOW_EXECUTIONS = "10";
     vi.resetModules();
     const { checkConcurrencyLimit: freshCheck } = await import(
-      "@/keeperhub/api/execute/_lib/concurrency-limit"
+      "@/app/api/execute/_lib/concurrency-limit"
     );
     mockRunningCount = 9;
 
@@ -95,7 +95,7 @@ describe("checkConcurrencyLimit", () => {
     process.env.MAX_CONCURRENT_WORKFLOW_EXECUTIONS = "abc";
     vi.resetModules();
     const { checkConcurrencyLimit: freshCheck } = await import(
-      "@/keeperhub/api/execute/_lib/concurrency-limit"
+      "@/app/api/execute/_lib/concurrency-limit"
     );
     mockRunningCount = 499;
 

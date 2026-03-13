@@ -45,7 +45,7 @@ vi.mock("@/lib/db/schema", () => ({
   },
 }));
 
-import { GET } from "@/keeperhub/api/internal/reaper/route";
+import { GET } from "@/app/api/internal/reaper/route";
 import { authenticateInternalService } from "@/lib/internal-service-auth";
 
 function createRequest(): Request {

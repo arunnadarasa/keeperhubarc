@@ -7,7 +7,7 @@ import { authenticateInternalService } from "@/lib/internal-service-auth";
 import { getMetricsCollector } from "@/lib/metrics";
 import { LabelKeys, MetricNames } from "@/lib/metrics/types";
 import { getOrgContext } from "@/lib/middleware/org-context";
-import { checkConcurrencyLimit } from "@/keeperhub/api/execute/_lib/concurrency-limit";
+import { checkConcurrencyLimit } from "@/app/api/execute/_lib/concurrency-limit";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { validateWorkflowIntegrations } from "@/lib/db/integrations";

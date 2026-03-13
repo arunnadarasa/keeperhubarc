@@ -63,7 +63,7 @@ vi.mock("@/lib/billing/providers", () => ({
   }),
 }));
 
-import { POST } from "@/keeperhub/api/billing/webhooks/stripe/route";
+import { POST } from "@/app/api/billing/webhooks/stripe/route";
 import { UnknownEventTypeError } from "@/lib/billing/providers/stripe";
 
 function makeWebhookRequest(

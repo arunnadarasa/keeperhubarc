@@ -32,7 +32,7 @@ vi.mock("@/lib/billing/providers", () => ({
   }),
 }));
 
-import { GET } from "@/keeperhub/api/billing/invoices/route";
+import { GET } from "@/app/api/billing/invoices/route";
 
 function makeRequest(query = ""): Request {
   return new Request(`http://localhost:3000/api/billing/invoices${query}`, {

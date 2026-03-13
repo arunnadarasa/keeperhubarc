@@ -55,7 +55,7 @@ vi.mock("@/lib/billing/execution-debt", () => ({
   getActiveDebtExecutions: vi.fn().mockResolvedValue(0),
 }));
 
-import { GET } from "@/keeperhub/api/billing/subscription/route";
+import { GET } from "@/app/api/billing/subscription/route";
 
 function mockSession(): void {
   mockGetSession.mockResolvedValue({

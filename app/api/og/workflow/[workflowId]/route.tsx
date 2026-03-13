@@ -1,4 +1,4 @@
-import { generateWorkflowOGImage } from "@/keeperhub/api/og/generate-og";
+import { generateWorkflowOGImage } from "@/app/api/og/generate-og";
 
 export async function GET(
   _request: Request,

@@ -10,7 +10,7 @@ import { workflows } from "@/lib/db/schema";
 // Font loading (Anek Latin, bundled locally)
 // ---------------------------------------------------------------------------
 
-const fontsDir = join(process.cwd(), "keeperhub/api/og/fonts");
+const fontsDir = join(process.cwd(), "app/api/og/fonts");
 
 const fontRegularPromise = readFile(
   join(fontsDir, "AnekLatin-Regular.ttf")
