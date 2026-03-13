@@ -14,7 +14,7 @@ import {
   type AggregateCoreInput,
   type AggregateInput,
   aggregateStep,
-} from "@/keeperhub/plugins/math/steps/aggregate";
+} from "@/plugins/math/steps/aggregate";
 
 type SuccessResult = {
   success: true;

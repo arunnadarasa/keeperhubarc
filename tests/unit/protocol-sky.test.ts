@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import skyDef from "@/keeperhub/protocols/sky";
 import { getProtocol, registerProtocol } from "@/lib/protocol-registry";
+import skyDef from "@/protocols/sky";
 
 const KEBAB_CASE_REGEX = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const HEX_ADDRESS_REGEX = /^0x[\dA-Fa-f]{40}$/;

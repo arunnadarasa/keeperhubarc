@@ -26,8 +26,8 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 // Note: Using relative paths instead of @/ aliases for drizzle-kit compatibility
-import { organization, users, workflows } from "../../lib/db/schema";
-import { generateId } from "../../lib/utils/id";
+import { organization, users, workflows } from "@/lib/db/schema";
+import { generateId } from "@/lib/utils/id";
 
 /**
  * Para Wallets table

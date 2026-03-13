@@ -42,7 +42,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 // Mock schema
-vi.mock("@/keeperhub/db/schema-extensions", () => ({
+vi.mock("@/db/schema-extensions", () => ({
   pendingTransactions: {
     walletAddress: "wallet_address",
     chainId: "chain_id",

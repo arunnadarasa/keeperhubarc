@@ -1,8 +1,8 @@
+import type { IntegrationType } from "@/lib/types/integration";
 import {
   createProtocolIconComponent,
   ProtocolIcon,
-} from "@/keeperhub/plugins/protocol/icon";
-import type { IntegrationType } from "@/lib/types/integration";
+} from "@/plugins/protocol/icon";
 import type {
   ActionConfigFieldBase,
   IntegrationPlugin,

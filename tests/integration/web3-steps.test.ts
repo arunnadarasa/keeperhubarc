@@ -119,10 +119,10 @@ vi.mock("@/lib/utils", () => ({
   getErrorMessage: vi.fn((error) => error?.message || String(error)),
 }));
 
-// Now import the step functions after all mocks are set up
-import { checkBalanceStep } from "@/keeperhub/plugins/web3/steps/check-balance";
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
+// Now import the step functions after all mocks are set up
+import { checkBalanceStep } from "@/plugins/web3/steps/check-balance";
 
 // Helper to create test context
 const createTestContext = () => ({

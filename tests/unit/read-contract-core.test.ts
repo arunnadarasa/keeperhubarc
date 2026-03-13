@@ -82,8 +82,8 @@ vi.mock("ethers", async () => {
   };
 });
 
-import type { ReadContractCoreInput } from "@/keeperhub/plugins/web3/steps/read-contract-core";
-import { readContractCore } from "@/keeperhub/plugins/web3/steps/read-contract-core";
+import type { ReadContractCoreInput } from "@/plugins/web3/steps/read-contract-core";
+import { readContractCore } from "@/plugins/web3/steps/read-contract-core";
 
 const VALID_ADDRESS = "0x6B175474E89094C44Da98b954EedeAC495271d0F";
 

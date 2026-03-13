@@ -1,8 +1,8 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import { transferFundsCore } from "@/keeperhub/plugins/web3/steps/transfer-funds-core";
-import { transferTokenCore } from "@/keeperhub/plugins/web3/steps/transfer-token-core";
+import { transferFundsCore } from "@/plugins/web3/steps/transfer-funds-core";
+import { transferTokenCore } from "@/plugins/web3/steps/transfer-token-core";
 import { validateApiKey } from "../_lib/auth";
 import {
   completeExecution,

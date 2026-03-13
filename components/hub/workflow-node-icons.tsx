@@ -17,10 +17,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { DiscordIcon } from "@/keeperhub/plugins/discord/icon";
-import { Web3Icon } from "@/keeperhub/plugins/web3/icon";
-import { WebhookIcon } from "@/keeperhub/plugins/webhook/icon";
 import type { WorkflowNode } from "@/lib/workflow-store";
+import { DiscordIcon } from "@/plugins/discord/icon";
+import { Web3Icon } from "@/plugins/web3/icon";
+import { WebhookIcon } from "@/plugins/webhook/icon";
 
 const MAX_VISIBLE = 4;
 

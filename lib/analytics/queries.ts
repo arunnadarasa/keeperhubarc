@@ -4,7 +4,7 @@ import { and, count, desc, eq, gte, lt, sql } from "drizzle-orm";
 import {
   directExecutions,
   organizationSpendCaps,
-} from "@/keeperhub/db/schema-extensions";
+} from "@/db/schema-extensions";
 import { db } from "@/lib/db";
 import {
   workflowExecutionLogs,

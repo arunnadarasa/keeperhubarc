@@ -1,11 +1,11 @@
 import "server-only";
-import "@/keeperhub/protocols";
+import "@/protocols";
 
 import {
   type ReadContractCoreInput,
   type ReadContractResult,
   readContractCore,
-} from "@/keeperhub/plugins/web3/steps/read-contract-core";
+} from "@/plugins/web3/steps/read-contract-core";
 import { resolveAbi } from "@/lib/abi-cache";
 import { getProtocol } from "@/lib/protocol-registry";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";

@@ -43,19 +43,19 @@ vi.mock("@/app/api/execute/_lib/execution-service", () => ({
   redactInput: mocks.redactInput,
 }));
 
-vi.mock("@/keeperhub/plugins/web3/steps/transfer-funds-core", () => ({
+vi.mock("@/plugins/web3/steps/transfer-funds-core", () => ({
   transferFundsCore: mocks.transferFundsCore,
 }));
 
-vi.mock("@/keeperhub/plugins/web3/steps/transfer-token-core", () => ({
+vi.mock("@/plugins/web3/steps/transfer-token-core", () => ({
   transferTokenCore: mocks.transferTokenCore,
 }));
 
-vi.mock("@/keeperhub/plugins/web3/steps/read-contract-core", () => ({
+vi.mock("@/plugins/web3/steps/read-contract-core", () => ({
   readContractCore: mocks.readContractCore,
 }));
 
-vi.mock("@/keeperhub/plugins/web3/steps/write-contract-core", () => ({
+vi.mock("@/plugins/web3/steps/write-contract-core", () => ({
   writeContractCore: mocks.writeContractCore,
 }));
 

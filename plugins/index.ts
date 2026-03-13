@@ -13,10 +13,16 @@
  * 1. Delete the plugin directory
  * 2. Run: pnpm discover-plugins (or it runs automatically on build)
  *
- * Discovered plugins: slack
+ * Discovered plugins: code, discord, math, protocol, safe, sendgrid, slack, telegram, web3, webhook
  */
 
+import "./code";
+import "./discord";
+import "./math";
+import "./protocol";
+import "./safe";
+import "./sendgrid";
 import "./slack";
-
-// Import KeeperHub custom plugins
-import "@/keeperhub/plugins";
+import "./telegram";
+import "./web3";
+import "./webhook";

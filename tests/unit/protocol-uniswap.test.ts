@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import uniswapDef from "@/keeperhub/protocols/uniswap";
 import { getProtocol, registerProtocol } from "@/lib/protocol-registry";
+import uniswapDef from "@/protocols/uniswap";
 
 const KEBAB_CASE_REGEX = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const HEX_ADDRESS_REGEX = /^0x[\dA-Fa-f]{40}$/;

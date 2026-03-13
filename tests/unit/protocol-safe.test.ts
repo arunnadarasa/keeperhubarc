@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import safeDef from "@/keeperhub/protocols/safe";
 import {
   buildEventAbiFragment,
   getProtocol,
   registerProtocol,
 } from "@/lib/protocol-registry";
+import safeDef from "@/protocols/safe";
 
 const KEBAB_CASE_REGEX = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 

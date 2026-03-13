@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import pendleDef from "@/keeperhub/protocols/pendle";
 import { getProtocol, registerProtocol } from "@/lib/protocol-registry";
+import pendleDef from "@/protocols/pendle";
 
 const KEBAB_CASE_REGEX = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const ETH_ADDRESS_REGEX = /^0x[0-9a-fA-F]{40}$/;

@@ -154,8 +154,8 @@ vi.mock("@/lib/contracts/abis/erc20.json", () => ({
 }));
 
 // Must import AFTER all mocks
-import type { ApproveTokenCoreInput } from "@/keeperhub/plugins/web3/steps/approve-token-core";
-import { approveTokenCore } from "@/keeperhub/plugins/web3/steps/approve-token-core";
+import type { ApproveTokenCoreInput } from "@/plugins/web3/steps/approve-token-core";
+import { approveTokenCore } from "@/plugins/web3/steps/approve-token-core";
 
 const VALID_TOKEN = "0x6B175474E89094C44Da98b954EedeAC495271d0F";
 const VALID_SPENDER = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";

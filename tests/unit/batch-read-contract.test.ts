@@ -146,7 +146,7 @@ import {
   type BatchReadContractCoreInput,
   type BatchReadContractInput,
   batchReadContractStep,
-} from "@/keeperhub/plugins/web3/steps/batch-read-contract";
+} from "@/plugins/web3/steps/batch-read-contract";
 
 type SuccessResult = {
   success: true;

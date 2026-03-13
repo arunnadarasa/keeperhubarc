@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import "@/keeperhub/protocols";
+import "@/protocols";
 import { getProtocol } from "@/lib/protocol-registry";
 
 export async function GET(

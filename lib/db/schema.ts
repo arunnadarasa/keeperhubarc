@@ -351,7 +351,7 @@ export {
   type WorkflowPublicTag,
   walletLocks,
   workflowPublicTags,
-} from "../../keeperhub/db/schema-extensions";
+} from "@/db/schema-extensions";
 
 // API Keys table for webhook authentication
 export const apiKeys = pgTable("api_keys", {
@@ -617,7 +617,7 @@ export type WorkflowExecution = typeof workflowExecutions.$inferSelect;
 export type NewWorkflowExecution = typeof workflowExecutions.$inferInsert;
 export type WorkflowExecutionLog = typeof workflowExecutionLogs.$inferSelect;
 export type NewWorkflowExecutionLog = typeof workflowExecutionLogs.$inferInsert;
-// ParaWallet types are exported from @/keeperhub/db/schema-extensions
+// ParaWallet types are exported from @/db/schema-extensions
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type NewApiKey = typeof apiKeys.$inferInsert;
 export type BetaAccessRequest = typeof betaAccessRequests.$inferSelect;
