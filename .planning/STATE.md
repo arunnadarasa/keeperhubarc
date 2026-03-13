@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: planning
-stopped_at: Completed 23-02-PLAN.md
-last_updated: "2026-03-13T05:34:29.421Z"
+stopped_at: Completed 23-03-PLAN.md
+last_updated: "2026-03-13T05:42:07.060Z"
 last_activity: 2026-03-13 -- Phase 19 (CLI Scaffold) executed and verified, 5/5 plans complete
 progress:
   total_phases: 6
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 24
-  completed_plans: 23
+  completed_plans: 24
   percent: 17
 ---
 
@@ -68,6 +68,7 @@ Progress: [████░░░░░░░░░░░░░░░░] 17% (1/
 | Phase 22-management-commands P06 | 6 | 1 tasks | 2 files |
 | Phase 23-mcp-server-mode-docs-testing P01 | 4 | 2 tasks | 6 files |
 | Phase 23-mcp-server-mode-docs-testing P02 | 9 | 2 tasks | 57 files |
+| Phase 23-mcp-server-mode-docs-testing P03 | 4 | 2 tasks | 62 files |
 
 ## Accumulated Context
 
@@ -128,6 +129,9 @@ Progress: [████░░░░░░░░░░░░░░░░] 17% (1/
 - [Phase 23]: RegisterTools/BuildInputSchema/MakeToolHandler exported for serve_test (external test package) access
 - [Phase 23]: [Phase 23]: MCP tool handler: unmarshal Arguments -> POST /api/execute/{actionType} -> return TextContent with body
 - [Phase 23]: Root command subcommand count updated from 17 to 20 after adding 3 non-runnable help topic commands
+- [Phase 23-mcp-server-mode-docs-testing]: cobra/doc requires go get to add cpuguy83/go-md2man transitive dep not in original go.sum
+- [Phase 23-mcp-server-mode-docs-testing]: generate.go outputs to . (docs/) because go:generate runs as cd docs && go generate; CI mirrors this
+- [Phase 23-mcp-server-mode-docs-testing]: Integration test KH_API_KEY added to CI alongside KH_TEST_EMAIL/PASSWORD for HTTP client tests
 
 ### Pending Todos
 
@@ -141,6 +145,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T05:34:29.419Z
-Stopped at: Completed 23-02-PLAN.md
+Last session: 2026-03-13T05:42:07.057Z
+Stopped at: Completed 23-03-PLAN.md
 Resume file: None
