@@ -319,11 +319,8 @@ export function ProtocolDetail({
 
   const arrowVisibility = useMemo((): string => {
     const count = featuredWorkflows.length;
-    if (count > 4) {
-      return "flex";
-    }
     if (count > 3) {
-      return "flex lg:hidden";
+      return "flex";
     }
     if (count > 2) {
       return "flex md:hidden";
