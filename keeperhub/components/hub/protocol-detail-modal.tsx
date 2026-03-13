@@ -29,13 +29,7 @@ export function ProtocolDetailModal({
         <DialogDescription className="sr-only">
           {protocol?.description ?? "Protocol actions and details"}
         </DialogDescription>
-        {protocol && (
-          <ProtocolDetail
-            hideBackButton
-            pageUrl={`/hub/protocol/${protocol.slug}`}
-            protocol={protocol}
-          />
-        )}
+        {protocol && <ProtocolDetail hideBackButton protocol={protocol} />}
       </DialogContent>
     </Dialog>
   );

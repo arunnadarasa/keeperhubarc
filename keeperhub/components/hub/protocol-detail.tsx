@@ -47,7 +47,6 @@ type ProtocolDetailProps = {
   protocol: ProtocolDefinition;
   onBack?: () => void;
   hideBackButton?: boolean;
-  pageUrl?: string;
   modalUrl?: string;
 };
 
@@ -299,7 +298,6 @@ export function ProtocolDetail({
   protocol,
   onBack,
   hideBackButton,
-  pageUrl,
   modalUrl,
 }: ProtocolDetailProps): React.ReactElement {
   const router = useRouter();
@@ -573,15 +571,6 @@ export function ProtocolDetail({
               >
                 <ExternalLink className="size-4" />
               </a>
-            )}
-            {pageUrl && (
-              <Link
-                className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-0.5 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
-                href={pageUrl}
-              >
-                View as page
-                <ArrowUpRight className="size-3" />
-              </Link>
             )}
             {modalUrl && (
               <Link

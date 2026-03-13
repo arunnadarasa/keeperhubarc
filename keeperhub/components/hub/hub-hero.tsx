@@ -1,53 +1,74 @@
-import { BookOpen, Play } from "lucide-react";
-import Image from "next/image";
-import { Button } from "@/components/ui/button";
+import { BookOpen, Play, Search, X } from "lucide-react";
 
-export function HubHero() {
+type HubHeroProps = {
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+};
+
+export function HubHero({
+  searchQuery,
+  onSearchChange,
+}: HubHeroProps): React.ReactElement {
   return (
-    <div className="relative grid items-center gap-8 overflow-visible pt-4 lg:grid-cols-2">
-      <div className="relative z-10">
-        <h1 className="mb-2 font-bold text-4xl tracking-tight">
-          KeeperHub Web3 Templates
-        </h1>
-        <p className="mb-4 max-w-lg text-muted-foreground text-base">
-          Browse ready-made workflow templates and community automations.
-          Duplicate any template to get started in seconds.
-        </p>
-        <div className="flex items-center gap-3">
-          <Button asChild>
-            <a
-              href="https://youtube.com/@KeeperHub"
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              <Play className="size-4" />
-              Watch demos
-            </a>
-          </Button>
-          <Button asChild variant="outline">
-            <a
-              href="https://docs.keeperhub.com"
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              <BookOpen className="size-4" />
-              Read docs
-            </a>
-          </Button>
+    <div className="pb-6">
+      <div className="flex items-end justify-between gap-8">
+        <div>
+          <h1 className="font-semibold text-lg tracking-tight">
+            Web3 Workflow Templates
+          </h1>
+          <p className="mt-1 text-muted-foreground text-sm">
+            On-chain monitoring, DeFi strategies, and security alerts. Fork any
+            template to your organisation in one click.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2 pb-0.5">
+          <a
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-[var(--color-hub-icon-bg)] px-2.5 py-1 text-muted-foreground text-xs transition-colors hover:border-border/60 hover:text-foreground motion-reduce:transition-none"
+            href="https://youtube.com/@KeeperHub"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            <Play className="size-3" />
+            Demos
+          </a>
+          <a
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-[var(--color-hub-icon-bg)] px-2.5 py-1 text-muted-foreground text-xs transition-colors hover:border-border/60 hover:text-foreground motion-reduce:transition-none"
+            href="https://docs.keeperhub.com"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            <BookOpen className="size-3" />
+            Docs
+          </a>
         </div>
       </div>
 
-      <div className="relative hidden lg:block">
-        <div className="-z-10 -translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 h-[150%] w-[150%] rounded-full bg-[radial-gradient(circle,#243548_0%,transparent_70%)]" />
-        <Image
-          alt=""
-          height={285}
-          priority
-          src="/hub-graphic.png"
-          width={500}
-        />
+      <div className="mt-6 max-w-sm">
+        <label className="sr-only" htmlFor="hub-search">
+          Search templates
+        </label>
+        <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-[var(--color-hub-icon-bg)] px-3.5 py-2 transition-colors focus-within:border-[var(--color-text-accent)]/40 focus-within:ring-1 focus-within:ring-[var(--color-text-accent)]/20">
+          <Search className="size-3.5 shrink-0 text-muted-foreground/60" />
+          <input
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/50"
+            id="hub-search"
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search templates..."
+            type="text"
+            value={searchQuery}
+          />
+          {searchQuery && (
+            <button
+              aria-label="Clear search"
+              className="text-muted-foreground transition-colors hover:text-foreground"
+              onClick={() => onSearchChange("")}
+              type="button"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
       </div>
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-2/3 bg-[linear-gradient(to_top,oklch(0.2101_0.0318_264.66)_0%,oklch(0.2101_0.0318_264.66)_10%,transparent_100%)] lg:block" />
     </div>
   );
 }

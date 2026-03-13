@@ -125,9 +125,9 @@ function MiniEdge({
 
   return (
     <path
-      className="fill-none stroke-[var(--color-hub-icon-bg)]"
+      className="fill-none stroke-muted-foreground/60"
       d={`M ${sourceX} ${sourceY} C ${midX} ${sourceY}, ${midX} ${targetY}, ${targetX} ${targetY}`}
-      strokeWidth={0.4}
+      strokeWidth={1.2}
     />
   );
 }
