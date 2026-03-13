@@ -14,13 +14,13 @@ import { useRef } from "react";
 import { AuthDialog } from "@/components/auth/dialog";
 import { ApiKeysOverlay } from "@/components/overlays/api-keys-overlay";
 import { useOverlay } from "@/components/overlays/overlay-provider";
+import { WalletOverlay } from "@/components/overlays/wallet-overlay";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { WalletOverlay } from "@/keeperhub/components/overlays/wallet-overlay";
 import { useSession } from "@/lib/auth-client";
 import { useOnboardingStatus } from "@/lib/hooks/use-onboarding-status";
 import { isAnonymousUser } from "@/lib/is-anonymous";

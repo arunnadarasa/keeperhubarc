@@ -26,7 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AddressBookRow } from "@/keeperhub/components/address-book/address-book-row";
+import { AddressBookRow } from "@/components/address-book/address-book-row";
 import { toChecksumAddress } from "@/lib/address-utils";
 import type { AddressBookEntry } from "@/lib/api-client";
 import { addressBookApi } from "@/lib/api-client";

@@ -4,7 +4,7 @@ import type { NodeProps } from "@xyflow/react";
 import { Globe, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { GettingStartedChecklist } from "@/keeperhub/components/onboarding/getting-started-checklist";
+import { GettingStartedChecklist } from "@/components/onboarding/getting-started-checklist";
 import { getAppName, getCustomLogo } from "@/lib/extension-registry";
 
 type AddNodeData = {

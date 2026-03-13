@@ -16,7 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { WorkflowMiniMap } from "@/keeperhub/components/hub/workflow-mini-map";
+import { WorkflowMiniMap } from "@/components/hub/workflow-mini-map";
 import { api, type SavedWorkflow } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
 import { useDebounce } from "@/lib/hooks/use-debounce";

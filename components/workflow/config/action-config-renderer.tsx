@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { TemplateBadgeInput } from "@/components/ui/template-badge-input";
 import { TemplateBadgeTextarea } from "@/components/ui/template-badge-textarea";
-import { SaveAddressBookmark } from "@/keeperhub/components/address-book/save-address-bookmark";
+import { SaveAddressBookmark } from "@/components/address-book/save-address-bookmark";
 import { computeSelector } from "@/lib/abi-utils";
 import { parseAddressBookSelection } from "@/lib/address-book-selection";
 import { toChecksumAddress } from "@/lib/address-utils";

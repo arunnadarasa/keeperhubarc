@@ -2,6 +2,7 @@
 
 import { Check, ChevronsUpDown, Plus, Settings, Users } from "lucide-react";
 import { useEffect, useState } from "react";
+import { ManageOrgsModal } from "@/components/organization/manage-orgs-modal";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -15,7 +16,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ManageOrgsModal } from "@/keeperhub/components/organization/manage-orgs-modal";
 import { useSession } from "@/lib/auth-client";
 import {
   useOrganization,

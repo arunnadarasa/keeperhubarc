@@ -31,9 +31,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { OrgSwitcher } from "@/keeperhub/components/organization/org-switcher";
-import { GoLiveOverlay } from "@/keeperhub/components/overlays/go-live-overlay";
-import { Switch } from "@/keeperhub/components/ui/switch";
+import { OrgSwitcher } from "@/components/organization/org-switcher";
+import { GoLiveOverlay } from "@/components/overlays/go-live-overlay";
+import { Switch } from "@/components/ui/switch";
 import { BUILTIN_NODE_ID } from "@/lib/builtin-variables";
 import { isAnonymousUser } from "@/lib/is-anonymous";
 import { api, type Project, type Tag } from "@/lib/api-client";

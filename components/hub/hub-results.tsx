@@ -1,6 +1,6 @@
 "use client";
 
-import { WorkflowTemplateGrid } from "@/keeperhub/components/hub/workflow-template-grid";
+import { WorkflowTemplateGrid } from "@/components/hub/workflow-template-grid";
 import type { SavedWorkflow } from "@/lib/api-client";
 
 type HubResultsProps = {

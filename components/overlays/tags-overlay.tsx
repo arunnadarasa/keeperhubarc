@@ -8,7 +8,7 @@ import { Overlay } from "@/components/overlays/overlay";
 import { useOverlay } from "@/components/overlays/overlay-provider";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { TagFormDialog } from "@/keeperhub/components/tags/tag-form-dialog";
+import { TagFormDialog } from "@/components/tags/tag-form-dialog";
 import { api, type Tag as TagType } from "@/lib/api-client";
 
 type TagsOverlayProps = {

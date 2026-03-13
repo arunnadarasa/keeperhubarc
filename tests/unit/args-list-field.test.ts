@@ -4,7 +4,7 @@ import {
   parseArgsListValue,
   parseFunctionInputs,
   serializeArgsList,
-} from "@/keeperhub/components/workflow/config/args-list-field";
+} from "@/components/workflow/config/args-list-field";
 
 let idCounter = 0;
 function nextId(): number {

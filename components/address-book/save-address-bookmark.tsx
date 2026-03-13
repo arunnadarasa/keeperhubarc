@@ -5,8 +5,8 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useStore } from "jotai/react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { AddAddressOverlay } from "@/components/overlays/address-book-overlay";
 import { useOverlay } from "@/components/overlays/overlay-provider";
-import { AddAddressOverlay } from "@/keeperhub/components/overlays/address-book-overlay";
 import {
   ADDRESS_BOOK_SELECTION_KEY,
   parseAddressBookSelection,

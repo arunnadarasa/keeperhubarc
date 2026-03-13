@@ -8,7 +8,7 @@ import { Overlay } from "@/components/overlays/overlay";
 import { useOverlay } from "@/components/overlays/overlay-provider";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { ProjectFormDialog } from "@/keeperhub/components/projects/project-form-dialog";
+import { ProjectFormDialog } from "@/components/projects/project-form-dialog";
 import { api, type Project } from "@/lib/api-client";
 
 type ProjectsOverlayProps = {

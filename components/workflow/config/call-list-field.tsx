@@ -9,7 +9,7 @@ import {
   AbiFunctionSelectField,
 } from "@/components/workflow/config/action-config-renderer";
 
-import { SaveAddressBookmark } from "@/keeperhub/components/address-book/save-address-bookmark";
+import { SaveAddressBookmark } from "@/components/address-book/save-address-bookmark";
 import type { ActionConfigFieldBase } from "@/plugins/registry";
 import { AbiWithAutoFetchField } from "./abi-with-auto-fetch-field";
 import { ChainSelectField } from "./chain-select-field";

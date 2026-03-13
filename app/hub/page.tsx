@@ -9,13 +9,13 @@ import {
   useRef,
   useState,
 } from "react";
-import { FeaturedCarousel } from "@/keeperhub/components/hub/featured-carousel";
-import { getWorkflowTrigger } from "@/keeperhub/components/hub/get-workflow-trigger";
-import { HubHero } from "@/keeperhub/components/hub/hub-hero";
-import { HubResults } from "@/keeperhub/components/hub/hub-results";
-import { ProtocolDetailModal } from "@/keeperhub/components/hub/protocol-detail-modal";
-import { ProtocolStrip } from "@/keeperhub/components/hub/protocol-strip";
-import { WorkflowSearchFilter } from "@/keeperhub/components/hub/workflow-search-filter";
+import { FeaturedCarousel } from "@/components/hub/featured-carousel";
+import { getWorkflowTrigger } from "@/components/hub/get-workflow-trigger";
+import { HubHero } from "@/components/hub/hub-hero";
+import { HubResults } from "@/components/hub/hub-results";
+import { ProtocolDetailModal } from "@/components/hub/protocol-detail-modal";
+import { ProtocolStrip } from "@/components/hub/protocol-strip";
+import { WorkflowSearchFilter } from "@/components/hub/workflow-search-filter";
 import { api, type PublicTag, type SavedWorkflow } from "@/lib/api-client";
 import { useDebounce } from "@/lib/hooks/use-debounce";
 import type { ProtocolDefinition } from "@/lib/protocol-registry";

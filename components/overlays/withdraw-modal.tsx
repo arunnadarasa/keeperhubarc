@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SaveAddressBookmark } from "@/keeperhub/components/address-book/save-address-bookmark";
+import { SaveAddressBookmark } from "@/components/address-book/save-address-bookmark";
 import { toChecksumAddress, truncateAddress } from "@/lib/address-utils";
 
 export type WithdrawableAsset = {

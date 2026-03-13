@@ -8,18 +8,18 @@
  * extensions are registered before components are rendered.
  */
 
+import { KeeperHubLogo } from "@/components/icons/keeperhub-logo";
+import { SendGridConnectionSection } from "@/components/settings/sendgrid-connection-section";
+import { Web3WalletSection } from "@/components/settings/web3-wallet-section";
 import { Label } from "@/components/ui/label";
-import { KeeperHubLogo } from "@/keeperhub/components/icons/keeperhub-logo";
-import { SendGridConnectionSection } from "@/keeperhub/components/settings/sendgrid-connection-section";
-import { Web3WalletSection } from "@/keeperhub/components/settings/web3-wallet-section";
-import { AbiEventSelectField } from "@/keeperhub/components/workflow/config/abi-event-select-field";
-import { AbiWithAutoFetchField } from "@/keeperhub/components/workflow/config/abi-with-auto-fetch-field";
-import { ArgsListField } from "@/keeperhub/components/workflow/config/args-list-field";
-import { CallListField } from "@/keeperhub/components/workflow/config/call-list-field";
-import { ChainSelectField } from "@/keeperhub/components/workflow/config/chain-select-field";
-import { CodeEditorField } from "@/keeperhub/components/workflow/config/code-editor-field";
-import { GasLimitMultiplierField } from "@/keeperhub/components/workflow/config/gas-limit-multiplier-field";
-import { TokenSelectField } from "@/keeperhub/components/workflow/config/token-select-field";
+import { AbiEventSelectField } from "@/components/workflow/config/abi-event-select-field";
+import { AbiWithAutoFetchField } from "@/components/workflow/config/abi-with-auto-fetch-field";
+import { ArgsListField } from "@/components/workflow/config/args-list-field";
+import { CallListField } from "@/components/workflow/config/call-list-field";
+import { ChainSelectField } from "@/components/workflow/config/chain-select-field";
+import { CodeEditorField } from "@/components/workflow/config/code-editor-field";
+import { GasLimitMultiplierField } from "@/components/workflow/config/gas-limit-multiplier-field";
+import { TokenSelectField } from "@/components/workflow/config/token-select-field";
 import {
   registerBranding,
   registerFieldRenderer,

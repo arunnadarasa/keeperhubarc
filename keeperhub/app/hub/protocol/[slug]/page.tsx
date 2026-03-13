@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import "@/keeperhub/protocols";
-import { ProtocolDetailPage } from "@/keeperhub/components/hub/protocol-detail-page";
+import { ProtocolDetailPage } from "@/components/hub/protocol-detail-page";
 import { getProtocol } from "@/lib/protocol-registry";
 
 type Props = { params: Promise<{ slug: string }> };
