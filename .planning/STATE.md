@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: planning
-stopped_at: Completed 21-core-execution-commands/21-05-PLAN.md
-last_updated: "2026-03-13T01:48:19.954Z"
+stopped_at: Completed 22-05-PLAN.md (template list/deploy + billing status/usage)
+last_updated: "2026-03-13T03:53:30.791Z"
 last_activity: 2026-03-13 -- Phase 19 (CLI Scaffold) executed and verified, 5/5 plans complete
 progress:
   total_phases: 6
   completed_phases: 3
-  total_plans: 15
-  completed_plans: 15
+  total_plans: 21
+  completed_plans: 17
   percent: 17
 ---
 
@@ -60,6 +60,8 @@ Progress: [████░░░░░░░░░░░░░░░░] 17% (1/
 | Phase 21-core-execution-commands P01 | 15 | 2 tasks | 9 files |
 | Phase 21-core-execution-commands P06 | 8 | 1 tasks | 3 files |
 | Phase 21-core-execution-commands P05 | 3 | 2 tasks | 13 files |
+| Phase 22-management-commands P02 | 2 | 2 tasks | 7 files |
+| Phase 22-management-commands P05 | 3 | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -100,6 +102,11 @@ Progress: [████░░░░░░░░░░░░░░░░] 17% (1/
 - [Phase 21-core-execution-commands]: Test isolation for config-reading functions: always set XDG_CONFIG_HOME to t.TempDir() -- discovered when TestActiveHostFallback and TestLoginCmd_BrowserFlow read real config.yml after ActiveHost gained ReadConfig call
 - [Phase 21-core-execution-commands]: BuildBaseURL exported from internal/http (same package as Client) as single shared URL normalisation entry point
 - [Phase 21-core-execution-commands]: Trailing slash stripped in BuildBaseURL to prevent double-slash in constructed URLs; http:// scheme preserved as-is for local dev
+- [Phase 22-management-commands]: org parent command registers --json/--jq as persistent flags (same as workflow.go) to enable test isolation without root command
+- [Phase 22-management-commands]: Better Auth POST endpoints use json.Marshal({}) empty body + Content-Type: application/json; list-members returns {members:[...]} wrapper
+- [Phase 22-management-commands]: switch confirmation includes (N members, TIER tier) only when metadata fields memberCount and plan are both present; gracefully omits when missing
+- [Phase 22-management-commands]: Template and billing parent commands need --json/--jq persistent flags for test isolation without root command (matches workflow parent pattern)
+- [Phase 22-management-commands]: Billing 404 returns nil (not error) and prints friendly message: 'Billing is not enabled for this instance.'
 
 ### Pending Todos
 
@@ -113,6 +120,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T01:19:20.489Z
-Stopped at: Completed 21-core-execution-commands/21-05-PLAN.md
+Last session: 2026-03-13T03:53:30.789Z
+Stopped at: Completed 22-05-PLAN.md (template list/deploy + billing status/usage)
 Resume file: None
