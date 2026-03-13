@@ -4,7 +4,6 @@
  * https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
  */
 
-// start custom keeperhub code //
 /**
  * Ensure special characters in postgres URL passwords are percent-encoded.
  * postgres.js parses connection strings via new URL() which requires encoding.
@@ -37,7 +36,6 @@ function encodePostgresPassword(url: string): string {
     return url;
   }
 }
-// end keeperhub code //
 
 export async function register() {
   // Patch console with LOG_LEVEL support
@@ -67,7 +65,6 @@ export async function register() {
       console.log("[Metrics] Prometheus dual-write collector initialized");
     }
 
-    // start custom keeperhub code //
     // Initialize Workflow Postgres World (pg-boss queue polling)
     if (process.env.WORKFLOW_TARGET_WORLD === "@workflow/world-postgres") {
       const rawUrl =
@@ -88,7 +85,6 @@ export async function register() {
         console.log("[Workflow] Postgres World initialized");
       }
     }
-    // end keeperhub code //
 
     // Catch unhandled promise rejections (would otherwise be silent)
     process.on("unhandledRejection", (reason) => {

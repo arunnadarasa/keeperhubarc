@@ -2,10 +2,8 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-// start custom keeperhub code //
 import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
-// end keeperhub code //
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { workflows } from "@/lib/db/schema";
@@ -221,7 +219,6 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // start custom keeperhub code //
     // Verify workflow access (owner or org member)
     const workflow = await db.query.workflows.findFirst({
       where: eq(workflows.id, workflowId),
@@ -247,7 +244,6 @@ export async function GET(
         { status: 404 }
       );
     }
-    // end keeperhub code //
 
     // Read boilerplate files
     const boilerplateFiles = await readDirectoryRecursive(BOILERPLATE_PATH);

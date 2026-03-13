@@ -22,7 +22,6 @@ import {
   type WorkflowNode,
 } from "@/lib/workflow-store";
 import { findActionById } from "@/plugins/registry";
-// start custom keeperhub code //
 import { getReadContractOutputFields } from "@/keeperhub/lib/action-output-fields";
 import { resolveForEachSyntheticOutput } from "@/keeperhub/lib/for-each-utils";
 import {
@@ -35,7 +34,6 @@ import {
   schemaToFields,
 } from "@/keeperhub/lib/template-helpers";
 import { getTriggerOutputFields } from "@/keeperhub/lib/trigger-output-fields";
-// end keeperhub code //
 
 type TemplateAutocompleteProps = {
   isOpen: boolean;
@@ -45,8 +43,6 @@ type TemplateAutocompleteProps = {
   currentNodeId?: string;
   filter?: string;
 };
-
-
 // Get common fields based on node action type
 const getCommonFields = (node: WorkflowNode) => {
   const actionType = node.data.config?.actionType as string | undefined;
@@ -95,7 +91,6 @@ const getCommonFields = (node: WorkflowNode) => {
     return [{ field: "text", description: "Generated text" }];
   }
 
-  // start custom keeperhub code //
   // Check for Read Contract action with dynamic outputs based on ABI
   // This must be BEFORE the plugin outputFields check to override static fields
   if (isActionType(actionType, "Read Contract", "web3/read-contract")) {
@@ -130,7 +125,6 @@ const getCommonFields = (node: WorkflowNode) => {
       { field: "count", description: "Number of completed iterations" },
     ];
   }
-  // end keeperhub code //
 
   // Check if the plugin defines output fields
   if (actionType) {
@@ -145,7 +139,6 @@ const getCommonFields = (node: WorkflowNode) => {
     const triggerType = node.data.config?.triggerType as string | undefined;
     const webhookSchema = node.data.config?.webhookSchema as string | undefined;
 
-    // start custom keeperhub code //
     // Use keeperhub trigger output fields function for Event triggers
     if (triggerType === WorkflowTriggerEnum.EVENT) {
       const outputFields = getTriggerOutputFields(
@@ -156,7 +149,6 @@ const getCommonFields = (node: WorkflowNode) => {
         return outputFields;
       }
     }
-    // end keeperhub code //
 
     if (triggerType === "Webhook" && webhookSchema) {
       try {
@@ -169,7 +161,6 @@ const getCommonFields = (node: WorkflowNode) => {
       }
     }
 
-    // start custom keeperhub code //
     // Use keeperhub trigger output fields function for other trigger types
     if (triggerType) {
       const outputFields = getTriggerOutputFields(
@@ -180,7 +171,6 @@ const getCommonFields = (node: WorkflowNode) => {
         return outputFields;
       }
     }
-    // end keeperhub code //
 
     return [
       { field: "triggered", description: "Trigger status" },
@@ -191,8 +181,6 @@ const getCommonFields = (node: WorkflowNode) => {
 
   return [{ field: "data", description: "Output data" }];
 };
-
-
 export function TemplateAutocomplete({
   isOpen,
   position,
@@ -203,7 +191,6 @@ export function TemplateAutocomplete({
 }: TemplateAutocompleteProps) {
   const [nodes] = useAtom(nodesAtom);
   const [edges] = useAtom(edgesAtom);
-  // start custom keeperhub code //
   const executionLogs = useAtomValue(executionLogsAtom);
   const currentWorkflowId = useAtomValue(currentWorkflowIdAtom);
   const lastExecutionLogs = useAtomValue(lastExecutionLogsAtom);
@@ -211,7 +198,6 @@ export function TemplateAutocomplete({
   const currentWorkflowIdRef = useRef<string | null>(null);
   const lastFetchWorkflowIdRef = useRef<string | null>(null);
   currentWorkflowIdRef.current = currentWorkflowId;
-  // end keeperhub code //
   const [selectedIndex, setSelectedIndex] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -223,7 +209,6 @@ export function TemplateAutocomplete({
     return () => setMounted(false);
   }, []);
 
-  // start custom keeperhub code //
   // Lazy-load last execution logs when autocomplete opens and we have no logs for this workflow.
   // Race guards: (1) lastFetchWorkflowIdRef prevents double-fetch for same workflow;
   // (2) only set state when currentWorkflowIdRef.current === workflowId so we never apply stale data after navigation.
@@ -290,7 +275,6 @@ export function TemplateAutocomplete({
     lastExecutionLogs.workflowId,
     setLastExecutionLogs,
   ]);
-  // end keeperhub code //
 
   // Find all nodes that come before the current node
   const getUpstreamNodes = () => {
@@ -333,7 +317,6 @@ export function TemplateAutocomplete({
 
   for (const node of upstreamNodes) {
     const nodeName = getNodeDisplayName(node);
-    // start custom keeperhub code //
     // 1) Prefer current execution in runtime; 2) else last execution output; 3) else getCommonFields
     const runtimeOutput = executionLogs[node.id]?.output;
     const hasRuntimeOutput =
@@ -445,7 +428,6 @@ export function TemplateAutocomplete({
           template: `{{@${node.id}:${nodeName}.${fieldPath}}}`,
         });
       }
-      // end keeperhub code //
     } else {
       const fields = getCommonFields(node);
 
@@ -471,7 +453,6 @@ export function TemplateAutocomplete({
     }
   }
 
-  // start custom keeperhub code //
   // Built-in system variables (available to all nodes, evaluated at execution time)
   for (const field of BUILTIN_VARIABLE_FIELDS) {
     options.push({
@@ -483,7 +464,6 @@ export function TemplateAutocomplete({
       template: `{{@${BUILTIN_NODE_ID}:${BUILTIN_NODE_LABEL}.${field.field}}}`,
     });
   }
-  // end keeperhub code //
 
   // Filter options based on search term
   const filteredOptions = filter

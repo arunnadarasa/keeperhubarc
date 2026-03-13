@@ -13,13 +13,10 @@ import { OverlayProvider } from "@/components/overlays/overlay-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { KeeperHubExtensionLoader } from "@/keeperhub/components/extension-loader";
-// start custom keeperhub code //
 import { MobileWarningDialog } from "@/keeperhub/components/mobile-warning-dialog";
-// end keeperhub code //
 import { mono, sans } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 
-// start custom keeperhub code //
 export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL ?? "https://app.keeperhub.com"
@@ -50,7 +47,6 @@ export const metadata: Metadata = {
     images: ["/api/og/default"],
   },
 };
-// end keeperhub code //
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -90,9 +86,7 @@ const RootLayout = ({ children }: RootLayoutProps) => (
               </Suspense>
               <Toaster />
               <GlobalModals />
-              {/* start custom keeperhub code */}
               <MobileWarningDialog />
-              {/* end keeperhub code */}
             </OverlayProvider>
           </AuthProvider>
         </Provider>

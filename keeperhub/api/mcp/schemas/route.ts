@@ -499,7 +499,6 @@ export async function GET(request: Request) {
     // Template syntax documentation
     templateSyntax: TEMPLATE_SYNTAX,
 
-    // start custom keeperhub code //
     // Built-in system variables (evaluated at runtime)
     builtinVariables: {
       description: `Built-in variables evaluated at runtime. Reference using {{@${BUILTIN_NODE_ID}:${BUILTIN_NODE_LABEL}.fieldName}} syntax.`,
@@ -525,7 +524,6 @@ export async function GET(request: Request) {
         },
       },
     },
-    // end keeperhub code //
 
     // Workflow structure hints for AI
     workflowStructure: {

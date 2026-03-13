@@ -19,9 +19,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { nanoid } from "nanoid";
-// start custom KeeperHub code
 import { usePathname, useRouter } from "next/navigation";
-// end custom KeeperHub code
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +34,6 @@ import {
 import { OrgSwitcher } from "@/keeperhub/components/organization/org-switcher";
 import { GoLiveOverlay } from "@/keeperhub/components/overlays/go-live-overlay";
 import { Switch } from "@/keeperhub/components/ui/switch";
-// start custom keeperhub code //
 import { BUILTIN_NODE_ID } from "@/keeperhub/lib/builtin-variables";
 import { isAnonymousUser } from "@/keeperhub/lib/is-anonymous";
 import { api, type Project, type Tag } from "@/lib/api-client";
@@ -98,9 +95,6 @@ import {
   TooltipTrigger,
 } from "../ui/tooltip";
 import { UserMenu } from "../workflows/user-menu";
-
-// end keeperhub code //
-
 type WorkflowToolbarProps = {
   workflowId?: string;
   persistent?: boolean;
@@ -217,11 +211,9 @@ function getBrokenTemplateReferences(
     }
 
     const allRefs = extractAllTemplateReferences(config);
-    // start custom keeperhub code //
     const brokenRefs = allRefs.filter(
       (ref) => ref.nodeId !== BUILTIN_NODE_ID && !nodeIds.has(ref.nodeId)
     );
-    // end keeperhub code //
 
     if (brokenRefs.length > 0) {
       // Get action for label lookups
@@ -272,25 +264,21 @@ function isFieldEmpty(value: unknown): boolean {
 
 // Check if a conditional field should be shown based on current config
 function shouldShowField(
-  // start custom keeperhub code //
   field: {
     showWhen?:
       | { field: string; equals: string }
       | { field: string; oneOf: string[] };
   },
-  // end keeperhub code //
   config: Record<string, unknown>
 ): boolean {
   if (!field.showWhen) {
     return true;
   }
-  // start custom keeperhub code //
   const dependentValue = config[field.showWhen.field];
   if ("oneOf" in field.showWhen) {
     return field.showWhen.oneOf.includes(dependentValue as string);
   }
   return dependentValue === field.showWhen.equals;
-  // end keeperhub code //
 }
 
 // Get missing required fields for a single node
@@ -432,9 +420,7 @@ type ExecuteTestWorkflowParams = {
   setIsExecuting: (value: boolean) => void;
   setSelectedExecutionId: (value: string | null) => void;
   setCurrentExecutionId: (value: string | null) => void;
-  // start custom keeperhub code //
   onExecutionStarted?: () => void;
-  // end keeperhub code //
 };
 
 async function executeTestWorkflow({
@@ -445,9 +431,7 @@ async function executeTestWorkflow({
   setIsExecuting,
   setSelectedExecutionId,
   setCurrentExecutionId,
-  // start custom keeperhub code //
   onExecutionStarted,
-  // end keeperhub code //
 }: ExecuteTestWorkflowParams) {
   // Set all nodes to idle first
   updateNodesStatus(nodes, updateNodeData, "idle");
@@ -470,14 +454,12 @@ async function executeTestWorkflow({
     });
 
     if (!response.ok) {
-      // start custom keeperhub code //
       const body = await response.json().catch(() => null);
       const message =
         typeof body?.error === "string"
           ? body.error
           : "Failed to execute workflow";
       throw new Error(message);
-      // end keeperhub code //
     }
 
     const result = await response.json();
@@ -486,10 +468,8 @@ async function executeTestWorkflow({
     setSelectedExecutionId(result.executionId);
     setCurrentExecutionId(result.executionId);
 
-    // start custom keeperhub code //
     // Signal the Runs panel to refresh immediately
     onExecutionStarted?.();
-    // end keeperhub code //
 
     // Poll for execution status updates
     const pollInterval = setInterval(async () => {
@@ -532,12 +512,10 @@ async function executeTestWorkflow({
           setIsExecuting(false);
           setCurrentExecutionId(null);
 
-          // start custom keeperhub code //
           // Reset nodes to idle when cancelled (steps may show stale "success" from runtime)
           if (statusData.status === "cancelled") {
             updateNodesStatus(nodes, updateNodeData, "idle");
           }
-          // end keeperhub code //
         }
       } catch (error) {
         console.error("Failed to poll execution status:", error);
@@ -599,9 +577,7 @@ function useWorkflowHandlers({
 }: WorkflowHandlerParams) {
   const { open: openOverlay } = useOverlay();
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  // start custom keeperhub code //
   const setRunsRefreshTrigger = useSetAtom(runsRefreshTriggerAtom);
-  // end keeperhub code //
 
   // Cleanup polling interval on unmount
   useEffect(
@@ -653,9 +629,7 @@ function useWorkflowHandlers({
       setIsExecuting,
       setSelectedExecutionId,
       setCurrentExecutionId,
-      // start custom keeperhub code //
       onExecutionStarted: () => setRunsRefreshTrigger((c) => c + 1),
-      // end keeperhub code //
     });
     // Don't set executing to false here - let polling handle it
   };
@@ -819,17 +793,14 @@ function useWorkflowState() {
       tagId?: string | null;
     }>
   >([]);
-  // start custom keeperhub code //
   const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
-  // end keeperhub code //
   const [isEnabled, setIsEnabled] = useAtom(isWorkflowEnabled);
 
   // Load all workflows and projects on mount
   useEffect(() => {
     const loadAllWorkflows = async () => {
       try {
-        // start custom keeperhub code //
         const [workflows, projects, tags] = await Promise.all([
           api.workflow.getAll(),
           api.project.getAll().catch(() => [] as Project[]),
@@ -838,7 +809,6 @@ function useWorkflowState() {
         setAllWorkflows(workflows);
         setAllProjects(projects);
         setAllTags(tags);
-        // end keeperhub code //
       } catch (error) {
         console.error("Failed to load workflows:", error);
       }
@@ -1053,7 +1023,6 @@ function useWorkflowActions(state: ReturnType<typeof useWorkflowState>) {
 
   const loadWorkflows = async () => {
     try {
-      // start custom keeperhub code //
       const [workflows, projects, tags] = await Promise.all([
         api.workflow.getAll(),
         api.project.getAll().catch(() => [] as Project[]),
@@ -1062,7 +1031,6 @@ function useWorkflowActions(state: ReturnType<typeof useWorkflowState>) {
       setAllWorkflows(workflows);
       setAllProjects(projects);
       setAllTags(tags);
-      // end keeperhub code //
     } catch (error) {
       console.error("Failed to load workflows:", error);
     }
@@ -1073,7 +1041,6 @@ function useWorkflowActions(state: ReturnType<typeof useWorkflowState>) {
       return;
     }
 
-    // start custom keeperhub code //
     // Show Go Live overlay when making public
     if (newVisibility === "public") {
       openOverlay(GoLiveOverlay, {
@@ -1091,7 +1058,6 @@ function useWorkflowActions(state: ReturnType<typeof useWorkflowState>) {
       });
       return;
     }
-    // end keeperhub code //
 
     // Switch to private immediately (no risks)
     try {
@@ -1107,7 +1073,6 @@ function useWorkflowActions(state: ReturnType<typeof useWorkflowState>) {
     }
   };
 
-  // start custom keeperhub code //
   const handleEditPublicSettings = (): void => {
     if (!currentWorkflowId) {
       return;
@@ -1127,9 +1092,7 @@ function useWorkflowActions(state: ReturnType<typeof useWorkflowState>) {
       },
     });
   };
-  // end keeperhub code //
 
-  // start custom keeperhub code //
   const updateWorkflowEnabled = async (enabled: boolean) => {
     if (!currentWorkflowId) {
       return;
@@ -1171,7 +1134,6 @@ function useWorkflowActions(state: ReturnType<typeof useWorkflowState>) {
       await updateWorkflowEnabled(true);
     }
   };
-  // end keeperhub code //
 
   const handleDuplicate = async () => {
     if (!currentWorkflowId) {
@@ -1386,7 +1348,6 @@ function ToolbarActions({
       {/* Visibility Toggle */}
       <VisibilityButton actions={actions} state={state} />
 
-      {/* start custom keeperhub code // */}
       {shouldDisplayEnableWorkflowSwitch && (
         <>
           {/* Enable Workflow Switch - Desktop Horizontal */}
@@ -1405,7 +1366,6 @@ function ToolbarActions({
           </div>
         </>
       )}
-      {/* end keeperhub code // */}
 
       <RunButtonGroup actions={actions} state={state} />
     </>
@@ -1420,14 +1380,12 @@ function SaveButton({
   state: ReturnType<typeof useWorkflowState>;
   handleSave: () => Promise<void>;
 }) {
-  // start custom keeperhub code //
   const isAnonymous = isAnonymousUser(state.session?.user);
   const disabled =
     isAnonymous ||
     !state.currentWorkflowId ||
     state.isGenerating ||
     state.isSaving;
-  // end keeperhub code //
 
   const button = (
     <Button
@@ -1451,7 +1409,6 @@ function SaveButton({
     </Button>
   );
 
-  // start custom keeperhub code //
   if (isAnonymous) {
     return (
       <Tooltip>
@@ -1462,7 +1419,6 @@ function SaveButton({
       </Tooltip>
     );
   }
-  // end keeperhub code //
 
   return button;
 }
@@ -1577,7 +1533,6 @@ function RunButtonGroup({
   state: ReturnType<typeof useWorkflowState>;
   actions: ReturnType<typeof useWorkflowActions>;
 }) {
-  // start custom keeperhub code //
   const triggerType = state.nodes.find((node) => node.data.type === "trigger")
     ?.data.config?.triggerType;
 
@@ -1590,7 +1545,6 @@ function RunButtonGroup({
     state.nodes.length === 0 ||
     state.isGenerating ||
     isNonManualTrigger;
-  // end keeperhub code //
 
   // Show Stop button while executing
   if (state.isExecuting) {
@@ -1620,7 +1574,6 @@ function RunButtonGroup({
     </Button>
   );
 
-  // start custom keeperhub code //
   if (isNonManualTrigger) {
     return (
       <TooltipProvider>
@@ -1638,7 +1591,6 @@ function RunButtonGroup({
   }
 
   return button;
-  // end keeperhub code //
 }
 
 // Read-only badge - pill with a live green accent on the toolbar
@@ -1692,10 +1644,8 @@ function WorkflowMenuComponent({
   state: ReturnType<typeof useWorkflowState>;
   actions: ReturnType<typeof useWorkflowActions>;
 }) {
-  // start custom KeeperHub code
   const pathname = usePathname();
   const isWorkflowRoute = pathname.startsWith("/workflows/");
-  // end custom KeeperHub code
 
   return (
     <div className="flex flex-col gap-1">
@@ -1777,11 +1727,9 @@ export const WorkflowToolbar = ({
                   onDuplicate={actions.handleDuplicate}
                 />
               )}
-              {/* start custom keeperhub code // */}
               <div className="hidden lg:block">
                 <OrgSwitcher />
               </div>
-              {/* end keeperhub code // */}
               <UserMenu />
             </div>
           </div>
@@ -1833,11 +1781,9 @@ export const WorkflowToolbar = ({
                 onDuplicate={actions.handleDuplicate}
               />
             )}
-            {/* start custom keeperhub code // */}
             <div className="hidden lg:block">
               <OrgSwitcher />
             </div>
-            {/* end keeperhub code // */}
             <UserMenu />
           </div>
         </div>

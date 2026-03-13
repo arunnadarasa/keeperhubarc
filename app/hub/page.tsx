@@ -29,7 +29,6 @@ export default function HubPage(): React.ReactElement {
 }
 
 function HubPageContent(): React.ReactElement {
-  // start custom KeeperHub code
   const router = useRouter();
   const [featuredWorkflows, setFeaturedWorkflows] = useState<SavedWorkflow[]>(
     []
@@ -171,7 +170,6 @@ function HubPageContent(): React.ReactElement {
 
     fetchProtocols();
   }, []);
-  // end custom KeeperHub code
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const gradientRef = useRef<HTMLDivElement>(null);
@@ -199,7 +197,6 @@ function HubPageContent(): React.ReactElement {
       className="pointer-events-auto fixed inset-0 overflow-y-auto bg-sidebar [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       ref={scrollContainerRef}
     >
-      {/* start custom KeeperHub code */}
       <div className="transition-[margin-left] duration-200 ease-out md:ml-[var(--nav-sidebar-width,60px)]">
         {isLoading ? (
           <div className="container mx-auto px-4 pt-20 pb-8 animate-pulse">
@@ -252,7 +249,6 @@ function HubPageContent(): React.ReactElement {
               </div>
             </div>
 
-            {/* start custom keeperhub code */}
             {protocols.length > 0 && (
               <div className="bg-sidebar py-6">
                 <div className="container mx-auto px-4">
@@ -300,11 +296,9 @@ function HubPageContent(): React.ReactElement {
               open={selectedProtocolSlug !== null}
               protocol={selectedProtocol}
             />
-            {/* end keeperhub code */}
           </>
         )}
       </div>
-      {/* end custom KeeperHub code */}
     </div>
   );
 }

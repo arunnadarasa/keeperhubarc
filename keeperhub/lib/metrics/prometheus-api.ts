@@ -9,14 +9,10 @@
 import "server-only";
 
 export {
-  // start custom keeperhub code //
   getApiProcessMetrics,
   getDbMetrics,
-  // end keeperhub code //
   getPrometheusContentType,
   getPrometheusMetrics,
   prometheusMetricsCollector,
-  // start custom keeperhub code //
   updateDbMetrics,
-  // end keeperhub code //
 } from "./collectors/prometheus";

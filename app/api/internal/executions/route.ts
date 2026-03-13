@@ -1,4 +1,3 @@
-// start custom keeperhub code //
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -52,4 +51,3 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   return NextResponse.json({ executionId: execution.id }, { status: 201 });
 }
-// end keeperhub code //

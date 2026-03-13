@@ -16,7 +16,6 @@ import {
   aiGatewayTeamsLoadingAtom,
 } from "@/lib/ai-gateway/state";
 import { api } from "@/lib/api-client";
-// start keeperhub
 import { useSession } from "@/lib/auth-client";
 import {
   DatabaseConnectionForm,
@@ -25,7 +24,6 @@ import {
 } from "@/keeperhub/components/database-connection-form";
 import { getCustomIntegrationFormHandler } from "@/lib/extension-registry";
 import { integrationsAtom } from "@/lib/integrations-store";
-// end keeperhub
 import type { IntegrationType } from "@/lib/types/integration";
 import {
   getIntegration,
@@ -90,13 +88,11 @@ export function AddConnectionOverlay({
   const shouldUseManagedKeys =
     aiGatewayStatus?.enabled && aiGatewayStatus?.isVercelUser;
 
-  // start keeperhub - filter out singleConnection types that already exist
   const existingIntegrations = useAtomValue(integrationsAtom);
   const existingIntegrationTypes = useMemo(
     () => new Set(existingIntegrations.map((i) => i.type)),
     [existingIntegrations]
   );
-  // end keeperhub
 
   const integrationTypes = getIntegrationTypes();
 
@@ -110,7 +106,6 @@ export function AddConnectionOverlay({
     );
   }, [integrationTypes, searchQuery]);
 
-  // start keeperhub - check if a singleConnection type is already configured
   const isAlreadyConfigured = (type: IntegrationType) => {
     const plugin = getIntegration(type);
     return plugin?.singleConnection && existingIntegrationTypes.has(type);
@@ -121,7 +116,6 @@ export function AddConnectionOverlay({
     const plugin = getIntegration(type);
     return plugin?.requiresCredentials === false;
   };
-  // end keeperhub
 
   const showConsentModalWithCallbacks = useCallback(() => {
     push(AiGatewayConsentOverlay, {
@@ -199,12 +193,10 @@ export function AddConnectionOverlay({
           ) : (
             filteredTypes.map((type) => {
               const description = getDescription(type);
-              // start keeperhub - grey out singleConnection types that are already configured
               // or integrations that don't require credentials
               const configured = isAlreadyConfigured(type);
               const noCredentials = noCredentialsRequired(type);
               const isDisabled = configured || noCredentials;
-              // end keeperhub
               return (
                 <button
                   className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
@@ -322,7 +314,6 @@ export function ConfigureConnectionOverlay({
   const [name, setName] = useState("");
   const [config, setConfig] = useState<Record<string, string>>({});
   const [dbTab, setDbTab] = useState<DatabaseTab>("url");
-  // start keeperhub - derive anonymous state from session reactively
   const { data: session } = useSession();
   const isAnonymous =
     type === "web3" &&
@@ -331,7 +322,6 @@ export function ConfigureConnectionOverlay({
       session.user.email?.includes("@http://") ||
       session.user.email?.includes("@https://") ||
       session.user.email?.startsWith("temp-"));
-  // end keeperhub
 
   const updateConfig = (key: string, value: string) => {
     setConfig((prev) => ({ ...prev, [key]: value }));
@@ -448,7 +438,6 @@ export function ConfigureConnectionOverlay({
 
   // Render config fields
   const renderConfigFields = () => {
-    // start keeperhub - check for custom form handlers (e.g., web3 wallet)
     const customHandler = getCustomIntegrationFormHandler(type);
     if (customHandler) {
       return customHandler({
@@ -460,7 +449,6 @@ export function ConfigureConnectionOverlay({
         closeAll,
       });
     }
-    // end keeperhub
 
     if (type === "database") {
       return (
@@ -523,11 +511,9 @@ export function ConfigureConnectionOverlay({
     });
   };
 
-  // start keeperhub - for web3 + anonymous, show Sign In button with AuthDialog
   const showSignInButton = type === "web3" && isAnonymous;
   // Web3 uses custom form handler with its own Create Wallet button
   const hideOverlayActions = type === "web3";
-  // end keeperhub
 
   return (
     <Overlay
@@ -566,7 +552,6 @@ export function ConfigureConnectionOverlay({
         </div>
       </div>
 
-      {/* start keeperhub - Sign In button for anonymous web3 users */}
       {showSignInButton && (
         <OverlayFooter>
           <AuthDialog>
@@ -574,7 +559,6 @@ export function ConfigureConnectionOverlay({
           </AuthDialog>
         </OverlayFooter>
       )}
-      {/* end keeperhub */}
     </Overlay>
   );
 }

@@ -1,4 +1,3 @@
-// start custom keeperhub code //
 import { CronExpressionParser } from "cron-parser";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -101,4 +100,3 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   return NextResponse.json({ success: true });
 }
-// end keeperhub code //

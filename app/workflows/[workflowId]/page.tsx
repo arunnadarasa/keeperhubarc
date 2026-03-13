@@ -8,12 +8,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { NodeConfigPanel } from "@/components/workflow/node-config-panel";
 import { useIsMobile } from "@/hooks/use-mobile";
-// start custom keeperhub code //
 import {
   getPendingClaim,
   useClaimWorkflow,
 } from "@/keeperhub/lib/hooks/use-claim-workflow";
-// end keeperhub code //
 import { api } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
 import {
@@ -39,18 +37,12 @@ import {
   isSidebarCollapsedAtom,
   isWorkflowEnabled,
   isWorkflowOwnerAtom,
-  // start custom keeperhub code //
   newlyCreatedNodeIdAtom,
-  // end keeperhub code //
   nodesAtom,
-  // start custom keeperhub code //
   propertiesPanelActiveTabAtom,
-  // end keeperhub code //
   rightPanelWidthAtom,
   selectedExecutionIdAtom,
-  // start custom keeperhub code //
   selectedNodeAtom,
-  // end keeperhub code //
   triggerExecuteAtom,
   updateNodeDataAtom,
   type WorkflowNode,
@@ -166,11 +158,9 @@ const WorkflowEditor = ({ params }: WorkflowPageProps) => {
   const setCurrentWorkflowPublicTags = useSetAtom(
     currentWorkflowPublicTagsAtom
   );
-  // start custom keeperhub code //
   const setSelectedNode = useSetAtom(selectedNodeAtom);
   const setActiveTab = useSetAtom(propertiesPanelActiveTabAtom);
   const setNewlyCreatedNodeId = useSetAtom(newlyCreatedNodeIdAtom);
-  // end keeperhub code //
   const setGlobalIntegrations = useSetAtom(integrationsAtom);
   const setIntegrationsLoaded = useSetAtom(integrationsLoadedAtom);
   const integrationsVersion = useAtomValue(integrationsVersionAtom);
@@ -420,7 +410,6 @@ const WorkflowEditor = ({ params }: WorkflowPageProps) => {
       setHasUnsavedChanges(false);
       setWorkflowNotFound(false);
 
-      // start custom keeperhub code //
       // Auto-select an unconfigured action node (fresh workflow from homepage)
       const emptyAction = nodesWithIdleStatus.find(
         (n: WorkflowNode) =>
@@ -437,7 +426,6 @@ const WorkflowEditor = ({ params }: WorkflowPageProps) => {
         setActiveTab("properties");
         setNewlyCreatedNodeId(emptyAction.id);
       }
-      // end keeperhub code //
     } catch (error) {
       console.error("Failed to load workflow:", error);
       setWorkflowNotFound(true);
@@ -457,18 +445,12 @@ const WorkflowEditor = ({ params }: WorkflowPageProps) => {
     setHasUnsavedChanges,
     setWorkflowNotFound,
     setCurrentWorkflowDescription,
-    // start custom keeperhub code //
     setSelectedNode,
     setActiveTab,
     setNewlyCreatedNodeId,
-    // end keeperhub code //
   ]);
 
-  // start custom keeperhub code //
   const { claimPending } = useClaimWorkflow(workflowId, loadExistingWorkflow);
-
-  // end keeperhub code //
-
   // Track if we've already auto-fixed integrations for this workflow+version
   const lastAutoFixRef = useRef<{ workflowId: string; version: number } | null>(
     null
@@ -476,12 +458,10 @@ const WorkflowEditor = ({ params }: WorkflowPageProps) => {
 
   useEffect(() => {
     const loadWorkflowData = async () => {
-      // start custom keeperhub code //
       const pendingClaim = getPendingClaim();
       if (pendingClaim?.workflowId === workflowId) {
         return;
       }
-      // end keeperhub code //
 
       const isGeneratingParam = searchParams?.get("generating") === "true";
       const storedPrompt = sessionStorage.getItem("ai-prompt");
@@ -774,7 +754,6 @@ const WorkflowEditor = ({ params }: WorkflowPageProps) => {
                 className="gap-2"
                 onClick={async () => {
                   try {
-                    // start custom keeperhub code //
                     await ensureSession();
                     const triggerId = `trigger-${Date.now()}`;
                     const actionId = `action-${Date.now()}`;
@@ -814,7 +793,6 @@ const WorkflowEditor = ({ params }: WorkflowPageProps) => {
                         },
                       ],
                     });
-                    // end keeperhub code //
                     router.replace(`/workflows/${newWorkflow.id}`);
                   } catch (error) {
                     console.error("Failed to create workflow:", error);

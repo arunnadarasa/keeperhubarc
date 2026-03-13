@@ -1,4 +1,3 @@
-// start custom keeperhub code //
 import { generateWorkflowOGImage } from "@/keeperhub/api/og/generate-og";
 
 export async function GET(
@@ -8,4 +7,3 @@ export async function GET(
   const { workflowId } = await context.params;
   return generateWorkflowOGImage(workflowId);
 }
-// end keeperhub code //

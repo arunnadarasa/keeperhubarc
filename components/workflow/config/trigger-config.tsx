@@ -42,7 +42,6 @@ export function TriggerConfig({
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/api/workflows/${workflowId}/webhook`
     : "";
 
-  // start custom keeperhub code //
   const handleConfigValue = (key: string, value: unknown): void => {
     let stringValue: string;
     if (typeof value === "string") {
@@ -54,7 +53,6 @@ export function TriggerConfig({
     }
     onUpdateConfig(key, stringValue);
   };
-  // end keeperhub code //
 
   const handleCopyWebhookUrl = () => {
     if (webhookUrl) {
@@ -96,7 +94,6 @@ export function TriggerConfig({
                 Webhook
               </div>
             </SelectItem>
-            {/* start custom keeperhub code // */}
             <SelectItem value="Event">
               <div className="flex items-center gap-2">
                 <Boxes className="h-4 w-4" />
@@ -109,7 +106,6 @@ export function TriggerConfig({
                 Block
               </div>
             </SelectItem>
-            {/* end keeperhub code // */}
           </SelectContent>
         </Select>
       </div>
@@ -217,7 +213,6 @@ export function TriggerConfig({
         </>
       )}
 
-      {/* start custom keeperhub code // */}
       {/* Event fields */}
       {config?.triggerType === "Event" && (
         <EventTriggerFields
@@ -278,12 +273,10 @@ export function TriggerConfig({
             </>
           );
         })()}
-      {/* end keeperhub code // */}
     </>
   );
 }
 
-// start custom keeperhub code //
 const CUSTOM_PROTOCOL_VALUE = "__custom__";
 
 type EventTriggerFieldsProps = {
@@ -531,4 +524,3 @@ function ProtocolSelector({
     </div>
   );
 }
-// end keeperhub code //

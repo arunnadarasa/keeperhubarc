@@ -6,7 +6,6 @@ import {
 import { createAccessControl } from "better-auth/plugins/access";
 import { createAuthClient } from "better-auth/react";
 
-// start custom keeperhub code //
 // Import the same access control definition (shared type safety)
 const statement = {
   workflow: ["create", "read", "update", "delete"],
@@ -44,7 +43,6 @@ const ownerRole = ac.newRole({
   member: ["create", "update", "delete"],
   invitation: ["create", "cancel"],
 });
-// end keeperhub code //
 
 export const authClient = createAuthClient({
   baseURL:
@@ -54,7 +52,6 @@ export const authClient = createAuthClient({
   plugins: [
     anonymousClient(),
     emailOTPClient(),
-    // start custom keeperhub code //
     organizationClient({
       ac,
       roles: {
@@ -63,7 +60,6 @@ export const authClient = createAuthClient({
         member: memberRole,
       },
     }),
-    // end keeperhub code //
   ],
 });
 

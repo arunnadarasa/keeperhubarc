@@ -31,7 +31,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-// start custom keeperhub code //
 import { ManageOrgsModal } from "@/keeperhub/components/organization/manage-orgs-modal";
 import { AddressBookOverlay } from "@/keeperhub/components/overlays/address-book-overlay";
 import { FeedbackOverlay } from "@/keeperhub/components/overlays/feedback-overlay";
@@ -39,16 +38,13 @@ import { ProjectsOverlay } from "@/keeperhub/components/overlays/projects-overla
 import { TagsOverlay } from "@/keeperhub/components/overlays/tags-overlay";
 import { WalletOverlay } from "@/keeperhub/components/overlays/wallet-overlay";
 import { useOrganization } from "@/keeperhub/lib/hooks/use-organization";
-// end keeperhub code //
 import { signOut, useSession } from "@/lib/auth-client";
 
 export const UserMenu = () => {
   const { data: session, isPending } = useSession();
   const { open: openOverlay } = useOverlay();
   const [orgModalOpen, setOrgModalOpen] = useState(false);
-  // start custom keeperhub code //
   const { organization } = useOrganization();
-  // end keeperhub code //
 
   const handleLogout = async () => {
     await signOut();
@@ -139,7 +135,6 @@ export const UserMenu = () => {
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {/* start custom keeperhub code */}
           <div className="lg:hidden">
             <DropdownMenuItem onClick={() => setOrgModalOpen(true)}>
               <Users className="size-4" />
@@ -153,7 +148,6 @@ export const UserMenu = () => {
             <Github className="size-4" />
             <span>Report an issue</span>
           </DropdownMenuItem>
-          {/* end keeperhub code */}
           <DropdownMenuItem onClick={() => openOverlay(SettingsOverlay)}>
             <Settings className="size-4" />
             <span>Settings</span>
@@ -162,7 +156,6 @@ export const UserMenu = () => {
             <Plug className="size-4" />
             <span>Connections</span>
           </DropdownMenuItem>
-          {/* start custom keeperhub code */}
           <DropdownMenuItem onClick={() => openOverlay(ApiKeysOverlay)}>
             <Key className="size-4" />
             <span>API Keys</span>
@@ -175,8 +168,6 @@ export const UserMenu = () => {
             <Bookmark className="size-4" />
             <span>Address Book</span>
           </DropdownMenuItem>
-          {/* end keeperhub code */}
-          {/* start custom keeperhub code */}
           <DropdownMenuItem onClick={() => openOverlay(ProjectsOverlay)}>
             <FolderOpen className="size-4" />
             <span>Projects</span>
@@ -185,7 +176,6 @@ export const UserMenu = () => {
             <Tag className="size-4" />
             <span>Tags</span>
           </DropdownMenuItem>
-          {/* end keeperhub code */}
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handleLogout}>
             <LogOut className="size-4" />

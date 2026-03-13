@@ -3,7 +3,6 @@
  * This executor captures step executions through the workflow SDK for better observability
  */
 
-// start custom keeperhub code //
 import {
   BUILTIN_NODE_ID,
   BUILTIN_NODE_LABEL,
@@ -54,7 +53,6 @@ import type { StepContext } from "./steps/step-handler";
 import { triggerStep } from "./steps/trigger";
 import { deserializeEventTriggerData, getErrorMessageAsync } from "./utils";
 import type { WorkflowEdge, WorkflowNode } from "./workflow-store";
-// end keeperhub code //
 
 // System actions that don't have plugins - maps to module import functions
 const SYSTEM_ACTIONS: Record<string, StepImporter> = {
@@ -73,7 +71,6 @@ const SYSTEM_ACTIONS: Record<string, StepImporter> = {
     importer: () => import("./steps/condition") as Promise<any>,
     stepFunction: "conditionStep",
   },
-  // start custom keeperhub code //
   "For Each": {
     importer: () =>
       // biome-ignore lint/suspicious/noExplicitAny: Dynamic module import matches existing pattern
@@ -86,7 +83,6 @@ const SYSTEM_ACTIONS: Record<string, StepImporter> = {
       import("@/keeperhub/lib/steps/collect") as Promise<any>,
     stepFunction: "collectStep",
   },
-  // end keeperhub code //
 };
 
 type ExecutionResult = {
@@ -119,17 +115,14 @@ function replaceTemplateVariable(
   outputs: NodeOutputs,
   evalContext: Record<string, unknown>,
   varCounter: { value: number },
-  // start custom keeperhub code //
   nodeMap?: ReadonlyMap<string, unknown>,
   executionResults?: Record<string, ExecutionResult>
-  // end keeperhub code //
 ): string {
   const sanitizedNodeId = nodeId.replace(/[^a-zA-Z0-9]/g, "_");
   const output = outputs[sanitizedNodeId];
 
   // KEEP-1284: Throw error when referenced node output doesn't exist
   if (!output) {
-    // start custom keeperhub code //
     // Dead-branch grace: if the node exists in the workflow graph but was never
     // executed (it sits on a branch that a condition did not take), return
     // undefined instead of throwing so the condition evaluates gracefully.
@@ -139,7 +132,6 @@ function replaceTemplateVariable(
       evalContext[varName] = undefined;
       return varName;
     }
-    // end keeperhub code //
     throw new Error(
       `Condition references node "${nodeId}" but no output was found. The referenced node may not have executed or produced output.`
     );
@@ -229,10 +221,8 @@ type ConditionEvalResult = {
 export function evaluateConditionExpression(
   conditionExpression: unknown,
   outputs: NodeOutputs,
-  // start custom keeperhub code //
   nodeMap?: ReadonlyMap<string, unknown>,
   executionResults?: Record<string, ExecutionResult>
-  // end keeperhub code //
 ): ConditionEvalResult {
   console.log("[Condition] Original expression:", conditionExpression);
 
@@ -274,10 +264,8 @@ export function evaluateConditionExpression(
             outputs,
             evalContext,
             varCounter,
-            // start custom keeperhub code //
             nodeMap,
             executionResults
-            // end keeperhub code //
           );
           // Store the resolved value with a readable key (the display text from the template)
           resolvedValues[rest] = evalContext[varName];
@@ -294,7 +282,6 @@ export function evaluateConditionExpression(
         );
       }
 
-      // start custom keeperhub code //
       // BigInt-safe conversion for large Web3 values (e.g. token balances in wei)
       if (needsBigIntMode(transformedExpression, evalContext)) {
         const converted = applyBigIntConversion(
@@ -304,7 +291,6 @@ export function evaluateConditionExpression(
         transformedExpression = converted.expression;
         evalContext = converted.evalContext;
       }
-      // end keeperhub code //
 
       const varNames = Object.keys(evalContext);
       const varValues = Object.values(evalContext);
@@ -356,10 +342,8 @@ async function executeActionStep(input: {
   config: Record<string, unknown>;
   outputs: NodeOutputs;
   context: StepContext;
-  // start custom keeperhub code //
   nodeMap?: ReadonlyMap<string, unknown>;
   executionResults?: Record<string, ExecutionResult>;
-  // end keeperhub code //
 }) {
   const { actionType, config, outputs, context } = input;
 
@@ -383,14 +367,12 @@ async function executeActionStep(input: {
     let evaluationError: string | undefined;
 
     try {
-      // start custom keeperhub code //
       const result = evaluateConditionExpression(
         originalExpression,
         outputs,
         input.nodeMap,
         input.executionResults
       );
-      // end keeperhub code //
       evaluatedCondition = result.result;
       resolvedValues = result.resolvedValues;
     } catch (error) {
@@ -452,7 +434,6 @@ async function executeActionStep(input: {
   };
 }
 
-// start custom keeperhub code //
 /**
  * Resolve a field path (e.g. "data.recipes[0].tags[0]") into a value.
  * Supports bracket notation for array indices.
@@ -604,18 +585,15 @@ function processTemplates(
 ): Record<string, unknown> {
   const processed: Record<string, unknown> = {};
   const storedPattern = /\{\{@([^:]+):([^}]+)\}\}/g;
-  // start custom keeperhub code //
   // Fallback: resolve display-format templates {{Label.field}} that were not
   // converted to stored format by the editor (mirrors extractTemplateParameters).
   const displayPattern = /\{\{([^@}][^}]*)\}\}/g;
-  // end keeperhub code //
 
   for (const [key, value] of Object.entries(config)) {
     if (typeof value === "string") {
       let result = value.replace(storedPattern, (m, nodeId, rest) =>
         replaceConfigTemplate(m, nodeId, rest, outputs)
       );
-      // start custom keeperhub code //
       result = result.replace(displayPattern, (full, displayRef) => {
         const resolved = resolveDisplayTemplate(displayRef, outputs);
         if (resolved === null || resolved === undefined) {
@@ -623,7 +601,6 @@ function processTemplates(
         }
         return formatConfigValue(resolved);
       });
-      // end keeperhub code //
       processed[key] = result;
     } else if (
       typeof value === "object" &&
@@ -642,7 +619,6 @@ function processTemplates(
   return processed;
 }
 
-// start custom keeperhub code //
 /**
  * Format a resolved value as a valid JavaScript expression for code context.
  * Strings are JSON-quoted so they stay valid when inlined into user code.
@@ -699,7 +675,6 @@ function processCodeTemplates(code: string, outputs: NodeOutputs): string {
 
   return result;
 }
-// end keeperhub code //
 
 /**
  * Resolve a display-format template (e.g. "Label.field") by searching outputs
@@ -846,9 +821,7 @@ export type LoopBodyInfo = {
   bodyNodeIds: string[];
   collectNodeId: string | undefined;
   bodyEdgesBySource: Map<string, string[]>;
-  // start custom keeperhub code //
   bodyEdgesBySourceHandle: EdgesBySourceHandle;
-  // end keeperhub code //
 };
 
 /**
@@ -879,15 +852,11 @@ export function identifyLoopBody(
   forEachNodeId: string,
   edgesBySource: Map<string, string[]>,
   nodeMap: Map<string, WorkflowNode>,
-  // start custom keeperhub code //
   edgesBySourceHandle?: EdgesBySourceHandle
-  // end keeperhub code //
 ): LoopBodyInfo {
   const bodyNodeIds: string[] = [];
   const bodyEdgesBySource = new Map<string, string[]>();
-  // start custom keeperhub code //
   const bodyEdgesBySourceHandle: EdgesBySourceHandle = new Map();
-  // end keeperhub code //
   let collectNodeId: string | undefined;
   const visited = new Set<string>();
 
@@ -950,7 +919,6 @@ export function identifyLoopBody(
     }
   }
 
-  // start custom keeperhub code //
   // Copy handle-aware edges, filtering targets to body-only nodes so
   // condition handles cannot accidentally route outside the loop body.
   const bodyNodeSet = new Set(bodyNodeIds);
@@ -970,7 +938,6 @@ export function identifyLoopBody(
       bodyEdgesBySourceHandle.set(bodyNodeId, filteredHandleMap);
     }
   }
-  // end keeperhub code //
 
   return { bodyNodeIds, collectNodeId, bodyEdgesBySource, bodyEdgesBySourceHandle };
 }
@@ -1034,9 +1001,6 @@ export function resolveArraySource(
 
   return raw;
 }
-
-// end keeperhub code //
-
 /**
  * Main workflow executor function
  */
@@ -1061,10 +1025,8 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
   // Build node and edge maps
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const edgesBySource = new Map<string, string[]>();
-  // start custom keeperhub code //
   const edgesBySourceHandle = buildEdgesBySourceHandle(edges);
   const conditionDecisions = new Map<string, ConditionDecision>();
-  // end keeperhub code //
   for (const edge of edges) {
     const targets = edgesBySource.get(edge.source) || [];
     targets.push(edge.target);
@@ -1083,7 +1045,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     "trigger nodes"
   );
 
-  // start custom keeperhub code //
   // Detect trigger type for step context (gas strategy uses this for multiplier selection)
   const workflowTriggerType: string = (() => {
     const triggerNode = nodes.find((n) => n.data.type === "trigger");
@@ -1102,7 +1063,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     }
     return "manual";
   })();
-  // end keeperhub code //
 
   // Helper to get a meaningful node name
   function getNodeName(node: WorkflowNode): string {
@@ -1124,9 +1084,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     }
     return node.data.type;
   }
-
-  // start custom keeperhub code //
-
   /**
    * Process a node's config by resolving templates and handling special fields
    * (condition, dbQuery). Shared by executeNode and executeBodyNode.
@@ -1145,12 +1102,10 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     if (actionType === "Database Query") {
       configWithoutSpecial.dbQuery = undefined;
     }
-    // start custom keeperhub code //
     const originalCode = config.code;
     if (actionType === "code/run-code") {
       configWithoutSpecial.code = undefined;
     }
-    // end keeperhub code //
 
     const processedConfig = processTemplates(
       configWithoutSpecial,
@@ -1181,15 +1136,12 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       processedConfig.dbQuery = originalDbQuery;
     }
 
-    // start custom keeperhub code //
     if (actionType === "code/run-code" && typeof originalCode === "string") {
       processedConfig.code = processCodeTemplates(originalCode, currentOutputs);
     }
-    // end keeperhub code //
 
     return processedConfig;
   }
-  // end keeperhub code //
 
   // -------------------------------------------------------------------
   // For Each: body-node executor (scoped outputs, body-only edges)
@@ -1209,9 +1161,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     bodyEdgesBySource: Map<string, string[]>,
     collectNodeId: string | undefined,
     iterationMeta?: { iterationIndex: number; forEachNodeId: string },
-    // start custom keeperhub code //
     bodyHandleMap?: EdgesBySourceHandle
-    // end keeperhub code //
   ): Promise<void> {
     if (bodyVisited.has(nodeId)) {
       return;
@@ -1243,9 +1193,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           bodyEdgesBySource,
           collectNodeId,
           iterationMeta,
-          // start custom keeperhub code //
           bodyHandleMap
-          // end keeperhub code //
         );
       }
       return;
@@ -1339,15 +1287,12 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
                 bodyEdgesBySource,
                 collectNodeId,
                 iterationMeta,
-                // start custom keeperhub code //
                 bodyHandleMap
-                // end keeperhub code //
               );
             }
           },
         });
       } else if (actionType === "Condition") {
-        // start custom keeperhub code //
         const conditionValue = (result.data as { condition?: boolean })
           ?.condition;
         const nodeHandles = bodyHandleMap?.get(nodeId);
@@ -1372,10 +1317,8 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           // Legacy fallback: gate behavior
           return;
         }
-        // end keeperhub code //
       }
 
-      // start custom keeperhub code //
       // Continue to downstream body nodes.
       // Skip only when condition routed via handles AND the chosen handle had targets.
       const conditionRoutedViaHandles =
@@ -1403,7 +1346,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           );
         }
       }
-      // end keeperhub code //
     } catch (error) {
       const errorMessage = await getErrorMessageAsync(error);
       bodyResults[nodeId] = { success: false, error: errorMessage };
@@ -1450,14 +1392,12 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     const itemsToProcess = resolvedArray.slice(0, maxIterations);
 
     // 2. Identify body subgraph
-    // start custom keeperhub code //
     const { bodyNodeIds, collectNodeId, bodyEdgesBySource, bodyEdgesBySourceHandle } = identifyLoopBody(
       forEachNodeId,
       currentEdgesBySource,
       nodeMap,
       edgesBySourceHandle
     );
-    // end keeperhub code //
 
     const sanitizedForEachId = forEachNodeId.replace(/[^a-zA-Z0-9]/g, "_");
 
@@ -1502,9 +1442,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           bodyEdgesBySource,
           collectNodeId,
           iterationMeta,
-          // start custom keeperhub code //
           bodyEdgesBySourceHandle
-          // end keeperhub code //
         );
       }
 
@@ -1558,7 +1496,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       return iterationOutput;
     }
 
-    // start custom keeperhub code //
     // 4. Run iterations with configurable concurrency
     const { runIterations } = await import(
       "@/keeperhub/lib/for-each-concurrency"
@@ -1573,7 +1510,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       concurrencyMode as "sequential" | "parallel" | "custom",
       concurrencyLimit
     );
-    // end keeperhub code //
 
     // 5. Mark body nodes as visited in the parent scope
     for (const bodyNodeId of bodyNodeIds) {
@@ -1625,7 +1561,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     };
   }
 
-  // start custom keeperhub code //
   function processSettledResults(
     settled: PromiseSettledResult<void>[],
     nodeIds: string[]
@@ -1643,7 +1578,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       }
     }
   }
-  // end keeperhub code //
 
   // Helper to execute a single node
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Node execution requires type checking and error handling
@@ -1681,7 +1615,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       return;
     }
 
-    // start custom keeperhub code //
     // Inject fresh built-in system variables before each node executes.
     // Intentionally per-node (not per-workflow) so long-running sequential
     // workflows get an up-to-date timestamp at each step.
@@ -1690,7 +1623,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       label: BUILTIN_NODE_LABEL,
       data: getBuiltinVariables(),
     };
-    // end keeperhub code //
 
     try {
       let result: ExecutionResult;
@@ -1732,7 +1664,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           }
         } else if (triggerInput && Object.keys(triggerInput).length > 0) {
           // Use provided trigger input
-          // start custom keeperhub code //
           // For Event triggers, deserialize { value: string, type: string } objects
           // back to appropriate types (BigInt for uint/int, boolean for bool, etc.)
           if (triggerType === "Event") {
@@ -1771,7 +1702,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
               triggerData.triggeredAt = triggerInput.triggerTime;
             }
           }
-          // end keeperhub code //
         }
 
         // Build context for logging
@@ -1814,9 +1744,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           return;
         }
 
-        // start custom keeperhub code //
         const processedConfig = processActionConfig(config, actionType, outputs);
-        // end keeperhub code //
 
         // Build step context for logging (stepHandler will handle the logging)
         const stepContext: StepContext = {
@@ -1824,9 +1752,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           nodeId: node.id,
           nodeName: getNodeName(node),
           nodeType: actionType,
-          // start custom keeperhub code //
           triggerType: workflowTriggerType,
-          // end keeperhub code //
         };
 
         // Execute the action step with stepHandler (logging is handled inside)
@@ -1838,10 +1764,8 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           config: processedConfig,
           outputs,
           context: stepContext,
-          // start custom keeperhub code //
           nodeMap,
           executionResults: results,
-          // end keeperhub code //
         });
 
         console.log("[Workflow Executor] Step result received:", {
@@ -1900,7 +1824,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             ? (node.data.config?.actionType as string | undefined)
             : undefined;
 
-        // start custom keeperhub code //
         if (currentActionType === "For Each") {
           // For Each: iterate over array, execute body subgraph per element,
           // store results on Collect, then continue from Collect downstream.
@@ -1933,12 +1856,10 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           };
           results[nodeId] = { success: true, data: iterationSummary };
         } else if (currentActionType === "Condition") {
-          // end keeperhub code //
           // For condition nodes, route to true/false handle targets
           const conditionResult = (result.data as { condition?: boolean })
             ?.condition;
 
-          // start custom keeperhub code //
           const handleMap = edgesBySourceHandle.get(nodeId);
           if (handleMap) {
             // Handle-aware routing: use sourceHandle to determine targets
@@ -1973,7 +1894,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
               processSettledResults(legacySettled, nextNodes);
             }
           }
-          // end keeperhub code //
         } else {
           // For non-condition nodes, execute all next nodes in parallel
           const nextNodes = edgesBySource.get(nodeId) || [];
@@ -2015,7 +1935,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     console.log("[Workflow Executor] Starting execution from trigger nodes");
     const workflowStartTime = Date.now();
 
-    // start custom keeperhub code //
     const triggerType = detectTriggerType(nodes);
     const metrics = getMetricsCollector();
     metrics.incrementCounter(MetricNames.WORKFLOW_EXECUTIONS_TOTAL, {
@@ -2023,7 +1942,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       ...(workflowId && { [LabelKeys.WORKFLOW_ID]: workflowId }),
     });
     incrementConcurrentExecutions();
-    // end keeperhub code //
 
     const triggerNodeIds = triggerNodes.map((trigger) => trigger.id);
     const triggerSettled = await Promise.allSettled(
@@ -2031,16 +1949,13 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     );
     processSettledResults(triggerSettled, triggerNodeIds);
 
-    // start custom keeperhub code //
     // Branch-aware finalSuccess: exclude nodes on dead (not-taken) condition branches
     const allSkippedTargets = collectAllSkippedTargets(conditionDecisions);
     const finalSuccess = Object.entries(results).every(
       ([nodeId, r]) => r.success || allSkippedTargets.has(nodeId)
     );
-    // end keeperhub code //
     const duration = Date.now() - workflowStartTime;
 
-    // start custom keeperhub code //
     // Diagnostic logging for branching workflow failures
     if (!finalSuccess && conditionDecisions.size > 0) {
       const failedNodes = Object.entries(results)
@@ -2068,7 +1983,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       error: Object.values(results).find((r) => !r.success)?.error,
     });
     decrementConcurrentExecutions();
-    // end keeperhub code //
 
     console.log("[Workflow Executor] Workflow execution completed:", {
       success: finalSuccess,
@@ -2122,7 +2036,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
 
     const errorMessage = await getErrorMessageAsync(error);
 
-    // start custom keeperhub code //
     recordWorkflowComplete({
       workflowId,
       executionId,
@@ -2132,7 +2045,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       error: errorMessage,
     });
     decrementConcurrentExecutions();
-    // end keeperhub code //
 
     // Update execution record with error if we have an executionId
     if (executionId) {
@@ -2166,10 +2078,8 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       error: errorMessage,
     };
   } finally {
-    // start custom keeperhub code //
     if (executionId) {
       clearExecution(executionId);
     }
-    // end keeperhub code //
   }
 }

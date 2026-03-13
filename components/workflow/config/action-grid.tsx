@@ -30,9 +30,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useIsTouch } from "@/hooks/use-touch";
 import { cn } from "@/lib/utils";
-// start custom keeperhub code //
 import { nodesAtom } from "@/lib/workflow-store";
-// end keeperhub code //
 import { getAllActions } from "@/plugins/registry";
 
 type ActionType = {
@@ -63,7 +61,6 @@ const SYSTEM_ACTIONS: ActionType[] = [
     description: "Branch based on a condition",
     category: "System",
   },
-  // start custom keeperhub code //
   {
     id: "For Each",
     label: "For Each",
@@ -76,17 +73,14 @@ const SYSTEM_ACTIONS: ActionType[] = [
     description: "Gather results from a For Each loop",
     category: "System",
   },
-  // end keeperhub code //
 ];
 
 // Combine System actions with plugin actions
 function useAllActions(): ActionType[] {
-  // start custom keeperhub code //
   const nodes = useAtomValue(nodesAtom);
   const hasForEach = nodes.some(
     (n) => n.data?.config?.actionType === "For Each"
   );
-  // end keeperhub code //
 
   return useMemo(() => {
     const pluginActions = getAllActions();
@@ -99,11 +93,9 @@ function useAllActions(): ActionType[] {
       integration: action.integration,
     }));
 
-    // start custom keeperhub code //
     const systemActions = hasForEach
       ? SYSTEM_ACTIONS
       : SYSTEM_ACTIONS.filter((a) => a.id !== "Collect");
-    // end keeperhub code //
 
     return [...systemActions, ...mappedPluginActions];
   }, [hasForEach]);
@@ -181,7 +173,6 @@ function getInitialViewMode(): ViewMode {
   }
 }
 
-// start custom keeperhub code //
 // Super-category definitions for the action panel
 const SUPER_CATEGORY_ORDER = ["Web3", "Messaging", "System"] as const;
 type SuperCategory = (typeof SUPER_CATEGORY_ORDER)[number];
@@ -214,7 +205,6 @@ type SuperCategoryGroup = {
   superCategory: SuperCategory;
   pluginGroups: PluginGroup[];
 };
-// end keeperhub code //
 
 export function ActionGrid({
   onSelectAction,
@@ -298,7 +288,6 @@ export function ActionGrid({
     );
   });
 
-  // start custom keeperhub code //
   // Group actions by super-category, then by plugin category within each
   const superCategoryGroups = useMemo((): SuperCategoryGroup[] => {
     const categoryMap: Record<string, ActionType[]> = {};
@@ -347,7 +336,6 @@ export function ActionGrid({
       }))
       .filter((sg) => sg.pluginGroups.length > 0);
   }, [superCategoryGroups, hiddenGroups, showHidden]);
-  // end keeperhub code //
 
   const hiddenCount = hiddenGroups.size;
 
@@ -463,7 +451,6 @@ export function ActionGrid({
           </div>
         )}
 
-        {/* start custom keeperhub code */}
         {/* List View - Flat search results (no category headers) */}
         {viewMode === "list" &&
           filter &&
@@ -608,7 +595,6 @@ export function ActionGrid({
               })}
             </div>
           ))}
-        {/* end keeperhub code */}
       </div>
     </div>
   );

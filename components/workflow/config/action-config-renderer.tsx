@@ -4,13 +4,11 @@ import { ChevronDown, Info } from "lucide-react";
 import React, { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-// start custom keeperhub code //
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-// end keeperhub code //
 import {
   Select,
   SelectContent,
@@ -20,12 +18,10 @@ import {
 } from "@/components/ui/select";
 import { TemplateBadgeInput } from "@/components/ui/template-badge-input";
 import { TemplateBadgeTextarea } from "@/components/ui/template-badge-textarea";
-// start custom keeperhub code //
 import { SaveAddressBookmark } from "@/keeperhub/components/address-book/save-address-bookmark";
 import { computeSelector } from "@/keeperhub/lib/abi-utils";
 import { parseAddressBookSelection } from "@/keeperhub/lib/address-book-selection";
 import { toChecksumAddress } from "@/keeperhub/lib/address-utils";
-// end keeperhub code //
 import { getCustomFieldRenderer } from "@/lib/extension-registry";
 import {
   type ActionConfigField,
@@ -39,11 +35,9 @@ type FieldProps = {
   value: string;
   onChange: (value: unknown) => void;
   disabled?: boolean;
-  // start custom keeperhub code //
   config?: Record<string, unknown>;
   nodeId?: string;
 };
-// end keeperhub code //
 
 function TemplateInputField({
   field,
@@ -53,7 +47,6 @@ function TemplateInputField({
   config,
   nodeId,
 }: FieldProps) {
-  // start custom keeperhub code //
   const isAddressField =
     field.isAddressField === true ||
     field.key === "contractAddress" ||
@@ -90,7 +83,6 @@ function TemplateInputField({
   }
 
   return input;
-  // end keeperhub code //
 }
 
 function TemplateTextareaField({
@@ -132,9 +124,7 @@ function NumberInputField({ field, value, onChange, disabled }: FieldProps) {
       min={field.min}
       onChange={(e) => onChange(e.target.value)}
       placeholder={field.placeholder}
-      // start custom keeperhub code //
       step={field.step}
-      // end keeperhub code //
       type="number"
       value={value}
     />
@@ -217,10 +207,8 @@ export function AbiFunctionSelectField({
               `${input.type} ${input.name}`
           )
           .join(", ");
-        // start custom keeperhub code //
         const inputTypes = inputs.map((input: { type: string }) => input.type);
         const selector = computeSelector(func.name, inputTypes);
-        // end keeperhub code //
         return {
           name: func.name,
           label: `${func.name}(${params})`,
@@ -252,14 +240,12 @@ export function AbiFunctionSelectField({
         {functions.map((func) => (
           <SelectItem key={func.label} value={func.name}>
             <div className="flex flex-col items-start">
-              {/* start custom keeperhub code // */}
               <span>
                 {func.label}{" "}
                 <code className="text-muted-foreground text-xs">
                   ({func.selector})
                 </code>
               </span>
-              {/* end keeperhub code // */}
               <span className="text-muted-foreground text-xs">
                 {func.stateMutability}
               </span>
@@ -494,14 +480,11 @@ function renderField(
   config: Record<string, unknown>,
   onUpdateConfig: (key: string, value: unknown) => void,
   disabled?: boolean,
-  // start custom keeperhub code //
   nodeId?: string
-  // end keeperhub code //
 ) {
   // Check conditional rendering
   if (field.showWhen) {
     const dependentValue = config[field.showWhen.field];
-    // start custom keeperhub code //
     if ("oneOf" in field.showWhen) {
       if (!field.showWhen.oneOf.includes(dependentValue as string)) {
         return null;
@@ -509,7 +492,6 @@ function renderField(
     } else if (dependentValue !== field.showWhen.equals) {
       return null;
     }
-    // end keeperhub code //
   }
 
   const value =
@@ -547,7 +529,6 @@ function renderField(
       <Label className="ml-1 flex items-center gap-1.5" htmlFor={field.key}>
         {field.label}
         {field.required && <span className="text-red-500">*</span>}
-        {/* start custom keeperhub code // */}
         {field.helpTip && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -558,17 +539,12 @@ function renderField(
             </TooltipContent>
           </Tooltip>
         )}
-        {/* end keeperhub code // */}
       </Label>
       <FieldRenderer
-        // start custom keeperhub code //
         config={config}
-        // end keeperhub code //
         disabled={disabled}
         field={field}
-        // start custom keeperhub code //
         nodeId={nodeId}
-        // end keeperhub code //
         onChange={(val: unknown) => onUpdateConfig(field.key, val)}
         value={value}
       />
@@ -586,7 +562,6 @@ function FieldGroup({
   onUpdateConfig,
   disabled,
   defaultExpanded = false,
-  // start custom keeperhub code //
   nodeId,
 }: {
   label: string;
@@ -597,7 +572,6 @@ function FieldGroup({
   defaultExpanded?: boolean;
   nodeId?: string;
 }) {
-  // end keeperhub code //
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   return (
@@ -630,9 +604,7 @@ type ActionConfigRendererProps = {
   config: Record<string, unknown>;
   onUpdateConfig: (key: string, value: unknown) => void;
   disabled?: boolean;
-  // start custom keeperhub code //
   nodeId?: string;
-  // end keeperhub code //
 };
 
 /**
@@ -644,9 +616,7 @@ export function ActionConfigRenderer({
   config,
   onUpdateConfig,
   disabled,
-  // start custom keeperhub code //
   nodeId,
-  // end keeperhub code //
 }: ActionConfigRendererProps) {
   return (
     <>
@@ -660,9 +630,7 @@ export function ActionConfigRenderer({
               fields={field.fields}
               key={`group-${field.label}`}
               label={field.label}
-              // start custom keeperhub code //
               nodeId={nodeId}
-              // end keeperhub code //
               onUpdateConfig={onUpdateConfig}
             />
           );
@@ -673,9 +641,7 @@ export function ActionConfigRenderer({
           config,
           onUpdateConfig,
           disabled,
-          // start custom keeperhub code //
           nodeId
-          // end keeperhub code //
         );
       })}
     </>

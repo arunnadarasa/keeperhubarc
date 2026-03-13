@@ -305,7 +305,6 @@ export async function getDailyActiveUsersFromDb(): Promise<number> {
   }
 }
 
-// start custom keeperhub code //
 export type UserStats = {
   total: number;
   verified: number;
@@ -695,4 +694,3 @@ export async function getInfraStatsFromDb(): Promise<InfraStats> {
     };
   }
 }
-// end keeperhub code //

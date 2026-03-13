@@ -59,9 +59,7 @@ import {
   updateNodeDataAtom,
   workflowNotFoundAtom,
 } from "@/lib/workflow-store";
-// start custom keeperhub code //
 import { findActionById, flattenConfigFields } from "@/plugins/registry";
-// end keeperhub code //
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { ActionConfig } from "./config/action-config";
 import { ActionGrid } from "./config/action-grid";
@@ -307,7 +305,6 @@ export const PanelInner = () => {
   const autoSelectAbortControllersRef = useRef<Record<string, AbortController>>(
     {}
   );
-  // start custom keeperhub code //
   // Tracks in-flight config so multiple synchronous onUpdateConfig calls
   // within the same event (e.g. toggling manual ABI + clearing the field)
   // don't overwrite each other due to stale selectedNode closure.
@@ -315,7 +312,6 @@ export const PanelInner = () => {
   const sidebarRefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
-  // end keeperhub code //
   const selectedNode = nodes.find((node) => node.id === selectedNodeId);
   const selectedEdge = edges.find((edge) => edge.id === selectedEdgeId);
 
@@ -335,11 +331,9 @@ export const PanelInner = () => {
     const isManualTrigger =
       selectedNode.data.type === "trigger" &&
       selectedNode.data.config?.triggerType === "Manual";
-    // start custom keeperhub code //
     const isForEachOrCollect =
       selectedNode.data.config?.actionType === "For Each" ||
       selectedNode.data.config?.actionType === "Collect";
-    // end keeperhub code //
 
     if (isConditionAction || isManualTrigger || isForEachOrCollect) {
       setActiveTab("properties");
@@ -548,22 +542,17 @@ export const PanelInner = () => {
     [updateNodeData, setPendingIntegrationNodes]
   );
 
-  // start custom keeperhub code //
   // Widened value type to support structured config objects (e.g. conditionConfig)
   const handleUpdateConfig = (key: string, value: string | Record<string, unknown> | undefined) => {
-  // end keeperhub code //
     if (selectedNode) {
-      // start custom keeperhub code //
       const baseConfig = pendingConfigRef.current ?? selectedNode.data.config;
       let newConfig = { ...baseConfig, [key]: value };
-      // end keeperhub code //
 
       // When action type changes, clear the integrationId since it may not be valid for the new action
       if (key === "actionType" && baseConfig?.integrationId) {
         newConfig = { ...newConfig, integrationId: undefined };
       }
 
-      // start custom keeperhub code //
       // When action type is selected, persist defaultValues from configFields
       // into config so that showWhen conditions and validation work immediately.
       // For _protocolMeta: always overwrite with the new action's value since
@@ -582,14 +571,11 @@ export const PanelInner = () => {
           }
         }
       }
-      // end keeperhub code //
 
-      // start custom keeperhub code //
       pendingConfigRef.current = newConfig;
       queueMicrotask(() => {
         pendingConfigRef.current = null;
       });
-      // end keeperhub code //
       updateNodeData({ id: selectedNode.id, data: { config: newConfig } });
 
       // When action type changes, auto-select integration if only one exists
@@ -659,7 +645,6 @@ export const PanelInner = () => {
     }
   };
 
-  // start custom keeperhub code //
   const handleUpdateWorkflowProject = async (
     newProjectId: string | null
   ): Promise<void> => {
@@ -693,7 +678,6 @@ export const PanelInner = () => {
       }
     }
   };
-  // end keeperhub code //
 
   const handleRefreshRuns = async () => {
     setIsRefreshing(true);
@@ -851,7 +835,6 @@ export const PanelInner = () => {
                   value={currentWorkflowDescription}
                 />
               </div>
-              {/* start custom keeperhub code */}
               <div className="space-y-2">
                 <Label className="ml-1">Project</Label>
                 <ProjectSelect
@@ -871,7 +854,6 @@ export const PanelInner = () => {
                   value={currentWorkflowTagId}
                 />
               </div>
-              {/* end keeperhub code */}
               <div className="space-y-2">
                 <Label className="ml-1" htmlFor="workflow-id">
                   Workflow ID
@@ -1043,10 +1025,8 @@ export const PanelInner = () => {
           {(selectedNode.data.type !== "trigger" ||
             (selectedNode.data.config?.triggerType as string) !== "Manual") &&
           selectedNode.data.config?.actionType !== "Condition" &&
-          // start custom keeperhub code //
           selectedNode.data.config?.actionType !== "For Each" &&
           selectedNode.data.config?.actionType !== "Collect" ? (
-            // end keeperhub code //
             <TabsTrigger
               className="bg-transparent text-muted-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none"
               value="code"
@@ -1118,9 +1098,7 @@ export const PanelInner = () => {
                   config={selectedNode.data.config || {}}
                   disabled={isGenerating || !isOwner}
                   isOwner={isOwner}
-                  // start custom keeperhub code //
                   nodeId={selectedNode.id}
-                  // end keeperhub code //
                   onUpdateConfig={handleUpdateConfig}
                 />
               ) : null}

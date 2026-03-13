@@ -1,4 +1,3 @@
-// start custom keeperhub code //
 import { generateProtocolOGImage } from "@/keeperhub/api/og/generate-og";
 
 export async function GET(
@@ -8,4 +7,3 @@ export async function GET(
   const { slug } = await context.params;
   return await generateProtocolOGImage(slug);
 }
-// end keeperhub code //
