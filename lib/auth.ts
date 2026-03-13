@@ -3,6 +3,10 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import {
   anonymous,
+  // start custom keeperhub code //
+  bearer,
+  deviceAuthorization,
+  // end keeperhub code //
   emailOTP,
   genericOAuth,
   organization,
@@ -118,6 +122,13 @@ function getBaseURL() {
 
 // Build plugins array conditionally
 const plugins = [
+  // start custom keeperhub code //
+  bearer(),
+  deviceAuthorization({
+    expiresIn: "15m",
+    interval: "5s",
+  }),
+  // end keeperhub code //
   emailOTP({
     async sendVerificationOTP({ email, otp, type }) {
       console.log(`[Auth] Sending OTP to ${email} for ${type}`);
@@ -452,6 +463,9 @@ export const auth = betterAuth({
   },
   trustedOrigins: [
     "http://localhost:3000",
+    // start custom keeperhub code //
+    "http://127.0.0.1", // CLI browser auth callback
+    // end keeperhub code //
     "https://app-staging.keeperhub.com",
     "https://*.keeperhub.com",
   ],
