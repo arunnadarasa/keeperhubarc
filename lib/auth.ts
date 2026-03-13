@@ -22,6 +22,7 @@ import { isAiGatewayManagedKeysEnabled } from "./ai-gateway/config";
 import { db } from "./db";
 import {
   accounts,
+  deviceCode,
   integrations,
   invitationRelations,
   invitation as invitationTable,
@@ -84,6 +85,7 @@ const schema = {
   session: sessions,
   account: accounts,
   verification: verifications,
+  deviceCode,
   workflows,
   workflowExecutions,
   workflowExecutionLogs,
@@ -464,7 +466,7 @@ export const auth = betterAuth({
   trustedOrigins: [
     "http://localhost:3000",
     // start custom keeperhub code //
-    "http://127.0.0.1", // CLI browser auth callback
+    "http://127.0.0.1:*", // CLI browser auth callback (dynamic port)
     // end keeperhub code //
     "https://app-staging.keeperhub.com",
     "https://*.keeperhub.com",

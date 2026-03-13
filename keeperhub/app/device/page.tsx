@@ -1,7 +1,9 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { AuthDialog } from "@/components/auth/dialog";
+import { isAnonymousUser } from "@/keeperhub/lib/is-anonymous";
 
 function SuccessState(): React.JSX.Element {
   return (
@@ -29,6 +31,18 @@ function ErrorState({
         Try Again
       </button>
     </div>
+  );
+}
+
+function LoadingState(): React.JSX.Element {
+  return (
+    <button
+      className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground opacity-50"
+      disabled
+      type="button"
+    >
+      Confirming...
+    </button>
   );
 }
 
@@ -62,13 +76,49 @@ export default function DevicePage(): React.JSX.Element {
 function DevicePageContent(): React.JSX.Element {
   const searchParams = useSearchParams();
   const userCode = searchParams.get("user_code") ?? "";
-  const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
+  const [status, setStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    async function checkSession(): Promise<void> {
+      const res = await fetch("/api/auth/get-session", {
+        credentials: "include",
+      });
+      if (res.ok) {
+        const data = (await res.json().catch(() => null)) as {
+          session?: unknown;
+          user?: { name?: string | null; email?: string | null } | null;
+        } | null;
+        const hasSession = Boolean(data?.session);
+        setIsAuthenticated(hasSession && !isAnonymousUser(data?.user));
+      } else {
+        setIsAuthenticated(false);
+      }
+    }
+    checkSession();
+
+    const onFocus = (): void => {
+      checkSession();
+    };
+    window.addEventListener("focus", onFocus);
+
+    const interval = setInterval(checkSession, 2000);
+
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      clearInterval(interval);
+    };
+  }, []);
 
   const handleConfirm = async (): Promise<void> => {
-    const response = await fetch("/api/auth/device/verify", {
+    setStatus("loading");
+    const response = await fetch("/api/auth/device/approve", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ userCode }),
     });
 
@@ -78,13 +128,40 @@ function DevicePageContent(): React.JSX.Element {
     }
 
     const data = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      error_description?: string;
       message?: string;
     };
-    setErrorMessage(data.message ?? "Verification failed. Please try again.");
+    setErrorMessage(
+      data.error_description ?? data.message ?? "Verification failed."
+    );
     setStatus("error");
   };
 
   const renderAction = (): React.JSX.Element => {
+    if (isAuthenticated === null) {
+      return (
+        <button
+          className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground opacity-50"
+          disabled
+          type="button"
+        >
+          Checking session...
+        </button>
+      );
+    }
+    if (isAuthenticated === false) {
+      return (
+        <AuthDialog>
+          <button
+            className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            type="button"
+          >
+            Sign in to authorize
+          </button>
+        </AuthDialog>
+      );
+    }
     if (status === "success") {
       return <SuccessState />;
     }
@@ -93,11 +170,14 @@ function DevicePageContent(): React.JSX.Element {
         <ErrorState message={errorMessage} onRetry={() => setStatus("idle")} />
       );
     }
+    if (status === "loading") {
+      return <LoadingState />;
+    }
     return <IdleState onConfirm={handleConfirm} userCode={userCode} />;
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
+    <main className="pointer-events-auto flex min-h-screen flex-col items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-6 rounded-lg border border-border bg-card p-8 shadow-sm">
         <div className="space-y-1">
           <h1 className="text-xl font-semibold text-foreground">
