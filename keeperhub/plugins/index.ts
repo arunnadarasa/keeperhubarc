@@ -19,35 +19,3 @@ import "./sendgrid";
 import "./telegram";
 import "./web3";
 import "./webhook";
-
-// Re-export types from base registry for convenience
-export type {
-  ActionConfigField,
-  ActionConfigFieldBase,
-  ActionConfigFieldGroup,
-  ActionWithFullId,
-  IntegrationPlugin,
-  PluginAction,
-} from "@/plugins/registry";
-
-export {
-  computeActionId,
-  findActionById,
-  flattenConfigFields,
-  generateAIActionPrompts,
-  getActionsByCategory,
-  getAllActions,
-  getAllDependencies,
-  getAllEnvVars,
-  getAllIntegrations,
-  getCredentialMapping,
-  getDependenciesForActions,
-  getIntegration,
-  getIntegrationLabels,
-  getIntegrationTypes,
-  getPluginEnvVars,
-  getSortedIntegrationTypes,
-  isFieldGroup,
-  parseActionId,
-  registerIntegration,
-} from "@/plugins/registry";

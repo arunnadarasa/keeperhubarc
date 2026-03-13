@@ -396,38 +396,6 @@ ${imports || "// No plugins discovered"}
 
 // Import KeeperHub custom plugins
 import "@/keeperhub/plugins";
-
-export type {
-  ActionConfigField,
-  ActionConfigFieldBase,
-  ActionConfigFieldGroup,
-  ActionWithFullId,
-  IntegrationPlugin,
-  PluginAction,
-} from "./registry";
-
-// Export the registry utilities
-export {
-  computeActionId,
-  findActionById,
-  flattenConfigFields,
-  generateAIActionPrompts,
-  getActionsByCategory,
-  getAllActions,
-  getAllDependencies,
-  getAllEnvVars,
-  getAllIntegrations,
-  getCredentialMapping,
-  getDependenciesForActions,
-  getIntegration,
-  getIntegrationLabels,
-  getIntegrationTypes,
-  getPluginEnvVars,
-  getSortedIntegrationTypes,
-  isFieldGroup,
-  parseActionId,
-  registerIntegration,
-} from "./registry";
 `;
 
   writeFileSync(OUTPUT_FILE, content, "utf-8");
@@ -452,38 +420,6 @@ function generateKeeperHubIndexFile(plugins: string[]): void {
  */
 
 ${imports || "// No KeeperHub plugins discovered"}
-
-// Re-export types from base registry for convenience
-export type {
-  ActionConfigField,
-  ActionConfigFieldBase,
-  ActionConfigFieldGroup,
-  ActionWithFullId,
-  IntegrationPlugin,
-  PluginAction,
-} from "@/plugins/registry";
-
-export {
-  computeActionId,
-  findActionById,
-  flattenConfigFields,
-  generateAIActionPrompts,
-  getActionsByCategory,
-  getAllActions,
-  getAllDependencies,
-  getAllEnvVars,
-  getAllIntegrations,
-  getCredentialMapping,
-  getDependenciesForActions,
-  getIntegration,
-  getIntegrationLabels,
-  getIntegrationTypes,
-  getPluginEnvVars,
-  getSortedIntegrationTypes,
-  isFieldGroup,
-  parseActionId,
-  registerIntegration,
-} from "@/plugins/registry";
 `;
 
   writeFileSync(KEEPERHUB_OUTPUT_FILE, content, "utf-8");

@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/tooltip";
 import { SqlTemplateEditor } from "@/keeperhub/components/ui/sql-template-editor";
 import { TemplateCodeEditor } from "@/keeperhub/components/ui/template-code-editor";
-// start keeperhub
 import { actionRequiresCredentials } from "@/keeperhub/lib/integration-helpers";
 import { ConditionQueryBuilder } from "@/keeperhub/components/workflow/condition-query-builder";
 import type { ConditionGroup } from "@/keeperhub/lib/condition-builder-types";
@@ -38,7 +37,6 @@ import {
   visualConditionToExpression,
 } from "@/keeperhub/lib/condition-builder-utils";
 import { resolveConditionExpression } from "@/keeperhub/lib/condition-resolver";
-// end keeperhub
 import { aiGatewayStatusAtom } from "@/lib/ai-gateway/state";
 import { validateConditionExpressionUI } from "@/lib/condition-validator";
 import {
@@ -46,7 +44,6 @@ import {
   integrationsVersionAtom,
 } from "@/lib/integrations-store";
 import type { IntegrationType } from "@/lib/types/integration";
-// start custom keeperhub code //
 import {
   ARRAY_SOURCE_RE,
   extractObjectPaths,
@@ -58,30 +55,23 @@ import {
   lastExecutionLogsAtom,
   nodesAtom,
 } from "@/lib/workflow-store";
-// end keeperhub code //
 import {
   findActionById,
   getActionsByCategory,
   getAllIntegrations,
   getIntegration,
-} from "@/plugins";
+} from "@/plugins/registry";
 import { ActionConfigRenderer } from "./action-config-renderer";
 import { SchemaBuilder, type SchemaField } from "./schema-builder";
 
-// start custom keeperhub code //
 type ConfigValue = string | Record<string, unknown> | undefined;
-// end keeperhub code //
 
 type ActionConfigProps = {
   config: Record<string, unknown>;
-  // start custom keeperhub code //
   onUpdateConfig: (key: string, value: ConfigValue) => void;
-  // end keeperhub code //
   disabled: boolean;
   isOwner?: boolean;
-  // start custom keeperhub code //
   nodeId?: string;
-  // end keeperhub code //
 };
 
 // Database Query fields component
@@ -96,7 +86,6 @@ function DatabaseQueryFields({
 }) {
   return (
     <>
-      {/* start custom keeperhub code */}
       <div className="space-y-2">
         <Label htmlFor="dbQuery">SQL Query</Label>
         <SqlTemplateEditor
@@ -110,7 +99,6 @@ function DatabaseQueryFields({
           query. Use @ to insert values from previous nodes.
         </p>
       </div>
-      {/* end keeperhub code */}
       <div className="space-y-2">
         <Label>Schema (Optional)</Label>
         <SchemaBuilder
@@ -170,7 +158,6 @@ function HttpRequestFields({
           value={(config?.endpoint as string) || ""}
         />
       </div>
-      {/* start custom keeperhub code */}
       <div className="space-y-2">
         <Label htmlFor="httpHeaders">Headers (JSON)</Label>
         <TemplateCodeEditor
@@ -194,7 +181,6 @@ function HttpRequestFields({
             value={(config?.httpBody as string) || "{}"}
           />
         </div>
-      {/* end keeperhub code */}
         {config?.httpMethod === "GET" && (
           <p className="text-muted-foreground text-xs">
             Body is disabled for GET requests
@@ -205,7 +191,6 @@ function HttpRequestFields({
   );
 }
 
-// start custom keeperhub code //
 // Condition fields component with visual builder + expression mode toggle
 function ConditionFields({
   config,
@@ -363,10 +348,6 @@ function ConditionFields({
     </div>
   );
 }
-// end keeperhub code //
-
-// start custom keeperhub code //
-
 /**
  * Extract dot-paths from the first element of the array referenced by arraySource.
  */
@@ -395,7 +376,6 @@ export function useArrayItemFields(arraySource: string | undefined): string[] {
     return paths;
   }, [arraySource, executionLogs, lastExecutionLogs, nodes]);
 }
-// end keeperhub code //
 
 /** Sentinel value for the "Full element (no mapping)" select option. */
 const FULL_ELEMENT_VALUE = "__full__";
@@ -410,11 +390,9 @@ function ForEachFields({
   onUpdateConfig: (key: string, value: string) => void;
   disabled: boolean;
 }) {
-  // start custom keeperhub code //
   const itemFields = useArrayItemFields(
     config?.arraySource as string | undefined
   );
-  // end keeperhub code //
   return (
     <>
       <div className="space-y-2">
@@ -430,7 +408,6 @@ function ForEachFields({
           Reference an array from a previous node. Use @ to select a field.
         </p>
       </div>
-      {/* start custom keeperhub code */}
       <div className="space-y-2">
         <Label htmlFor="mapExpression">Extract Field (optional)</Label>
         {itemFields.length > 0 ? (
@@ -471,7 +448,6 @@ function ForEachFields({
             : "Run the workflow once to see available fields, or type a dot-path manually."}
         </p>
       </div>
-      {/* end keeperhub code */}
       <div className="space-y-2">
         <Label htmlFor="maxIterations">Max Items (optional)</Label>
         <Input
@@ -491,7 +467,6 @@ function ForEachFields({
           allowed.
         </p>
       </div>
-      {/* start custom keeperhub code */}
       <div className="space-y-2">
         <Label htmlFor="concurrency">Concurrency</Label>
         <Select
@@ -532,7 +507,6 @@ function ForEachFields({
           Custom limit runs up to N iterations concurrently.
         </p>
       </div>
-      {/* end keeperhub code */}
       <div className="rounded-lg border bg-muted/30 p-3">
         <p className="text-muted-foreground text-sm">
           Connect action nodes after this For Each to define the loop body.
@@ -590,9 +564,7 @@ function SystemActionFields({
 }: {
   actionType: string;
   config: Record<string, unknown>;
-  // start custom keeperhub code //
   onUpdateConfig: (key: string, value: ConfigValue) => void;
-  // end keeperhub code //
   disabled: boolean;
 }) {
   switch (actionType) {
@@ -620,7 +592,6 @@ function SystemActionFields({
           onUpdateConfig={onUpdateConfig}
         />
       );
-    // start custom keeperhub code //
     case "For Each":
       return (
         <ForEachFields
@@ -631,7 +602,6 @@ function SystemActionFields({
       );
     case "Collect":
       return <CollectFields />;
-    // end keeperhub code //
     default:
       return null;
   }
@@ -642,10 +612,8 @@ const SYSTEM_ACTIONS: Array<{ id: string; label: string }> = [
   { id: "HTTP Request", label: "HTTP Request" },
   { id: "Database Query", label: "Database Query" },
   { id: "Condition", label: "Condition" },
-  // start custom keeperhub code //
   { id: "For Each", label: "For Each" },
   { id: "Collect", label: "Collect" },
-  // end keeperhub code //
 ];
 
 const SYSTEM_ACTION_IDS = SYSTEM_ACTIONS.map((a) => a.id);
@@ -657,21 +625,17 @@ const SYSTEM_ACTION_INTEGRATIONS: Record<string, IntegrationType> = {
 
 // Build category mapping dynamically from plugins + System
 function useCategoryData() {
-  // start custom keeperhub code //
   const nodes = useAtomValue(nodesAtom);
   const hasForEach = nodes.some(
     (n) => n.data?.config?.actionType === "For Each"
   );
-  // end keeperhub code //
 
   return useMemo(() => {
     const pluginCategories = getActionsByCategory();
 
-    // start custom keeperhub code //
     const systemActions = hasForEach
       ? SYSTEM_ACTIONS
       : SYSTEM_ACTIONS.filter((a) => a.id !== "Collect");
-    // end keeperhub code //
 
     // Build category map including System with both id and label
     const allCategories: Record<
@@ -682,7 +646,6 @@ function useCategoryData() {
     };
 
     for (const [category, actions] of Object.entries(pluginCategories)) {
-      // start custom keeperhub code //
       // Deduplicate by slug within each category. When the same action is
       // registered under two integrations, keep the first occurrence.
       const seen = new Set<string>();
@@ -698,7 +661,6 @@ function useCategoryData() {
           id: a.id,
           label: a.label,
         }));
-      // end keeperhub code //
     }
 
     return allCategories;
@@ -743,13 +705,10 @@ export function ActionConfig({
   onUpdateConfig,
   disabled,
   isOwner = true,
-  // start custom keeperhub code //
   nodeId,
-  // end keeperhub code //
 }: ActionConfigProps) {
   const actionType = (config?.actionType as string) || "";
   const categories = useCategoryData();
-  // start custom keeperhub code //
   // Deduplicate integrations by label for the Service dropdown.
   // When two integrations share a label, keep the one with more actions
   // to avoid Radix Select duplicate-value collisions.
@@ -764,7 +723,6 @@ export function ActionConfig({
     }
     return Array.from(byLabel.values());
   }, []);
-  // end keeperhub code //
 
   const selectedCategory = actionType ? getCategoryForAction(actionType) : null;
   const [category, setCategory] = useState<string>(selectedCategory || "");
@@ -772,7 +730,6 @@ export function ActionConfig({
   const globalIntegrations = useAtomValue(integrationsAtom);
   const { push } = useOverlay();
 
-  // start keeperhub - anonymous check for action restrictions
   const [isAnonymous, setIsAnonymous] = useState(false);
   useEffect(() => {
     let cancelled = false;
@@ -796,7 +753,6 @@ export function ActionConfig({
       cancelled = true;
     };
   }, []);
-  // end keeperhub
 
   // AI Gateway managed keys state
   const aiGatewayStatus = useAtomValue(aiGatewayStatusAtom);
@@ -844,13 +800,11 @@ export function ActionConfig({
     return (action?.credentialIntegrationType ?? action?.integration) as IntegrationType | undefined;
   }, [actionType]);
 
-  // start keeperhub
   // Check if action requires credentials (some like web3 read-only actions don't)
   const requiresCredentials = useMemo(
     () => actionRequiresCredentials(actionType),
     [actionType]
   );
-  // end keeperhub
 
   // Check if AI Gateway managed keys should be offered (user can have multiple for different teams)
   const shouldUseManagedKeys =
@@ -955,7 +909,6 @@ export function ActionConfig({
         </div>
       </div>
 
-      {/* start keeperhub - show Connection for plugin actions that require credentials or system actions that use an integration (e.g. Database Query) */}
       {integrationType &&
         isOwner &&
         (requiresCredentials || SYSTEM_ACTION_INTEGRATIONS[actionType]) &&
@@ -981,7 +934,6 @@ export function ActionConfig({
                   </Tooltip>
                 </TooltipProvider>
               </div>
-              {/* start keeperhub - hide + button for singleConnection integrations */}
               {hasExistingConnections &&
                 !getIntegration(integrationType)?.singleConnection && (
                   <Button
@@ -994,7 +946,6 @@ export function ActionConfig({
                     <Plus className="size-4" />
                   </Button>
                 )}
-              {/* end keeperhub */}
             </div>
             <IntegrationSelector
               disabled={disabled}
@@ -1004,7 +955,6 @@ export function ActionConfig({
             />
           </div>
         ))}
-      {/* end keeperhub */}
 
       {/* System actions - hardcoded config fields */}
       <SystemActionFields
@@ -1022,9 +972,7 @@ export function ActionConfig({
             config={config}
             disabled={disabled}
             fields={pluginAction.configFields}
-            // start custom keeperhub code //
             nodeId={nodeId}
-            // end keeperhub code //
             onUpdateConfig={handlePluginUpdateConfig}
           />
         )}

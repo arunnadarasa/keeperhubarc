@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { explorerConfigs } from "@/lib/db/schema";
 import { getAddressUrl } from "@/lib/explorer";
-import { getChainIdFromNetwork } from "@/lib/rpc";
+import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import type {
   TransferTokenCoreInput,

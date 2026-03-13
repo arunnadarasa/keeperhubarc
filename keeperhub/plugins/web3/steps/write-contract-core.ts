@@ -27,7 +27,8 @@ import {
 import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
 import { getTransactionUrl } from "@/lib/explorer";
-import { getChainIdFromNetwork, getRpcProvider } from "@/lib/rpc";
+import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
+import { getRpcProvider } from "@/lib/rpc/provider-factory";
 import { getErrorMessage } from "@/lib/utils";
 
 export type WriteContractCoreInput = {

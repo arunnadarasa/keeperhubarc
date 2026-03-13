@@ -4,7 +4,8 @@
  * Helper functions to instrument API routes with golden signal metrics.
  */
 
-import { getMetricsCollector, LabelKeys, MetricNames } from "../index";
+import { getMetricsCollector } from "../index";
+import { LabelKeys, MetricNames } from "../types";
 
 /**
  * Record webhook trigger metrics

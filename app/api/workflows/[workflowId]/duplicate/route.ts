@@ -1,19 +1,13 @@
 import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { NextResponse } from "next/server";
-// start custom keeperhub code //
 import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
-// end keeperhub code //
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { workflows } from "@/lib/db/schema";
 import { generateId } from "@/lib/utils/id";
-// start custom keeperhub code //
 import { remapTemplateRefsInString } from "@/lib/utils/template";
-
-// end keeperhub code //
-
 // Node type for type-safe node manipulation
 type WorkflowNodeLike = {
   id: string;
@@ -28,7 +22,6 @@ type WorkflowNodeLike = {
   [key: string]: unknown;
 };
 
-// start custom keeperhub code //
 /** Recursively rewrite a single value (string, object, or array) using old->new node ID map */
 function remapTemplateRefsInValue(
   value: unknown,
@@ -84,7 +77,6 @@ function duplicateNodes(
     return newNode;
   });
 }
-// end keeperhub code //
 
 // Edge type for type-safe edge manipulation
 type WorkflowEdgeLike = {
@@ -151,29 +143,24 @@ export async function POST(
       );
     }
 
-    // start custom keeperhub code //
     // Get organization context for the new workflow
     const orgContext = await getOrgContext();
     const organizationId = orgContext.organization?.id || null;
     const isAnonymous = orgContext.isAnonymous || !orgContext.organization;
-    // end keeperhub code //
 
     // Generate new IDs for nodes
     const oldNodes = sourceWorkflow.nodes as WorkflowNodeLike[];
-    // start custom keeperhub code //
     const idMap = new Map<string, string>();
     for (const n of oldNodes) {
       idMap.set(n.id, nanoid());
     }
     const newNodes = duplicateNodes(oldNodes, idMap);
-    // end keeperhub code //
     const newEdges = updateEdgeReferences(
       sourceWorkflow.edges as WorkflowEdgeLike[],
       oldNodes,
       newNodes
     );
 
-    // start custom keeperhub code //
     // Count workflows in current context (org or anonymous) to generate unique name
     const existingWorkflows = isAnonymous
       ? await db.query.workflows.findMany({
@@ -188,7 +175,6 @@ export async function POST(
             eq(workflows.isAnonymous, false)
           ),
         });
-    // end keeperhub code //
 
     // Generate a unique name
     const baseName = `${sourceWorkflow.name} (Copy)`;
@@ -214,21 +200,17 @@ export async function POST(
         nodes: newNodes,
         edges: newEdges,
         userId: session.user.id,
-        // start custom keeperhub code //
         organizationId,
         isAnonymous,
-        // end keeperhub code //
         visibility: "private", // Duplicated workflows are always private
       })
       .returning();
 
-    // start custom keeperhub code //
     // If moving an anonymous workflow to an org, delete the original
     // This prevents the old anonymous workflow from being accessible after sign out
     if (sourceWorkflow.isAnonymous && isOwner && !isAnonymous) {
       await db.delete(workflows).where(eq(workflows.id, workflowId));
     }
-    // end keeperhub code //
 
     return NextResponse.json({
       ...newWorkflow,

@@ -4,7 +4,7 @@
  */
 
 import type { IntegrationType } from "@/lib/types/integration";
-import { findActionById, getIntegration } from "@/plugins";
+import { findActionById, getIntegration } from "@/plugins/registry";
 
 /**
  * Check if an integration type requires credentials

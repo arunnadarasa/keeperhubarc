@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-// start custom keeperhub code //
 import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
 import { auth } from "@/lib/auth";
 import {
@@ -9,11 +8,8 @@ import {
 import { handleDatabaseTest, handlePluginTest } from "@/lib/db/test-connection";
 import type { IntegrationConfig } from "@/lib/types/integration";
 
-// end keeperhub code //
-
 export type { TestConnectionResult } from "@/lib/db/test-connection";
 
-// start custom keeperhub code //
 type TestRequestBody = { configOverrides?: IntegrationConfig };
 
 async function parseJsonBody(
@@ -32,7 +28,6 @@ async function parseJsonBody(
     );
   }
 }
-// end keeperhub code //
 
 export async function POST(
   request: Request,
@@ -47,10 +42,8 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // start custom keeperhub code //
     const orgContext = await getOrgContext();
     const organizationId = orgContext.organization?.id ?? null;
-    // end keeperhub code //
 
     const { integrationId } = await params;
 
@@ -64,9 +57,7 @@ export async function POST(
     const integration = await getIntegrationFromDb(
       integrationId,
       session.user.id,
-      // start custom keeperhub code //
       organizationId
-      // end keeperhub code //
     );
 
     if (!integration) {
@@ -76,7 +67,6 @@ export async function POST(
       );
     }
 
-    // start custom keeperhub code //
     // Parse optional config overrides from the request body.
     // For database integrations, overrides are merged with stored config so the
     // server can test with updated non-secret fields (e.g. host) without
@@ -86,14 +76,11 @@ export async function POST(
       return bodyOrError;
     }
     const body = bodyOrError;
-    // end keeperhub code //
 
     if (integration.type === "database") {
-      // start custom keeperhub code //
       const testConfig = body.configOverrides
         ? mergeDatabaseConfig(integration.config, body.configOverrides)
         : integration.config;
-      // end keeperhub code //
       const result = await handleDatabaseTest(testConfig);
       return NextResponse.json(result);
     }

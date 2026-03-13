@@ -1,18 +1,13 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { start } from "workflow/api";
-// start custom keeperhub code //
 import { authenticateApiKey } from "@/keeperhub/lib/api-key-auth";
 import { enforceExecutionLimit } from "@/keeperhub/lib/billing/execution-guard";
 import { authenticateInternalService } from "@/keeperhub/lib/internal-service-auth";
-import {
-  getMetricsCollector,
-  LabelKeys,
-  MetricNames,
-} from "@/keeperhub/lib/metrics";
+import { getMetricsCollector } from "@/keeperhub/lib/metrics";
+import { LabelKeys, MetricNames } from "@/keeperhub/lib/metrics/types";
 import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
 import { checkConcurrencyLimit } from "@/keeperhub/api/execute/_lib/concurrency-limit";
-// end keeperhub code //
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { validateWorkflowIntegrations } from "@/lib/db/integrations";
@@ -53,12 +48,10 @@ async function executeWorkflowBackground(
 
     console.log("[Workflow Execute] Workflow started, runId:", run.runId);
 
-    // start custom keeperhub code //
     await db
       .update(workflowExecutions)
       .set({ runId: run.runId })
       .where(eq(workflowExecutions.id, executionId));
-    // end keeperhub code //
   } catch (error) {
     console.error("[Workflow Execute] Error during execution:", error);
     console.error(
@@ -86,11 +79,9 @@ export async function POST(
   try {
     const { workflowId } = await context.params;
 
-    // start custom keeperhub code //
     // Check for internal service authentication (MCP, Events, Scheduler)
     const internalAuth = authenticateInternalService(request);
     const isInternalExecution = internalAuth.authenticated;
-    // end keeperhub code //
 
     let userId: string;
     let workflow: typeof workflows.$inferSelect | undefined;
@@ -114,7 +105,6 @@ export async function POST(
 
       userId = workflow.userId;
     } else {
-      // start custom keeperhub code //
       // Try API key authentication first
       const apiKeyAuth = await authenticateApiKey(request);
       let organizationId: string | null = null;
@@ -182,17 +172,14 @@ export async function POST(
 
         userId = session.user.id;
       }
-      // end keeperhub code //
     }
 
-    // start custom keeperhub code //
     // Validate that all integrationIds in workflow nodes belong to the user or org
     const validation = await validateWorkflowIntegrations(
       workflow.nodes as WorkflowNode[],
       userId,
       workflow.organizationId
     );
-    // end keeperhub code //
     if (!validation.valid) {
       console.error(
         "[Workflow Execute] Invalid integration references:",
@@ -204,7 +191,6 @@ export async function POST(
       );
     }
 
-    // start custom keeperhub code //
     const executionGuard = await enforceExecutionLimit(workflow.organizationId);
     if (executionGuard.blocked) {
       return executionGuard.response;
@@ -221,7 +207,6 @@ export async function POST(
         { status: 429, headers: { "Retry-After": "30" } }
       );
     }
-    // end keeperhub code //
 
     // Parse request body
     const body = await request.json().catch(() => ({}));
@@ -267,7 +252,6 @@ export async function POST(
       console.log("[API] Created execution:", executionId);
     }
 
-    // start custom keeperhub code //
     // Record workflow execution metric in API process (workflow runs in separate context)
     const triggerType = isInternalExecution ? "scheduled" : "manual";
     const metrics = getMetricsCollector();
@@ -275,7 +259,6 @@ export async function POST(
       [LabelKeys.TRIGGER_TYPE]: triggerType,
       [LabelKeys.WORKFLOW_ID]: workflowId,
     });
-    // end keeperhub code //
 
     // Execute the workflow in the background (don't await)
     executeWorkflowBackground(

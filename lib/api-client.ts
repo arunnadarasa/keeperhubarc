@@ -17,13 +17,10 @@ export type WorkflowData = {
   edges: WorkflowEdge[];
   visibility?: WorkflowVisibility;
   enabled?: boolean;
-  // start custom keeperhub code //
   projectId?: string | null;
   tagId?: string | null;
-  // end keeperhub code //
 };
 
-// start custom keeperhub code //
 export type PublicTag = {
   id: string;
   name: string;
@@ -31,7 +28,6 @@ export type PublicTag = {
   workflowCount?: number;
   createdAt?: string;
 };
-// end keeperhub code //
 
 export type SavedWorkflow = WorkflowData & {
   id: string;
@@ -41,7 +37,6 @@ export type SavedWorkflow = WorkflowData & {
   createdAt: string;
   updatedAt: string;
   isOwner?: boolean;
-  // start custom KeeperHub code
   featured?: boolean;
   projectId?: string | null;
   tagId?: string | null;
@@ -49,7 +44,6 @@ export type SavedWorkflow = WorkflowData & {
   featuredProtocol?: string | null;
   featuredProtocolOrder?: number;
   publicTags?: PublicTag[];
-  // end custom KeeperHub code
 };
 
 // API error class
@@ -421,7 +415,6 @@ export const integrationApi = {
       method: "DELETE",
     }),
 
-  // start custom keeperhub code //
   // Test existing integration connection, optionally with config overrides
   // that are merged server-side with stored secrets before testing
   testConnection: (
@@ -437,7 +430,6 @@ export const integrationApi = {
           : {}),
       }
     ),
-  // end keeperhub code //
 
   // Test credentials without saving
   testCredentials: (data: {
@@ -524,7 +516,6 @@ export const userApi = {
 export const workflowApi = {
   // Get all workflows
   getAll: () => apiCall<SavedWorkflow[]>("/api/workflows"),
-  // start custom KeeperHub code
   // Get public workflows (non-featured)
   getPublic: () => apiCall<SavedWorkflow[]>("/api/workflows/public"),
   // Get featured workflows
@@ -535,7 +526,6 @@ export const workflowApi = {
     apiCall<SavedWorkflow[]>(
       `/api/workflows/public?featuredProtocol=${encodeURIComponent(slug)}`
     ),
-  // end custom KeeperHub code
 
   // Get a specific workflow
   getById: (id: string) => apiCall<SavedWorkflow>(`/api/workflows/${id}`),
@@ -566,7 +556,6 @@ export const workflowApi = {
       method: "POST",
     }),
 
-  // start custom keeperhub code //
   claim: (id: string) =>
     apiCall<SavedWorkflow>(`/api/workflows/${id}/claim`, {
       method: "POST",
@@ -578,7 +567,6 @@ export const workflowApi = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  // end keeperhub code //
 
   // Get current workflow state
   getCurrent: () => apiCall<WorkflowData>("/api/workflows/current"),
@@ -687,10 +675,8 @@ export const workflowApi = {
         startedAt: Date;
         completedAt: Date | null;
         duration: string | null;
-        // start custom keeperhub code //
         iterationIndex: number | null;
         forEachNodeId: string | null;
-        // end keeperhub code //
       }>;
     }>(`/api/workflows/executions/${executionId}/logs`),
 
@@ -785,7 +771,6 @@ export const aiGatewayApi = {
     }),
 };
 
-// start custom keeperhub code //
 export type Tag = {
   id: string;
   name: string;
@@ -862,20 +847,15 @@ export const projectApi = {
       method: "DELETE",
     }),
 };
-
-// end keeperhub code //
-
 // Export all APIs as a single object
 export const api = {
   ai: aiApi,
   aiGateway: aiGatewayApi,
   integration: integrationApi,
   organization: organizationApi,
-  // start custom keeperhub code //
   project: projectApi,
   publicTag: publicTagApi,
   tag: tagApi,
-  // end keeperhub code //
   user: userApi,
   workflow: workflowApi,
 };

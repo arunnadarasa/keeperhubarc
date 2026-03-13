@@ -2,7 +2,7 @@ import { getReadContractOutputFields } from "@/keeperhub/lib/action-output-field
 import { getTriggerOutputFields } from "@/keeperhub/lib/trigger-output-fields";
 import type { ExecutionLogEntry, WorkflowNode } from "@/lib/workflow-store";
 import { WorkflowTriggerEnum } from "@/lib/workflow-store";
-import { findActionById } from "@/plugins";
+import { findActionById } from "@/plugins/registry";
 
 // ---------------------------------------------------------------------------
 // Types

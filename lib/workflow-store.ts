@@ -4,7 +4,6 @@ import { atom } from "jotai";
 import { buildExecutionLogsMap } from "@/keeperhub/lib/template-helpers";
 import { api } from "./api-client";
 
-// start custom keeperhub code //
 export type WorkflowNodeType = "trigger" | "action" | "add";
 
 // biome-ignore lint/style/noEnum: Prefer to use enums as make it easier to maintain and read.
@@ -15,7 +14,6 @@ export enum WorkflowTriggerEnum {
   EVENT = "Event", // keeperhub custom field //
   BLOCK = "Block", // keeperhub custom field //
 }
-// end keeperhub code //
 
 export type WorkflowTriggerType = `${WorkflowTriggerEnum}`;
 
@@ -45,11 +43,9 @@ export const isLoadingAtom = atom(false);
 export const isGeneratingAtom = atom(false);
 export const currentWorkflowIdAtom = atom<string | null>(null);
 export const currentWorkflowNameAtom = atom<string>("");
-// start custom keeperhub code //
 export const currentWorkflowDescriptionAtom = atom<string>("");
 export const currentWorkflowProjectIdAtom = atom<string | null>(null);
 export const currentWorkflowTagIdAtom = atom<string | null>(null);
-// end keeperhub code //
 export const currentWorkflowVisibilityAtom =
   atom<WorkflowVisibility>("private");
 export const currentWorkflowPublicTagsAtom = atom<
@@ -60,10 +56,8 @@ export const isWorkflowEnabled = atom<boolean>(false);
 
 // UI state atoms
 export const propertiesPanelActiveTabAtom = atom<string>("properties");
-// start custom keeperhub code //
 // Increment to trigger an immediate Runs panel refresh (e.g. after execute)
 export const runsRefreshTriggerAtom = atom<number>(0);
-// end keeperhub code //
 export const showMinimapAtom = atom(false);
 export const selectedExecutionIdAtom = atom<string | null>(null);
 export const rightPanelWidthAtom = atom<string | null>(null);
@@ -255,7 +249,6 @@ export const addNodeAtom = atom(null, (get, set, node: WorkflowNode) => {
   set(historyAtom, [...history, { nodes: currentNodes, edges: currentEdges }]);
   set(futureAtom, []);
 
-  // start custom keeperhub code //
   // Deselect all existing nodes and add new node as selected.
   // Only spread nodes whose selected state actually changes to preserve
   // object references -- React Flow re-measures handle bounds when node
@@ -264,7 +257,6 @@ export const addNodeAtom = atom(null, (get, set, node: WorkflowNode) => {
   const updatedNodes = currentNodes.map((n) =>
     n.selected ? { ...n, selected: false } : n
   );
-  // end keeperhub code //
   const newNode = { ...node, selected: true };
   const newNodes = [...updatedNodes, newNode];
   set(nodesAtom, newNodes);
@@ -503,7 +495,6 @@ export const clearWorkflowAtom = atom(null, (get, set) => {
   set(hasUnsavedChangesAtom, true);
 });
 
-// start custom keeperhub code //
 // Reset all workflow state for org switch (no history push; used by use-organization)
 export const resetWorkflowStateForOrgSwitchAtom = atom(null, (_get, set) => {
   set(nodesAtom, []);
@@ -528,7 +519,6 @@ export const resetWorkflowStateForOrgSwitchAtom = atom(null, (_get, set) => {
   set(historyAtom, []);
   set(futureAtom, []);
 });
-// end keeperhub code //
 
 // Load workflow from database
 export const loadWorkflowAtom = atom(null, async (get, set) => {
@@ -540,7 +530,6 @@ export const loadWorkflowAtom = atom(null, async (get, set) => {
     if (workflow.id) {
       set(currentWorkflowIdAtom, workflow.id);
 
-      // start custom keeperhub code //
       // Pre-fetch last execution logs so template autocomplete has runtime
       // output data available immediately instead of lazy-fetching on first @.
       // Guard: only apply if the workflow hasn't changed by the time data arrives.
@@ -573,7 +562,6 @@ export const loadWorkflowAtom = atom(null, async (get, set) => {
             error
           );
         });
-      // end keeperhub code //
     }
   } catch (error) {
     console.error("Failed to load workflow:", error);

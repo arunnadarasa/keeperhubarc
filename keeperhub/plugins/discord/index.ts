@@ -10,7 +10,6 @@ const discordPlugin: IntegrationPlugin = {
   icon: DiscordIcon,
 
   // Webhook URL is stored in the integration for centralized management
-  // start keeperhub - type is 'password' so it shows "Configured" state when editing (upstream: 'url')
   formFields: [
     {
       id: "webhookUrl",
@@ -27,7 +26,6 @@ const discordPlugin: IntegrationPlugin = {
       },
     },
   ],
-  // end keeperhub
 
   testConfig: {
     getTestFunction: async () => {

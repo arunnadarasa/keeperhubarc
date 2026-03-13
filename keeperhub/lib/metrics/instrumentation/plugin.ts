@@ -4,12 +4,8 @@
  * Helper functions to instrument plugin actions with golden signal metrics.
  */
 
-import {
-  createTimer,
-  getMetricsCollector,
-  LabelKeys,
-  MetricNames,
-} from "../index";
+import { createTimer, getMetricsCollector } from "../index";
+import { LabelKeys, MetricNames } from "../types";
 
 /**
  * Plugin action context for metrics

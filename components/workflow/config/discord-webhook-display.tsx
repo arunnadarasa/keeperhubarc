@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api-client";
-import { findActionById } from "@/plugins";
+import { findActionById } from "@/plugins/registry";
 
 type DiscordWebhookDisplayProps = {
   actionType: string | undefined;

@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { chains, explorerConfigs, supportedTokens } from "@/lib/db/schema";
-import { getChainIdFromNetwork } from "@/lib/rpc";
+import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 
 // Mainnet chain ID - used as the "master list" of supported tokens
 const MAINNET_CHAIN_ID = 1;

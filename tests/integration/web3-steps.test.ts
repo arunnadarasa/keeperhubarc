@@ -39,7 +39,7 @@ vi.mock("ethers", () => {
 });
 
 // Mock RPC provider
-vi.mock("@/lib/rpc", () => ({
+vi.mock("@/lib/rpc/network-utils", () => ({
   getChainIdFromNetwork: vi.fn((network: string) => {
     const map: Record<string, number> = {
       mainnet: 1,
@@ -51,6 +51,9 @@ vi.mock("@/lib/rpc", () => ({
     }
     return map[network];
   }),
+}));
+
+vi.mock("@/lib/rpc/provider-factory", () => ({
   getRpcProvider: vi.fn().mockResolvedValue({
     executeWithFailover: vi.fn(
       async (operation: (provider: unknown) => Promise<unknown>) => {
@@ -118,7 +121,8 @@ vi.mock("@/lib/utils", () => ({
 
 // Now import the step functions after all mocks are set up
 import { checkBalanceStep } from "@/keeperhub/plugins/web3/steps/check-balance";
-import { getChainIdFromNetwork, getRpcProvider } from "@/lib/rpc";
+import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
+import { getRpcProvider } from "@/lib/rpc/provider-factory";
 
 // Helper to create test context
 const createTestContext = () => ({

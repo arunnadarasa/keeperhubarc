@@ -71,22 +71,18 @@ export function Web3WalletSection({
 
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Sequential wallet creation with error handling
   async function handleCreateWallet() {
-    // start keeperhub - validate email before creating
     if (!userEmail) {
       toast.error("Unable to get your email. Please refresh and try again.");
       return;
     }
-    // end keeperhub
 
     setCreating(true);
     try {
-      // start keeperhub - send email in request body
       const response = await fetch("/api/user/wallet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: userEmail }),
       });
-      // end keeperhub
 
       const data = await response.json();
 

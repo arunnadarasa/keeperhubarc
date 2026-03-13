@@ -43,9 +43,12 @@ vi.mock("@/lib/explorer", () => ({
 const mockGetChainIdFromNetwork = vi.fn();
 const mockGetRpcProvider = vi.fn();
 
-vi.mock("@/lib/rpc", () => ({
+vi.mock("@/lib/rpc/network-utils", () => ({
   getChainIdFromNetwork: (...args: unknown[]) =>
     mockGetChainIdFromNetwork(...args),
+}));
+
+vi.mock("@/lib/rpc/provider-factory", () => ({
   getRpcProvider: (...args: unknown[]) => mockGetRpcProvider(...args),
 }));
 

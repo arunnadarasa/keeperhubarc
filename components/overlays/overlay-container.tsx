@@ -13,7 +13,6 @@ import { Dialog, DialogPortal } from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useOverlay } from "./overlay-provider";
-// start custom keeperhub code //
 import type { OverlaySize } from "./types";
 
 const sizeClasses: Record<OverlaySize, string> = {
@@ -25,7 +24,6 @@ const sizeClasses: Record<OverlaySize, string> = {
   "4xl": "max-w-4xl",
   full: "max-w-[90vw]",
 };
-// end keeperhub code //
 
 // iOS-like spring configuration
 const iosSpring = {
@@ -241,7 +239,6 @@ function DesktopOverlayContainer() {
             />
 
             {/* Dialog container */}
-            {/* start custom keeperhub code */}
             <motion.div
               animate="visible"
               className={cn(
@@ -252,7 +249,6 @@ function DesktopOverlayContainer() {
               initial="hidden"
               variants={containerVariants}
             >
-              {/* end keeperhub code */}
               <LayoutGroup>
                 <motion.div
                   className="relative max-h-[85vh] overflow-hidden rounded-xl border bg-background shadow-2xl ring-1 ring-black/5"

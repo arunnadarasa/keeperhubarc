@@ -23,11 +23,12 @@ import {
   type TransactionContext,
   withNonceSession,
 } from "@/keeperhub/lib/web3/transaction-manager";
-import { ERC20_ABI } from "@/lib/contracts";
+import ERC20_ABI from "@/lib/contracts/abis/erc20.json";
 import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
 import { getTransactionUrl } from "@/lib/explorer";
-import { getChainIdFromNetwork, getRpcProvider } from "@/lib/rpc";
+import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
+import { getRpcProvider } from "@/lib/rpc/provider-factory";
 import { getErrorMessage } from "@/lib/utils";
 import { parseTokenAddress } from "./transfer-token-core";
 

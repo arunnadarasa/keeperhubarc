@@ -1,11 +1,9 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-// start custom keeperhub code //
 import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 import { createTimer } from "@/keeperhub/lib/metrics";
 import { recordStatusPollMetrics } from "@/keeperhub/lib/metrics/instrumentation/api";
 import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
-// end keeperhub code //
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { workflowExecutionLogs, workflowExecutions } from "@/lib/db/schema";
@@ -19,9 +17,7 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ executionId: string }> }
 ) {
-  // start custom keeperhub code //
   const timer = createTimer();
-  // end keeperhub code //
 
   try {
     const { executionId } = await context.params;
@@ -30,13 +26,11 @@ export async function GET(
     });
 
     if (!session?.user) {
-      // start custom keeperhub code //
       recordStatusPollMetrics({
         executionId,
         durationMs: timer(),
         statusCode: 401,
       });
-      // end keeperhub code //
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -49,20 +43,17 @@ export async function GET(
     });
 
     if (!execution) {
-      // start custom keeperhub code //
       recordStatusPollMetrics({
         executionId,
         durationMs: timer(),
         statusCode: 404,
       });
-      // end keeperhub code //
       return NextResponse.json(
         { error: "Execution not found" },
         { status: 404 }
       );
     }
 
-    // start custom keeperhub code //
     // Verify access: owner or org member
     const isOwner = execution.workflow.userId === session.user.id;
     const orgContext = await getOrgContext();
@@ -79,7 +70,6 @@ export async function GET(
       });
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    // end keeperhub code //
 
     // Get logs for all nodes
     const logs = await db.query.workflowExecutionLogs.findMany({
@@ -122,14 +112,12 @@ export async function GET(
           }
         : null;
 
-    // start custom keeperhub code //
     recordStatusPollMetrics({
       executionId,
       durationMs: timer(),
       statusCode: 200,
       executionStatus: execution.status,
     });
-    // end keeperhub code //
 
     return NextResponse.json({
       status: execution.status,
@@ -138,7 +126,6 @@ export async function GET(
       errorContext,
     });
   } catch (error) {
-    // start custom keeperhub code //
     const { executionId } = await context.params;
     logSystemError(
       ErrorCategory.DATABASE,
@@ -154,7 +141,6 @@ export async function GET(
       durationMs: timer(),
       statusCode: 500,
     });
-    // end keeperhub code //
 
     return NextResponse.json(
       {

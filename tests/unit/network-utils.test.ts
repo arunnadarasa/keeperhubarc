@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  getChainIdFromNetwork,
-  getNetworkName,
-  SUPPORTED_CHAIN_IDS,
-} from "@/lib/rpc";
+import { getChainIdFromNetwork, getNetworkName } from "@/lib/rpc/network-utils";
+import { SUPPORTED_CHAIN_IDS } from "@/lib/rpc/types";
 
 describe("getChainIdFromNetwork", () => {
   describe("with string network names", () => {

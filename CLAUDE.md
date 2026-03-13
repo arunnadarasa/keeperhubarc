@@ -129,27 +129,6 @@ Exits with code 1 if errors are found. Errors are hardcoded colors in CSS and ar
 
 ---
 
-## 🚨 CRITICAL: KeeperHub Custom Code Policy
-
-**This is a fork of vercel-labs/workflow-builder-template. ALL custom changes MUST follow these rules:**
-
-1. **ALL new features/changes go in `/keeperhub` directory**
-   - Prevents merge conflicts when syncing from upstream
-   - Mirror the project structure inside `/keeperhub` (e.g., `keeperhub/components/`, `keeperhub/plugins/`)
-
-2. **When modifying core files outside `/keeperhub`, use markers:**
-
-   ```typescript
-   // start custom keeperhub code //
-   ... your custom code here ...
-   // end keeperhub code //
-   ```
-
-3. **Git remote structure:**
-   - `upstream` → vercel-labs/workflow-builder-template (original template)
-   - `origin` → techops-services/keeperhub (our fork)
-   - Merge from: `upstream/main`
-
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router)

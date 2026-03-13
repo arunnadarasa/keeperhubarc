@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-// start custom keeperhub code //
 import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
 import { auth } from "@/lib/auth";
@@ -10,7 +9,6 @@ import {
   updateIntegration,
 } from "@/lib/db/integrations";
 import type { IntegrationConfig } from "@/lib/types/integration";
-// end keeperhub code //
 
 export type GetIntegrationResponse = {
   id: string;
@@ -44,17 +42,13 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // start custom keeperhub code //
     const orgContext = await getOrgContext();
     const organizationId = orgContext.organization?.id || null;
-    // end keeperhub code //
 
     const integration = await getIntegration(
       integrationId,
       session.user.id,
-      // start custom keeperhub code //
       organizationId
-      // end keeperhub code //
     );
 
     if (!integration) {
@@ -64,7 +58,6 @@ export async function GET(
       );
     }
 
-    // start custom keeperhub code //
     const response: GetIntegrationResponse = {
       id: integration.id,
       name: integration.name,
@@ -73,7 +66,6 @@ export async function GET(
       createdAt: integration.createdAt.toISOString(),
       updatedAt: integration.updatedAt.toISOString(),
     };
-    // end keeperhub code //
 
     return NextResponse.json(response);
   } catch (error) {
@@ -109,14 +101,11 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // start custom keeperhub code //
     const orgContext = await getOrgContext();
     const organizationId = orgContext.organization?.id || null;
-    // end keeperhub code //
 
     const body: UpdateIntegrationRequest = await request.json();
 
-    // start custom keeperhub code //
     // Fetch existing integration so updateIntegration can merge database
     // secrets without an extra DB round-trip.
     const existing =
@@ -130,16 +119,13 @@ export async function PUT(
         { status: 404 }
       );
     }
-    // end keeperhub code //
 
     const integration = await updateIntegration(
       integrationId,
       session.user.id,
       body,
-      // start custom keeperhub code //
       organizationId,
       existing
-      // end keeperhub code //
     );
 
     if (!integration) {
@@ -149,7 +135,6 @@ export async function PUT(
       );
     }
 
-    // start custom keeperhub code //
     const response: GetIntegrationResponse = {
       id: integration.id,
       name: integration.name,
@@ -158,7 +143,6 @@ export async function PUT(
       createdAt: integration.createdAt.toISOString(),
       updatedAt: integration.updatedAt.toISOString(),
     };
-    // end keeperhub code //
 
     return NextResponse.json(response);
   } catch (error) {
@@ -201,17 +185,13 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // start custom keeperhub code //
     const orgContext = await getOrgContext();
     const organizationId = orgContext.organization?.id || null;
-    // end keeperhub code //
 
     const success = await deleteIntegration(
       integrationId,
       session.user.id,
-      // start custom keeperhub code //
       organizationId
-      // end keeperhub code //
     );
 
     if (!success) {
