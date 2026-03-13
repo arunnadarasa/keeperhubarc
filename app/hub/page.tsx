@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { HubHero } from "@/keeperhub/components/hub/hub-hero";
 import { HubResults } from "@/keeperhub/components/hub/hub-results";
@@ -20,7 +20,6 @@ export default function HubPage(): React.ReactElement {
 }
 
 function HubPageContent(): React.ReactElement {
-  const router = useRouter();
   const [featuredWorkflows, setFeaturedWorkflows] = useState<SavedWorkflow[]>(
     []
   );
@@ -49,9 +48,9 @@ function HubPageContent(): React.ReactElement {
       setSelectedProtocolSlug(slug);
       const params = new URLSearchParams(searchParams.toString());
       params.set("protocol", slug);
-      router.replace(`/hub?${params.toString()}`, { scroll: false });
+      window.history.replaceState(null, "", `/hub?${params.toString()}`);
     },
-    [router, searchParams]
+    [searchParams]
   );
 
   const clearProtocolSelection = useCallback((): void => {
@@ -59,8 +58,8 @@ function HubPageContent(): React.ReactElement {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("protocol");
     const qs = params.toString();
-    router.replace(qs ? `/hub?${qs}` : "/hub", { scroll: false });
-  }, [router, searchParams]);
+    window.history.replaceState(null, "", qs ? `/hub?${qs}` : "/hub");
+  }, [searchParams]);
 
   /** Merge featured + community, featured first, deduplicated */
   const allWorkflows = useMemo((): SavedWorkflow[] => {

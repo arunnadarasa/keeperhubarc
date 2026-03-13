@@ -48,6 +48,7 @@ type ProtocolDetailProps = {
   onBack?: () => void;
   hideBackButton?: boolean;
   modalUrl?: string;
+  onTabChange?: () => void;
 };
 
 const TAB_TRIGGER_CLASS =
@@ -299,6 +300,7 @@ export function ProtocolDetail({
   onBack,
   hideBackButton,
   modalUrl,
+  onTabChange,
 }: ProtocolDetailProps): React.ReactElement {
   const router = useRouter();
   const { data: session } = useSession();
@@ -317,11 +319,8 @@ export function ProtocolDetail({
 
   const arrowVisibility = useMemo((): string => {
     const count = featuredWorkflows.length;
-    if (count > 4) {
-      return "flex";
-    }
     if (count > 3) {
-      return "flex lg:hidden";
+      return "flex";
     }
     if (count > 2) {
       return "flex md:hidden";
@@ -598,7 +597,7 @@ export function ProtocolDetail({
         </div>
       </div>
 
-      <Tabs className="mt-6" defaultValue="actions">
+      <Tabs className="mt-6" defaultValue="actions" onValueChange={onTabChange}>
         <TabsList className="mb-4 h-auto w-full justify-start gap-4 rounded-none border-b border-border/30 bg-transparent p-0">
           <TabsTrigger className={TAB_TRIGGER_CLASS} value="actions">
             Actions ({protocol.actions.length})
