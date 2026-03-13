@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: planning
-stopped_at: Completed 21-04-PLAN.md
-last_updated: "2026-03-13T00:22:11.656Z"
+stopped_at: Completed 21-core-execution-commands/21-01-PLAN.md
+last_updated: "2026-03-13T00:29:34.500Z"
 last_activity: 2026-03-13 -- Phase 19 (CLI Scaffold) executed and verified, 5/5 plans complete
 progress:
   total_phases: 6
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 13
-  completed_plans: 12
+  completed_plans: 13
   percent: 17
 ---
 
@@ -57,6 +57,7 @@ Progress: [████░░░░░░░░░░░░░░░░] 17% (1/
 | Phase 21-core-execution-commands P02 | 6 | 2 tasks | 7 files |
 | Phase 21-core-execution-commands P03 | 7 | 2 tasks | 6 files |
 | Phase 21-core-execution-commands P04 | 7 | 2 tasks | 6 files |
+| Phase 21-core-execution-commands P01 | 15 | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -91,6 +92,8 @@ Progress: [████░░░░░░░░░░░░░░░░] 17% (1/
 - [Phase 21-core-execution-commands]: --args changed from StringSlice to String: cobra CSV parsing breaks JSON array input
 - [Phase 21-core-execution-commands]: Read/write detection by HTTP status: 200=read-only result, 202=write with executionId
 - [Phase 21-core-execution-commands]: ExecStatusResponse exported from status.go for shared use by transfer and status commands
+- [Phase 21-core-execution-commands]: Removed --status flag from list.go: API has no server-side status filter; status derived client-side from enabled field
+- [Phase 21-core-execution-commands]: ApplyJQFilter normalizes typed Go structs via JSON round-trip before gojq to prevent panic on typed slices/structs
 
 ### Pending Todos
 
@@ -104,6 +107,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T00:22:11.654Z
-Stopped at: Completed 21-04-PLAN.md
+Last session: 2026-03-13T00:29:34.497Z
+Stopped at: Completed 21-core-execution-commands/21-01-PLAN.md
 Resume file: None
