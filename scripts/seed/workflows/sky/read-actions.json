@@ -1,0 +1,155 @@
+{
+  "protocol": "sky",
+  "network": "1",
+  "networkName": "mainnet",
+  "type": "read",
+  "name": "Protocol Test: Sky Read Actions",
+  "description": "Tests all Sky read actions on Ethereum mainnet",
+  "nodes": [
+    {
+      "id": "node-1",
+      "type": "trigger",
+      "position": { "x": 100, "y": 300 },
+      "data": {
+        "label": "Manual Trigger",
+        "type": "trigger",
+        "config": { "triggerType": "Manual" },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "sky-susds-balance",
+      "type": "action",
+      "position": { "x": 450, "y": 0 },
+      "data": {
+        "label": "Get sUSDS Balance",
+        "description": "Check sUSDS balance of a known holder",
+        "type": "action",
+        "config": {
+          "actionType": "sky/get-susds-balance",
+          "network": "1",
+          "account": "0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD"
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "sky-preview-deposit",
+      "type": "action",
+      "position": { "x": 450, "y": 150 },
+      "data": {
+        "label": "Preview Deposit",
+        "description": "Preview sUSDS shares for depositing 1 USDS",
+        "type": "action",
+        "config": {
+          "actionType": "sky/preview-deposit",
+          "network": "1",
+          "assets": "1000000000000000000"
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "sky-susds-value",
+      "type": "action",
+      "position": { "x": 450, "y": 300 },
+      "data": {
+        "label": "Get sUSDS Value",
+        "description": "Convert 1 sUSDS share to USDS asset value",
+        "type": "action",
+        "config": {
+          "actionType": "sky/get-susds-value",
+          "network": "1",
+          "shares": "1000000000000000000"
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "sky-usds-balance",
+      "type": "action",
+      "position": { "x": 450, "y": 450 },
+      "data": {
+        "label": "Get USDS Balance",
+        "description": "Check USDS balance of a known holder",
+        "type": "action",
+        "config": {
+          "actionType": "sky/get-usds-balance",
+          "network": "1",
+          "account": "0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD"
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "sky-dai-balance",
+      "type": "action",
+      "position": { "x": 450, "y": 600 },
+      "data": {
+        "label": "Get DAI Balance",
+        "description": "Check DAI balance of a known holder",
+        "type": "action",
+        "config": {
+          "actionType": "sky/get-dai-balance",
+          "network": "1",
+          "account": "0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD"
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "sky-sky-balance",
+      "type": "action",
+      "position": { "x": 450, "y": 750 },
+      "data": {
+        "label": "Get SKY Balance",
+        "description": "Check SKY token balance of a known holder",
+        "type": "action",
+        "config": {
+          "actionType": "sky/get-sky-balance",
+          "network": "1",
+          "account": "0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD"
+        },
+        "status": "idle"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-trigger-to-sky-susds-balance",
+      "source": "node-1",
+      "target": "sky-susds-balance",
+      "type": "animated"
+    },
+    {
+      "id": "e-trigger-to-sky-preview-deposit",
+      "source": "node-1",
+      "target": "sky-preview-deposit",
+      "type": "animated"
+    },
+    {
+      "id": "e-trigger-to-sky-susds-value",
+      "source": "node-1",
+      "target": "sky-susds-value",
+      "type": "animated"
+    },
+    {
+      "id": "e-trigger-to-sky-usds-balance",
+      "source": "node-1",
+      "target": "sky-usds-balance",
+      "type": "animated"
+    },
+    {
+      "id": "e-trigger-to-sky-dai-balance",
+      "source": "node-1",
+      "target": "sky-dai-balance",
+      "type": "animated"
+    },
+    {
+      "id": "e-trigger-to-sky-sky-balance",
+      "source": "node-1",
+      "target": "sky-sky-balance",
+      "type": "animated"
+    }
+  ]
+}

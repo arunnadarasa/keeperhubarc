@@ -77,15 +77,15 @@ describe("Spark Protocol Definition", () => {
     }
   });
 
-  it("has exactly 12 actions", () => {
-    expect(sparkDef.actions).toHaveLength(12);
+  it("has exactly 20 actions", () => {
+    expect(sparkDef.actions).toHaveLength(20);
   });
 
-  it("has 7 write actions and 5 read actions", () => {
+  it("has 8 write actions and 12 read actions", () => {
     const readActions = sparkDef.actions.filter((a) => a.type === "read");
     const writeActions = sparkDef.actions.filter((a) => a.type === "write");
-    expect(writeActions).toHaveLength(7);
-    expect(readActions).toHaveLength(5);
+    expect(writeActions).toHaveLength(8);
+    expect(readActions).toHaveLength(12);
   });
 
   it("has 3 contracts", () => {
@@ -136,23 +136,23 @@ describe("Spark Protocol Definition", () => {
     expect(outputNames).toContain("healthFactor");
   });
 
-  it("sDAI read actions have correct outputs", () => {
+  it("sDAI vault read actions have correct outputs", () => {
     const balanceAction = sparkDef.actions.find(
-      (a) => a.slug === "get-sdai-balance"
+      (a) => a.slug === "vault-balance"
     );
     expect(balanceAction).toBeDefined();
     expect(balanceAction?.outputs).toHaveLength(1);
     expect(balanceAction?.outputs?.[0]?.name).toBe("balance");
 
     const totalAssetsAction = sparkDef.actions.find(
-      (a) => a.slug === "get-sdai-total-assets"
+      (a) => a.slug === "vault-total-assets"
     );
     expect(totalAssetsAction).toBeDefined();
     expect(totalAssetsAction?.outputs).toHaveLength(1);
     expect(totalAssetsAction?.outputs?.[0]?.name).toBe("totalAssets");
 
     const convertAction = sparkDef.actions.find(
-      (a) => a.slug === "get-sdai-convert-to-assets"
+      (a) => a.slug === "vault-convert-to-assets"
     );
     expect(convertAction).toBeDefined();
     expect(convertAction?.outputs).toHaveLength(1);
