@@ -9,7 +9,7 @@
  * 2. Add a system integration to SYSTEM_INTEGRATION_TYPES in discover-plugins.ts
  * 3. Run: pnpm discover-plugins
  *
- * Generated types: aave, ai-gateway, ajna, clerk, code, compound, cowswap, curve, database, discord, linear, math, morpho, pendle, protocol, resend, rocket-pool, safe, sendgrid, sky, slack, spark, telegram, uniswap, v0, web3, webflow, webhook, weth
+ * Generated types: aave, ai-gateway, ajna, clerk, code, compound, cowswap, curve, database, discord, linear, math, morpho, pendle, protocol, resend, rocket-pool, safe, sendgrid, sky, slack, spark, telegram, uniswap, v0, web3, webflow, webhook, weth, yearn
  */
 
 // Integration type union - plugins + system integrations
@@ -42,7 +42,8 @@ export type IntegrationType =
   | "web3"
   | "webflow"
   | "webhook"
-  | "weth";
+  | "weth"
+  | "yearn";
 
 // Generic config type - plugins define their own keys via formFields[].configKey
 export type IntegrationConfig = Record<string, string | boolean | undefined>;
