@@ -23,14 +23,6 @@ export default defineProtocol({
       },
       // ABI omitted -- resolved automatically via abi-cache
     },
-    stUsds: {
-      label: "stUSDS (Staked USDS)",
-      addresses: {
-        // Ethereum Mainnet
-        "1": "0x99CD4Ec3f88A45940936F469E4bB72A2A701EEB9",
-      },
-      // ABI omitted -- resolved automatically via abi-cache
-    },
     usds: {
       label: "USDS Stablecoin",
       // Proxy contract
@@ -81,12 +73,6 @@ export default defineProtocol({
   actions: [
     // ERC-4626 Vault (sUSDS Savings)
     ...erc4626VaultActions("sUsds"),
-
-    // ERC-4626 Vault (stUSDS Staked)
-    ...erc4626VaultActions("stUsds", {
-      slugPrefix: "st-usds",
-      labelPrefix: "stUSDS",
-    }),
 
     // Token Balances
 

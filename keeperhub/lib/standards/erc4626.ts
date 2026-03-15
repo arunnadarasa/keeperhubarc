@@ -7,24 +7,14 @@ import type { ProtocolAction } from "@/keeperhub/lib/protocol-registry";
  * 3 write actions: deposit, withdraw, redeem
  * 10 read actions: asset, totalAssets, totalSupply, balanceOf, convertToAssets,
  *   convertToShares, previewDeposit, previewRedeem, maxDeposit, maxWithdraw
- *
- * When a protocol has multiple ERC-4626 vaults, pass a slugPrefix to
- * disambiguate (e.g., "st-usds" produces "st-usds-vault-deposit").
- * The default (no prefix) produces "vault-deposit" for backwards compatibility.
  */
-export function erc4626VaultActions(
-  contract: string,
-  options?: { slugPrefix?: string; labelPrefix?: string }
-): ProtocolAction[] {
-  const p = options?.slugPrefix ? `${options.slugPrefix}-` : "";
-  const lp = options?.labelPrefix ? `${options.labelPrefix} ` : "";
-
+export function erc4626VaultActions(contract: string): ProtocolAction[] {
   return [
     // Write actions
 
     {
-      slug: `${p}vault-deposit`,
-      label: `${lp}Vault Deposit`,
+      slug: "vault-deposit",
+      label: "Vault Deposit",
       description: "Deposit assets into the ERC-4626 vault and receive shares",
       type: "write",
       contract,
@@ -35,8 +25,8 @@ export function erc4626VaultActions(
       ],
     },
     {
-      slug: `${p}vault-withdraw`,
-      label: `${lp}Vault Withdraw`,
+      slug: "vault-withdraw",
+      label: "Vault Withdraw",
       description:
         "Withdraw assets from the ERC-4626 vault by specifying asset amount",
       type: "write",
@@ -49,8 +39,8 @@ export function erc4626VaultActions(
       ],
     },
     {
-      slug: `${p}vault-redeem`,
-      label: `${lp}Vault Redeem`,
+      slug: "vault-redeem",
+      label: "Vault Redeem",
       description:
         "Redeem shares from the ERC-4626 vault for underlying assets",
       type: "write",
@@ -66,8 +56,8 @@ export function erc4626VaultActions(
     // Read actions
 
     {
-      slug: `${p}vault-asset`,
-      label: `${lp}Vault Underlying Asset`,
+      slug: "vault-asset",
+      label: "Vault Underlying Asset",
       description:
         "Get the address of the underlying asset token for this vault",
       type: "read",
@@ -79,8 +69,8 @@ export function erc4626VaultActions(
       ],
     },
     {
-      slug: `${p}vault-total-assets`,
-      label: `${lp}Vault Total Assets`,
+      slug: "vault-total-assets",
+      label: "Vault Total Assets",
       description:
         "Get the total amount of underlying assets held by the vault",
       type: "read",
@@ -97,8 +87,8 @@ export function erc4626VaultActions(
       ],
     },
     {
-      slug: `${p}vault-total-supply`,
-      label: `${lp}Vault Total Supply`,
+      slug: "vault-total-supply",
+      label: "Vault Total Supply",
       description: "Get the total supply of vault shares",
       type: "read",
       contract,
@@ -114,8 +104,8 @@ export function erc4626VaultActions(
       ],
     },
     {
-      slug: `${p}vault-balance`,
-      label: `${lp}Vault Share Balance`,
+      slug: "vault-balance",
+      label: "Vault Share Balance",
       description: "Get the vault share balance of an address",
       type: "read",
       contract,
@@ -131,8 +121,8 @@ export function erc4626VaultActions(
       ],
     },
     {
-      slug: `${p}vault-convert-to-assets`,
-      label: `${lp}Convert Shares to Assets`,
+      slug: "vault-convert-to-assets",
+      label: "Convert Shares to Assets",
       description:
         "Convert a vault share amount to its underlying asset value at the current rate",
       type: "read",
@@ -151,8 +141,8 @@ export function erc4626VaultActions(
       ],
     },
     {
-      slug: `${p}vault-convert-to-shares`,
-      label: `${lp}Convert Assets to Shares`,
+      slug: "vault-convert-to-shares",
+      label: "Convert Assets to Shares",
       description:
         "Convert an asset amount to the equivalent vault shares at the current rate",
       type: "read",
@@ -171,8 +161,8 @@ export function erc4626VaultActions(
       ],
     },
     {
-      slug: `${p}vault-preview-deposit`,
-      label: `${lp}Preview Vault Deposit`,
+      slug: "vault-preview-deposit",
+      label: "Preview Vault Deposit",
       description: "Preview how many shares a given asset deposit would yield",
       type: "read",
       contract,
@@ -190,8 +180,8 @@ export function erc4626VaultActions(
       ],
     },
     {
-      slug: `${p}vault-preview-redeem`,
-      label: `${lp}Preview Vault Redeem`,
+      slug: "vault-preview-redeem",
+      label: "Preview Vault Redeem",
       description:
         "Preview how many assets a given share redemption would yield",
       type: "read",
@@ -210,8 +200,8 @@ export function erc4626VaultActions(
       ],
     },
     {
-      slug: `${p}vault-max-deposit`,
-      label: `${lp}Max Vault Deposit`,
+      slug: "vault-max-deposit",
+      label: "Max Vault Deposit",
       description:
         "Get the maximum amount of assets that can be deposited for a receiver",
       type: "read",
@@ -230,8 +220,8 @@ export function erc4626VaultActions(
       ],
     },
     {
-      slug: `${p}vault-max-withdraw`,
-      label: `${lp}Max Vault Withdraw`,
+      slug: "vault-max-withdraw",
+      label: "Max Vault Withdraw",
       description:
         "Get the maximum amount of assets that can be withdrawn by an owner",
       type: "read",
