@@ -1,33 +1,16 @@
 {
   "mcpServers": {
-    "atlassian": {
-      "type": "http",
-      "url": "https://mcp.atlassian.com/v1/mcp"
+    "keeperhub-dev": {
+      "command": "kh",
+      "args": ["serve", "--mcp", "--host", "http://localhost:3000"]
+    },
+    "keeperhub-staging": {
+      "command": "kh",
+      "args": ["serve", "--mcp", "--host", "https://app-staging.keeperhub.com"]
     },
     "keeperhub": {
-      "command": "docker",
-      "args": [
-        "run",
-        "-i",
-        "--rm",
-        "--pull=always",
-        "-e",
-        "KEEPERHUB_API_KEY=your-api-key-here",
-        "-e",
-        "KEEPERHUB_API_URL=https://app.keeperhub.com",
-        "ghcr.io/techops-services/keeperhub-mcp:latest"
-      ]
-    },
-    "terraform": {
-      "command": "docker",
-      "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-e",
-        "TFE_TOKEN",
-        "hashicorp/terraform-mcp-server"
-      ]
+      "command": "kh",
+      "args": ["serve", "--mcp"]
     },
     "playwright": {
       "command": "npx",
