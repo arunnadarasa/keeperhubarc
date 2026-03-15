@@ -79,8 +79,8 @@ describe("Sky Protocol Definition", () => {
     }
   });
 
-  it("has exactly 14 actions", () => {
-    expect(skyDef.actions).toHaveLength(14);
+  it("has exactly 21 actions", () => {
+    expect(skyDef.actions).toHaveLength(21);
   });
 
   it("registers in the protocol registry and is retrievable", () => {
@@ -91,10 +91,10 @@ describe("Sky Protocol Definition", () => {
     expect(retrieved?.name).toBe("Sky");
   });
 
-  it("has 6 read actions and 8 write actions", () => {
+  it("has 13 read actions and 8 write actions", () => {
     const readActions = skyDef.actions.filter((a) => a.type === "read");
     const writeActions = skyDef.actions.filter((a) => a.type === "write");
-    expect(readActions).toHaveLength(6);
+    expect(readActions).toHaveLength(13);
     expect(writeActions).toHaveLength(8);
   });
 
