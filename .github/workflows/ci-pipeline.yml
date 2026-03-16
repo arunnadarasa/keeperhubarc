@@ -23,12 +23,12 @@ jobs:
     secrets: inherit
 
   # Ephemeral e2e tests run on:
-  # - Push/dispatch to staging (gate for staging-to-prod promotion PRs)
+  # - Push to staging or prod
   # - PRs with run-e2e-tests-ephemeral label
-  # Skipped on push to prod -- code already passed e2e on staging.
+  # - Manual workflow_dispatch
   e2e-tests:
     needs: [build-images]
-    if: ${{ !failure() && !cancelled() && !(github.event_name != 'pull_request' && github.ref_name == 'prod') }}
+    if: ${{ !failure() && !cancelled() }}
     uses: ./.github/workflows/e2e-tests-ephemeral.yml
     with:
       caller_event: ${{ github.event_name }}
