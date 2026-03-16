@@ -95,33 +95,40 @@ If the assertion is about **what happens in the database, queue, API, or chain**
 
 ## CI Execution Model
 
-All E2E tests are managed by workflow files under `.github/workflows/`. See `docs/testing/README.md` for the full architecture, design decisions, secrets reference, and test data seeding details.
+All E2E tests are managed by workflow files under `.github/workflows/`.
 
 ### Trigger summary
 
 | Event | Ephemeral vitest | Ephemeral playwright | Remote playwright |
 |-------|-----------------|---------------------|-------------------|
-| Push to `staging`/`prod` | Yes | Yes (gates deploy) | Yes (post-deploy) |
+| Push to `staging`/`prod` | Yes | Yes (gates deploy) | Gated by `ENABLE_E2E_REMOTE_TESTS` var (post-deploy) |
 | PR with `run-e2e-tests-ephemeral` label | Yes | Yes | No |
-| PR with `deploy-pr-environment` + `run-e2e-tests-pr-deploy` labels | No | No | Yes |
 | `[skip e2e]` in commit message | Skipped | Skipped | Skipped |
+
+Ephemeral tests are gated by the `ENABLE_E2E_EPHEMERAL_TESTS` repo variable. When disabled, e2e jobs become no-ops and deploy proceeds unconditionally.
 
 ### Execution order on push to staging/prod
 
 ```
 ci-pipeline.yml:
     |
-    +-- e2e-tests-ephemeral.yml
+    +-- build-images.yml (Docker images to ECR)
+    |
+    +-- e2e-tests-ephemeral.yml (needs build-images)
     |        |
     |        +-- e2e-vitest-ephemeral (DB + SQS + built app)
     |                 |
     |                 +-- e2e-playwright-ephemeral (DB + built app, serial)
     |
-    +-- deploy-keeperhub.yaml (after ephemeral tests pass)
-             |
-             +-- build-and-deploy
-                      |
-                      +-- e2e-playwright-remote (against deployed URL)
+    +-- deploy-keeperhub.yaml (needs build-images + e2e-tests, blocked on failure)
+    |        |
+    |        +-- deploy (Helm to EKS)
+    |        |
+    |        +-- e2e-playwright-remote (against deployed URL, gated by ENABLE_E2E_REMOTE_TESTS)
+    |
+    +-- release.yml (prod only, needs deploy, blocked on failure)
+    |
+    +-- docs-sync.yml (prod only, needs release)
 ```
 
 ### Playwright stability decisions
@@ -138,53 +145,11 @@ ci-pipeline.yml:
 
 ### Unit Tests (`tests/unit/`)
 
-No external infrastructure. All dependencies mocked.
-
-| File | What it tests |
-|------|---------------|
-| `abi-utils.test.ts` | 4-byte function selector computation from signatures |
-| `address-utils.test.ts` | EIP-55 checksum formatting, normalization, truncation |
-| `api-metrics.test.ts` | Webhook and status poll metrics instrumentation |
-| `balance-formatting.test.ts` | BigInt precision formatting for different decimals (18, 8, 6) |
-| `builtin-variables.test.ts` | Builtin variables (timestamps, dates) in workflow conditions |
-| `chain-service.test.ts` | Chain CRUD operations (create, read, update, enable/disable) |
-| `config-service.test.ts` | User RPC preference CRUD and config resolution |
-| `database-secrets.test.ts` | Password and URL stripping from database integration configs |
-| `db-template-params.test.ts` | Database config merging and secret stripping for integrations |
-| `explorer.test.ts` | Blockchain explorer URL generation and ABI fetching (Etherscan, Blockscout) |
-| `gas-strategy.test.ts` | Gas price strategy calculation with hardcoded fallback configs |
-| `metrics.test.ts` | Metrics collectors (console, noop, prefixed) and latency tracking |
-| `network-utils.test.ts` | Chain ID resolution from network names |
-| `nonce-manager.test.ts` | Nonce lock acquisition and database-backed nonce management |
-| `plugin-metrics.test.ts` | Plugin execution metrics recording and wrappers |
-| `rpc-config.test.ts` | RPC URL resolution priority (JSON config, env vars, public defaults) |
-| `rpc-preferences-routes.test.ts` | RPC preferences API routes with mocked auth |
-| `rpc-provider.test.ts` | EVM RPC provider manager with failover states and metrics |
-| `saturation-metrics.test.ts` | Concurrent execution, queue depth, and DB pool saturation metrics |
-| `schedule-dispatcher.test.ts` | `shouldTriggerNow` cron matching logic |
-| `schedule-executor.test.ts` | SQS-based schedule execution and DB updates |
-| `schedule-service.test.ts` | Cron expression validation, timezone validation, next run time |
-| `serialize-sql-params.test.ts` | SQL parameter serialization (null, primitives, dates, BigInt) |
-| `solana-provider.test.ts` | Solana RPC provider manager with failover and metrics |
-| `template.test.ts` | Template processing with `@` references and nested path resolution |
-| `template-remap.test.ts` | Template reference remapping during workflow duplication |
-| `workflow-codegen-condition.test.ts` | Condition node validation for empty/unconfigured expressions |
-| `workflow-metrics.test.ts` | Workflow execution metrics (trigger detection, step metrics) |
-| `workflow-runner.test.ts` | Graceful shutdown implementation with exit codes and signals |
+No external infrastructure. All dependencies mocked. Covers Web3 utilities, RPC providers, scheduling, conditions, billing, protocol plugins, metrics, and more. Run `ls tests/unit/` for the full list.
 
 ### Integration Tests (`tests/integration/`)
 
-Mock the database and HTTP layer but test real module wiring.
-
-| File | What it tests |
-|------|---------------|
-| `abi-route.test.ts` | ABI fetching endpoint for Etherscan, Basescan, Blockscout |
-| `chains-route.test.ts` | Chains listing endpoint with enabled/disabled filtering |
-| `execute-api.test.ts` | Workflow execution endpoint with DB and session mocking |
-| `schedule-sync.test.ts` | Schedule synchronization between workflow config and DB |
-| `web3-steps.test.ts` | Web3 plugin steps (check-balance, transfer-funds) with mocked providers |
-| `workflow-duplicate.test.ts` | Workflow duplication with template reference remapping |
-| `workflow-runner.test.ts` | Graceful shutdown by spawning actual workflow-runner process |
+Mock the database and HTTP layer but test real module wiring. Covers API routes (ABI, chains, execution, billing, admin), workflow duplication, schedule sync, and the workflow-runner process. Run `ls tests/integration/` for the full list.
 
 ### Vitest E2E Tests (`tests/e2e/vitest/`)
 
@@ -211,7 +176,9 @@ Run against a live app in a real browser. Require the app and database to be run
 
 | File | What it tests |
 |------|---------------|
+| `analytics-gas.test.ts` | Analytics gas tracking UI |
 | `auth.test.ts` | Email OTP verification flow on signup |
+| `billing.test.ts` | Billing plan selection, upgrade, and cancellation flows |
 | `invitations.test.ts` | Organization invitation acceptance with navigation retry |
 | `organization-wallet.test.ts` | Organization wallet creation and address display |
 | `schedule-trigger.test.ts` | Schedule trigger node configuration UI |
@@ -219,7 +186,6 @@ Run against a live app in a real browser. Require the app and database to be run
 | **happy-paths/** | |
 | `scheduled-workflow.test.ts` | Create and save a scheduled workflow with webhook action, verify persistence |
 | `web3-balance.test.ts` | Create workflow with Web3 check-balance action, configure network, trigger execution |
-| `webhook-workflow.test.ts` | Webhook-triggered workflow execution with API key auth, verify DB completion |
 
 ---
 
