@@ -15,6 +15,7 @@ import {
   getOrganizationWalletAddress,
   initializeParaSigner,
 } from "@/keeperhub/lib/para/wallet-helpers";
+import { getAbiFunctionKey } from "@/keeperhub/lib/web3/abi-function-key";
 import { formatContractError } from "@/keeperhub/lib/web3/decode-revert-error";
 import { resolveGasLimitOverrides } from "@/keeperhub/lib/web3/gas-defaults";
 import { getGasStrategy } from "@/keeperhub/lib/web3/gas-strategy";
@@ -119,22 +120,7 @@ export async function writeContractCore(
     };
   }
 
-  // Build fully qualified function key to disambiguate overloaded functions.
-  // e.g. "deposit" -> "deposit(uint256,address)" when the ABI has multiple deposit overloads.
-  const abiFunctionKey = (() => {
-    const matchingFunctions = parsedAbi.filter(
-      (item: { type: string; name: string }) =>
-        item.type === "function" && item.name === abiFunction
-    );
-    if (matchingFunctions.length <= 1) {
-      return abiFunction;
-    }
-    // Multiple overloads -- build explicit signature from the matched ABI entry
-    const inputTypes = (functionAbi.inputs as Array<{ type: string }>).map(
-      (i: { type: string }) => i.type
-    );
-    return `${abiFunction}(${inputTypes.join(",")})`;
-  })();
+  const abiFunctionKey = getAbiFunctionKey(parsedAbi, abiFunction, functionAbi);
 
   // Parse function arguments
   let args: unknown[] = [];

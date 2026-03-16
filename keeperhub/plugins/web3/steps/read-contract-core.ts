@@ -11,6 +11,7 @@ import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
 import { reshapeArgsForAbi } from "@/keeperhub/lib/abi-struct-args";
 import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
+import { getAbiFunctionKey } from "@/keeperhub/lib/web3/abi-function-key";
 import { formatContractError } from "@/keeperhub/lib/web3/decode-revert-error";
 import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
@@ -155,21 +156,7 @@ export async function readContractCore(
     };
   }
 
-  // Build fully qualified function key to disambiguate overloaded functions.
-  // e.g. "deposit" -> "deposit(uint256,address)" when the ABI has multiple deposit overloads.
-  const abiFunctionKey = (() => {
-    const matchingFunctions = parsedAbi.filter(
-      (item: { type: string; name: string }) =>
-        item.type === "function" && item.name === abiFunction
-    );
-    if (matchingFunctions.length <= 1) {
-      return abiFunction;
-    }
-    const inputTypes = (functionAbi.inputs as Array<{ type: string }>).map(
-      (i: { type: string }) => i.type
-    );
-    return `${abiFunction}(${inputTypes.join(",")})`;
-  })();
+  const abiFunctionKey = getAbiFunctionKey(parsedAbi, abiFunction, functionAbi);
 
   // Parse function arguments
   let args: unknown[] = [];
