@@ -11,7 +11,7 @@ const HEX_ADDRESS_REGEX = /^0x[\dA-Fa-f]{40}$/;
 describe("Uniswap Protocol Definition", () => {
   it("imports without throwing", () => {
     expect(uniswapDef).toBeDefined();
-    expect(uniswapDef.name).toBe("Uniswap");
+    expect(uniswapDef.name).toBe("Uniswap V3");
     expect(uniswapDef.slug).toBe("uniswap");
   });
 
@@ -90,7 +90,7 @@ describe("Uniswap Protocol Definition", () => {
     const retrieved = getProtocol("uniswap");
     expect(retrieved).toBeDefined();
     expect(retrieved?.slug).toBe("uniswap");
-    expect(retrieved?.name).toBe("Uniswap");
+    expect(retrieved?.name).toBe("Uniswap V3");
   });
 
   it("has 6 read actions and 5 write actions", () => {
