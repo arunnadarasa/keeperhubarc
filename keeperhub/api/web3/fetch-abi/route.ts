@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { toChecksumAddress } from "@/keeperhub/lib/address-utils";
 import { apiError } from "@/keeperhub/lib/api-error";
 import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
-import { auth } from "@/lib/auth";
+import { resolveOrganizationId } from "@/keeperhub/lib/middleware/auth-helpers";
 import { db } from "@/lib/db";
 import { explorerConfigs } from "@/lib/db/schema";
 import { fetchEtherscanSourceCode } from "@/lib/explorer/etherscan";
@@ -1286,19 +1286,13 @@ async function fetchAbiFromEtherscan(
 
 export async function POST(request: Request) {
   try {
-    console.log("[Etherscan] POST request received");
-
-    // Authenticate user
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      console.log("[Etherscan] Unauthorized - no session");
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authCtx = await resolveOrganizationId(request);
+    if ("error" in authCtx) {
+      return NextResponse.json(
+        { error: authCtx.error },
+        { status: authCtx.status }
+      );
     }
-
-    console.log("[Etherscan] User authenticated:", session.user.id);
 
     // Parse request body
     const body = (await request.json().catch(() => ({}))) as {
