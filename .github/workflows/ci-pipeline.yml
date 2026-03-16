@@ -53,6 +53,8 @@ jobs:
 
   # Release and docs-sync only run on prod pushes, after successful deploy.
   # Previously a separate workflow — moved here so e2e/deploy failures block release.
+  # Note: if ENABLE_E2E_EPHEMERAL_TESTS is false, e2e jobs are skipped (not failed),
+  # so deploy and release proceed unconditionally — the variable is the kill switch.
   release:
     needs: [deploy]
     if: ${{ github.ref_name == 'prod' && !failure() && !cancelled() }}

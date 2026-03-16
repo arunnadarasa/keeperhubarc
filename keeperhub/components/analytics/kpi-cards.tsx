@@ -218,11 +218,11 @@ export function KpiCards(): ReactNode {
 
   const isReady = !(loading && !summary);
 
-  if (!isReady) {
+  if (loading && !summary) {
     return (
       <div
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
-        data-ready="false"
+        data-ready={String(isReady)}
         data-testid="kpi-cards"
       >
         <SkeletonCard />
@@ -240,7 +240,7 @@ export function KpiCards(): ReactNode {
   return (
     <div
       className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
-      data-ready="true"
+      data-ready={String(isReady)}
       data-testid="kpi-cards"
     >
       {cards.map((card) => (
