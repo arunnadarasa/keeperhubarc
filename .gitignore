@@ -131,3 +131,10 @@ tailwindcss-*.log
 .claude/lint-output.txt
 .claude/typecheck-output.txt
 .claude/worktrees/
+
+# Playwright MCP screenshots
+.playwright-mcp/
+
+# Local test workflow seeds and reports
+scripts/seed/workflows/*/
+reports/
