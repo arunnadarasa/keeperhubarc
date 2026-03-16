@@ -108,15 +108,15 @@ describe("Ethena Protocol Definition", () => {
     );
   });
 
-  it("has exactly 21 actions (13 ERC-4626 + 5 cooldown + 2 token balance + 1 approval)", () => {
-    expect(ethenaDef.actions).toHaveLength(21);
+  it("has exactly 26 actions (18 ERC-4626 + 5 cooldown + 2 token balance + 1 approval)", () => {
+    expect(ethenaDef.actions).toHaveLength(26);
   });
 
-  it("has 14 read actions and 7 write actions", () => {
+  it("has 18 read actions and 8 write actions", () => {
     const readActions = ethenaDef.actions.filter((a) => a.type === "read");
     const writeActions = ethenaDef.actions.filter((a) => a.type === "write");
-    expect(readActions).toHaveLength(14);
-    expect(writeActions).toHaveLength(7);
+    expect(readActions).toHaveLength(18);
+    expect(writeActions).toHaveLength(8);
   });
 
   it("includes standard ERC-4626 vault actions on sUsde", () => {
