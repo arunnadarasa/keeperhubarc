@@ -141,12 +141,14 @@ async function executeProtocolAction(
     return NextResponse.json(result);
   }
 
+  const ethValue = body.ethValue ? String(body.ethValue) : undefined;
   const coreInput: WriteContractCoreInput = {
     contractAddress,
     network,
     abi: resolvedAbi,
     abiFunction: meta.functionName,
     functionArgs,
+    ethValue,
     _context: { organizationId },
   };
   const result = await writeContractCore(coreInput);
