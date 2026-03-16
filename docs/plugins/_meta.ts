@@ -17,6 +17,7 @@ export default {
   sky: "Sky",
   spark: "Spark",
   uniswap: "Uniswap",
+  "yearn-v3": "Yearn V3",
   discord: "Discord",
   telegram: "Telegram",
   sendgrid: "SendGrid",
