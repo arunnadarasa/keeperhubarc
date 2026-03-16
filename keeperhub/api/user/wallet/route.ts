@@ -8,6 +8,7 @@ import {
 } from "@/keeperhub/lib/address-utils";
 import { apiError } from "@/keeperhub/lib/api-error";
 import { encryptUserShare } from "@/keeperhub/lib/encryption";
+import { resolveOrganizationId } from "@/keeperhub/lib/middleware/auth-helpers";
 import { getActiveOrgId } from "@/keeperhub/lib/middleware/org-context";
 import {
   getOrganizationWallet,
@@ -228,23 +229,14 @@ async function storeWalletAndIntegration(options: {
 
 export async function GET(request: Request) {
   try {
-    // Validate user and organization (no admin check for GET)
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authCtx = await resolveOrganizationId(request);
+    if ("error" in authCtx) {
+      return NextResponse.json(
+        { error: authCtx.error },
+        { status: authCtx.status }
+      );
     }
-
-    const activeOrgId = getActiveOrgId(session);
-
-    if (!activeOrgId) {
-      return NextResponse.json({
-        hasWallet: false,
-        message: "No active organization selected",
-      });
-    }
+    const { organizationId: activeOrgId } = authCtx;
 
     const hasWallet = await organizationHasWallet(activeOrgId);
 

@@ -18,15 +18,15 @@
       }
     },
     {
-      "id": "sky-deposit-ssr",
+      "id": "sky-vault-deposit",
       "type": "action",
       "position": { "x": 450, "y": 0 },
       "data": {
-        "label": "Deposit SSR",
+        "label": "Vault Deposit",
         "description": "Deposit USDS into sUSDS vault",
         "type": "action",
         "config": {
-          "actionType": "sky/deposit-ssr",
+          "actionType": "sky/vault-deposit",
           "network": "1",
           "assets": "1000000000000000000",
           "receiver": "0x0000000000000000000000000000000000000001"
@@ -35,15 +35,15 @@
       }
     },
     {
-      "id": "sky-withdraw-ssr",
+      "id": "sky-vault-withdraw",
       "type": "action",
       "position": { "x": 450, "y": 150 },
       "data": {
-        "label": "Withdraw SSR",
+        "label": "Vault Withdraw",
         "description": "Withdraw USDS from sUSDS vault",
         "type": "action",
         "config": {
-          "actionType": "sky/withdraw-ssr",
+          "actionType": "sky/vault-withdraw",
           "network": "1",
           "assets": "1000000000000000000",
           "receiver": "0x0000000000000000000000000000000000000001",
@@ -53,15 +53,15 @@
       }
     },
     {
-      "id": "sky-redeem-ssr",
+      "id": "sky-vault-redeem",
       "type": "action",
       "position": { "x": 450, "y": 300 },
       "data": {
-        "label": "Redeem SSR",
+        "label": "Vault Redeem",
         "description": "Redeem sUSDS shares for USDS",
         "type": "action",
         "config": {
-          "actionType": "sky/redeem-ssr",
+          "actionType": "sky/vault-redeem",
           "network": "1",
           "shares": "1000000000000000000",
           "receiver": "0x0000000000000000000000000000000000000001",
@@ -158,21 +158,21 @@
   ],
   "edges": [
     {
-      "id": "e-trigger-to-sky-deposit-ssr",
+      "id": "e-trigger-to-sky-vault-deposit",
       "source": "node-1",
-      "target": "sky-deposit-ssr",
+      "target": "sky-vault-deposit",
       "type": "animated"
     },
     {
-      "id": "e-trigger-to-sky-withdraw-ssr",
+      "id": "e-trigger-to-sky-vault-withdraw",
       "source": "node-1",
-      "target": "sky-withdraw-ssr",
+      "target": "sky-vault-withdraw",
       "type": "animated"
     },
     {
-      "id": "e-trigger-to-sky-redeem-ssr",
+      "id": "e-trigger-to-sky-vault-redeem",
       "source": "node-1",
-      "target": "sky-redeem-ssr",
+      "target": "sky-vault-redeem",
       "type": "animated"
     },
     {

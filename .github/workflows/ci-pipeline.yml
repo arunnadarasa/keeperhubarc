@@ -1,12 +1,17 @@
-# Type: orchestrator | Coordinates build-images -> e2e-tests-ephemeral -> deploy
+# Type: orchestrator | Coordinates build-images -> e2e-tests -> deploy -> release -> docs-sync
 name: CI Pipeline
 
 on:
   push:
-    branches: [prod]
+    branches: [staging, prod]
   pull_request:
     types: [labeled, synchronize]
   workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
 
 jobs:
   # Build Docker images once for push/dispatch events (staging/prod).
@@ -18,13 +23,12 @@ jobs:
     secrets: inherit
 
   # Ephemeral e2e tests run on:
-  # - Push/dispatch to staging (gate for staging-to-prod promotion PRs)
+  # - Push to staging or prod
   # - PRs with run-e2e-tests-ephemeral label
-  # Skipped on push to prod -- code already passed e2e on staging,
-  # and remote e2e tests post-deploy validate the actual prod environment.
+  # - Manual workflow_dispatch
   e2e-tests:
     needs: [build-images]
-    if: ${{ !failure() && !cancelled() && !(github.event_name != 'pull_request' && github.ref_name == 'prod') }}
+    if: ${{ !failure() && !cancelled() }}
     uses: ./.github/workflows/e2e-tests-ephemeral.yml
     with:
       caller_event: ${{ github.event_name }}
@@ -38,12 +42,27 @@ jobs:
     secrets: inherit
 
   # Deploy runs after build-images and e2e-tests.
-  # On prod pushes, e2e-tests is skipped (not failed/cancelled),
-  # so !failure() && !cancelled() correctly allows deploy to proceed.
+  # Blocked if e2e tests fail — no deployment without passing tests.
   deploy:
     needs: [build-images, e2e-tests]
     if: ${{ github.event_name != 'pull_request' && !failure() && !cancelled() }}
     uses: ./.github/workflows/deploy-keeperhub.yaml
     with:
       image_tag: ${{ needs.build-images.outputs.image_tag }}
+    secrets: inherit
+
+  # Release and docs-sync only run on prod pushes, after successful deploy.
+  # Previously a separate workflow — moved here so e2e/deploy failures block release.
+  # Note: if ENABLE_E2E_EPHEMERAL_TESTS is false, e2e jobs are skipped (not failed),
+  # so deploy and release proceed unconditionally — the variable is the kill switch.
+  release:
+    needs: [deploy]
+    if: ${{ github.ref_name == 'prod' && !failure() && !cancelled() }}
+    uses: ./.github/workflows/release.yml
+    secrets: inherit
+
+  docs-sync:
+    needs: [release]
+    if: ${{ github.ref_name == 'prod' && !failure() && !cancelled() }}
+    uses: ./.github/workflows/docs-sync.yml
     secrets: inherit

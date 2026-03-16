@@ -11,12 +11,10 @@ const WORKFLOW_URL_REGEX = /workflow/;
  * Wait for workflow canvas to be ready.
  */
 export async function waitForCanvas(page: Page): Promise<void> {
-  await page.waitForSelector(
-    '[data-testid="workflow-canvas"][data-ready="true"]',
-    {
-      state: "visible",
-      timeout: 60_000,
-    }
+  await expect(page.getByTestId("workflow-canvas")).toHaveAttribute(
+    "data-ready",
+    "true",
+    { timeout: 60_000 }
   );
 }
 

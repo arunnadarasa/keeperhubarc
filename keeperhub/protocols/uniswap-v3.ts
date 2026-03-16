@@ -1,7 +1,7 @@
 import { defineProtocol } from "@/keeperhub/lib/protocol-registry";
 
 export default defineProtocol({
-  name: "Uniswap",
+  name: "Uniswap V3",
   slug: "uniswap",
   description:
     "Uniswap V3 -- pool discovery, liquidity positions, swaps, and quotes",

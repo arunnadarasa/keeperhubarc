@@ -9,12 +9,10 @@ test.describe("Schedule Trigger", () => {
     // Navigate to the homepage with the workflow canvas
     await page.goto("/", { waitUntil: "domcontentloaded" });
     // Wait for the canvas to be fully ready (data-ready="true" set after fitView)
-    await page.waitForSelector(
-      '[data-testid="workflow-canvas"][data-ready="true"]',
-      {
-        state: "visible",
-        timeout: 60_000,
-      }
+    await expect(page.getByTestId("workflow-canvas")).toHaveAttribute(
+      "data-ready",
+      "true",
+      { timeout: 60_000 }
     );
   });
 
