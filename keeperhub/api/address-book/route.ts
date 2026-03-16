@@ -1,33 +1,25 @@
 import { desc, eq, inArray } from "drizzle-orm";
 import { ethers } from "ethers";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { normalizeAddressForStorage } from "@/keeperhub/lib/address-utils";
-import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
-import { auth } from "@/lib/auth";
+import {
+  resolveCreatorContext,
+  resolveOrganizationId,
+} from "@/keeperhub/lib/middleware/auth-helpers";
 import { db } from "@/lib/db";
 import { addressBookEntry, users } from "@/lib/db/schema";
 
 // GET - List all address book entries for the current organization
 export async function GET(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const orgContext = await getOrgContext();
-    const activeOrgId = orgContext.organization?.id;
-
-    if (!activeOrgId) {
+    const authCtx = await resolveOrganizationId(request);
+    if ("error" in authCtx) {
       return NextResponse.json(
-        { error: "No active organization" },
-        { status: 400 }
+        { error: authCtx.error },
+        { status: authCtx.status }
       );
     }
+    const { organizationId: activeOrgId } = authCtx;
 
     // List all address book entries for the organization
     const entries = await db
@@ -83,35 +75,14 @@ export async function GET(request: Request) {
 // POST - Create a new address book entry for the current organization
 export async function POST(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const orgContext = await getOrgContext();
-    const activeOrgId = orgContext.organization?.id;
-
-    if (!activeOrgId) {
+    const authCtx = await resolveCreatorContext(request);
+    if ("error" in authCtx) {
       return NextResponse.json(
-        { error: "No active organization" },
-        { status: 400 }
+        { error: authCtx.error },
+        { status: authCtx.status }
       );
     }
-
-    // Get active member to check permissions
-    const activeMember = await auth.api.getActiveMember({
-      headers: await headers(),
-    });
-
-    if (!activeMember) {
-      return NextResponse.json(
-        { error: "You are not a member of the active organization" },
-        { status: 403 }
-      );
-    }
+    const { organizationId: activeOrgId, userId } = authCtx;
 
     // Parse request body
     const body = await request.json().catch(() => ({}));
@@ -140,7 +111,7 @@ export async function POST(request: Request) {
         organizationId: activeOrgId,
         label,
         address: normalizeAddressForStorage(address),
-        createdBy: session.user.id,
+        createdBy: userId,
       })
       .returning({
         id: addressBookEntry.id,

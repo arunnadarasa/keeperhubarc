@@ -453,9 +453,14 @@ export function RunsTable(): ReactNode {
   }, [allRuns, search]);
 
   const isEmpty = runs.length === 0;
+  const isReady = !(loading && isEmpty);
 
   return (
-    <div className="flex gap-0 overflow-hidden rounded-xl border">
+    <div
+      className="flex gap-0 overflow-hidden rounded-xl border"
+      data-ready={String(isReady)}
+      data-testid="runs-table"
+    >
       <ProjectDrawer />
       <Card className="flex-1 rounded-none border-0">
         <CardHeader>

@@ -4,7 +4,7 @@ import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 import { getDualAuthContext } from "@/keeperhub/lib/middleware/auth-helpers";
 import { db } from "@/lib/db";
 import { validateWorkflowIntegrations } from "@/lib/db/integrations";
-import { projects, publicTags, tags, workflowPublicTags, workflows } from "@/lib/db/schema";
+import { projects, publicTags, tags, workflowExecutions, workflowPublicTags, workflows } from "@/lib/db/schema";
 import { syncWorkflowSchedule } from "@/lib/schedule-service";
 async function fetchWorkflowPublicTags(
   workflowId: string
@@ -378,10 +378,38 @@ export async function DELETE(
       );
     }
 
+    // Check for existing executions before deleting
+    const hasExecutions = await db.query.workflowExecutions.findFirst({
+      where: eq(workflowExecutions.workflowId, workflowId),
+      columns: { id: true },
+    });
+
+    if (hasExecutions) {
+      return NextResponse.json(
+        {
+          error:
+            "Workflow has execution history. Delete executions first before deleting the workflow.",
+        },
+        { status: 409 }
+      );
+    }
+
     await db.delete(workflows).where(eq(workflows.id, workflowId));
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    // Handle FK constraint violation from race condition (execution inserted between check and delete)
+    const cause = error instanceof Error ? error.cause : undefined;
+    if (cause && typeof cause === "object" && "code" in cause && cause.code === "23503") {
+      return NextResponse.json(
+        {
+          error:
+            "Workflow has execution history. Delete executions first before deleting the workflow.",
+        },
+        { status: 409 }
+      );
+    }
+
     logSystemError(ErrorCategory.DATABASE, "Failed to delete workflow", error, {
       endpoint: "/api/workflows/[workflowId]",
     });

@@ -23,7 +23,37 @@ export default defineProtocol({
         // Sepolia Testnet
         "11155111": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14",
       },
-      // ABI omitted -- resolved automatically via abi-cache
+      // Inline ABI -- Base and Optimism L2 precompile addresses aren't verified on block explorers
+      abi: JSON.stringify([
+        {
+          type: "function",
+          name: "deposit",
+          stateMutability: "payable",
+          inputs: [],
+          outputs: [],
+        },
+        {
+          type: "function",
+          name: "withdraw",
+          stateMutability: "nonpayable",
+          inputs: [{ name: "wad", type: "uint256" }],
+          outputs: [],
+        },
+        {
+          type: "function",
+          name: "balanceOf",
+          stateMutability: "view",
+          inputs: [{ name: "", type: "address" }],
+          outputs: [{ name: "", type: "uint256" }],
+        },
+        {
+          type: "function",
+          name: "totalSupply",
+          stateMutability: "view",
+          inputs: [],
+          outputs: [{ name: "", type: "uint256" }],
+        },
+      ]),
     },
   },
 
