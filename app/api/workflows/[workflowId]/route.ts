@@ -4,7 +4,7 @@ import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 import { getDualAuthContext } from "@/keeperhub/lib/middleware/auth-helpers";
 import { db } from "@/lib/db";
 import { validateWorkflowIntegrations } from "@/lib/db/integrations";
-import { projects, publicTags, tags, workflowPublicTags, workflows } from "@/lib/db/schema";
+import { projects, publicTags, tags, workflowExecutions, workflowPublicTags, workflows } from "@/lib/db/schema";
 import { syncWorkflowSchedule } from "@/lib/schedule-service";
 async function fetchWorkflowPublicTags(
   workflowId: string
@@ -375,6 +375,23 @@ export async function DELETE(
       return NextResponse.json(
         { error: "Workflow not found" },
         { status: 404 }
+      );
+    }
+
+    // Check for existing executions before deleting
+    const executions = await db.query.workflowExecutions.findMany({
+      where: eq(workflowExecutions.workflowId, workflowId),
+      columns: { id: true },
+      limit: 1,
+    });
+
+    if (executions.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Workflow has execution history. Delete executions first before deleting the workflow.",
+        },
+        { status: 409 }
       );
     }
 
