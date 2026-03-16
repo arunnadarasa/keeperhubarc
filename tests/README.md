@@ -336,10 +336,16 @@ act push --job e2e-vitest \
 | `tests/utils/db.ts` | Shared DB helpers: `createTestWorkflow`, `waitForWorkflowExecution`, `createApiKey`, `getUserIdByEmail` |
 | `tests/fixtures/workflows.ts` | Workflow builders: `createScheduledWorkflow`, `createWebhookWorkflow`, trigger/action node factories, cron presets |
 | `tests/fixtures/workflow-runner-harness.ts` | Harness for spawning workflow-runner as child process |
-| `tests/e2e/playwright/utils/auth.ts` | `signUpAndVerify()` for Playwright browser auth |
-| `tests/e2e/playwright/utils/db.ts` | Playwright-specific DB utilities |
-| `tests/e2e/playwright/utils/workflow.ts` | `waitForWorkflowSave()` and other Playwright workflow helpers |
+| `tests/e2e/playwright/utils/admin-fetch.ts` | Auth headers for admin test API and Cloudflare Access |
+| `tests/e2e/playwright/utils/auth.ts` | `signUpAndVerify()`, `signIn()` for Playwright browser auth |
+| `tests/e2e/playwright/utils/cleanup.ts` | Post-test cleanup: deletes test users, orgs, and Para wallets |
+| `tests/e2e/playwright/utils/connection.ts` | Shared `getDbConnection()` postgres client factory |
+| `tests/e2e/playwright/utils/db.ts` | Playwright-specific DB utilities: `createTestWorkflow`, persistent test user constants |
 | `tests/e2e/playwright/utils/discover.ts` | Page discovery: `probe()`, `diffReports()`, `autoProbe()`, `highlightElements()` |
+| `tests/e2e/playwright/utils/env.ts` | `isRemoteMode()` -- detects deployed vs local test environment |
+| `tests/e2e/playwright/utils/invitations.ts` | Invitation acceptance helpers: navigate, wait for `data-page-state`, fetch invitation ID |
+| `tests/e2e/playwright/utils/seed.ts` | Test data seeding: password hashing, user/org creation via direct DB inserts |
+| `tests/e2e/playwright/utils/workflow.ts` | `waitForCanvas()`, `waitForWorkflowSave()`, and other Playwright workflow helpers |
 
 ---
 
