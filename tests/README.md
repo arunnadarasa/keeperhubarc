@@ -93,6 +93,103 @@ If the assertion is about **what happens in the database, queue, API, or chain**
 
 ---
 
+## Testability Signals
+
+Components should announce their state explicitly via data attributes so that Playwright tests can wait deterministically instead of guessing from DOM side effects.
+
+### Principles
+
+1. **Components announce, tests listen.** A test should never have to infer readiness from child element counts, text content, or CSS classes when a data attribute can state it directly.
+2. **Prefer expectation waits over selector waits.** Use `await expect(locator).toHaveAttribute()` over `page.waitForSelector()` where possible -- it reads better and aligns with Playwright conventions.
+3. **Signals are for state transitions, not static content.** A static heading doesn't need a signal. A panel that fetches data before it's interactive does.
+
+### Signal Types
+
+#### `data-ready` -- async readiness
+
+For components that load data or initialize before they're interactive. Boolean string.
+
+```tsx
+<div data-testid="workflow-canvas" data-ready={String(isCanvasReady)}>
+```
+
+```typescript
+await expect(page.getByTestId("workflow-canvas")).toHaveAttribute("data-ready", "true", { timeout: 60_000 });
+```
+
+**When to add:** Any component that fetches on mount, initializes a library (React Flow, Monaco), or waits for a WebSocket connection before the user can interact.
+
+**Current usage:** `workflow-canvas.tsx`
+
+#### `data-page-state` -- page-level lifecycle
+
+For pages with distinct render branches (loading, error, empty, ready). String enum.
+
+```tsx
+<main data-page-state={pageState}>
+```
+
+```typescript
+await expect(page.locator("[data-page-state]")).toHaveAttribute("data-page-state", "logged-in-match", { timeout: 15_000 });
+```
+
+**When to add:** Any page that computes state from async sources (auth status, API calls, URL params) and renders different branches based on the result.
+
+**Current usage:** `accept-invite/[inviteId]/page.tsx` with states: `loading`, `error`, `not-found`, `logged-in-match`, `logged-in-mismatch`, `logged-out`
+
+#### `data-state` -- component lifecycle
+
+For components with multiple operational phases. String enum. Follows the same idea as `data-page-state` but for sub-page components (panels, overlays, switchers).
+
+```tsx
+<button data-testid="org-switcher" data-state={switcherState}>
+```
+
+```typescript
+await expect(page.getByTestId("org-switcher")).toHaveAttribute("data-state", "ready");
+```
+
+**When to add:** Stateful components where the test needs to distinguish between loading, ready, switching, or error states -- especially when the visual difference between states is subtle (spinner vs content swap).
+
+**Current usage:** `org-switcher.tsx` with states: `switching`, `loading`, `ready`
+
+#### `data-testid` -- stable selectors
+
+For identifying elements that tests need to locate. Not a state signal, but the foundation that other signals attach to.
+
+```tsx
+<div data-testid="action-grid">
+```
+
+**When to add:** Any element that a test interacts with or asserts on. Prefer `data-testid` over CSS classes or text matchers for elements that are structurally important to tests.
+
+**Naming:** Use kebab-case. For dynamic IDs, use `{component}-{identifier}` (e.g., `action-option-http-request`, `action-node-abc123`).
+
+### What NOT to signal
+
+- **Static content** that doesn't change after render -- test it with text matchers or role selectors
+- **Internal component state** that has no user-visible effect -- tests shouldn't know about implementation details
+- **Transient animations** -- wait for the end state, not the transition
+
+### Adding signals to existing components
+
+When retrofitting a component, the priority order is:
+
+1. Does a test currently use `waitForTimeout()` or `waitForLoadState("networkidle")` to wait for this component? Replace with a signal.
+2. Does a test wait for a child element as a proxy for parent readiness? Add `data-ready` to the parent.
+3. Does a test check multiple DOM properties to infer which state the component is in? Add `data-state` or `data-page-state`.
+
+### Current coverage
+
+| Signal | Component | Values |
+|--------|-----------|--------|
+| `data-ready` | `workflow-canvas.tsx` | `"true"` / `"false"` |
+| `data-page-state` | `accept-invite/[inviteId]/page.tsx` | `"loading"`, `"error"`, `"not-found"`, `"logged-in-match"`, `"logged-in-mismatch"`, `"logged-out"` |
+| `data-state` | `org-switcher.tsx` | `"switching"`, `"loading"`, `"ready"` |
+| `data-testid` | 17+ components | See Key Selectors Reference in CLAUDE.md |
+
+---
+
 ## CI Execution Model
 
 All E2E tests are managed by workflow files under `.github/workflows/`.
