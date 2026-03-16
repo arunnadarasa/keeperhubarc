@@ -29,7 +29,26 @@ export default defineProtocol({
         // Sepolia Testnet
         "11155111": "0x3e3FE7dBc6B4C189E7128855dD526361c49b40Af",
       },
-      // Proxy -- ABI auto-resolved via abi-cache
+      // Inline ABI -- Lido's AppProxy ABI auto-resolution doesn't include ERC20 functions
+      abi: JSON.stringify([
+        {
+          type: "function",
+          name: "balanceOf",
+          stateMutability: "view",
+          inputs: [{ name: "_account", type: "address" }],
+          outputs: [{ name: "", type: "uint256" }],
+        },
+        {
+          type: "function",
+          name: "approve",
+          stateMutability: "nonpayable",
+          inputs: [
+            { name: "_spender", type: "address" },
+            { name: "_amount", type: "uint256" },
+          ],
+          outputs: [{ name: "", type: "bool" }],
+        },
+      ]),
     },
   },
 
