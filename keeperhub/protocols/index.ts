@@ -20,7 +20,7 @@ import { registerIntegration } from "@/plugins/registry";
 import aaveDef from "./aave-v3";
 import aerodromeDef from "./aerodrome";
 import ajnaDef from "./ajna";
-import compoundDef from "./compound";
+import compoundDef from "./compound-v3";
 import cowswapDef from "./cowswap";
 import curveDef from "./curve";
 import morphoDef from "./morpho";
@@ -29,7 +29,7 @@ import rocketPoolDef from "./rocket-pool";
 import safeDef from "./safe";
 import skyDef from "./sky";
 import sparkDef from "./spark";
-import uniswapDef from "./uniswap";
+import uniswapDef from "./uniswap-v3";
 import wethDef from "./weth";
 
 registerProtocol(aaveDef);
