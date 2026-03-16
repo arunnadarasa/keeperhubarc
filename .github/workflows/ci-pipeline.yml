@@ -1,4 +1,4 @@
-# Type: orchestrator | Coordinates build-images -> e2e-tests-ephemeral -> deploy
+# Type: orchestrator | Coordinates build-images -> e2e-tests -> deploy -> release -> docs-sync
 name: CI Pipeline
 
 on:
@@ -7,6 +7,11 @@ on:
   pull_request:
     types: [labeled, synchronize]
   workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
 
 jobs:
   # Build Docker images once for push/dispatch events (staging/prod).
@@ -44,4 +49,18 @@ jobs:
     uses: ./.github/workflows/deploy-keeperhub.yaml
     with:
       image_tag: ${{ needs.build-images.outputs.image_tag }}
+    secrets: inherit
+
+  # Release and docs-sync only run on prod pushes, after successful deploy.
+  # Previously a separate workflow — moved here so e2e/deploy failures block release.
+  release:
+    needs: [deploy]
+    if: ${{ github.ref_name == 'prod' && !failure() && !cancelled() }}
+    uses: ./.github/workflows/release.yml
+    secrets: inherit
+
+  docs-sync:
+    needs: [release]
+    if: ${{ github.ref_name == 'prod' && !failure() && !cancelled() }}
+    uses: ./.github/workflows/docs-sync.yml
     secrets: inherit
