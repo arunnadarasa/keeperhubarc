@@ -79,11 +79,13 @@ test.describe("Billing", () => {
 
     await page.goto("/billing", { waitUntil: "domcontentloaded" });
 
-    // Pricing table should be visible with plan cards
-    await expect(page.locator("text=Free")).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator("text=Pro")).toBeVisible();
-    await expect(page.locator("text=Business")).toBeVisible();
-    await expect(page.locator("text=Enterprise")).toBeVisible();
+    // Plan cards should be visible under the "Plans" heading
+    const plans = page.locator('h2:has-text("Plans") + *');
+    await expect(plans).toBeVisible({ timeout: 15_000 });
+    await expect(plans.locator("text=Free").first()).toBeVisible();
+    await expect(plans.locator("text=Pro").first()).toBeVisible();
+    await expect(plans.locator("text=Business").first()).toBeVisible();
+    await expect(plans.locator("text=Enterprise").first()).toBeVisible();
   });
 
   test("free user sees upgrade options", async ({ page }) => {
