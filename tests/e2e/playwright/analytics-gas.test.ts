@@ -69,11 +69,9 @@ test.describe("Analytics Gas Tracking", () => {
       workflowFilter.click(),
     ]);
 
-    // Table rows (wait for attachment before scrolling)
+    // Table rows (wait for visibility with extended timeout for filter re-render)
     const rows = page.locator("table tbody tr");
-    await expect(rows.first()).toBeAttached({ timeout: 10_000 });
-    await rows.first().scrollIntoViewIfNeeded();
-    await expect(rows.first()).toBeVisible({ timeout: 5000 });
+    await expect(rows.first()).toBeVisible({ timeout: 15_000 });
 
     // Verify at least one workflow run row exists
     const rowCount = await rows.count();
