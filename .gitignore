@@ -135,6 +135,5 @@ tailwindcss-*.log
 # Playwright MCP screenshots
 .playwright-mcp/
 
-# Local test workflow seeds and reports
-scripts/seed/workflows/*/
+# Local reports
 reports/
