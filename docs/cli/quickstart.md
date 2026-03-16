@@ -1,6 +1,6 @@
 ---
 title: "Quickstart"
-description: "Install the KeeperHub CLI, authenticate, and run your first commands."
+description: "KeeperHub CLI Quickstart"
 ---
 
 # Quickstart

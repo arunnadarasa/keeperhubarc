@@ -38,8 +38,11 @@ import { generateId } from "@/lib/utils/id";
 
 // Skip if infrastructure not available (requires DB + Para API for tx signing)
 const shouldSkip =
-  !(process.env.DATABASE_URL && process.env.PARA_API_KEY) ||
-  process.env.SKIP_INFRA_TESTS === "true";
+  !(
+    process.env.DATABASE_URL &&
+    process.env.PARA_API_KEY &&
+    process.env.TEST_PARA_USER_SHARE
+  ) || process.env.SKIP_INFRA_TESTS === "true";
 
 // SimpleStorage contract on Sepolia
 const SIMPLE_STORAGE_ADDRESS = "0x069d34E130ccA7D435351FB30c0e97F2Ce6B42Ad";

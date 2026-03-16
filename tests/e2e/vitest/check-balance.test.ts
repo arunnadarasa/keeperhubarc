@@ -172,7 +172,7 @@ describe("Check Balance E2E", () => {
       expect(balance).toBeGreaterThanOrEqual(BigInt(0));
     });
 
-    it("should handle zero address", async () => {
+    it("should handle zero address", { timeout: 30_000 }, async () => {
       const provider = getRpcProviderFromUrls(
         RPC_URLS.ETH_MAINNET.primary,
         RPC_URLS.ETH_MAINNET.fallback,

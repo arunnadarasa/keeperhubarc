@@ -1,38 +1,22 @@
 import { count, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { authenticateApiKey } from "@/keeperhub/lib/api-key-auth";
-import { resolveCreatorContext } from "@/keeperhub/lib/middleware/auth-helpers";
-import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
-import { auth } from "@/lib/auth";
+import {
+  resolveCreatorContext,
+  resolveOrganizationId,
+} from "@/keeperhub/lib/middleware/auth-helpers";
 import { db } from "@/lib/db";
 import { tags, workflows } from "@/lib/db/schema";
 
 export async function GET(request: Request): Promise<NextResponse> {
   try {
-    const apiKeyAuth = await authenticateApiKey(request);
-    let organizationId: string | null;
-
-    if (apiKeyAuth.authenticated) {
-      organizationId = apiKeyAuth.organizationId || null;
-    } else {
-      const session = await auth.api.getSession({
-        headers: request.headers,
-      });
-
-      if (!session?.user) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-
-      const context = await getOrgContext();
-      organizationId = context.organization?.id || null;
-    }
-
-    if (!organizationId) {
+    const authCtx = await resolveOrganizationId(request);
+    if ("error" in authCtx) {
       return NextResponse.json(
-        { error: "No active organization" },
-        { status: 400 }
+        { error: authCtx.error },
+        { status: authCtx.status }
       );
     }
+    const { organizationId } = authCtx;
 
     const orgTags = await db
       .select({

@@ -1,4 +1,5 @@
 import { defineProtocol } from "@/keeperhub/lib/protocol-registry";
+import { erc4626VaultActions } from "@/keeperhub/lib/standards/erc4626";
 
 export default defineProtocol({
   name: "Sky",
@@ -19,6 +20,14 @@ export default defineProtocol({
         "8453": "0x5875eEE11Cf8398102FdAd704C9E96607675467a",
         // Arbitrum One
         "42161": "0xdDb46999F8891663a8F2828d25298f70416d7610",
+      },
+      // ABI omitted -- resolved automatically via abi-cache
+    },
+    stUsds: {
+      label: "stUSDS (Staked USDS)",
+      addresses: {
+        // Ethereum Mainnet
+        "1": "0x99CD4Ec3f88A45940936F469E4bB72A2A701EEB9",
       },
       // ABI omitted -- resolved automatically via abi-cache
     },
@@ -70,101 +79,14 @@ export default defineProtocol({
   },
 
   actions: [
-    // Savings
+    // ERC-4626 Vault (sUSDS Savings)
+    ...erc4626VaultActions("sUsds"),
 
-    {
-      slug: "deposit-ssr",
-      label: "Deposit USDS to Savings",
-      description: "Deposit USDS into the sUSDS savings vault (ERC-4626)",
-      type: "write",
-      contract: "sUsds",
-      function: "deposit",
-      inputs: [
-        { name: "assets", type: "uint256", label: "USDS Amount (wei)" },
-        { name: "receiver", type: "address", label: "Receiver Address" },
-      ],
-    },
-    {
-      slug: "withdraw-ssr",
-      label: "Withdraw USDS from Savings",
-      description: "Withdraw USDS from the sUSDS savings vault by asset amount",
-      type: "write",
-      contract: "sUsds",
-      function: "withdraw",
-      inputs: [
-        { name: "assets", type: "uint256", label: "USDS Amount (wei)" },
-        { name: "receiver", type: "address", label: "Receiver Address" },
-        { name: "owner", type: "address", label: "Share Owner Address" },
-      ],
-    },
-    {
-      slug: "redeem-ssr",
-      label: "Redeem sUSDS Shares",
-      description: "Redeem sUSDS shares for USDS from the savings vault",
-      type: "write",
-      contract: "sUsds",
-      function: "redeem",
-      inputs: [
-        { name: "shares", type: "uint256", label: "sUSDS Shares (wei)" },
-        { name: "receiver", type: "address", label: "Receiver Address" },
-        { name: "owner", type: "address", label: "Share Owner Address" },
-      ],
-    },
-    {
-      slug: "get-susds-balance",
-      label: "Get sUSDS Balance",
-      description: "Check the sUSDS balance of an address",
-      type: "read",
-      contract: "sUsds",
-      function: "balanceOf",
-      inputs: [{ name: "account", type: "address", label: "Wallet Address" }],
-      outputs: [
-        {
-          name: "balance",
-          type: "uint256",
-          label: "sUSDS Balance (wei)",
-          decimals: 18,
-        },
-      ],
-    },
-    {
-      slug: "preview-deposit",
-      label: "Preview Savings Deposit",
-      description:
-        "Preview how many sUSDS shares a given USDS deposit would yield",
-      type: "read",
-      contract: "sUsds",
-      function: "previewDeposit",
-      inputs: [{ name: "assets", type: "uint256", label: "USDS Amount (wei)" }],
-      outputs: [
-        {
-          name: "shares",
-          type: "uint256",
-          label: "sUSDS Shares Received",
-          decimals: 18,
-        },
-      ],
-    },
-    {
-      slug: "get-susds-value",
-      label: "Get USDS Value of sUSDS",
-      description:
-        "Convert sUSDS shares to their underlying USDS value at the current rate",
-      type: "read",
-      contract: "sUsds",
-      function: "convertToAssets",
-      inputs: [
-        { name: "shares", type: "uint256", label: "sUSDS Shares (wei)" },
-      ],
-      outputs: [
-        {
-          name: "assets",
-          type: "uint256",
-          label: "USDS Value (wei)",
-          decimals: 18,
-        },
-      ],
-    },
+    // ERC-4626 Vault (stUSDS Staked)
+    ...erc4626VaultActions("stUsds", {
+      slugPrefix: "st-usds",
+      labelPrefix: "stUSDS",
+    }),
 
     // Token Balances
 
