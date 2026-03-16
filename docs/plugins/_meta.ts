@@ -9,6 +9,8 @@ export default {
   ajna: "Ajna",
   compound: "Compound V3",
   cowswap: "CoW Swap",
+  curve: "Curve",
+  lido: "Lido",
   morpho: "Morpho",
   pendle: "Pendle",
   "rocket-pool": "Rocket Pool",

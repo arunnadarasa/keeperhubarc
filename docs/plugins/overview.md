@@ -20,6 +20,8 @@ Plugins provide the actions available in your workflows. Each plugin adds one or
 | [Ajna](/plugins/ajna) | Protocol | Liquidation keeper operations, vault rebalancing, buffer management | Wallet (for writes) |
 | [Compound V3](/plugins/compound) | Protocol | Supply, withdraw, base/collateral/borrow balance monitoring | Wallet (for writes) |
 | [CoW Swap](/plugins/cowswap) | Protocol | Order pre-signing, fill monitoring, conditional orders, order cancellation | Wallet (for writes) |
+| [Curve](/plugins/curve) | Protocol | Pool swaps, LP management, virtual prices, CRV token operations | Wallet (for writes) |
+| [Lido](/plugins/lido) | Protocol | Wrap/unwrap stETH to wstETH, exchange rates, balances across Ethereum, Base, Sepolia | Wallet (for writes) |
 | [Morpho](/plugins/morpho) | Protocol | Supply, borrow, repay, liquidate, collateral management, position tracking, market monitoring | Wallet (for writes) |
 | [Pendle](/plugins/pendle) | Protocol | Yield tokenization, market data, PT/YT/SY balances, mint/redeem | Wallet (for writes) |
 | [Rocket Pool](/plugins/rocket-pool) | Protocol | rETH exchange rate, balances, total supply, ETH deposits and withdrawals | Wallet (for writes) |
