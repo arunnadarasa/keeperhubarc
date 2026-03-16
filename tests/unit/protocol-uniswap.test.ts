@@ -3,7 +3,7 @@ import {
   getProtocol,
   registerProtocol,
 } from "@/keeperhub/lib/protocol-registry";
-import uniswapDef from "@/keeperhub/protocols/uniswap";
+import uniswapDef from "@/keeperhub/protocols/uniswap-v3";
 
 const KEBAB_CASE_REGEX = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const HEX_ADDRESS_REGEX = /^0x[\dA-Fa-f]{40}$/;
