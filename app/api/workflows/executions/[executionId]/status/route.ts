@@ -35,6 +35,18 @@ export async function GET(
     }
     const { userId, organizationId } = authContext;
 
+    if (!userId && !organizationId) {
+      recordStatusPollMetrics({
+        executionId,
+        durationMs: timer(),
+        statusCode: 403,
+      });
+      return NextResponse.json(
+        { error: "API key has no associated user or organization. Please recreate the API key." },
+        { status: 403 }
+      );
+    }
+
     // Get the execution and verify ownership
     const execution = await db.query.workflowExecutions.findFirst({
       where: eq(workflowExecutions.id, executionId),

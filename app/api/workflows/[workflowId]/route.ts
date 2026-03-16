@@ -379,13 +379,12 @@ export async function DELETE(
     }
 
     // Check for existing executions before deleting
-    const executions = await db.query.workflowExecutions.findMany({
+    const hasExecutions = await db.query.workflowExecutions.findFirst({
       where: eq(workflowExecutions.workflowId, workflowId),
       columns: { id: true },
-      limit: 1,
     });
 
-    if (executions.length > 0) {
+    if (hasExecutions) {
       return NextResponse.json(
         {
           error:
@@ -399,6 +398,18 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    // Handle FK constraint violation from race condition (execution inserted between check and delete)
+    const cause = error instanceof Error ? error.cause : undefined;
+    if (cause && typeof cause === "object" && "code" in cause && cause.code === "23503") {
+      return NextResponse.json(
+        {
+          error:
+            "Workflow has execution history. Delete executions first before deleting the workflow.",
+        },
+        { status: 409 }
+      );
+    }
+
     logSystemError(ErrorCategory.DATABASE, "Failed to delete workflow", error, {
       endpoint: "/api/workflows/[workflowId]",
     });
