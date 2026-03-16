@@ -119,6 +119,23 @@ export async function writeContractCore(
     };
   }
 
+  // Build fully qualified function key to disambiguate overloaded functions.
+  // e.g. "deposit" -> "deposit(uint256,address)" when the ABI has multiple deposit overloads.
+  const abiFunctionKey = (() => {
+    const matchingFunctions = parsedAbi.filter(
+      (item: { type: string; name: string }) =>
+        item.type === "function" && item.name === abiFunction
+    );
+    if (matchingFunctions.length <= 1) {
+      return abiFunction;
+    }
+    // Multiple overloads -- build explicit signature from the matched ABI entry
+    const inputTypes = (functionAbi.inputs as Array<{ type: string }>).map(
+      (i: { type: string }) => i.type
+    );
+    return `${abiFunction}(${inputTypes.join(",")})`;
+  })();
+
   // Parse function arguments
   let args: unknown[] = [];
   if (functionArgs && functionArgs.trim() !== "") {
@@ -273,7 +290,7 @@ export async function writeContractCore(
     // Call the contract function
     try {
       // Check if function exists
-      if (typeof contract[abiFunction] !== "function") {
+      if (typeof contract[abiFunctionKey] !== "function") {
         return {
           success: false,
           error: `Function '${abiFunction}' not found in contract ABI`,
@@ -285,13 +302,13 @@ export async function writeContractCore(
 
       // Simulate call first to get decodable revert data on failure
       // (eth_call returns revert data reliably, eth_estimateGas often does not)
-      await contract[abiFunction].staticCall(...args, valueOverride);
+      await contract[abiFunctionKey].staticCall(...args, valueOverride);
 
       // Get nonce from session
       const nonce = nonceManager.getNextNonce(session);
 
       // Estimate gas for the contract call
-      const estimatedGas = await contract[abiFunction].estimateGas(
+      const estimatedGas = await contract[abiFunctionKey].estimateGas(
         ...args,
         valueOverride
       );
@@ -320,7 +337,7 @@ export async function writeContractCore(
       });
 
       // Execute contract call with managed nonce and gas config
-      const tx = await contract[abiFunction](...args, {
+      const tx = await contract[abiFunctionKey](...args, {
         nonce,
         gasLimit: txGasConfig.gasLimit,
         maxFeePerGas: txGasConfig.maxFeePerGas,

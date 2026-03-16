@@ -155,6 +155,22 @@ export async function readContractCore(
     };
   }
 
+  // Build fully qualified function key to disambiguate overloaded functions.
+  // e.g. "deposit" -> "deposit(uint256,address)" when the ABI has multiple deposit overloads.
+  const abiFunctionKey = (() => {
+    const matchingFunctions = parsedAbi.filter(
+      (item: { type: string; name: string }) =>
+        item.type === "function" && item.name === abiFunction
+    );
+    if (matchingFunctions.length <= 1) {
+      return abiFunction;
+    }
+    const inputTypes = (functionAbi.inputs as Array<{ type: string }>).map(
+      (i: { type: string }) => i.type
+    );
+    return `${abiFunction}(${inputTypes.join(",")})`;
+  })();
+
   // Parse function arguments
   let args: unknown[] = [];
   if (functionArgs && functionArgs.trim() !== "") {
@@ -263,20 +279,20 @@ export async function readContractCore(
         provider
       );
 
-      if (typeof contract[abiFunction] !== "function") {
+      if (typeof contract[abiFunctionKey] !== "function") {
         throw new Error(`Function '${abiFunction}' not found in contract ABI`);
       }
 
       console.log(
         "[Read Contract] Calling function:",
-        abiFunction,
+        abiFunctionKey,
         "with args:",
         args
       );
 
       return isView
-        ? await contract[abiFunction](...args)
-        : await contract[abiFunction].staticCall(...args);
+        ? await contract[abiFunctionKey](...args)
+        : await contract[abiFunctionKey].staticCall(...args);
     });
 
     console.log("[Read Contract] Function call successful, result:", result);
