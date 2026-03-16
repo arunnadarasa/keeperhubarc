@@ -81,19 +81,19 @@ describe("Morpho Protocol Definition", () => {
     }
   });
 
-  it("has exactly 27 actions", () => {
-    expect(morphoDef.actions).toHaveLength(27);
+  it("has exactly 32 actions", () => {
+    expect(morphoDef.actions).toHaveLength(32);
   });
 
   it("has 2 contracts", () => {
     expect(Object.keys(morphoDef.contracts)).toHaveLength(2);
   });
 
-  it("has 14 read actions and 13 write actions", () => {
+  it("has 18 read actions and 14 write actions", () => {
     const readActions = morphoDef.actions.filter((a) => a.type === "read");
     const writeActions = morphoDef.actions.filter((a) => a.type === "write");
-    expect(readActions).toHaveLength(14);
-    expect(writeActions).toHaveLength(13);
+    expect(readActions).toHaveLength(18);
+    expect(writeActions).toHaveLength(14);
   });
 
   it("all MarketParams actions include the 5 struct fields as flat inputs", () => {
