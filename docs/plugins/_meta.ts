@@ -5,6 +5,7 @@ export default {
   math: "Math",
   safe: "Safe",
   "aave-v3": "Aave V3",
+  aerodrome: "Aerodrome",
   ajna: "Ajna",
   compound: "Compound V3",
   cowswap: "CoW Swap",
