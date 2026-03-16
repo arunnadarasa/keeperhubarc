@@ -24,6 +24,14 @@ test.describe("Billing", () => {
     await signIn(page, PERSISTENT_TEST_USER_EMAIL, PERSISTENT_TEST_PASSWORD);
   }
 
+  async function waitForBillingReady(page: Page): Promise<void> {
+    await expect(page.getByTestId("billing-page").first()).toHaveAttribute(
+      "data-page-state",
+      "ready",
+      { timeout: 15_000 }
+    );
+  }
+
   function mockSubscriptionApi(
     page: Page,
     subscription: Record<string, unknown> = {}
@@ -78,6 +86,7 @@ test.describe("Billing", () => {
     await mockInvoicesApi(page);
 
     await page.goto("/billing", { waitUntil: "domcontentloaded" });
+    await waitForBillingReady(page);
 
     // Plan cards should be visible under the "Plans" heading
     const plans = page.locator('h2:has-text("Plans") + *');
@@ -95,8 +104,10 @@ test.describe("Billing", () => {
 
     await page.goto("/billing", { waitUntil: "domcontentloaded" });
 
+    await waitForBillingReady(page);
+
     // Should see pricing cards with monthly prices
-    await expect(page.locator("text=$49")).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator("text=$49")).toBeVisible({ timeout: 10_000 });
     await expect(page.locator("text=$299")).toBeVisible();
   });
 
@@ -124,6 +135,7 @@ test.describe("Billing", () => {
     });
 
     await page.goto("/billing", { waitUntil: "domcontentloaded" });
+    await waitForBillingReady(page);
 
     // Click the first "Get Started" or upgrade button for Pro plan
     const proCard = page.locator('[data-testid="plan-card-pro"]');
@@ -156,6 +168,7 @@ test.describe("Billing", () => {
     await mockInvoicesApi(page);
 
     await page.goto("/billing", { waitUntil: "domcontentloaded" });
+    await waitForBillingReady(page);
 
     // Should show current plan indicator
     await expect(page.locator("text=Pro")).toBeVisible({ timeout: 15_000 });
@@ -184,6 +197,7 @@ test.describe("Billing", () => {
     );
 
     await page.goto("/billing", { waitUntil: "domcontentloaded" });
+    await waitForBillingReady(page);
 
     // Look for cancel button or downgrade to free button
     const cancelButton = page.getByRole("button", {
@@ -237,6 +251,7 @@ test.describe("Billing", () => {
     ]);
 
     await page.goto("/billing", { waitUntil: "domcontentloaded" });
+    await waitForBillingReady(page);
 
     // Should display invoice rows
     await expect(page.locator("text=Pro 25k").first()).toBeVisible({
