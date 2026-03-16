@@ -1,6 +1,6 @@
 ---
 title: "Concepts"
-description: "Core concepts for the KeeperHub CLI including authentication, output formats, configuration, and MCP server mode."
+description: "KeeperHub CLI Concepts"
 ---
 
 # Concepts

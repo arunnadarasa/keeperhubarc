@@ -88,7 +88,7 @@ Supported chains with their numeric string keys:
 ERC-4626 is the tokenized vault standard. Many DeFi protocols implement ERC-4626 for savings/staking vaults (e.g., sUSDS, sDAI). A shared module at `keeperhub/lib/standards/erc4626.ts` provides standardized vault actions.
 
 How to detect ERC-4626 compliance:
-- The contract implements `deposit(uint256,address)`, `withdraw(uint256,address,address)`, `redeem(uint256,address,address)`, `asset()`, `totalAssets()`, `convertToAssets(uint256)`, `convertToShares(uint256)`, `previewDeposit(uint256)`, `previewRedeem(uint256)`, `maxDeposit(address)`, `maxWithdraw(address)`, `balanceOf(address)`, `totalSupply()`
+- The contract implements `deposit(uint256,address)`, `mint(uint256,address)`, `withdraw(uint256,address,address)`, `redeem(uint256,address,address)`, `asset()`, `totalAssets()`, `convertToAssets(uint256)`, `convertToShares(uint256)`, `previewDeposit(uint256)`, `previewMint(uint256)`, `previewWithdraw(uint256)`, `previewRedeem(uint256)`, `maxDeposit(address)`, `maxMint(address)`, `maxWithdraw(address)`, `maxRedeem(address)`, `balanceOf(address)`, `totalSupply()`
 - The protocol documentation or contract source explicitly states ERC-4626 compliance
 - The contract inherits from OpenZeppelin's ERC4626 or a similar implementation
 
@@ -100,15 +100,17 @@ import { erc4626VaultActions } from "@/keeperhub/lib/standards/erc4626";
 export default defineProtocol({
   // ...
   actions: [
-    ...erc4626VaultActions("vaultContractKey"),  // Spread 13 standard vault actions
+    ...erc4626VaultActions("vaultContractKey"),  // Spread 18 standard vault actions
     // Protocol-specific non-vault actions below
   ],
 });
 ```
 
-The `erc4626VaultActions(contract)` function returns 13 `ProtocolAction[]` items:
-- 3 write: vault-deposit, vault-withdraw, vault-redeem
-- 10 read: vault-asset, vault-total-assets, vault-total-supply, vault-balance, vault-convert-to-assets, vault-convert-to-shares, vault-preview-deposit, vault-preview-redeem, vault-max-deposit, vault-max-withdraw
+The `erc4626VaultActions(contract, options?)` function returns 18 `ProtocolAction[]` items:
+- 4 write: vault-deposit, vault-mint, vault-withdraw, vault-redeem
+- 14 read: vault-asset, vault-total-assets, vault-total-supply, vault-balance, vault-convert-to-assets, vault-convert-to-shares, vault-preview-deposit, vault-preview-mint, vault-preview-withdraw, vault-preview-redeem, vault-max-deposit, vault-max-mint, vault-max-withdraw, vault-max-redeem
+
+Options: `{ slugPrefix?, labelPrefix?, decimals? }`. Use `decimals` for non-18-decimal vaults (e.g., USDC = 6).
 
 All slugs are prefixed with `vault-` to avoid collisions with protocol-specific actions.
 

@@ -18,7 +18,7 @@
       }
     },
     {
-      "id": "sky-susds-balance",
+      "id": "sky-vault-balance",
       "type": "action",
       "position": { "x": 450, "y": 0 },
       "data": {
@@ -26,7 +26,7 @@
         "description": "Check sUSDS balance of a known holder",
         "type": "action",
         "config": {
-          "actionType": "sky/get-susds-balance",
+          "actionType": "sky/vault-balance",
           "network": "1",
           "account": "0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD"
         },
@@ -34,7 +34,7 @@
       }
     },
     {
-      "id": "sky-preview-deposit",
+      "id": "sky-vault-preview-deposit",
       "type": "action",
       "position": { "x": 450, "y": 150 },
       "data": {
@@ -42,7 +42,7 @@
         "description": "Preview sUSDS shares for depositing 1 USDS",
         "type": "action",
         "config": {
-          "actionType": "sky/preview-deposit",
+          "actionType": "sky/vault-preview-deposit",
           "network": "1",
           "assets": "1000000000000000000"
         },
@@ -50,7 +50,7 @@
       }
     },
     {
-      "id": "sky-susds-value",
+      "id": "sky-vault-convert-to-assets",
       "type": "action",
       "position": { "x": 450, "y": 300 },
       "data": {
@@ -58,7 +58,7 @@
         "description": "Convert 1 sUSDS share to USDS asset value",
         "type": "action",
         "config": {
-          "actionType": "sky/get-susds-value",
+          "actionType": "sky/vault-convert-to-assets",
           "network": "1",
           "shares": "1000000000000000000"
         },
@@ -116,21 +116,21 @@
   ],
   "edges": [
     {
-      "id": "e-trigger-to-sky-susds-balance",
+      "id": "e-trigger-to-sky-vault-balance",
       "source": "node-1",
-      "target": "sky-susds-balance",
+      "target": "sky-vault-balance",
       "type": "animated"
     },
     {
-      "id": "e-trigger-to-sky-preview-deposit",
+      "id": "e-trigger-to-sky-vault-preview-deposit",
       "source": "node-1",
-      "target": "sky-preview-deposit",
+      "target": "sky-vault-preview-deposit",
       "type": "animated"
     },
     {
-      "id": "e-trigger-to-sky-susds-value",
+      "id": "e-trigger-to-sky-vault-convert-to-assets",
       "source": "node-1",
-      "target": "sky-susds-value",
+      "target": "sky-vault-convert-to-assets",
       "type": "animated"
     },
     {

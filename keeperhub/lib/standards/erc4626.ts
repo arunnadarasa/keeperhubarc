@@ -1,23 +1,28 @@
 import type { ProtocolAction } from "@/keeperhub/lib/protocol-registry";
 
 /**
- * Returns the 13 standard ERC-4626 vault actions for a given contract key.
+ * Returns the 18 standard ERC-4626 vault actions for a given contract key.
  * Use this in protocol definitions to avoid duplicating vault action boilerplate.
  *
- * 3 write actions: deposit, withdraw, redeem
- * 10 read actions: asset, totalAssets, totalSupply, balanceOf, convertToAssets,
- *   convertToShares, previewDeposit, previewRedeem, maxDeposit, maxWithdraw
+ * 4 write actions: deposit, mint, withdraw, redeem
+ * 14 read actions: asset, totalAssets, totalSupply, balanceOf, convertToAssets,
+ *   convertToShares, previewDeposit, previewMint, previewWithdraw, previewRedeem,
+ *   maxDeposit, maxMint, maxWithdraw, maxRedeem
  *
  * When a protocol has multiple ERC-4626 vaults, pass a slugPrefix to
  * disambiguate (e.g., "st-usds" produces "st-usds-vault-deposit").
  * The default (no prefix) produces "vault-deposit" for backwards compatibility.
+ *
+ * Pass `decimals` to override the default of 18 for vaults wrapping non-18-decimal
+ * assets (e.g., USDC = 6, WBTC = 8).
  */
 export function erc4626VaultActions(
   contract: string,
-  options?: { slugPrefix?: string; labelPrefix?: string }
+  options?: { slugPrefix?: string; labelPrefix?: string; decimals?: number }
 ): ProtocolAction[] {
   const p = options?.slugPrefix ? `${options.slugPrefix}-` : "";
   const lp = options?.labelPrefix ? `${options.labelPrefix} ` : "";
+  const d = options?.decimals ?? 18;
 
   return [
     // Write actions
@@ -31,6 +36,19 @@ export function erc4626VaultActions(
       function: "deposit",
       inputs: [
         { name: "assets", type: "uint256", label: "Asset Amount (wei)" },
+        { name: "receiver", type: "address", label: "Receiver Address" },
+      ],
+    },
+    {
+      slug: `${p}vault-mint`,
+      label: `${lp}Vault Mint`,
+      description:
+        "Mint exact vault shares by depositing the required amount of assets",
+      type: "write",
+      contract,
+      function: "mint",
+      inputs: [
+        { name: "shares", type: "uint256", label: "Shares Amount (wei)" },
         { name: "receiver", type: "address", label: "Receiver Address" },
       ],
     },
@@ -92,7 +110,7 @@ export function erc4626VaultActions(
           name: "totalAssets",
           type: "uint256",
           label: "Total Assets (wei)",
-          decimals: 18,
+          decimals: d,
         },
       ],
     },
@@ -109,7 +127,7 @@ export function erc4626VaultActions(
           name: "totalSupply",
           type: "uint256",
           label: "Total Shares (wei)",
-          decimals: 18,
+          decimals: d,
         },
       ],
     },
@@ -126,7 +144,7 @@ export function erc4626VaultActions(
           name: "balance",
           type: "uint256",
           label: "Share Balance (wei)",
-          decimals: 18,
+          decimals: d,
         },
       ],
     },
@@ -146,7 +164,7 @@ export function erc4626VaultActions(
           name: "assets",
           type: "uint256",
           label: "Asset Value (wei)",
-          decimals: 18,
+          decimals: d,
         },
       ],
     },
@@ -166,7 +184,7 @@ export function erc4626VaultActions(
           name: "shares",
           type: "uint256",
           label: "Shares Amount (wei)",
-          decimals: 18,
+          decimals: d,
         },
       ],
     },
@@ -185,7 +203,47 @@ export function erc4626VaultActions(
           name: "shares",
           type: "uint256",
           label: "Shares Received (wei)",
-          decimals: 18,
+          decimals: d,
+        },
+      ],
+    },
+    {
+      slug: `${p}vault-preview-mint`,
+      label: `${lp}Preview Vault Mint`,
+      description:
+        "Preview how many assets are needed to mint a given number of shares",
+      type: "read",
+      contract,
+      function: "previewMint",
+      inputs: [
+        { name: "shares", type: "uint256", label: "Shares Amount (wei)" },
+      ],
+      outputs: [
+        {
+          name: "assets",
+          type: "uint256",
+          label: "Assets Required (wei)",
+          decimals: d,
+        },
+      ],
+    },
+    {
+      slug: `${p}vault-preview-withdraw`,
+      label: `${lp}Preview Vault Withdraw`,
+      description:
+        "Preview how many shares must be burned to withdraw a given asset amount",
+      type: "read",
+      contract,
+      function: "previewWithdraw",
+      inputs: [
+        { name: "assets", type: "uint256", label: "Asset Amount (wei)" },
+      ],
+      outputs: [
+        {
+          name: "shares",
+          type: "uint256",
+          label: "Shares Burned (wei)",
+          decimals: d,
         },
       ],
     },
@@ -205,7 +263,7 @@ export function erc4626VaultActions(
           name: "assets",
           type: "uint256",
           label: "Assets Received (wei)",
-          decimals: 18,
+          decimals: d,
         },
       ],
     },
@@ -225,7 +283,27 @@ export function erc4626VaultActions(
           name: "maxAssets",
           type: "uint256",
           label: "Max Deposit (wei)",
-          decimals: 18,
+          decimals: d,
+        },
+      ],
+    },
+    {
+      slug: `${p}vault-max-mint`,
+      label: `${lp}Max Vault Mint`,
+      description:
+        "Get the maximum number of shares that can be minted for a receiver",
+      type: "read",
+      contract,
+      function: "maxMint",
+      inputs: [
+        { name: "receiver", type: "address", label: "Receiver Address" },
+      ],
+      outputs: [
+        {
+          name: "maxShares",
+          type: "uint256",
+          label: "Max Mint (wei)",
+          decimals: d,
         },
       ],
     },
@@ -243,7 +321,25 @@ export function erc4626VaultActions(
           name: "maxAssets",
           type: "uint256",
           label: "Max Withdraw (wei)",
-          decimals: 18,
+          decimals: d,
+        },
+      ],
+    },
+    {
+      slug: `${p}vault-max-redeem`,
+      label: `${lp}Max Vault Redeem`,
+      description:
+        "Get the maximum number of shares that can be redeemed by an owner",
+      type: "read",
+      contract,
+      function: "maxRedeem",
+      inputs: [{ name: "owner", type: "address", label: "Owner Address" }],
+      outputs: [
+        {
+          name: "maxShares",
+          type: "uint256",
+          label: "Max Redeem (wei)",
+          decimals: d,
         },
       ],
     },

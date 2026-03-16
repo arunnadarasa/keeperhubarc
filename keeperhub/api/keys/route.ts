@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { resolveOrganizationId } from "@/keeperhub/lib/middleware/auth-helpers";
 import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -18,23 +19,14 @@ function generateApiKey(): { key: string; hash: string; prefix: string } {
 // GET - List all API keys for the current organization
 export async function GET(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const orgContext = await getOrgContext();
-    const activeOrgId = orgContext.organization?.id;
-
-    if (!activeOrgId) {
+    const authCtx = await resolveOrganizationId(request);
+    if ("error" in authCtx) {
       return NextResponse.json(
-        { error: "No active organization" },
-        { status: 400 }
+        { error: authCtx.error },
+        { status: authCtx.status }
       );
     }
+    const { organizationId: activeOrgId } = authCtx;
 
     // List all non-revoked API keys for the organization
     const keys = await db.query.organizationApiKeys.findMany({
