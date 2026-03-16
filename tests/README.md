@@ -184,9 +184,13 @@ When retrofitting a component, the priority order is:
 | Signal | Component | Values |
 |--------|-----------|--------|
 | `data-ready` | `workflow-canvas.tsx` | `"true"` / `"false"` |
+| `data-ready` | `kpi-cards.tsx` | `"true"` / `"false"` |
+| `data-ready` | `runs-table.tsx` | `"true"` / `"false"` |
+| `data-ready` | `time-series-chart.tsx` | `"true"` / `"false"` |
+| `data-ready` | `workflow-runs.tsx` | `"true"` / `"false"` |
 | `data-page-state` | `accept-invite/[inviteId]/page.tsx` | `"loading"`, `"error"`, `"not-found"`, `"logged-in-match"`, `"logged-in-mismatch"`, `"logged-out"` |
 | `data-state` | `org-switcher.tsx` | `"switching"`, `"loading"`, `"ready"` |
-| `data-testid` | 17+ components | See Key Selectors Reference in CLAUDE.md |
+| `data-testid` | 20+ components | See Key Selectors Reference in CLAUDE.md |
 
 ---
 

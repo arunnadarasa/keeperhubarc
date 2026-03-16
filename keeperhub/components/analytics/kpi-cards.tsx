@@ -216,9 +216,15 @@ export function KpiCards(): ReactNode {
     ] as const;
   }, [summary]);
 
-  if (loading && !summary) {
+  const isReady = !(loading && !summary);
+
+  if (!isReady) {
     return (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+        data-ready="false"
+        data-testid="kpi-cards"
+      >
         <SkeletonCard />
         <SkeletonCard />
         <SkeletonCard />
@@ -232,7 +238,11 @@ export function KpiCards(): ReactNode {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+      data-ready="true"
+      data-testid="kpi-cards"
+    >
       {cards.map((card) => (
         <KpiCard
           delta={card.delta}

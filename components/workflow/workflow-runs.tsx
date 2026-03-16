@@ -1195,7 +1195,7 @@ export function WorkflowRuns({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
+      <div data-ready="false" data-testid="workflow-runs" className="flex items-center justify-center py-12">
         <Spinner />
       </div>
     );
@@ -1203,7 +1203,7 @@ export function WorkflowRuns({
 
   if (executions.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16">
+      <div data-ready="true" data-testid="workflow-runs" className="flex flex-col items-center justify-center py-16">
         <div className="mb-3 rounded-lg border border-dashed p-4">
           <Play className="h-6 w-6 text-muted-foreground" />
         </div>
@@ -1216,7 +1216,7 @@ export function WorkflowRuns({
   }
 
   return (
-    <div className="space-y-3">
+    <div data-ready="true" data-testid="workflow-runs" className="space-y-3">
       {executions.map((execution, index) => {
         const isExpanded = expandedRuns.has(execution.id);
         const isSelected = selectedExecutionId === execution.id;

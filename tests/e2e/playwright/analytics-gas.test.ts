@@ -23,10 +23,10 @@ test.describe("Analytics Gas Tracking", () => {
     );
     await rangeButton.click();
 
-    // Wait for summary API response
-    await page.waitForResponse(
-      (res) =>
-        res.url().includes("/api/analytics/summary") && res.status() === 200,
+    // Wait for KPI cards to finish loading
+    await expect(page.getByTestId("kpi-cards")).toHaveAttribute(
+      "data-ready",
+      "true",
       { timeout: 15_000 }
     );
 
@@ -49,27 +49,27 @@ test.describe("Analytics Gas Tracking", () => {
       .locator('nav[aria-label="Time range"] button:has-text("7d")')
       .click();
 
-    // Wait for initial runs load
-    await page.waitForResponse(
-      (res) =>
-        res.url().includes("/api/analytics/runs") && res.status() === 200,
+    // Wait for runs table to finish loading
+    await expect(page.getByTestId("runs-table")).toHaveAttribute(
+      "data-ready",
+      "true",
       { timeout: 15_000 }
     );
 
-    // Filter by workflow source: set up listener BEFORE clicking
+    // Filter by workflow source
     const workflowFilter = page.locator(
       'nav[aria-label="Source"] button:has-text("Workflow")'
     );
-    await Promise.all([
-      page.waitForResponse(
-        (res) =>
-          res.url().includes("/api/analytics/runs") && res.status() === 200,
-        { timeout: 15_000 }
-      ),
-      workflowFilter.click(),
-    ]);
+    await workflowFilter.click();
 
-    // Table rows (wait for visibility with extended timeout for filter re-render)
+    // Wait for table to reload after filter
+    await expect(page.getByTestId("runs-table")).toHaveAttribute(
+      "data-ready",
+      "true",
+      { timeout: 15_000 }
+    );
+
+    // Table rows
     const rows = page.locator("table tbody tr");
     await expect(rows.first()).toBeVisible({ timeout: 15_000 });
 
