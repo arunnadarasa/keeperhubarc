@@ -220,8 +220,10 @@ export function TimeSeriesChart(): ReactNode {
     [timeSeries]
   );
 
+  const isReady = !(loading && chartData.length === 0);
+
   return (
-    <Card>
+    <Card data-ready={String(isReady)} data-testid="time-series-chart">
       <CardHeader>
         <CardTitle>Execution Timeline</CardTitle>
       </CardHeader>

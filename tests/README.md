@@ -93,35 +93,143 @@ If the assertion is about **what happens in the database, queue, API, or chain**
 
 ---
 
+## Testability Signals
+
+Components should announce their state explicitly via data attributes so that Playwright tests can wait deterministically instead of guessing from DOM side effects.
+
+### Principles
+
+1. **Components announce, tests listen.** A test should never have to infer readiness from child element counts, text content, or CSS classes when a data attribute can state it directly.
+2. **Prefer expectation waits over selector waits.** Use `await expect(locator).toHaveAttribute()` over `page.waitForSelector()` where possible -- it reads better and aligns with Playwright conventions.
+3. **Signals are for state transitions, not static content.** A static heading doesn't need a signal. A panel that fetches data before it's interactive does.
+
+### Signal Types
+
+#### `data-ready` -- async readiness
+
+For components that load data or initialize before they're interactive. Boolean string.
+
+```tsx
+<div data-testid="workflow-canvas" data-ready={String(isCanvasReady)}>
+```
+
+```typescript
+await expect(page.getByTestId("workflow-canvas")).toHaveAttribute("data-ready", "true", { timeout: 60_000 });
+```
+
+**When to add:** Any component that fetches on mount, initializes a library (React Flow, Monaco), or waits for a WebSocket connection before the user can interact.
+
+**Current usage:** `workflow-canvas.tsx`
+
+#### `data-page-state` -- page-level lifecycle
+
+For pages with distinct render branches (loading, error, empty, ready). String enum.
+
+```tsx
+<main data-page-state={pageState}>
+```
+
+```typescript
+await expect(page.locator("[data-page-state]")).toHaveAttribute("data-page-state", "logged-in-match", { timeout: 15_000 });
+```
+
+**When to add:** Any page that computes state from async sources (auth status, API calls, URL params) and renders different branches based on the result.
+
+**Current usage:** `accept-invite/[inviteId]/page.tsx` with states: `loading`, `error`, `not-found`, `logged-in-match`, `logged-in-mismatch`, `logged-out`
+
+#### `data-state` -- component lifecycle
+
+For components with multiple operational phases. String enum. Follows the same idea as `data-page-state` but for sub-page components (panels, overlays, switchers).
+
+```tsx
+<button data-testid="org-switcher" data-state={switcherState}>
+```
+
+```typescript
+await expect(page.getByTestId("org-switcher")).toHaveAttribute("data-state", "ready");
+```
+
+**When to add:** Stateful components where the test needs to distinguish between loading, ready, switching, or error states -- especially when the visual difference between states is subtle (spinner vs content swap).
+
+**Current usage:** `org-switcher.tsx` with states: `switching`, `loading`, `ready`
+
+#### `data-testid` -- stable selectors
+
+For identifying elements that tests need to locate. Not a state signal, but the foundation that other signals attach to.
+
+```tsx
+<div data-testid="action-grid">
+```
+
+**When to add:** Any element that a test interacts with or asserts on. Prefer `data-testid` over CSS classes or text matchers for elements that are structurally important to tests.
+
+**Naming:** Use kebab-case. For dynamic IDs, use `{component}-{identifier}` (e.g., `action-option-http-request`, `action-node-abc123`).
+
+### What NOT to signal
+
+- **Static content** that doesn't change after render -- test it with text matchers or role selectors
+- **Internal component state** that has no user-visible effect -- tests shouldn't know about implementation details
+- **Transient animations** -- wait for the end state, not the transition
+
+### Adding signals to existing components
+
+When retrofitting a component, the priority order is:
+
+1. Does a test currently use `waitForTimeout()` or `waitForLoadState("networkidle")` to wait for this component? Replace with a signal.
+2. Does a test wait for a child element as a proxy for parent readiness? Add `data-ready` to the parent.
+3. Does a test check multiple DOM properties to infer which state the component is in? Add `data-state` or `data-page-state`.
+
+### Current coverage
+
+| Signal | Component | Values |
+|--------|-----------|--------|
+| `data-ready` | `workflow-canvas.tsx` | `"true"` / `"false"` |
+| `data-ready` | `kpi-cards.tsx` | `"true"` / `"false"` |
+| `data-ready` | `runs-table.tsx` | `"true"` / `"false"` |
+| `data-ready` | `time-series-chart.tsx` | `"true"` / `"false"` |
+| `data-ready` | `workflow-runs.tsx` | `"true"` / `"false"` |
+| `data-page-state` | `accept-invite/[inviteId]/page.tsx` | `"loading"`, `"error"`, `"not-found"`, `"logged-in-match"`, `"logged-in-mismatch"`, `"logged-out"` |
+| `data-state` | `org-switcher.tsx` | `"switching"`, `"loading"`, `"ready"` |
+| `data-testid` | 20+ components | See Key Selectors Reference in CLAUDE.md |
+
+---
+
 ## CI Execution Model
 
-All E2E tests are managed by workflow files under `.github/workflows/`. See `docs/testing/README.md` for the full architecture, design decisions, secrets reference, and test data seeding details.
+All E2E tests are managed by workflow files under `.github/workflows/`.
 
 ### Trigger summary
 
 | Event | Ephemeral vitest | Ephemeral playwright | Remote playwright |
 |-------|-----------------|---------------------|-------------------|
-| Push to `staging`/`prod` | Yes | Yes (gates deploy) | Yes (post-deploy) |
+| Push to `staging`/`prod` | Yes | Yes (gates deploy) | Gated by `ENABLE_E2E_REMOTE_TESTS` var (post-deploy) |
 | PR with `run-e2e-tests-ephemeral` label | Yes | Yes | No |
-| PR with `deploy-pr-environment` + `run-e2e-tests-pr-deploy` labels | No | No | Yes |
 | `[skip e2e]` in commit message | Skipped | Skipped | Skipped |
+
+Ephemeral tests are gated by the `ENABLE_E2E_EPHEMERAL_TESTS` repo variable. When disabled, e2e jobs become no-ops and deploy proceeds unconditionally.
 
 ### Execution order on push to staging/prod
 
 ```
 ci-pipeline.yml:
     |
-    +-- e2e-tests-ephemeral.yml
+    +-- build-images.yml (Docker images to ECR)
+    |
+    +-- e2e-tests-ephemeral.yml (needs build-images)
     |        |
     |        +-- e2e-vitest-ephemeral (DB + SQS + built app)
     |                 |
     |                 +-- e2e-playwright-ephemeral (DB + built app, serial)
     |
-    +-- deploy-keeperhub.yaml (after ephemeral tests pass)
-             |
-             +-- build-and-deploy
-                      |
-                      +-- e2e-playwright-remote (against deployed URL)
+    +-- deploy-keeperhub.yaml (needs build-images + e2e-tests, blocked on failure)
+    |        |
+    |        +-- deploy (Helm to EKS)
+    |        |
+    |        +-- e2e-playwright-remote (against deployed URL, gated by ENABLE_E2E_REMOTE_TESTS)
+    |
+    +-- release.yml (prod only, needs deploy, blocked on failure)
+    |
+    +-- docs-sync.yml (prod only, needs release)
 ```
 
 ### Playwright stability decisions
@@ -138,53 +246,11 @@ ci-pipeline.yml:
 
 ### Unit Tests (`tests/unit/`)
 
-No external infrastructure. All dependencies mocked.
-
-| File | What it tests |
-|------|---------------|
-| `abi-utils.test.ts` | 4-byte function selector computation from signatures |
-| `address-utils.test.ts` | EIP-55 checksum formatting, normalization, truncation |
-| `api-metrics.test.ts` | Webhook and status poll metrics instrumentation |
-| `balance-formatting.test.ts` | BigInt precision formatting for different decimals (18, 8, 6) |
-| `builtin-variables.test.ts` | Builtin variables (timestamps, dates) in workflow conditions |
-| `chain-service.test.ts` | Chain CRUD operations (create, read, update, enable/disable) |
-| `config-service.test.ts` | User RPC preference CRUD and config resolution |
-| `database-secrets.test.ts` | Password and URL stripping from database integration configs |
-| `db-template-params.test.ts` | Database config merging and secret stripping for integrations |
-| `explorer.test.ts` | Blockchain explorer URL generation and ABI fetching (Etherscan, Blockscout) |
-| `gas-strategy.test.ts` | Gas price strategy calculation with hardcoded fallback configs |
-| `metrics.test.ts` | Metrics collectors (console, noop, prefixed) and latency tracking |
-| `network-utils.test.ts` | Chain ID resolution from network names |
-| `nonce-manager.test.ts` | Nonce lock acquisition and database-backed nonce management |
-| `plugin-metrics.test.ts` | Plugin execution metrics recording and wrappers |
-| `rpc-config.test.ts` | RPC URL resolution priority (JSON config, env vars, public defaults) |
-| `rpc-preferences-routes.test.ts` | RPC preferences API routes with mocked auth |
-| `rpc-provider.test.ts` | EVM RPC provider manager with failover states and metrics |
-| `saturation-metrics.test.ts` | Concurrent execution, queue depth, and DB pool saturation metrics |
-| `schedule-dispatcher.test.ts` | `shouldTriggerNow` cron matching logic |
-| `schedule-executor.test.ts` | SQS-based schedule execution and DB updates |
-| `schedule-service.test.ts` | Cron expression validation, timezone validation, next run time |
-| `serialize-sql-params.test.ts` | SQL parameter serialization (null, primitives, dates, BigInt) |
-| `solana-provider.test.ts` | Solana RPC provider manager with failover and metrics |
-| `template.test.ts` | Template processing with `@` references and nested path resolution |
-| `template-remap.test.ts` | Template reference remapping during workflow duplication |
-| `workflow-codegen-condition.test.ts` | Condition node validation for empty/unconfigured expressions |
-| `workflow-metrics.test.ts` | Workflow execution metrics (trigger detection, step metrics) |
-| `workflow-runner.test.ts` | Graceful shutdown implementation with exit codes and signals |
+No external infrastructure. All dependencies mocked. Covers Web3 utilities, RPC providers, scheduling, conditions, billing, protocol plugins, metrics, and more. Run `ls tests/unit/` for the full list.
 
 ### Integration Tests (`tests/integration/`)
 
-Mock the database and HTTP layer but test real module wiring.
-
-| File | What it tests |
-|------|---------------|
-| `abi-route.test.ts` | ABI fetching endpoint for Etherscan, Basescan, Blockscout |
-| `chains-route.test.ts` | Chains listing endpoint with enabled/disabled filtering |
-| `execute-api.test.ts` | Workflow execution endpoint with DB and session mocking |
-| `schedule-sync.test.ts` | Schedule synchronization between workflow config and DB |
-| `web3-steps.test.ts` | Web3 plugin steps (check-balance, transfer-funds) with mocked providers |
-| `workflow-duplicate.test.ts` | Workflow duplication with template reference remapping |
-| `workflow-runner.test.ts` | Graceful shutdown by spawning actual workflow-runner process |
+Mock the database and HTTP layer but test real module wiring. Covers API routes (ABI, chains, execution, billing, admin), workflow duplication, schedule sync, and the workflow-runner process. Run `ls tests/integration/` for the full list.
 
 ### Vitest E2E Tests (`tests/e2e/vitest/`)
 
@@ -211,7 +277,9 @@ Run against a live app in a real browser. Require the app and database to be run
 
 | File | What it tests |
 |------|---------------|
+| `analytics-gas.test.ts` | Analytics gas tracking UI |
 | `auth.test.ts` | Email OTP verification flow on signup |
+| `billing.test.ts` | Billing plan selection, upgrade, and cancellation flows |
 | `invitations.test.ts` | Organization invitation acceptance with navigation retry |
 | `organization-wallet.test.ts` | Organization wallet creation and address display |
 | `schedule-trigger.test.ts` | Schedule trigger node configuration UI |
@@ -219,7 +287,6 @@ Run against a live app in a real browser. Require the app and database to be run
 | **happy-paths/** | |
 | `scheduled-workflow.test.ts` | Create and save a scheduled workflow with webhook action, verify persistence |
 | `web3-balance.test.ts` | Create workflow with Web3 check-balance action, configure network, trigger execution |
-| `webhook-workflow.test.ts` | Webhook-triggered workflow execution with API key auth, verify DB completion |
 
 ---
 
@@ -269,10 +336,16 @@ act push --job e2e-vitest \
 | `tests/utils/db.ts` | Shared DB helpers: `createTestWorkflow`, `waitForWorkflowExecution`, `createApiKey`, `getUserIdByEmail` |
 | `tests/fixtures/workflows.ts` | Workflow builders: `createScheduledWorkflow`, `createWebhookWorkflow`, trigger/action node factories, cron presets |
 | `tests/fixtures/workflow-runner-harness.ts` | Harness for spawning workflow-runner as child process |
-| `tests/e2e/playwright/utils/auth.ts` | `signUpAndVerify()` for Playwright browser auth |
-| `tests/e2e/playwright/utils/db.ts` | Playwright-specific DB utilities |
-| `tests/e2e/playwright/utils/workflow.ts` | `waitForWorkflowSave()` and other Playwright workflow helpers |
+| `tests/e2e/playwright/utils/admin-fetch.ts` | Auth headers for admin test API and Cloudflare Access |
+| `tests/e2e/playwright/utils/auth.ts` | `signUpAndVerify()`, `signIn()` for Playwright browser auth |
+| `tests/e2e/playwright/utils/cleanup.ts` | Post-test cleanup: deletes test users, orgs, and Para wallets |
+| `tests/e2e/playwright/utils/connection.ts` | Shared `getDbConnection()` postgres client factory |
+| `tests/e2e/playwright/utils/db.ts` | Playwright-specific DB utilities: `createTestWorkflow`, persistent test user constants |
 | `tests/e2e/playwright/utils/discover.ts` | Page discovery: `probe()`, `diffReports()`, `autoProbe()`, `highlightElements()` |
+| `tests/e2e/playwright/utils/env.ts` | `isRemoteMode()` -- detects deployed vs local test environment |
+| `tests/e2e/playwright/utils/invitations.ts` | Invitation acceptance helpers: navigate, wait for `data-page-state`, fetch invitation ID |
+| `tests/e2e/playwright/utils/seed.ts` | Test data seeding: password hashing, user/org creation via direct DB inserts |
+| `tests/e2e/playwright/utils/workflow.ts` | `waitForCanvas()`, `waitForWorkflowSave()`, and other Playwright workflow helpers |
 
 ---
 

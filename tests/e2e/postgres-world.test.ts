@@ -40,6 +40,20 @@ function generateId(): string {
   return crypto.randomBytes(11).toString("base64url");
 }
 
+async function checkPgbossSchema(): Promise<boolean> {
+  const client = postgres(DATABASE_URL, { max: 1 });
+  try {
+    const result = await client`
+      SELECT 1 FROM information_schema.schemata WHERE schema_name = 'pgboss'
+    `;
+    return result.length > 0;
+  } catch {
+    return false;
+  } finally {
+    await client.end();
+  }
+}
+
 async function poll<T>(
   fn: () => Promise<T>,
   predicate: (result: T) => boolean,
@@ -57,7 +71,10 @@ async function poll<T>(
   throw new Error(`Polling timed out after ${timeoutMs}ms`);
 }
 
-describe.skipIf(shouldSkip)("Postgres World E2E", () => {
+// Also skip if pgboss schema hasn't been created (requires pnpm db:setup-workflow)
+const hasPgboss = shouldSkip ? false : await checkPgbossSchema();
+
+describe.skipIf(shouldSkip || !hasPgboss)("Postgres World E2E", () => {
   let client: ReturnType<typeof postgres>;
   let db: ReturnType<typeof drizzle>;
   let testUserId: string;

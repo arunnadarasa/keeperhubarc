@@ -134,14 +134,24 @@ test.describe("Happy Path: Web3 Balance Check", () => {
 
     // Dismiss any modal overlay that may appear after triggering
     await page.keyboard.press("Escape");
-    await page.waitForTimeout(500);
+    await expect(page.locator('[role="dialog"]'))
+      .toBeHidden({ timeout: 5000 })
+      .catch(() => {
+        /* no dialog to dismiss */
+      });
 
     // Use the "Runs" tab in the current view -- use force click to bypass
     // any remaining overlay elements (e.g. dialog backdrop)
     const runsTab = page.getByRole("tab", { name: "Runs" });
     await expect(runsTab).toBeVisible({ timeout: 5000 });
     await runsTab.click({ force: true });
-    await page.waitForTimeout(2000);
+
+    // Wait for workflow runs to finish loading
+    await expect(page.getByTestId("workflow-runs")).toHaveAttribute(
+      "data-ready",
+      "true",
+      { timeout: 60_000 }
+    );
 
     // Wait for execution to appear - look for "Run #" entries in the Runs tab
     const executionEntry = page.locator("text=/Run #\\d+/").first();
