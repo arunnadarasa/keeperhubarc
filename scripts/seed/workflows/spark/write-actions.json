@@ -111,15 +111,15 @@
       }
     },
     {
-      "id": "spark-deposit-sdai",
+      "id": "spark-vault-deposit",
       "type": "action",
       "position": { "x": 450, "y": 750 },
       "data": {
-        "label": "Deposit sDAI",
+        "label": "Vault Deposit",
         "description": "Deposit DAI into sDAI vault",
         "type": "action",
         "config": {
-          "actionType": "spark/deposit-sdai",
+          "actionType": "spark/vault-deposit",
           "network": "1",
           "assets": "1000000000000000000",
           "receiver": "0x0000000000000000000000000000000000000001"
@@ -128,15 +128,15 @@
       }
     },
     {
-      "id": "spark-redeem-sdai",
+      "id": "spark-vault-redeem",
       "type": "action",
       "position": { "x": 450, "y": 900 },
       "data": {
-        "label": "Redeem sDAI",
+        "label": "Vault Redeem",
         "description": "Redeem sDAI shares for DAI",
         "type": "action",
         "config": {
-          "actionType": "spark/redeem-sdai",
+          "actionType": "spark/vault-redeem",
           "network": "1",
           "shares": "1000000000000000000",
           "receiver": "0x0000000000000000000000000000000000000001",
@@ -178,15 +178,15 @@
       "type": "animated"
     },
     {
-      "id": "e-trigger-to-spark-deposit-sdai",
+      "id": "e-trigger-to-spark-vault-deposit",
       "source": "node-1",
-      "target": "spark-deposit-sdai",
+      "target": "spark-vault-deposit",
       "type": "animated"
     },
     {
-      "id": "e-trigger-to-spark-redeem-sdai",
+      "id": "e-trigger-to-spark-vault-redeem",
       "source": "node-1",
-      "target": "spark-redeem-sdai",
+      "target": "spark-vault-redeem",
       "type": "animated"
     }
   ]
