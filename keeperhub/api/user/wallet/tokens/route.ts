@@ -1,12 +1,10 @@
 import { and, eq } from "drizzle-orm";
 import { ethers } from "ethers";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { normalizeAddressForStorage } from "@/keeperhub/lib/address-utils";
 import { apiError } from "@/keeperhub/lib/api-error";
-import { getActiveOrgId } from "@/keeperhub/lib/middleware/org-context";
+import { resolveOrganizationId } from "@/keeperhub/lib/middleware/auth-helpers";
 import { organizationHasWallet } from "@/keeperhub/lib/para/wallet-helpers";
-import { auth } from "@/lib/auth";
 import ERC20_ABI from "@/lib/contracts/abis/erc20.json";
 import { db } from "@/lib/db";
 import { chains, organizationTokens, supportedTokens } from "@/lib/db/schema";
@@ -19,22 +17,14 @@ import { getRpcProvider } from "@/lib/rpc/provider-factory";
  */
 export async function GET(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const activeOrgId = getActiveOrgId(session);
-
-    if (!activeOrgId) {
+    const authCtx = await resolveOrganizationId(request);
+    if ("error" in authCtx) {
       return NextResponse.json(
-        { error: "No active organization selected" },
-        { status: 400 }
+        { error: authCtx.error },
+        { status: authCtx.status }
       );
     }
+    const { organizationId: activeOrgId } = authCtx;
 
     const tokens = await db
       .select()
@@ -55,36 +45,14 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const activeOrgId = getActiveOrgId(session);
-
-    if (!activeOrgId) {
+    const authCtx = await resolveOrganizationId(request);
+    if ("error" in authCtx) {
       return NextResponse.json(
-        { error: "No active organization selected" },
-        { status: 400 }
+        { error: authCtx.error },
+        { status: authCtx.status }
       );
     }
-
-    // Check if user has admin role
-    const activeMember = await auth.api.getActiveMember({
-      headers: await headers(),
-    });
-
-    const isAdminOrOwner =
-      activeMember?.role === "admin" || activeMember?.role === "owner";
-    if (!isAdminOrOwner) {
-      return NextResponse.json(
-        { error: "Only organization admins can manage tokens" },
-        { status: 403 }
-      );
-    }
+    const { organizationId: activeOrgId } = authCtx;
 
     // Check if organization has a wallet
     const hasWallet = await organizationHasWallet(activeOrgId);
@@ -236,36 +204,14 @@ export async function POST(request: Request) {
  */
 export async function DELETE(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const activeOrgId = getActiveOrgId(session);
-
-    if (!activeOrgId) {
+    const authCtx = await resolveOrganizationId(request);
+    if ("error" in authCtx) {
       return NextResponse.json(
-        { error: "No active organization selected" },
-        { status: 400 }
+        { error: authCtx.error },
+        { status: authCtx.status }
       );
     }
-
-    // Check if user has admin role
-    const activeMember = await auth.api.getActiveMember({
-      headers: await headers(),
-    });
-
-    const isAdminOrOwner =
-      activeMember?.role === "admin" || activeMember?.role === "owner";
-    if (!isAdminOrOwner) {
-      return NextResponse.json(
-        { error: "Only organization admins can manage tokens" },
-        { status: 403 }
-      );
-    }
+    const { organizationId: activeOrgId } = authCtx;
 
     const body = await request.json();
     const { tokenId } = body;
