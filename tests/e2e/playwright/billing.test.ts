@@ -106,6 +106,9 @@ test.describe("Billing", () => {
 
     await waitForBillingReady(page);
 
+    // Scroll plans section into view — pricing cards are below the fold
+    await page.locator("#plans-section").scrollIntoViewIfNeeded();
+
     // Should see pricing cards with monthly prices
     await expect(page.locator("text=$49")).toBeVisible({ timeout: 10_000 });
     await expect(page.locator("text=$299")).toBeVisible();
