@@ -508,10 +508,10 @@ function pushArrayElementFields(
 ): void {
   const basePathFromRoot = pathFromRoot ? `${pathFromRoot}.${key}` : key;
   const baseDisplayPath = `${currentPath}.${key}`;
-  const indicesToSuggest: number[] = [0];
-  if (value.length > 1) {
-    indicesToSuggest.push(value.length - 1);
-  }
+  const indicesToSuggest: number[] = Array.from(
+    { length: value.length },
+    (_, i) => i
+  );
 
   for (const i of indicesToSuggest) {
     const elementPath = `${basePathFromRoot}[${i}]`;
@@ -543,7 +543,7 @@ function pushArrayElementFields(
 
 /**
  * Recursively extract fields from an object for autocomplete.
- * For arrays: suggests [0] and, if length > 1, [length-1] (first and last), so any index can be used by typing it.
+ * For arrays: suggests all indices so every element appears in the autocomplete dropdown.
  * Recurse into each suggested element when it is an object.
  * Uses same path semantics as resolveFieldPath (key[index]) so suggested paths resolve at runtime.
  */
