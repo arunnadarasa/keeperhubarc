@@ -100,7 +100,7 @@ export function FeaturedCarousel({ workflows }: FeaturedCarouselProps) {
   }
 
   return (
-    <section className="relative z-10">
+    <section aria-label="Featured workflows" className="relative z-10">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="font-bold text-2xl">Featured</h2>
         <div className={`gap-2 ${arrowVisibility}`}>
@@ -123,60 +123,66 @@ export function FeaturedCarousel({ workflows }: FeaturedCarouselProps) {
         </div>
       </div>
 
-      <div
-        className="flex gap-4 overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        ref={scrollRef}
-      >
-        {workflows.map((workflow) => {
-          const isDuplicating = duplicatingIds.has(workflow.id);
+      <div className="relative">
+        <div
+          className="flex gap-4 overflow-x-auto scroll-smooth motion-reduce:scroll-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          ref={scrollRef}
+        >
+          {workflows.map((workflow) => {
+            const isDuplicating = duplicatingIds.has(workflow.id);
 
-          return (
-            <Card
-              className="flex w-[280px] shrink-0 flex-col gap-0 overflow-hidden border-none bg-sidebar py-0"
-              key={workflow.id}
-            >
-              <div className="relative flex h-[140px] w-full items-center justify-center overflow-hidden px-8">
-                <WorkflowMiniMap
-                  edges={workflow.edges}
-                  height={130}
-                  nodes={workflow.nodes}
-                  width={240}
-                />
-              </div>
-              <CardHeader className="pb-2">
-                <CardTitle className="line-clamp-2">{workflow.name}</CardTitle>
-                {workflow.description && (
-                  <CardDescription className="line-clamp-2">
-                    {workflow.description}
-                  </CardDescription>
-                )}
-                <WorkflowNodeIcons nodes={workflow.nodes} />
-              </CardHeader>
-              <div className="flex-1" />
-              <CardFooter className="gap-2 pb-3">
-                <Button
-                  className="flex-1"
-                  disabled={isDuplicating}
-                  onClick={() => handleDuplicate(workflow.id)}
-                  variant="default"
-                >
-                  {isDuplicating ? "Duplicating..." : "Use Template"}
-                </Button>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      onClick={() => router.push(`/workflows/${workflow.id}`)}
-                      variant="outline"
-                    >
-                      <Eye className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">View Template</TooltipContent>
-                </Tooltip>
-              </CardFooter>
-            </Card>
-          );
-        })}
+            return (
+              <Card
+                className="flex w-[280px] shrink-0 flex-col gap-0 overflow-hidden border-none bg-sidebar py-0 transition-colors motion-reduce:transition-none"
+                key={workflow.id}
+              >
+                <div className="relative flex h-[140px] w-full items-center justify-center overflow-hidden px-8">
+                  <WorkflowMiniMap
+                    edges={workflow.edges}
+                    height={130}
+                    nodes={workflow.nodes}
+                    width={240}
+                  />
+                </div>
+                <CardHeader className="pb-2">
+                  <CardTitle className="line-clamp-2">
+                    {workflow.name}
+                  </CardTitle>
+                  {workflow.description && (
+                    <CardDescription className="line-clamp-2">
+                      {workflow.description}
+                    </CardDescription>
+                  )}
+                  <WorkflowNodeIcons nodes={workflow.nodes} />
+                </CardHeader>
+                <div className="flex-1" />
+                <CardFooter className="gap-2 pb-3">
+                  <Button
+                    className="flex-1"
+                    disabled={isDuplicating}
+                    onClick={() => handleDuplicate(workflow.id)}
+                    variant="default"
+                  >
+                    {isDuplicating ? "Duplicating..." : "Use Template"}
+                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        aria-label="View template"
+                        onClick={() => router.push(`/workflows/${workflow.id}`)}
+                        variant="outline"
+                      >
+                        <Eye className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">View Template</TooltipContent>
+                  </Tooltip>
+                </CardFooter>
+              </Card>
+            );
+          })}
+        </div>
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-[var(--color-hub-overlay)] to-transparent" />
       </div>
     </section>
   );

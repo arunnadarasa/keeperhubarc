@@ -2,12 +2,11 @@ import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api-error";
-import { auth } from "@/lib/auth";
+import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
+import { getOrganizationWallet } from "@/lib/para/wallet-helpers";
 import ERC20_ABI from "@/lib/contracts/abis/erc20.json";
 import { db } from "@/lib/db";
 import { chains, organizationTokens } from "@/lib/db/schema";
-import { getActiveOrgId } from "@/lib/middleware/org-context";
-import { getOrganizationWallet } from "@/lib/para/wallet-helpers";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
 
 type TokenBalance = {
@@ -40,22 +39,14 @@ type ChainBalance = {
  */
 export async function GET(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const activeOrgId = getActiveOrgId(session);
-
-    if (!activeOrgId) {
+    const authCtx = await resolveOrganizationId(request);
+    if ("error" in authCtx) {
       return NextResponse.json(
-        { error: "No active organization selected" },
-        { status: 400 }
+        { error: authCtx.error },
+        { status: authCtx.status }
       );
     }
+    const { organizationId: activeOrgId } = authCtx;
 
     // Get the organization's wallet
     const wallet = await getOrganizationWallet(activeOrgId).catch(() => null);

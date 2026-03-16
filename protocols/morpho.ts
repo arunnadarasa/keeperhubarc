@@ -1,4 +1,5 @@
 import { defineProtocol } from "@/lib/protocol-registry";
+import { erc4626VaultActions } from "@/lib/standards/erc4626";
 
 export default defineProtocol({
   name: "Morpho",
@@ -21,9 +22,18 @@ export default defineProtocol({
       },
       // ABI omitted -- resolved automatically via abi-cache
     },
+    vault: {
+      label: "MetaMorpho Vault",
+      addresses: {},
+      userSpecifiedAddress: true,
+    },
   },
 
   actions: [
+    // MetaMorpho ERC-4626 vault actions (user-specified vault address)
+    ...erc4626VaultActions("vault"),
+
+    // Morpho Blue lending market actions
     {
       slug: "get-position",
       label: "Get Position",

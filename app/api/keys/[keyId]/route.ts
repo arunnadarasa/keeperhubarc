@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 import { db } from "@/lib/db";
 import { organizationApiKeys } from "@/lib/db/schema";
 import { getOrgContext } from "@/lib/middleware/org-context";
@@ -12,23 +12,14 @@ export async function DELETE(
 ) {
   try {
     const { keyId } = await context.params;
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const orgContext = await getOrgContext();
-    const activeOrgId = orgContext.organization?.id;
-
-    if (!activeOrgId) {
+    const authCtx = await resolveOrganizationId(request);
+    if ("error" in authCtx) {
       return NextResponse.json(
-        { error: "No active organization" },
-        { status: 400 }
+        { error: authCtx.error },
+        { status: authCtx.status }
       );
     }
+    const { organizationId: activeOrgId } = authCtx;
 
     // Revoke the key (soft delete) - only if it belongs to the organization
     const result = await db

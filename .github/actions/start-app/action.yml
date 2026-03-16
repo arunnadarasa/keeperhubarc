@@ -118,6 +118,7 @@ runs:
         BETTER_AUTH_SECRET: ${{ inputs.better_auth_secret }}
         CI: true
         TEST_API_KEY: ${{ inputs.test_api_key }}
+        NEXT_PUBLIC_BILLING_ENABLED: "true"
 
     - name: Start application
       if: inputs.image_tag == ''

@@ -33,6 +33,7 @@ export function BillingPage(): React.ReactElement {
   const [currentInterval, setCurrentInterval] =
     useState<BillingInterval | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [planLoaded, setPlanLoaded] = useState(false);
 
   useEffect(() => {
     const checkout = searchParams.get("checkout");
@@ -61,6 +62,8 @@ export function BillingPage(): React.ReactElement {
       }
     } catch (error) {
       console.error("[Billing] Failed to fetch plan:", error);
+    } finally {
+      setPlanLoaded(true);
     }
   }, []);
 
@@ -69,6 +72,7 @@ export function BillingPage(): React.ReactElement {
     setCurrentPlan("free");
     setCurrentTier(null);
     setCurrentInterval(null);
+    setPlanLoaded(false);
     setRefreshKey((k) => k + 1);
     fetchPlan().catch(() => undefined);
   }, [fetchPlan, orgId]);
@@ -78,8 +82,14 @@ export function BillingPage(): React.ReactElement {
     setRefreshKey((k) => k + 1);
   }
 
+  // data-page-state tracks subscription plan fetch only.
+  // BillingStatus and BillingHistory have independent async loads.
   return (
-    <div className="pointer-events-auto fixed inset-0 overflow-y-auto bg-sidebar">
+    <div
+      className="pointer-events-auto fixed inset-0 overflow-y-auto bg-sidebar"
+      data-page-state={planLoaded ? "ready" : "loading"}
+      data-testid="billing-page"
+    >
       <div className="transition-[margin-left] duration-200 ease-out md:ml-[var(--nav-sidebar-width,60px)]">
         <div className="container mx-auto max-w-7xl space-y-8 px-4 py-8 pt-20">
           <div>

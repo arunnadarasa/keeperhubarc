@@ -1,39 +1,23 @@
 import { count, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { authenticateApiKey } from "@/lib/api-key-auth";
-import { auth } from "@/lib/auth";
+import {
+  resolveCreatorContext,
+  resolveOrganizationId,
+} from "@/lib/middleware/auth-helpers";
+import { COLOR_PALETTE } from "@/lib/palette";
 import { db } from "@/lib/db";
 import { projects, workflows } from "@/lib/db/schema";
-import { resolveCreatorContext } from "@/lib/middleware/auth-helpers";
-import { getOrgContext } from "@/lib/middleware/org-context";
-import { COLOR_PALETTE } from "@/lib/palette";
 
 export async function GET(request: Request) {
   try {
-    const apiKeyAuth = await authenticateApiKey(request);
-    let organizationId: string | null;
-
-    if (apiKeyAuth.authenticated) {
-      organizationId = apiKeyAuth.organizationId || null;
-    } else {
-      const session = await auth.api.getSession({
-        headers: request.headers,
-      });
-
-      if (!session?.user) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-
-      const context = await getOrgContext();
-      organizationId = context.organization?.id || null;
-    }
-
-    if (!organizationId) {
+    const authCtx = await resolveOrganizationId(request);
+    if ("error" in authCtx) {
       return NextResponse.json(
-        { error: "No active organization" },
-        { status: 400 }
+        { error: authCtx.error },
+        { status: authCtx.status }
       );
     }
+    const { organizationId } = authCtx;
 
     const orgProjects = await db
       .select({

@@ -3,12 +3,12 @@ import { ethers } from "ethers";
 import { NextResponse } from "next/server";
 import { toChecksumAddress } from "@/lib/address-utils";
 import { apiError } from "@/lib/api-error";
-import { auth } from "@/lib/auth";
+import { ErrorCategory, logUserError } from "@/lib/logging";
+import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 import { db } from "@/lib/db";
 import { explorerConfigs } from "@/lib/db/schema";
 import { fetchEtherscanSourceCode } from "@/lib/explorer/etherscan";
 import { detectProxyViaRpc } from "@/lib/explorer/proxy-detection";
-import { ErrorCategory, logUserError } from "@/lib/logging";
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
 
@@ -1286,19 +1286,13 @@ async function fetchAbiFromEtherscan(
 
 export async function POST(request: Request) {
   try {
-    console.log("[Etherscan] POST request received");
-
-    // Authenticate user
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      console.log("[Etherscan] Unauthorized - no session");
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authCtx = await resolveOrganizationId(request);
+    if ("error" in authCtx) {
+      return NextResponse.json(
+        { error: authCtx.error },
+        { status: authCtx.status }
+      );
     }
-
-    console.log("[Etherscan] User authenticated:", session.user.id);
 
     // Parse request body
     const body = (await request.json().catch(() => ({}))) as {
@@ -1351,7 +1345,7 @@ export async function POST(request: Request) {
         );
       }
     } catch {
-      // Chain not found/enabled — skip code check, proceed to Etherscan
+      // Chain not found/enabled -- skip code check, proceed to Etherscan
     }
 
     console.log("[Etherscan] Fetching ABI for:", {

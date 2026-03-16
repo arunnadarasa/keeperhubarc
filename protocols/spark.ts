@@ -1,4 +1,5 @@
 import { defineProtocol } from "@/lib/protocol-registry";
+import { erc4626VaultActions } from "@/lib/standards/erc4626";
 
 export default defineProtocol({
   name: "Spark",
@@ -157,34 +158,8 @@ export default defineProtocol({
       ],
     },
 
-    // sDAI (ERC-4626 Savings Vault)
-
-    {
-      slug: "deposit-sdai",
-      label: "Deposit DAI to sDAI",
-      description:
-        "Deposit DAI into the sDAI savings vault to earn the DSR (ERC-4626)",
-      type: "write",
-      contract: "sdai",
-      function: "deposit",
-      inputs: [
-        { name: "assets", type: "uint256", label: "DAI Amount (wei)" },
-        { name: "receiver", type: "address", label: "Receiver Address" },
-      ],
-    },
-    {
-      slug: "redeem-sdai",
-      label: "Redeem sDAI for DAI",
-      description: "Redeem sDAI shares for DAI from the savings vault",
-      type: "write",
-      contract: "sdai",
-      function: "redeem",
-      inputs: [
-        { name: "shares", type: "uint256", label: "sDAI Shares (wei)" },
-        { name: "receiver", type: "address", label: "Receiver Address" },
-        { name: "owner", type: "address", label: "Share Owner Address" },
-      ],
-    },
+    // ERC-4626 Vault (sDAI Savings)
+    ...erc4626VaultActions("sdai"),
 
     // Read Actions
 
@@ -293,59 +268,6 @@ export default defineProtocol({
           name: "usageAsCollateralEnabled",
           type: "bool",
           label: "Used as Collateral",
-        },
-      ],
-    },
-    {
-      slug: "get-sdai-balance",
-      label: "Get sDAI Balance",
-      description: "Check the sDAI balance of an address",
-      type: "read",
-      contract: "sdai",
-      function: "balanceOf",
-      inputs: [{ name: "account", type: "address", label: "Wallet Address" }],
-      outputs: [
-        {
-          name: "balance",
-          type: "uint256",
-          label: "sDAI Balance (wei)",
-          decimals: 18,
-        },
-      ],
-    },
-    {
-      slug: "get-sdai-total-assets",
-      label: "Get sDAI Total Assets",
-      description:
-        "Get total DAI held in the sDAI vault (total value locked in DSR)",
-      type: "read",
-      contract: "sdai",
-      function: "totalAssets",
-      inputs: [],
-      outputs: [
-        {
-          name: "totalAssets",
-          type: "uint256",
-          label: "Total DAI in Vault (wei)",
-          decimals: 18,
-        },
-      ],
-    },
-    {
-      slug: "get-sdai-convert-to-assets",
-      label: "Convert sDAI to DAI Value",
-      description:
-        "Preview how much DAI a given amount of sDAI is worth at the current rate",
-      type: "read",
-      contract: "sdai",
-      function: "convertToAssets",
-      inputs: [{ name: "shares", type: "uint256", label: "sDAI Shares (wei)" }],
-      outputs: [
-        {
-          name: "assets",
-          type: "uint256",
-          label: "DAI Value (wei)",
-          decimals: 18,
         },
       ],
     },

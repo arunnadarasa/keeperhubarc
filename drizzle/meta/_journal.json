@@ -239,6 +239,13 @@
       "when": 1773552000000,
       "tag": "0033_backfill-billing-tables",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1773552000001,
+      "tag": "0034_device-code-table",
+      "breakpoints": true
     }
   ]
 }

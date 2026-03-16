@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -20,9 +21,39 @@ export function ProtocolDetailModal({
   open,
   onOpenChange,
 }: ProtocolDetailModalProps): React.ReactElement {
+  const [lockedHeight, setLockedHeight] = useState<number | undefined>(
+    undefined
+  );
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const captureHeight = useCallback((): void => {
+    const el = contentRef.current;
+    if (el && lockedHeight === undefined) {
+      const maxAllowed = window.innerHeight * 0.8;
+      setLockedHeight(Math.min(el.scrollHeight, maxAllowed));
+    }
+  }, [lockedHeight]);
+
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean): void => {
+      if (!nextOpen) {
+        setLockedHeight(undefined);
+      }
+      onOpenChange(nextOpen);
+    },
+    [onOpenChange]
+  );
+
   return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="max-h-[80vh] overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:max-w-4xl">
+    <Dialog onOpenChange={handleOpenChange} open={open}>
+      <DialogContent
+        className="overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:max-w-4xl"
+        ref={contentRef}
+        style={{
+          maxHeight: "80vh",
+          minHeight: lockedHeight ? `${lockedHeight}px` : undefined,
+        }}
+      >
         <DialogTitle className="sr-only">
           {protocol?.name ?? "Protocol Details"}
         </DialogTitle>
@@ -32,7 +63,7 @@ export function ProtocolDetailModal({
         {protocol && (
           <ProtocolDetail
             hideBackButton
-            pageUrl={`/hub/protocol/${protocol.slug}`}
+            onTabChange={captureHeight}
             protocol={protocol}
           />
         )}

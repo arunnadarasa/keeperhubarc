@@ -18,6 +18,7 @@ import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
 import type { RpcProviderManager } from "@/lib/rpc-provider";
 import { getErrorMessage } from "@/lib/utils";
+import { getAbiFunctionKey } from "@/lib/web3/abi-function-key";
 import { formatContractError } from "@/lib/web3/decode-revert-error";
 
 export type ReadContractCoreInput = {
@@ -155,6 +156,8 @@ export async function readContractCore(
     };
   }
 
+  const abiFunctionKey = getAbiFunctionKey(parsedAbi, abiFunction, functionAbi);
+
   // Parse function arguments
   let args: unknown[] = [];
   if (functionArgs && functionArgs.trim() !== "") {
@@ -263,20 +266,20 @@ export async function readContractCore(
         provider
       );
 
-      if (typeof contract[abiFunction] !== "function") {
+      if (typeof contract[abiFunctionKey] !== "function") {
         throw new Error(`Function '${abiFunction}' not found in contract ABI`);
       }
 
       console.log(
         "[Read Contract] Calling function:",
-        abiFunction,
+        abiFunctionKey,
         "with args:",
         args
       );
 
       return isView
-        ? await contract[abiFunction](...args)
-        : await contract[abiFunction].staticCall(...args);
+        ? await contract[abiFunctionKey](...args)
+        : await contract[abiFunctionKey].staticCall(...args);
     });
 
     console.log("[Read Contract] Function call successful, result:", result);

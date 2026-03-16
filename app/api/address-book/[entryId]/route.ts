@@ -1,52 +1,10 @@
 import { and, eq } from "drizzle-orm";
 import { ethers } from "ethers";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { normalizeAddressForStorage } from "@/lib/address-utils";
-import { auth } from "@/lib/auth";
+import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 import { db } from "@/lib/db";
 import { addressBookEntry } from "@/lib/db/schema";
-import { getOrgContext } from "@/lib/middleware/org-context";
-
-// Helper: Validate authentication and owner permissions
-async function validateOwnerPermission(request: Request) {
-  const session = await auth.api.getSession({
-    headers: request.headers,
-  });
-
-  if (!session?.user) {
-    return {
-      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-    };
-  }
-
-  const orgContext = await getOrgContext();
-  const activeOrgId = orgContext.organization?.id;
-
-  if (!activeOrgId) {
-    return {
-      error: NextResponse.json(
-        { error: "No active organization" },
-        { status: 400 }
-      ),
-    };
-  }
-
-  const activeMember = await auth.api.getActiveMember({
-    headers: await headers(),
-  });
-
-  if (!activeMember) {
-    return {
-      error: NextResponse.json(
-        { error: "You are not a member of the active organization" },
-        { status: 403 }
-      ),
-    };
-  }
-
-  return { activeOrgId, session };
-}
 
 // Helper: Get existing entry and validate it belongs to organization
 async function getExistingEntry(entryId: string, activeOrgId: string) {
@@ -121,12 +79,14 @@ export async function PATCH(
   try {
     const { entryId } = await context.params;
 
-    // Validate authentication and permissions
-    const authResult = await validateOwnerPermission(request);
-    if (authResult.error) {
-      return authResult.error;
+    const authCtx = await resolveOrganizationId(request);
+    if ("error" in authCtx) {
+      return NextResponse.json(
+        { error: authCtx.error },
+        { status: authCtx.status }
+      );
     }
-    const { activeOrgId } = authResult;
+    const { organizationId: activeOrgId } = authCtx;
 
     // Get existing entry
     const existingEntry = await getExistingEntry(entryId, activeOrgId);
@@ -190,35 +150,14 @@ export async function DELETE(
 ) {
   try {
     const { entryId } = await context.params;
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const orgContext = await getOrgContext();
-    const activeOrgId = orgContext.organization?.id;
-
-    if (!activeOrgId) {
+    const authCtx = await resolveOrganizationId(request);
+    if ("error" in authCtx) {
       return NextResponse.json(
-        { error: "No active organization" },
-        { status: 400 }
+        { error: authCtx.error },
+        { status: authCtx.status }
       );
     }
-
-    // Get active member to check permissions
-    const activeMember = await auth.api.getActiveMember({
-      headers: await headers(),
-    });
-
-    if (!activeMember) {
-      return NextResponse.json(
-        { error: "You are not a member of the active organization" },
-        { status: 403 }
-      );
-    }
+    const { organizationId: activeOrgId } = authCtx;
 
     // Verify entry exists and belongs to active organization, then delete
     const result = await db

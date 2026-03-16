@@ -1,12 +1,11 @@
 import { ethers } from "ethers";
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api-error";
-import { auth } from "@/lib/auth";
-import ERC20_ABI from "@/lib/contracts/abis/erc20.json";
-import { getActiveOrgId } from "@/lib/middleware/org-context";
+import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 import { getOrganizationWalletAddress } from "@/lib/para/wallet-helpers";
-import { getRpcProvider } from "@/lib/rpc/provider-factory";
 import { getChainGasDefaults } from "@/lib/web3/gas-defaults";
+import ERC20_ABI from "@/lib/contracts/abis/erc20.json";
+import { getRpcProvider } from "@/lib/rpc/provider-factory";
 
 type EstimateConfig = {
   contractAddress?: string;
@@ -176,15 +175,14 @@ async function validateRequest(request: Request): Promise<
       activeOrgId: string;
     }
 > {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const authCtx = await resolveOrganizationId(request);
+  if ("error" in authCtx) {
+    return NextResponse.json(
+      { error: authCtx.error },
+      { status: authCtx.status }
+    );
   }
-
-  const activeOrgId = getActiveOrgId(session);
-  if (!activeOrgId) {
-    return badRequest("No active organization");
-  }
+  const activeOrgId = authCtx.organizationId;
 
   const body = (await request.json().catch(() => ({}))) as Partial<{
     chainId: number;

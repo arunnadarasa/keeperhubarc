@@ -76,8 +76,8 @@ describe("Sky Protocol Definition", () => {
     }
   });
 
-  it("has exactly 14 actions", () => {
-    expect(skyDef.actions).toHaveLength(14);
+  it("has exactly 44 actions", () => {
+    expect(skyDef.actions).toHaveLength(44);
   });
 
   it("registers in the protocol registry and is retrievable", () => {
@@ -88,15 +88,15 @@ describe("Sky Protocol Definition", () => {
     expect(retrieved?.name).toBe("Sky");
   });
 
-  it("has 6 read actions and 8 write actions", () => {
+  it("has 31 read actions and 13 write actions", () => {
     const readActions = skyDef.actions.filter((a) => a.type === "read");
     const writeActions = skyDef.actions.filter((a) => a.type === "write");
-    expect(readActions).toHaveLength(6);
-    expect(writeActions).toHaveLength(8);
+    expect(readActions).toHaveLength(31);
+    expect(writeActions).toHaveLength(13);
   });
 
-  it("has 6 contracts", () => {
-    expect(Object.keys(skyDef.contracts)).toHaveLength(6);
+  it("has 7 contracts", () => {
+    expect(Object.keys(skyDef.contracts)).toHaveLength(7);
   });
 
   it("sUsds contract is available on 3 chains", () => {
@@ -104,6 +104,14 @@ describe("Sky Protocol Definition", () => {
     expect(skyDef.contracts.sUsds.addresses["1"]).toBeDefined();
     expect(skyDef.contracts.sUsds.addresses["8453"]).toBeDefined();
     expect(skyDef.contracts.sUsds.addresses["42161"]).toBeDefined();
+  });
+
+  it("stUsds contract is Ethereum-only", () => {
+    const chains = Object.keys(skyDef.contracts.stUsds.addresses);
+    expect(chains).toEqual(["1"]);
+    expect(skyDef.contracts.stUsds.addresses["1"]).toBe(
+      "0x99CD4Ec3f88A45940936F469E4bB72A2A701EEB9"
+    );
   });
 
   it("converter contracts are Ethereum-only", () => {

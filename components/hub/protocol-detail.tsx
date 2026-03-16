@@ -4,32 +4,17 @@ import {
   ArrowLeft,
   ArrowUpRight,
   Box,
-  ChevronLeft,
-  ChevronRight,
   ExternalLink,
-  Eye,
   Headphones,
 } from "lucide-react";
 import { nanoid } from "nanoid";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { api, type SavedWorkflow } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
 import { getChainName, getExplorerUrl } from "@/lib/chain-utils";
@@ -40,51 +25,18 @@ import {
   type ProtocolEvent,
 } from "@/lib/protocol-registry";
 import { refetchSidebar } from "@/lib/refetch-sidebar";
-import { WorkflowMiniMap } from "./workflow-mini-map";
-import { WorkflowNodeIcons } from "./workflow-node-icons";
+import { WorkflowTemplateCard } from "./workflow-template-card";
 
 type ProtocolDetailProps = {
   protocol: ProtocolDefinition;
   onBack?: () => void;
   hideBackButton?: boolean;
-  pageUrl?: string;
   modalUrl?: string;
+  onTabChange?: () => void;
 };
 
 const TAB_TRIGGER_CLASS =
   "h-auto flex-none border-0 border-b-2 border-transparent rounded-none px-0 pb-2 data-[state=active]:border-b-[var(--color-text-accent)] data-[state=active]:bg-transparent data-[state=active]:shadow-none dark:data-[state=active]:border-b-[var(--color-text-accent)] dark:data-[state=active]:bg-transparent";
-
-type WorkflowNodeShape = {
-  data?: {
-    type?: string;
-    label?: string;
-    config?: { actionType?: string };
-  };
-};
-
-const NON_PROTOCOL_ACTIONS = new Set([
-  "discord/send-message",
-  "sendgrid/send-email",
-]);
-
-function getProtocolActionLabels(nodes: unknown): string[] {
-  const typedNodes = nodes as WorkflowNodeShape[];
-  return typedNodes
-    .filter((node) => {
-      const actionType = node.data?.config?.actionType;
-      return (
-        node.data?.type === "action" &&
-        actionType !== undefined &&
-        actionType.includes("/") &&
-        !NON_PROTOCOL_ACTIONS.has(actionType)
-      );
-    })
-    .map((node) => {
-      const label = node.data?.label ?? "";
-      const colonIndex = label.indexOf(": ");
-      return colonIndex >= 0 ? label.slice(colonIndex + 2) : label;
-    });
-}
 
 function ActionTypeBadge({
   type,
@@ -103,73 +55,6 @@ function ActionTypeBadge({
     <span className="rounded-full bg-[var(--color-bg-accent)] px-2 py-0.5 font-medium text-[var(--color-text-accent)] text-[10px] uppercase tracking-wider">
       WRITE
     </span>
-  );
-}
-
-function WorkflowTemplateCard({
-  workflow,
-  isDuplicating,
-  onDuplicate,
-  onView,
-}: {
-  workflow: SavedWorkflow;
-  isDuplicating: boolean;
-  onDuplicate: () => void;
-  onView: () => void;
-}): React.ReactElement {
-  const actionLabels = getProtocolActionLabels(workflow.nodes);
-
-  return (
-    <Card className="flex w-[260px] shrink-0 flex-col gap-0 overflow-hidden border border-border/30 bg-sidebar py-0">
-      <div className="relative flex h-[130px] w-full items-center justify-center overflow-hidden px-8">
-        <WorkflowMiniMap
-          edges={workflow.edges}
-          height={120}
-          nodes={workflow.nodes}
-          width={220}
-        />
-      </div>
-      <CardHeader className="pt-0 pb-2">
-        <CardTitle className="line-clamp-2">{workflow.name}</CardTitle>
-        {workflow.description && (
-          <CardDescription className="line-clamp-2">
-            {workflow.description}
-          </CardDescription>
-        )}
-        {actionLabels.length > 0 && (
-          <div className="flex flex-wrap gap-1 pt-1">
-            {actionLabels.map((label) => (
-              <span
-                className="rounded-full bg-[var(--color-bg-accent)] px-2 py-0.5 font-medium text-[var(--color-text-accent)] text-[10px]"
-                key={label}
-              >
-                {label}
-              </span>
-            ))}
-          </div>
-        )}
-        <WorkflowNodeIcons nodes={workflow.nodes} />
-      </CardHeader>
-      <div className="flex-1" />
-      <CardFooter className="gap-2 pt-1 pb-3">
-        <Button
-          className="flex-1"
-          disabled={isDuplicating}
-          onClick={onDuplicate}
-          variant="default"
-        >
-          {isDuplicating ? "Duplicating..." : "Use Template"}
-        </Button>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button onClick={onView} variant="outline">
-              <Eye className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top">View Template</TooltipContent>
-        </Tooltip>
-      </CardFooter>
-    </Card>
   );
 }
 
@@ -299,8 +184,8 @@ export function ProtocolDetail({
   protocol,
   onBack,
   hideBackButton,
-  pageUrl,
   modalUrl,
+  onTabChange,
 }: ProtocolDetailProps): React.ReactElement {
   const router = useRouter();
   const { data: session } = useSession();
@@ -314,39 +199,7 @@ export function ProtocolDetail({
     []
   );
   const [duplicatingIds, setDuplicatingIds] = useState<Set<string>>(new Set());
-  const scrollRef = useRef<HTMLDivElement>(null);
   const allChains = collectAllChains(protocol.contracts);
-
-  const arrowVisibility = useMemo((): string => {
-    const count = featuredWorkflows.length;
-    if (count > 4) {
-      return "flex";
-    }
-    if (count > 3) {
-      return "flex lg:hidden";
-    }
-    if (count > 2) {
-      return "flex md:hidden";
-    }
-    if (count > 1) {
-      return "flex sm:hidden";
-    }
-    return "hidden";
-  }, [featuredWorkflows.length]);
-
-  const scroll = useCallback((direction: "left" | "right") => {
-    const container = scrollRef.current;
-    if (!container) {
-      return;
-    }
-    const cardWidth = 260;
-    const gap = 16;
-    const scrollAmount = cardWidth + gap;
-    container.scrollBy({
-      left: direction === "left" ? -scrollAmount : scrollAmount,
-      behavior: "smooth",
-    });
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -574,15 +427,6 @@ export function ProtocolDetail({
                 <ExternalLink className="size-4" />
               </a>
             )}
-            {pageUrl && (
-              <Link
-                className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-0.5 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
-                href={pageUrl}
-              >
-                View as page
-                <ArrowUpRight className="size-3" />
-              </Link>
-            )}
             {modalUrl && (
               <Link
                 className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-0.5 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
@@ -609,7 +453,7 @@ export function ProtocolDetail({
         </div>
       </div>
 
-      <Tabs className="mt-6" defaultValue="actions">
+      <Tabs className="mt-6" defaultValue="actions" onValueChange={onTabChange}>
         <TabsList className="mb-4 h-auto w-full justify-start gap-4 rounded-none border-b border-border/30 bg-transparent p-0">
           <TabsTrigger className={TAB_TRIGGER_CLASS} value="actions">
             Actions ({protocol.actions.length})
@@ -656,43 +500,23 @@ export function ProtocolDetail({
 
         <TabsContent value="workflows">
           {featuredWorkflows.length > 0 ? (
-            <>
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="font-bold text-lg">Automate {protocol.name}</h3>
-                <div className={`gap-2 ${arrowVisibility}`}>
-                  <Button
-                    aria-label="Scroll left"
-                    onClick={() => scroll("left")}
-                    size="icon"
-                    variant="outline"
-                  >
-                    <ChevronLeft className="size-4" />
-                  </Button>
-                  <Button
-                    aria-label="Scroll right"
-                    onClick={() => scroll("right")}
-                    size="icon"
-                    variant="outline"
-                  >
-                    <ChevronRight className="size-4" />
-                  </Button>
-                </div>
-              </div>
-              <div
-                className="flex gap-4 overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                ref={scrollRef}
-              >
-                {featuredWorkflows.map((workflow) => (
-                  <WorkflowTemplateCard
-                    isDuplicating={duplicatingIds.has(workflow.id)}
-                    key={workflow.id}
-                    onDuplicate={() => handleDuplicate(workflow.id)}
-                    onView={() => router.push(`/workflows/${workflow.id}`)}
-                    workflow={workflow}
-                  />
-                ))}
-              </div>
-            </>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {featuredWorkflows.map((workflow) => (
+                <WorkflowTemplateCard
+                  isDuplicating={duplicatingIds.has(workflow.id)}
+                  key={workflow.id}
+                  onDuplicate={(e) => {
+                    e.stopPropagation();
+                    handleDuplicate(workflow.id);
+                  }}
+                  onPreview={(e) => {
+                    e.stopPropagation();
+                    router.push(`/workflows/${workflow.id}`);
+                  }}
+                  workflow={workflow}
+                />
+              ))}
+            </div>
           ) : (
             <p className="py-8 text-center text-muted-foreground text-sm">
               No workflows available for this protocol yet.

@@ -21,6 +21,7 @@ import {
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
 import { getErrorMessage } from "@/lib/utils";
+import { getAbiFunctionKey } from "@/lib/web3/abi-function-key";
 import { formatContractError } from "@/lib/web3/decode-revert-error";
 import { resolveGasLimitOverrides } from "@/lib/web3/gas-defaults";
 import { getGasStrategy } from "@/lib/web3/gas-strategy";
@@ -118,6 +119,8 @@ export async function writeContractCore(
       error: `Function '${abiFunction}' not found in ABI`,
     };
   }
+
+  const abiFunctionKey = getAbiFunctionKey(parsedAbi, abiFunction, functionAbi);
 
   // Parse function arguments
   let args: unknown[] = [];
@@ -273,7 +276,7 @@ export async function writeContractCore(
     // Call the contract function
     try {
       // Check if function exists
-      if (typeof contract[abiFunction] !== "function") {
+      if (typeof contract[abiFunctionKey] !== "function") {
         return {
           success: false,
           error: `Function '${abiFunction}' not found in contract ABI`,
@@ -285,13 +288,13 @@ export async function writeContractCore(
 
       // Simulate call first to get decodable revert data on failure
       // (eth_call returns revert data reliably, eth_estimateGas often does not)
-      await contract[abiFunction].staticCall(...args, valueOverride);
+      await contract[abiFunctionKey].staticCall(...args, valueOverride);
 
       // Get nonce from session
       const nonce = nonceManager.getNextNonce(session);
 
       // Estimate gas for the contract call
-      const estimatedGas = await contract[abiFunction].estimateGas(
+      const estimatedGas = await contract[abiFunctionKey].estimateGas(
         ...args,
         valueOverride
       );
@@ -320,7 +323,7 @@ export async function writeContractCore(
       });
 
       // Execute contract call with managed nonce and gas config
-      const tx = await contract[abiFunction](...args, {
+      const tx = await contract[abiFunctionKey](...args, {
         nonce,
         gasLimit: txGasConfig.gasLimit,
         maxFeePerGas: txGasConfig.maxFeePerGas,

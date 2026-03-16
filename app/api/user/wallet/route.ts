@@ -7,16 +7,17 @@ import {
   truncateAddress,
 } from "@/lib/address-utils";
 import { apiError } from "@/lib/api-error";
-import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { createIntegration } from "@/lib/db/integrations";
-import { integrations, paraWallets } from "@/lib/db/schema";
 import { encryptUserShare } from "@/lib/encryption";
+import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 import { getActiveOrgId } from "@/lib/middleware/org-context";
 import {
   getOrganizationWallet,
   organizationHasWallet,
 } from "@/lib/para/wallet-helpers";
+import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { createIntegration } from "@/lib/db/integrations";
+import { integrations, paraWallets } from "@/lib/db/schema";
 
 const PARA_API_KEY = process.env.PARA_API_KEY || "";
 const PARA_ENV = process.env.PARA_ENVIRONMENT || "beta";
@@ -203,7 +204,7 @@ async function storeWalletAndIntegration(options: {
   });
 
   console.log(
-    `[Para] ✓ Wallet created for organization ${organizationId}: ${normalizedWalletAddress}`
+    `[Para] Wallet created for organization ${organizationId}: ${normalizedWalletAddress}`
   );
 
   // Create Web3 integration record with truncated address as name
@@ -217,7 +218,7 @@ async function storeWalletAndIntegration(options: {
     config: {},
   });
 
-  console.log(`[Para] ✓ Web3 integration created: ${truncatedAddress}`);
+  console.log(`[Para] Web3 integration created: ${truncatedAddress}`);
 
   return {
     walletAddress: normalizedWalletAddress,
@@ -228,23 +229,14 @@ async function storeWalletAndIntegration(options: {
 
 export async function GET(request: Request) {
   try {
-    // Validate user and organization (no admin check for GET)
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authCtx = await resolveOrganizationId(request);
+    if ("error" in authCtx) {
+      return NextResponse.json(
+        { error: authCtx.error },
+        { status: authCtx.status }
+      );
     }
-
-    const activeOrgId = getActiveOrgId(session);
-
-    if (!activeOrgId) {
-      return NextResponse.json({
-        hasWallet: false,
-        message: "No active organization selected",
-      });
-    }
+    const { organizationId: activeOrgId } = authCtx;
 
     const hasWallet = await organizationHasWallet(activeOrgId);
 
@@ -418,7 +410,7 @@ export async function PATCH(request: Request) {
       .where(eq(paraWallets.organizationId, organizationId));
 
     console.log(
-      `[Para] ✓ Wallet email updated for organization ${organizationId}: ${newEmail}`
+      `[Para] Wallet email updated for organization ${organizationId}: ${newEmail}`
     );
 
     return NextResponse.json({
