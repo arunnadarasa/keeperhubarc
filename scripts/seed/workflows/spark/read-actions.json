@@ -51,7 +51,7 @@
       }
     },
     {
-      "id": "spark-sdai-balance",
+      "id": "spark-vault-balance",
       "type": "action",
       "position": { "x": 450, "y": 300 },
       "data": {
@@ -59,7 +59,7 @@
         "description": "Check sDAI balance of the sDAI contract",
         "type": "action",
         "config": {
-          "actionType": "spark/get-sdai-balance",
+          "actionType": "spark/vault-balance",
           "network": "1",
           "account": "0x83F20F44975D03b1b09e64809B757c47f942BEeA"
         },
@@ -67,7 +67,7 @@
       }
     },
     {
-      "id": "spark-sdai-total-assets",
+      "id": "spark-vault-total-assets",
       "type": "action",
       "position": { "x": 450, "y": 450 },
       "data": {
@@ -75,14 +75,14 @@
         "description": "Fetch total DAI assets held by sDAI vault",
         "type": "action",
         "config": {
-          "actionType": "spark/get-sdai-total-assets",
+          "actionType": "spark/vault-total-assets",
           "network": "1"
         },
         "status": "idle"
       }
     },
     {
-      "id": "spark-sdai-convert-to-assets",
+      "id": "spark-vault-convert-to-assets",
       "type": "action",
       "position": { "x": 450, "y": 600 },
       "data": {
@@ -90,7 +90,7 @@
         "description": "Convert 1 sDAI share to DAI asset value",
         "type": "action",
         "config": {
-          "actionType": "spark/get-sdai-convert-to-assets",
+          "actionType": "spark/vault-convert-to-assets",
           "network": "1",
           "shares": "1000000000000000000"
         },
@@ -112,21 +112,21 @@
       "type": "animated"
     },
     {
-      "id": "e-trigger-to-spark-sdai-balance",
+      "id": "e-trigger-to-spark-vault-balance",
       "source": "node-1",
-      "target": "spark-sdai-balance",
+      "target": "spark-vault-balance",
       "type": "animated"
     },
     {
-      "id": "e-trigger-to-spark-sdai-total-assets",
+      "id": "e-trigger-to-spark-vault-total-assets",
       "source": "node-1",
-      "target": "spark-sdai-total-assets",
+      "target": "spark-vault-total-assets",
       "type": "animated"
     },
     {
-      "id": "e-trigger-to-spark-sdai-convert-to-assets",
+      "id": "e-trigger-to-spark-vault-convert-to-assets",
       "source": "node-1",
-      "target": "spark-sdai-convert-to-assets",
+      "target": "spark-vault-convert-to-assets",
       "type": "animated"
     }
   ]

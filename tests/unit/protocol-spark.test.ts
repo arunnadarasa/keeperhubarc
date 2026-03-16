@@ -77,15 +77,15 @@ describe("Spark Protocol Definition", () => {
     }
   });
 
-  it("has exactly 20 actions", () => {
-    expect(sparkDef.actions).toHaveLength(20);
+  it("has exactly 25 actions", () => {
+    expect(sparkDef.actions).toHaveLength(25);
   });
 
-  it("has 8 write actions and 12 read actions", () => {
+  it("has 9 write actions and 16 read actions", () => {
     const readActions = sparkDef.actions.filter((a) => a.type === "read");
     const writeActions = sparkDef.actions.filter((a) => a.type === "write");
-    expect(writeActions).toHaveLength(8);
-    expect(readActions).toHaveLength(12);
+    expect(writeActions).toHaveLength(9);
+    expect(readActions).toHaveLength(16);
   });
 
   it("has 3 contracts", () => {
