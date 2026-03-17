@@ -6,7 +6,7 @@ vi.mock("@/lib/steps/step-handler", () => ({
   withStepLogging: (_input: unknown, fn: () => unknown) => fn(),
 }));
 
-vi.mock("@/keeperhub/lib/logging", () => ({
+vi.mock("@/lib/logging", () => ({
   ErrorCategory: {
     VALIDATION: "validation",
     NETWORK_RPC: "network_rpc",
@@ -84,8 +84,8 @@ vi.mock("@/lib/contracts/abis/erc20.json", () => ({
 }));
 
 // Must import AFTER all mocks
-import type { CheckAllowanceInput } from "@/keeperhub/plugins/web3/steps/check-allowance";
-import { checkAllowanceStep } from "@/keeperhub/plugins/web3/steps/check-allowance";
+import type { CheckAllowanceInput } from "@/plugins/web3/steps/check-allowance";
+import { checkAllowanceStep } from "@/plugins/web3/steps/check-allowance";
 
 const VALID_TOKEN = "0x6B175474E89094C44Da98b954EedeAC495271d0F";
 const VALID_OWNER = "0x742D35CC6634c0532925A3b844BC9E7595F0BEb0";

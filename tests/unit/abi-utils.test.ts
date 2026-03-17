@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { computeSelector } from "@/keeperhub/lib/abi-utils";
+import { computeSelector } from "@/lib/abi-utils";
 
 const SELECTOR_PATTERN = /^0x[\da-f]{8}$/;
 

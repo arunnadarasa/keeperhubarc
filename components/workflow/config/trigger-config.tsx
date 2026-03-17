@@ -16,11 +16,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TimezoneSelect } from "@/components/ui/timezone-select";
-import { buildEventAbiFragment } from "@/keeperhub/lib/protocol-registry";
+import { buildEventAbiFragment } from "@/lib/protocol-registry";
 import type {
   ProtocolDefinition,
   ProtocolEvent,
-} from "@/keeperhub/lib/protocol-registry";
+} from "@/lib/protocol-registry";
 import type { ActionConfigField } from "@/plugins/registry";
 import { ActionConfigRenderer } from "./action-config-renderer";
 import { SchemaBuilder, type SchemaField } from "./schema-builder";

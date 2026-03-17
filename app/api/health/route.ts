@@ -1,7 +1,12 @@
+import { NextResponse } from "next/server";
+
 /**
- * KeeperHub Health Check API Route
- *
- * This is a thin wrapper that re-exports the actual implementation
- * from the keeperhub directory to maintain clean separation.
+ * GET /api/health
+ * Health check endpoint for monitoring and load balancers
  */
-export { GET } from "@/keeperhub/api/health/route";
+export function GET() {
+  return NextResponse.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+  });
+}

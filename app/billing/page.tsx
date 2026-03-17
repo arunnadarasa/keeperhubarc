@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { BillingPage } from "@/keeperhub/components/billing/billing-page";
-import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
+import { BillingPage } from "@/components/billing/billing-page";
+import { isBillingEnabled } from "@/lib/billing/feature-flag";
 
 export default function BillingRoute(): React.ReactElement {
   if (!isBillingEnabled()) {

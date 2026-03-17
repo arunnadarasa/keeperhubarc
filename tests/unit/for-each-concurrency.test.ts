@@ -4,7 +4,7 @@ import {
   type ErrorHandler,
   type IterationExecutor,
   runIterations,
-} from "@/keeperhub/lib/for-each-concurrency";
+} from "@/lib/for-each-concurrency";
 
 // ---------------------------------------------------------------------------
 // Helpers

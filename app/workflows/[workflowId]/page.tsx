@@ -8,12 +8,12 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { NodeConfigPanel } from "@/components/workflow/node-config-panel";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { api } from "@/lib/api-client";
+import { authClient, useSession } from "@/lib/auth-client";
 import {
   getPendingClaim,
   useClaimWorkflow,
-} from "@/keeperhub/lib/hooks/use-claim-workflow";
-import { api } from "@/lib/api-client";
-import { authClient, useSession } from "@/lib/auth-client";
+} from "@/lib/hooks/use-claim-workflow";
 import {
   integrationsAtom,
   integrationsLoadedAtom,

@@ -5,7 +5,7 @@ vi.mock("server-only", () => ({}));
 
 const mockGetActiveDebtExecutions = vi.fn().mockResolvedValue(0);
 
-vi.mock("@/keeperhub/lib/billing/execution-debt", () => ({
+vi.mock("@/lib/billing/execution-debt", () => ({
   getActiveDebtExecutions: (...args: unknown[]) =>
     mockGetActiveDebtExecutions(...args),
 }));
@@ -27,11 +27,7 @@ function mockExecuteReturning(rows: Record<string, unknown>[]): void {
   mockExecute.mockResolvedValue(rows);
 }
 
-import type {
-  BillingInterval,
-  PlanName,
-  TierKey,
-} from "@/keeperhub/lib/billing/plans";
+import type { BillingInterval, PlanName, TierKey } from "@/lib/billing/plans";
 import {
   checkExecutionLimit,
   checkFeatureAccess,
@@ -39,7 +35,7 @@ import {
   getOrgSubscription,
   getPriceId,
   resolvePriceId,
-} from "@/keeperhub/lib/billing/plans-server";
+} from "@/lib/billing/plans-server";
 
 beforeEach(() => {
   vi.clearAllMocks();

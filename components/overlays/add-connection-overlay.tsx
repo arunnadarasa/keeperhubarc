@@ -21,7 +21,7 @@ import {
   DatabaseConnectionForm,
   validateDatabaseConfig,
   type DatabaseTab,
-} from "@/keeperhub/components/database-connection-form";
+} from "@/components/database-connection-form";
 import { getCustomIntegrationFormHandler } from "@/lib/extension-registry";
 import { integrationsAtom } from "@/lib/integrations-store";
 import type { IntegrationType } from "@/lib/types/integration";

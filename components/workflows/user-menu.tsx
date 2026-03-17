@@ -17,10 +17,16 @@ import {
   AuthDialog,
   isSingleProviderSignInInitiated,
 } from "@/components/auth/dialog";
+import { ManageOrgsModal } from "@/components/organization/manage-orgs-modal";
+import { AddressBookOverlay } from "@/components/overlays/address-book-overlay";
 import { ApiKeysOverlay } from "@/components/overlays/api-keys-overlay";
+import { FeedbackOverlay } from "@/components/overlays/feedback-overlay";
 import { IntegrationsOverlay } from "@/components/overlays/integrations-overlay";
 import { useOverlay } from "@/components/overlays/overlay-provider";
+import { ProjectsOverlay } from "@/components/overlays/projects-overlay";
 import { SettingsOverlay } from "@/components/overlays/settings-overlay";
+import { TagsOverlay } from "@/components/overlays/tags-overlay";
+import { WalletOverlay } from "@/components/overlays/wallet-overlay";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,14 +37,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ManageOrgsModal } from "@/keeperhub/components/organization/manage-orgs-modal";
-import { AddressBookOverlay } from "@/keeperhub/components/overlays/address-book-overlay";
-import { FeedbackOverlay } from "@/keeperhub/components/overlays/feedback-overlay";
-import { ProjectsOverlay } from "@/keeperhub/components/overlays/projects-overlay";
-import { TagsOverlay } from "@/keeperhub/components/overlays/tags-overlay";
-import { WalletOverlay } from "@/keeperhub/components/overlays/wallet-overlay";
-import { useOrganization } from "@/keeperhub/lib/hooks/use-organization";
 import { signOut, useSession } from "@/lib/auth-client";
+import { useOrganization } from "@/lib/hooks/use-organization";
 
 export const UserMenu = () => {
   const { data: session, isPending } = useSession();

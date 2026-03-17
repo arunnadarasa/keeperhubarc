@@ -1,6 +1,6 @@
 import { toNextJsHandler } from "better-auth/next-js";
-import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 import { auth } from "@/lib/auth";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 const handlers = toNextJsHandler(auth);
 

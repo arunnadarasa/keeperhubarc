@@ -8,7 +8,7 @@ import {
   BUILTIN_NODE_LABEL,
   BUILTIN_VARIABLE_FIELDS,
   getBuiltinVariables,
-} from "@/keeperhub/lib/builtin-variables";
+} from "@/lib/builtin-variables";
 import { evaluateConditionExpression } from "@/lib/workflow-executor.workflow";
 
 describe("builtin-variables", () => {

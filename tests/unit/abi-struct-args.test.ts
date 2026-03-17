@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reshapeArgsForAbi } from "@/keeperhub/lib/abi-struct-args";
+import { reshapeArgsForAbi } from "@/lib/abi-struct-args";
 
 describe("reshapeArgsForAbi", () => {
   it("returns empty array unchanged", () => {

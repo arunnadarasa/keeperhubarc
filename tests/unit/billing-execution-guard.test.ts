@@ -2,22 +2,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-vi.mock("@/keeperhub/lib/billing/feature-flag", () => ({
+vi.mock("@/lib/billing/feature-flag", () => ({
   isBillingEnabled: vi.fn(),
 }));
 
-vi.mock("@/keeperhub/lib/billing/plans-server", () => ({
+vi.mock("@/lib/billing/plans-server", () => ({
   checkExecutionLimit: vi.fn(),
 }));
 
-import { enforceExecutionLimit } from "@/keeperhub/lib/billing/execution-guard";
-import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
+import { enforceExecutionLimit } from "@/lib/billing/execution-guard";
+import { isBillingEnabled } from "@/lib/billing/feature-flag";
 import type {
   ExecutionLimitExceeded,
   ExecutionOverageAllowed,
   ExecutionWithinLimits,
-} from "@/keeperhub/lib/billing/plans-server";
-import { checkExecutionLimit } from "@/keeperhub/lib/billing/plans-server";
+} from "@/lib/billing/plans-server";
+import { checkExecutionLimit } from "@/lib/billing/plans-server";
 
 beforeEach(() => {
   vi.clearAllMocks();

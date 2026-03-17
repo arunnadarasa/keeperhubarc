@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
-import { getProtocol } from "@/keeperhub/lib/protocol-registry";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
+import { getProtocol } from "@/lib/protocol-registry";
 import { db } from "@/lib/db";
 import { type Chain, chains, workflows } from "@/lib/db/schema";
 import type { WorkflowNode } from "@/lib/workflow-store";

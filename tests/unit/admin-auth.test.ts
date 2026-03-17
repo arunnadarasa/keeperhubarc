@@ -1,8 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import {
-  authenticateAdmin,
-  validateTestEmail,
-} from "@/keeperhub/lib/admin-auth";
+import { authenticateAdmin, validateTestEmail } from "@/lib/admin-auth";
 
 const TEST_KEY = "kha_test-secret-key-12345";
 

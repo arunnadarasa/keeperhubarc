@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildEdgesBySourceHandle } from "@/keeperhub/lib/edge-handle-utils";
+import { buildEdgesBySourceHandle } from "@/lib/edge-handle-utils";
 import {
   type ConditionDecision,
   collectAllSkippedTargets,
   collectSkippedTargets,
-} from "@/keeperhub/lib/skipped-branch-utils";
+} from "@/lib/skipped-branch-utils";
 
 type EdgeLike = {
   source: string;

@@ -5,7 +5,7 @@
  * DO NOT EDIT MANUALLY - your changes will be overwritten!
  *
  * To add a new integration type:
- * 1. Create a plugin in plugins/ or keeperhub/plugins/ directory, OR
+ * 1. Create a plugin in plugins/ or plugins/ directory, OR
  * 2. Add a system integration to SYSTEM_INTEGRATION_TYPES in discover-plugins.ts
  * 3. Run: pnpm discover-plugins
  *

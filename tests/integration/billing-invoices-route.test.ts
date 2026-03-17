@@ -20,19 +20,19 @@ vi.mock("@/lib/auth", () => ({
 
 const mockGetOrgSubscription = vi.fn();
 
-vi.mock("@/keeperhub/lib/billing/plans-server", () => ({
+vi.mock("@/lib/billing/plans-server", () => ({
   getOrgSubscription: (...args: unknown[]) => mockGetOrgSubscription(...args),
 }));
 
 const mockListInvoices = vi.fn();
 
-vi.mock("@/keeperhub/lib/billing/providers", () => ({
+vi.mock("@/lib/billing/providers", () => ({
   getBillingProvider: () => ({
     listInvoices: mockListInvoices,
   }),
 }));
 
-import { GET } from "@/keeperhub/api/billing/invoices/route";
+import { GET } from "@/app/api/billing/invoices/route";
 
 function makeRequest(query = ""): Request {
   return new Request(`http://localhost:3000/api/billing/invoices${query}`, {

@@ -3,8 +3,8 @@ import type {
   ConditionGroup,
   ConditionOperator,
   ConditionRule,
-} from "@/keeperhub/lib/condition-builder-types";
-import { resolveConditionExpression } from "@/keeperhub/lib/condition-resolver";
+} from "@/lib/condition-builder-types";
+import { resolveConditionExpression } from "@/lib/condition-resolver";
 
 function makeGroup(
   logic: "AND" | "OR",

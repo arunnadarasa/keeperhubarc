@@ -1,16 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  resetMetricsCollector,
-  setMetricsCollector,
-} from "@/keeperhub/lib/metrics";
+import { resetMetricsCollector, setMetricsCollector } from "@/lib/metrics";
 import {
   recordPluginMetrics,
   withPluginMetrics,
-} from "@/keeperhub/lib/metrics/instrumentation/plugin";
-import {
-  MetricNames,
-  type MetricsCollector,
-} from "@/keeperhub/lib/metrics/types";
+} from "@/lib/metrics/instrumentation/plugin";
+import { MetricNames, type MetricsCollector } from "@/lib/metrics/types";
 
 describe("Plugin Metrics Instrumentation", () => {
   let mockCollector: MetricsCollector;

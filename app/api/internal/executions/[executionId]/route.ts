@@ -1,9 +1,8 @@
 import { and, eq, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
-
-import { authenticateInternalService } from "@/keeperhub/lib/internal-service-auth";
 import { db } from "@/lib/db";
 import { workflowExecutions } from "@/lib/db/schema";
+import { authenticateInternalService } from "@/lib/internal-service-auth";
 
 export async function PATCH(
   request: Request,

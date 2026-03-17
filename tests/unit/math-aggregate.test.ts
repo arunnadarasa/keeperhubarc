@@ -6,7 +6,7 @@ vi.mock("@/lib/steps/step-handler", () => ({
   withStepLogging: (_input: unknown, fn: () => unknown) => fn(),
 }));
 
-vi.mock("@/keeperhub/lib/metrics/instrumentation/plugin", () => ({
+vi.mock("@/lib/metrics/instrumentation/plugin", () => ({
   withPluginMetrics: (_opts: unknown, fn: () => unknown) => fn(),
 }));
 
@@ -14,7 +14,7 @@ import {
   type AggregateCoreInput,
   type AggregateInput,
   aggregateStep,
-} from "@/keeperhub/plugins/math/steps/aggregate";
+} from "@/plugins/math/steps/aggregate";
 
 type SuccessResult = {
   success: true;

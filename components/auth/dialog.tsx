@@ -15,13 +15,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
-import { setPendingClaim } from "@/keeperhub/lib/hooks/use-claim-workflow";
-import { refetchOrganizations } from "@/keeperhub/lib/refetch-organizations";
 import { authClient, signIn, signUp } from "@/lib/auth-client";
 import {
   getEnabledAuthProviders,
   getSingleProvider,
 } from "@/lib/auth-providers";
+import { setPendingClaim } from "@/lib/hooks/use-claim-workflow";
+import { refetchOrganizations } from "@/lib/refetch-organizations";
 
 const WORKFLOW_PATH_REGEX = /^\/workflows\/([^/]+)$/;
 
