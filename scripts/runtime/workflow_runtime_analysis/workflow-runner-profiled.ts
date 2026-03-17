@@ -730,10 +730,11 @@ async function main(): Promise<void> {
     // Resolve organization name for log filtering
     let organizationName: string | undefined;
     if (workflow.organizationId) {
-      const org = await db.query.organization.findFirst({
-        where: eq(organization.id, workflow.organizationId),
-        columns: { name: true },
-      });
+      const [org] = await db
+        .select({ name: organization.name })
+        .from(organization)
+        .where(eq(organization.id, workflow.organizationId))
+        .limit(1);
       organizationName = org?.name;
     }
 

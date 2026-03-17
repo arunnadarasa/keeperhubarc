@@ -319,7 +319,6 @@ export function evaluateConditionExpression(
         "[Condition] Failed to evaluate user expression:",
         error,
         {
-          ...baseLogLabels,
           expression: conditionExpression,
         }
       );
