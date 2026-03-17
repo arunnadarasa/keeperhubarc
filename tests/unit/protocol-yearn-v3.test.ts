@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  getProtocol,
-  registerProtocol,
-} from "@/lib/protocol-registry";
+import { getProtocol, registerProtocol } from "@/lib/protocol-registry";
 import yearnV3Def from "@/protocols/yearn-v3";
 
 const KEBAB_CASE_REGEX = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;

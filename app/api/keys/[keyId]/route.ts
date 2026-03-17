@@ -1,9 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 import { db } from "@/lib/db";
 import { organizationApiKeys } from "@/lib/db/schema";
-import { getOrgContext } from "@/lib/middleware/org-context";
+import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 
 // DELETE - Revoke an API key
 export async function DELETE(

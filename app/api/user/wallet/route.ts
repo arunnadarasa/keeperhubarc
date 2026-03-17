@@ -7,6 +7,10 @@ import {
   truncateAddress,
 } from "@/lib/address-utils";
 import { apiError } from "@/lib/api-error";
+import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { createIntegration } from "@/lib/db/integrations";
+import { integrations, paraWallets } from "@/lib/db/schema";
 import { encryptUserShare } from "@/lib/encryption";
 import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 import { getActiveOrgId } from "@/lib/middleware/org-context";
@@ -14,10 +18,6 @@ import {
   getOrganizationWallet,
   organizationHasWallet,
 } from "@/lib/para/wallet-helpers";
-import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { createIntegration } from "@/lib/db/integrations";
-import { integrations, paraWallets } from "@/lib/db/schema";
 
 const PARA_API_KEY = process.env.PARA_API_KEY || "";
 const PARA_ENV = process.env.PARA_ENVIRONMENT || "beta";

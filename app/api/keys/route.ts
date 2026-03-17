@@ -1,10 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { organizationApiKeys, users } from "@/lib/db/schema";
+import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 import { getOrgContext } from "@/lib/middleware/org-context";
 
 // Generate a secure API key with KeeperHub prefix

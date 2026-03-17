@@ -3,9 +3,9 @@
 import { useRouter } from "next/navigation";
 import { type MouseEvent, useState } from "react";
 import { toast } from "sonner";
-import { refetchSidebar } from "@/lib/refetch-sidebar";
 import { api, type SavedWorkflow } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
+import { refetchSidebar } from "@/lib/refetch-sidebar";
 import { WorkflowTemplateCard } from "./workflow-template-card";
 
 type WorkflowTemplateGridProps = {

@@ -1,12 +1,12 @@
 import { count, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { projects, workflows } from "@/lib/db/schema";
 import {
   resolveCreatorContext,
   resolveOrganizationId,
 } from "@/lib/middleware/auth-helpers";
 import { COLOR_PALETTE } from "@/lib/palette";
-import { db } from "@/lib/db";
-import { projects, workflows } from "@/lib/db/schema";
 
 export async function GET(request: Request) {
   try {

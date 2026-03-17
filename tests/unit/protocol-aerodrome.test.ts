@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  getProtocol,
-  registerProtocol,
-} from "@/lib/protocol-registry";
+import { getProtocol, registerProtocol } from "@/lib/protocol-registry";
 import aerodromeDef from "@/protocols/aerodrome";
 
 const KEBAB_CASE_REGEX = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;

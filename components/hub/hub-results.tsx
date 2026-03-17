@@ -2,8 +2,8 @@
 
 import { Search, Workflow } from "lucide-react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { WorkflowTemplateGrid } from "@/components/hub/workflow-template-grid";
+import { Button } from "@/components/ui/button";
 import type { SavedWorkflow } from "@/lib/api-client";
 
 type HubResultsProps = {

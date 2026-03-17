@@ -3,11 +3,11 @@ import { ethers } from "ethers";
 import { NextResponse } from "next/server";
 import { normalizeAddressForStorage } from "@/lib/address-utils";
 import { apiError } from "@/lib/api-error";
-import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
-import { organizationHasWallet } from "@/lib/para/wallet-helpers";
 import ERC20_ABI from "@/lib/contracts/abis/erc20.json";
 import { db } from "@/lib/db";
 import { chains, organizationTokens, supportedTokens } from "@/lib/db/schema";
+import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
+import { organizationHasWallet } from "@/lib/para/wallet-helpers";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
 
 /**

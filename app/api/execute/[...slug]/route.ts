@@ -4,6 +4,7 @@ import "@/protocols";
 import { NextResponse } from "next/server";
 import { resolveAbi } from "@/lib/abi-cache";
 import { getProtocol } from "@/lib/protocol-registry";
+import { PLUGIN_STEP_IMPORTERS } from "@/lib/step-registry";
 import { resolveProtocolMeta } from "@/plugins/protocol/steps/resolve-protocol-meta";
 import {
   type ReadContractCoreInput,
@@ -13,7 +14,6 @@ import {
   type WriteContractCoreInput,
   writeContractCore,
 } from "@/plugins/web3/steps/write-contract-core";
-import { PLUGIN_STEP_IMPORTERS } from "@/lib/step-registry";
 import { validateApiKey } from "../_lib/auth";
 import { checkRateLimit } from "../_lib/rate-limit";
 

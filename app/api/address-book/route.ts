@@ -2,12 +2,12 @@ import { desc, eq, inArray } from "drizzle-orm";
 import { ethers } from "ethers";
 import { NextResponse } from "next/server";
 import { normalizeAddressForStorage } from "@/lib/address-utils";
+import { db } from "@/lib/db";
+import { addressBookEntry, users } from "@/lib/db/schema";
 import {
   resolveCreatorContext,
   resolveOrganizationId,
 } from "@/lib/middleware/auth-helpers";
-import { db } from "@/lib/db";
-import { addressBookEntry, users } from "@/lib/db/schema";
 
 // GET - List all address book entries for the current organization
 export async function GET(request: Request) {

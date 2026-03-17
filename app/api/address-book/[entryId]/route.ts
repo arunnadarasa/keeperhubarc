@@ -2,9 +2,9 @@ import { and, eq } from "drizzle-orm";
 import { ethers } from "ethers";
 import { NextResponse } from "next/server";
 import { normalizeAddressForStorage } from "@/lib/address-utils";
-import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 import { db } from "@/lib/db";
 import { addressBookEntry } from "@/lib/db/schema";
+import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 
 // Helper: Get existing entry and validate it belongs to organization
 async function getExistingEntry(entryId: string, activeOrgId: string) {
