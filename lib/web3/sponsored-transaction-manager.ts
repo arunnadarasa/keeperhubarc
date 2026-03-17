@@ -1,15 +1,17 @@
 import "server-only";
 import type { Address, Hex } from "viem";
 import { createPublicClient, encodeFunctionData, http } from "viem";
-import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
+import { isBillingEnabled } from "@/lib/billing/feature-flag";
 import {
   checkGasCredits,
   getEthPriceUsd,
   recordGasUsage,
-} from "@/keeperhub/lib/billing/gas-credits";
-import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
-import { isSponsorshipSupported } from "@/keeperhub/lib/web3/pimlico-config";
-import { createSponsoredClient } from "@/keeperhub/lib/web3/sponsored-client";
+} from "@/lib/billing/gas-credits";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
+import { getMetricsCollector } from "@/lib/metrics";
+import { MetricNames } from "@/lib/metrics/types";
+import { isSponsorshipSupported } from "@/lib/web3/pimlico-config";
+import { createSponsoredClient } from "@/lib/web3/sponsored-client";
 
 type SponsoredTransactionResult = {
   success: true;
@@ -218,12 +220,27 @@ async function finalizeSponsoredTx(
     );
   }
 
-  console.info("[Sponsorship] Sponsored transaction confirmed", {
-    organizationId,
-    chainId,
-    txHash,
-    gasUsed: gasUsed.toString(),
-  });
+  const gasCostWei = gasUsed * effectiveGasPrice;
+  const gasCostEth = Number(gasCostWei) / 1e18;
+  const gasCostUsd = gasCostEth * ethPriceUsd;
+
+  const metrics = getMetricsCollector();
+  const labels = {
+    chain_id: chainId.toString(),
+    organization_id: organizationId,
+  };
+
+  metrics.incrementCounter(MetricNames.SPONSORSHIP_TRANSACTIONS_TOTAL, labels);
+  metrics.incrementCounter(
+    MetricNames.SPONSORSHIP_GAS_USED_TOTAL,
+    labels,
+    Number(gasUsed)
+  );
+  metrics.incrementCounter(
+    MetricNames.SPONSORSHIP_GAS_COST_USD_MICRO_TOTAL,
+    labels,
+    Math.ceil(gasCostUsd * 1_000_000)
+  );
 
   return {
     success: true,
