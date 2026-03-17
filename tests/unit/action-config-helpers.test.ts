@@ -4,7 +4,7 @@ import {
   extractObjectPaths,
   resolveArraySourceElement,
   traverseDotPath,
-} from "@/keeperhub/lib/for-each-utils";
+} from "@/lib/for-each-utils";
 
 // ---------------------------------------------------------------------------
 // Tests

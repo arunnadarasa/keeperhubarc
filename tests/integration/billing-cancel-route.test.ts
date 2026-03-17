@@ -42,13 +42,13 @@ vi.mock("@/lib/db/schema", () => ({
 
 const mockCancelSubscription = vi.fn();
 
-vi.mock("@/keeperhub/lib/billing/providers", () => ({
+vi.mock("@/lib/billing/providers", () => ({
   getBillingProvider: () => ({
     cancelSubscription: mockCancelSubscription,
   }),
 }));
 
-import { POST } from "@/keeperhub/api/billing/cancel/route";
+import { POST } from "@/app/api/billing/cancel/route";
 
 function mockSession(): void {
   mockGetSession.mockResolvedValue({

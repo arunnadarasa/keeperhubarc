@@ -3,7 +3,7 @@ import { isAiGatewayManagedKeysEnabled } from "@/lib/ai-gateway/config";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
-import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
+import { ErrorCategory, logUserError } from "@/lib/logging";
 
 export type VercelTeam = {
   id: string;

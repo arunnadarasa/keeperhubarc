@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
-import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
 import { auth } from "@/lib/auth";
 import { createIntegration, getIntegrations } from "@/lib/db/integrations";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
+import { getOrgContext } from "@/lib/middleware/org-context";
 import type {
   IntegrationConfig,
   IntegrationType,

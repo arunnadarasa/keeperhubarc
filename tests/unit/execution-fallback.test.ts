@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockLogSystemError = vi.fn();
-vi.mock("@/keeperhub/lib/logging", () => ({
+vi.mock("@/lib/logging", () => ({
   ErrorCategory: { INFRASTRUCTURE: "INFRASTRUCTURE" },
   logSystemError: (...args: unknown[]) => mockLogSystemError(...args),
 }));
 
-import { fallbackCompleteExecution } from "@/keeperhub/lib/execution-fallback";
+import { fallbackCompleteExecution } from "@/lib/execution-fallback";
 
 describe("fallbackCompleteExecution", () => {
   let consoleWarnSpy: ReturnType<typeof vi.spyOn>;

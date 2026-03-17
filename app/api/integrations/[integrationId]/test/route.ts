@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
 import { auth } from "@/lib/auth";
 import {
   getIntegration as getIntegrationFromDb,
   mergeDatabaseConfig,
 } from "@/lib/db/integrations";
 import { handleDatabaseTest, handlePluginTest } from "@/lib/db/test-connection";
+import { getOrgContext } from "@/lib/middleware/org-context";
 import type { IntegrationConfig } from "@/lib/types/integration";
 
 export type { TestConnectionResult } from "@/lib/db/test-connection";

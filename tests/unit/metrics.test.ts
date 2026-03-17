@@ -6,17 +6,17 @@ import {
   setMetricsCollector,
   withLatencyTracking,
   withMetrics,
-} from "@/keeperhub/lib/metrics";
+} from "@/lib/metrics";
 import {
   consoleMetricsCollector,
   createPrefixedConsoleCollector,
-} from "@/keeperhub/lib/metrics/collectors/console";
-import { noopMetricsCollector } from "@/keeperhub/lib/metrics/collectors/noop";
+} from "@/lib/metrics/collectors/console";
+import { noopMetricsCollector } from "@/lib/metrics/collectors/noop";
 import {
   LabelKeys,
   MetricNames,
   type MetricsCollector,
-} from "@/keeperhub/lib/metrics/types";
+} from "@/lib/metrics/types";
 
 describe("Metrics Collectors", () => {
   beforeEach(() => {

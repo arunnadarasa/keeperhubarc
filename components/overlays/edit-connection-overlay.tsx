@@ -11,7 +11,7 @@ import {
   detectDefaultTab,
   validateDatabaseConfig,
   type DatabaseTab,
-} from "@/keeperhub/components/database-connection-form";
+} from "@/components/database-connection-form";
 import { getCustomIntegrationFormHandler } from "@/lib/extension-registry";
 import type { IntegrationConfig } from "@/lib/types/integration";
 import { getIntegration, getIntegrationLabels } from "@/plugins/registry";

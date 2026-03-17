@@ -1,10 +1,10 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-import { enforceExecutionLimit } from "@/keeperhub/lib/billing/execution-guard";
-import { authenticateInternalService } from "@/keeperhub/lib/internal-service-auth";
+import { enforceExecutionLimit } from "@/lib/billing/execution-guard";
 import { db } from "@/lib/db";
 import { workflowExecutions, workflows } from "@/lib/db/schema";
+import { authenticateInternalService } from "@/lib/internal-service-auth";
 
 export async function POST(request: Request): Promise<NextResponse> {
   const auth = authenticateInternalService(request);

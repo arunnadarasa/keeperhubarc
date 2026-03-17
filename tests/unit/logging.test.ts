@@ -1,18 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  ErrorCategory,
-  logSystemError,
-  logUserError,
-} from "@/keeperhub/lib/logging";
-import {
-  resetMetricsCollector,
-  setMetricsCollector,
-} from "@/keeperhub/lib/metrics";
+import { ErrorCategory, logSystemError, logUserError } from "@/lib/logging";
+import { resetMetricsCollector, setMetricsCollector } from "@/lib/metrics";
 import {
   LabelKeys,
   MetricNames,
   type MetricsCollector,
-} from "@/keeperhub/lib/metrics/types";
+} from "@/lib/metrics/types";
 
 describe("Unified Logging Helpers", () => {
   let mockCollector: MetricsCollector;

@@ -31,18 +31,9 @@ import {
 vi.unmock("@/lib/db");
 vi.mock("server-only", () => ({}));
 
-import {
-  pendingTransactions,
-  walletLocks,
-} from "@/keeperhub/db/schema-extensions";
-import {
-  AdaptiveGasStrategy,
-  resetGasStrategy,
-} from "@/keeperhub/lib/web3/gas-strategy";
-import {
-  NonceManager,
-  resetNonceManager,
-} from "@/keeperhub/lib/web3/nonce-manager";
+import { pendingTransactions, walletLocks } from "@/db/schema-extensions";
+import { AdaptiveGasStrategy, resetGasStrategy } from "@/lib/web3/gas-strategy";
+import { NonceManager, resetNonceManager } from "@/lib/web3/nonce-manager";
 
 // Skip if infrastructure not available
 const shouldSkip =
@@ -701,7 +692,7 @@ describe.skipIf(skipRealTx)("Real Transaction Tests (Sepolia)", () => {
     const { Environment, Para: ParaServer } = await import(
       "@getpara/server-sdk"
     );
-    const { decryptUserShare } = await import("@/keeperhub/lib/encryption");
+    const { decryptUserShare } = await import("@/lib/encryption");
 
     const paraClient = new ParaServer(
       process.env.PARA_ENVIRONMENT === "prod"

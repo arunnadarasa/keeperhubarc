@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { testCode } from "@/keeperhub/plugins/code/test";
+import { testCode } from "@/plugins/code/test";
 
 describe("code/test - VM sanity check", () => {
   it("succeeds when VM is functional", async () => {

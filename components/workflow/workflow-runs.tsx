@@ -16,14 +16,14 @@ import {
 import Image from "next/image";
 import type { JSX } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toChecksumAddress } from "@/keeperhub/lib/address-utils";
+import { toChecksumAddress } from "@/lib/address-utils";
 import {
   FOR_EACH_GROUP_TYPE,
   buildChildLogsLookup,
   groupLogsByIteration,
   type ChildLogsLookup,
   type IterationGroup,
-} from "@/keeperhub/lib/iteration-grouping";
+} from "@/lib/iteration-grouping";
 import { api } from "@/lib/api-client";
 import {
   OUTPUT_DISPLAY_CONFIGS,
@@ -585,7 +585,7 @@ function ExecutionProgress({ execution }: { execution: WorkflowExecution }) {
 
 // Types and functions (ExecutionLog, IterationGroup, GroupedLogEntry,
 // buildIterationGroups, groupLogsByIteration) imported from
-// @/keeperhub/lib/iteration-grouping
+// @/lib/iteration-grouping
 
 /** Sum the duration (ms) of all logs in an iteration. */
 function computeIterationDuration(

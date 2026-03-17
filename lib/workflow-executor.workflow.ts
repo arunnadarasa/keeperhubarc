@@ -7,38 +7,38 @@ import {
   BUILTIN_NODE_ID,
   BUILTIN_NODE_LABEL,
   getBuiltinVariables,
-} from "@/keeperhub/lib/builtin-variables";
+} from "@/lib/builtin-variables";
 import {
   ErrorCategory,
   logSystemError,
   logUserError,
-} from "@/keeperhub/lib/logging";
-import { getMetricsCollector } from "@/keeperhub/lib/metrics";
-import { LabelKeys, MetricNames } from "@/keeperhub/lib/metrics/types";
+} from "@/lib/logging";
+import { getMetricsCollector } from "@/lib/metrics";
+import { LabelKeys, MetricNames } from "@/lib/metrics/types";
 import {
   decrementConcurrentExecutions,
   incrementConcurrentExecutions,
-} from "@/keeperhub/lib/metrics/instrumentation/saturation";
+} from "@/lib/metrics/instrumentation/saturation";
 import {
   detectTriggerType,
   recordWorkflowComplete,
-} from "@/keeperhub/lib/metrics/instrumentation/workflow";
-import { clearExecution } from "@/keeperhub/lib/step-success-tracker";
-import { ARRAY_SOURCE_RE } from "@/keeperhub/lib/for-each-utils";
+} from "@/lib/metrics/instrumentation/workflow";
+import { clearExecution } from "@/lib/step-success-tracker";
+import { ARRAY_SOURCE_RE } from "@/lib/for-each-utils";
 import {
   buildEdgesBySourceHandle,
   type EdgesBySourceHandle,
-} from "@/keeperhub/lib/edge-handle-utils";
+} from "@/lib/edge-handle-utils";
 import {
   collectAllSkippedTargets,
   collectSkippedTargets,
   type ConditionDecision,
-} from "@/keeperhub/lib/skipped-branch-utils";
-import { resolveConditionExpression } from "@/keeperhub/lib/condition-resolver";
+} from "@/lib/skipped-branch-utils";
+import { resolveConditionExpression } from "@/lib/condition-resolver";
 import {
   applyBigIntConversion,
   needsBigIntMode,
-} from "@/keeperhub/lib/bigint-condition-utils";
+} from "@/lib/bigint-condition-utils";
 import {
   preValidateConditionExpression,
   validateConditionExpression,
@@ -74,13 +74,13 @@ const SYSTEM_ACTIONS: Record<string, StepImporter> = {
   "For Each": {
     importer: () =>
       // biome-ignore lint/suspicious/noExplicitAny: Dynamic module import matches existing pattern
-      import("@/keeperhub/lib/steps/for-each") as Promise<any>,
+      import("@/lib/steps/for-each") as Promise<any>,
     stepFunction: "forEachStep",
   },
   Collect: {
     importer: () =>
       // biome-ignore lint/suspicious/noExplicitAny: Dynamic module import matches existing pattern
-      import("@/keeperhub/lib/steps/collect") as Promise<any>,
+      import("@/lib/steps/collect") as Promise<any>,
     stepFunction: "collectStep",
   },
 };
@@ -1498,7 +1498,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
 
     // 4. Run iterations with configurable concurrency
     const { runIterations } = await import(
-      "@/keeperhub/lib/for-each-concurrency"
+      "@/lib/for-each-concurrency"
     );
     const concurrencyMode =
       (processedConfig.concurrency as string) || "sequential";
@@ -1679,7 +1679,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             if (config.network) {
               try {
                 const { enrichExplorerLinks } = await import(
-                  "@/keeperhub/lib/steps/enrich-explorer-links"
+                  "@/lib/steps/enrich-explorer-links"
                 );
                 await enrichExplorerLinks(
                   triggerData,

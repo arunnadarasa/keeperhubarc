@@ -106,23 +106,23 @@ const STEP_REGISTRY: Record<string, { path: string; fn: string }> = {
     fn: "sendSlackMessageStep",
   },
   "discord/send-message": {
-    path: "../../keeperhub/plugins/discord/steps/send-message",
+    path: "../../plugins/discord/steps/send-message",
     fn: "sendDiscordMessageStep",
   },
   "web3/check-balance": {
-    path: "../../keeperhub/plugins/web3/steps/check-balance",
+    path: "../../plugins/web3/steps/check-balance",
     fn: "checkBalanceStep",
   },
   "web3/transfer-funds": {
-    path: "../../keeperhub/plugins/web3/steps/transfer-funds",
+    path: "../../plugins/web3/steps/transfer-funds",
     fn: "transferFundsStep",
   },
   "webhook/send-webhook": {
-    path: "../../keeperhub/plugins/webhook/steps/send-webhook",
+    path: "../../plugins/webhook/steps/send-webhook",
     fn: "sendWebhookStep",
   },
   "sendgrid/send-email": {
-    path: "../../keeperhub/plugins/sendgrid/steps/send-email",
+    path: "../../plugins/sendgrid/steps/send-email",
     fn: "sendEmailStep",
   },
   "resend/send-email": {

@@ -6,7 +6,7 @@ vi.mock("@/lib/steps/step-handler", () => ({
   withStepLogging: (_input: unknown, fn: () => unknown) => fn(),
 }));
 
-vi.mock("@/keeperhub/lib/logging", () => ({
+vi.mock("@/lib/logging", () => ({
   ErrorCategory: {
     VALIDATION: "validation",
     TRANSACTION: "transaction",
@@ -73,7 +73,7 @@ vi.mock("@/lib/explorer", () => ({
 
 // Mock organization context
 const mockResolveOrgContext = vi.fn();
-vi.mock("@/keeperhub/lib/web3/resolve-org-context", () => ({
+vi.mock("@/lib/web3/resolve-org-context", () => ({
   resolveOrganizationContext: (...args: unknown[]) =>
     mockResolveOrgContext(...args),
 }));
@@ -81,14 +81,14 @@ vi.mock("@/keeperhub/lib/web3/resolve-org-context", () => ({
 // Mock wallet helpers
 const mockGetWalletAddress = vi.fn();
 const mockInitializeSigner = vi.fn();
-vi.mock("@/keeperhub/lib/para/wallet-helpers", () => ({
+vi.mock("@/lib/para/wallet-helpers", () => ({
   getOrganizationWalletAddress: (...args: unknown[]) =>
     mockGetWalletAddress(...args),
   initializeParaSigner: (...args: unknown[]) => mockInitializeSigner(...args),
 }));
 
 // Mock gas helpers
-vi.mock("@/keeperhub/lib/web3/gas-defaults", () => ({
+vi.mock("@/lib/web3/gas-defaults", () => ({
   resolveGasLimitOverrides: () => ({
     multiplierOverride: undefined,
     gasLimitOverride: undefined,
@@ -96,7 +96,7 @@ vi.mock("@/keeperhub/lib/web3/gas-defaults", () => ({
 }));
 
 const mockGetGasConfig = vi.fn();
-vi.mock("@/keeperhub/lib/web3/gas-strategy", () => ({
+vi.mock("@/lib/web3/gas-strategy", () => ({
   getGasStrategy: () => ({
     getGasConfig: mockGetGasConfig,
   }),
@@ -105,7 +105,7 @@ vi.mock("@/keeperhub/lib/web3/gas-strategy", () => ({
 const mockGetNextNonce = vi.fn();
 const mockRecordTransaction = vi.fn();
 const mockConfirmTransaction = vi.fn();
-vi.mock("@/keeperhub/lib/web3/nonce-manager", () => ({
+vi.mock("@/lib/web3/nonce-manager", () => ({
   getNonceManager: () => ({
     getNextNonce: mockGetNextNonce,
     recordTransaction: mockRecordTransaction,
@@ -113,7 +113,7 @@ vi.mock("@/keeperhub/lib/web3/nonce-manager", () => ({
   }),
 }));
 
-vi.mock("@/keeperhub/lib/web3/transaction-manager", () => ({
+vi.mock("@/lib/web3/transaction-manager", () => ({
   withNonceSession: (
     _ctx: unknown,
     _wallet: unknown,
@@ -154,8 +154,8 @@ vi.mock("@/lib/contracts/abis/erc20.json", () => ({
 }));
 
 // Must import AFTER all mocks
-import type { ApproveTokenCoreInput } from "@/keeperhub/plugins/web3/steps/approve-token-core";
-import { approveTokenCore } from "@/keeperhub/plugins/web3/steps/approve-token-core";
+import type { ApproveTokenCoreInput } from "@/plugins/web3/steps/approve-token-core";
+import { approveTokenCore } from "@/plugins/web3/steps/approve-token-core";
 
 const VALID_TOKEN = "0x6B175474E89094C44Da98b954EedeAC495271d0F";
 const VALID_SPENDER = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";

@@ -1,0 +1,162 @@
+import "server-only";
+
+import { fetchCredentials } from "@/lib/credential-fetcher";
+import { ErrorCategory, logUserError } from "@/lib/logging";
+import { withPluginMetrics } from "@/lib/metrics/instrumentation/plugin";
+import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
+import { getErrorMessage } from "@/lib/utils";
+import type { DiscordCredentials } from "../credentials";
+
+type DiscordWebhookResponse = {
+  id?: string;
+  type?: number;
+  channel_id?: string;
+  message?: string;
+  code?: number;
+};
+
+type SendDiscordMessageResult =
+  | { success: true; messageId: string }
+  | { success: false; error: string };
+
+export type SendDiscordMessageCoreInput = {
+  discordMessage: string;
+};
+
+export type SendDiscordMessageInput = StepInput &
+  SendDiscordMessageCoreInput & {
+    integrationId: string;
+  };
+
+/**
+ * Core logic - portable between app and export
+ */
+async function stepHandler(
+  input: SendDiscordMessageCoreInput,
+  credentials: DiscordCredentials
+): Promise<SendDiscordMessageResult> {
+  console.log("[Discord] Starting send message step");
+
+  const webhookUrl = credentials.webhookUrl;
+
+  if (!webhookUrl) {
+    logUserError(
+      ErrorCategory.CONFIGURATION,
+      "[Discord] No webhook URL provided in integration",
+      undefined,
+      {
+        plugin_name: "discord",
+        action_name: "send-message",
+      }
+    );
+    return {
+      success: false,
+      error:
+        "Discord webhook URL is required. Please configure it in the integration settings.",
+    };
+  }
+
+  // Validate webhook URL format
+  if (!webhookUrl.includes("discord.com/api/webhooks/")) {
+    logUserError(
+      ErrorCategory.VALIDATION,
+      "[Discord] Invalid webhook URL format",
+      webhookUrl,
+      {
+        plugin_name: "discord",
+        action_name: "send-message",
+      }
+    );
+    return {
+      success: false,
+      error: "Invalid Discord webhook URL format",
+    };
+  }
+
+  try {
+    console.log("[Discord] Sending message to webhook");
+
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        content: input.discordMessage,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = (await response
+        .json()
+        .catch(() => ({}))) as DiscordWebhookResponse;
+      logUserError(
+        ErrorCategory.EXTERNAL_SERVICE,
+        "[Discord] API error:",
+        errorData,
+        {
+          plugin_name: "discord",
+          action_name: "send-message",
+          service: "discord",
+        }
+      );
+      return {
+        success: false,
+        error:
+          errorData.message ||
+          `HTTP ${response.status}: Failed to send Discord message`,
+      };
+    }
+
+    // Discord webhooks return 204 No Content on success or the message object
+    const result =
+      response.status === 204
+        ? null
+        : ((await response.json().catch(() => ({}))) as DiscordWebhookResponse);
+
+    console.log("[Discord] Message sent successfully");
+
+    return {
+      success: true,
+      messageId: result?.id || "sent",
+    };
+  } catch (error) {
+    logUserError(
+      ErrorCategory.EXTERNAL_SERVICE,
+      "[Discord] Error sending message:",
+      error,
+      {
+        plugin_name: "discord",
+        action_name: "send-message",
+        service: "discord",
+      }
+    );
+    return {
+      success: false,
+      error: `Failed to send Discord message: ${getErrorMessage(error)}`,
+    };
+  }
+}
+
+/**
+ * App entry point - fetches credentials and wraps with logging
+ */
+export async function sendDiscordMessageStep(
+  input: SendDiscordMessageInput
+): Promise<SendDiscordMessageResult> {
+  "use step";
+
+  const credentials = await fetchCredentials(input.integrationId);
+
+  return withPluginMetrics(
+    {
+      pluginName: "discord",
+      actionName: "send-message",
+      executionId: input._context?.executionId,
+    },
+    () => withStepLogging(input, () => stepHandler(input, credentials))
+  );
+}
+sendDiscordMessageStep.maxRetries = 0;
+
+export const _integrationType = "discord";

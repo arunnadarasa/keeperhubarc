@@ -5,10 +5,10 @@ import { nanoid } from "nanoid";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { isAnonymousUser } from "@/keeperhub/lib/is-anonymous";
-import { refetchSidebar } from "@/keeperhub/lib/refetch-sidebar";
 import { api } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
+import { isAnonymousUser } from "@/lib/is-anonymous";
+import { refetchSidebar } from "@/lib/refetch-sidebar";
 import {
   currentWorkflowIdAtom,
   currentWorkflowNameAtom,

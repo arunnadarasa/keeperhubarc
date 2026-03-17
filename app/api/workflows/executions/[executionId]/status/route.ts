@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
-import { createTimer } from "@/keeperhub/lib/metrics";
-import { recordStatusPollMetrics } from "@/keeperhub/lib/metrics/instrumentation/api";
-import { getDualAuthContext } from "@/keeperhub/lib/middleware/auth-helpers";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
+import { createTimer } from "@/lib/metrics";
+import { recordStatusPollMetrics } from "@/lib/metrics/instrumentation/api";
+import { getDualAuthContext } from "@/lib/middleware/auth-helpers";
 import { db } from "@/lib/db";
 import { workflowExecutionLogs, workflowExecutions } from "@/lib/db/schema";
 

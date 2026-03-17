@@ -8,12 +8,12 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/keeperhub/lib/billing/plans-server", () => ({
+vi.mock("@/lib/billing/plans-server", () => ({
   getOrgSubscription: vi.fn(),
 }));
 
-import { getOrgSubscription } from "@/keeperhub/lib/billing/plans-server";
-import { getUpgradeSuggestion } from "@/keeperhub/lib/billing/tier-suggestions";
+import { getOrgSubscription } from "@/lib/billing/plans-server";
+import { getUpgradeSuggestion } from "@/lib/billing/tier-suggestions";
 import { db } from "@/lib/db";
 
 beforeEach(() => {

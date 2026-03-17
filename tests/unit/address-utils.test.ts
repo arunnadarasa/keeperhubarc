@@ -4,7 +4,7 @@ import {
   normalizeAddressForStorage,
   toChecksumAddress,
   truncateAddress,
-} from "@/keeperhub/lib/address-utils";
+} from "@/lib/address-utils";
 
 describe("address-utils", () => {
   const lowercaseAddress = "0xae36bc35098e24bbaed3dee86ec4653eb88a71a9";

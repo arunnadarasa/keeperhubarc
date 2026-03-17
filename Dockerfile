@@ -55,7 +55,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=source /app/drizzle ./drizzle
 COPY --from=source /app/drizzle.config.ts ./drizzle.config.ts
 COPY --from=source /app/lib ./lib
-COPY --from=source /app/keeperhub ./keeperhub
+COPY --from=source /app/db ./db
+COPY --from=source /app/plugins ./plugins
 COPY --from=source /app/scripts ./scripts
 COPY --from=source /app/package.json ./package.json
 COPY --from=source /app/tsconfig.json ./tsconfig.json
@@ -93,7 +94,8 @@ COPY --from=deps /etc/ssl/certs/rds-combined-ca-bundle.pem /etc/ssl/certs/rds-co
 COPY --from=scheduler-deps /app/node_modules ./node_modules
 COPY --from=source /app/scripts ./scripts
 COPY --from=source /app/lib ./lib
-COPY --from=source /app/keeperhub ./keeperhub
+COPY --from=source /app/db ./db
+COPY --from=source /app/plugins ./plugins
 COPY --from=source /app/package.json ./package.json
 COPY --from=source /app/tsconfig.json ./tsconfig.json
 
@@ -117,8 +119,9 @@ COPY --from=deps /etc/ssl/certs/rds-combined-ca-bundle.pem /etc/ssl/certs/rds-co
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=source /app/scripts/runtime/workflow-runner.ts ./scripts/runtime/workflow-runner.ts
 COPY --from=source /app/lib ./lib
+COPY --from=source /app/db ./db
 COPY --from=source /app/plugins ./plugins
-COPY --from=source /app/keeperhub ./keeperhub
+COPY --from=source /app/protocols ./protocols
 COPY --from=source /app/package.json ./package.json
 COPY --from=source /app/tsconfig.json ./tsconfig.json
 
@@ -128,7 +131,7 @@ COPY --from=builder /app/lib/codegen-registry.ts ./lib/codegen-registry.ts
 COPY --from=builder /app/lib/output-display-configs.ts ./lib/output-display-configs.ts
 COPY --from=builder /app/lib/types/integration.ts ./lib/types/integration.ts
 COPY --from=builder /app/plugins/index.ts ./plugins/index.ts
-COPY --from=builder /app/keeperhub/plugins/index.ts ./keeperhub/plugins/index.ts
+COPY --from=builder /app/protocols/index.ts ./protocols/index.ts
 
 # Create a shim for 'server-only' package - the runner runs outside Next.js
 # so we replace the package with an empty module that doesn't throw
@@ -165,7 +168,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Copy OG image fonts for server-side image generation
-COPY --from=source --chown=nextjs:nodejs /app/keeperhub/api/og/fonts ./keeperhub/api/og/fonts
+COPY --from=source --chown=nextjs:nodejs /app/app/api/og/fonts ./app/api/og/fonts
 
 # Copy deploy scripts (used by cronjobs)
 COPY --from=source /app/deploy/scripts ./deploy/scripts

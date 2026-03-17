@@ -2,14 +2,14 @@
 
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { HubHero } from "@/keeperhub/components/hub/hub-hero";
-import { HubResults } from "@/keeperhub/components/hub/hub-results";
-import { ProtocolDetailModal } from "@/keeperhub/components/hub/protocol-detail-modal";
-import { ProtocolStrip } from "@/keeperhub/components/hub/protocol-strip";
-import { WorkflowSearchFilter } from "@/keeperhub/components/hub/workflow-search-filter";
-import { useDebounce } from "@/keeperhub/lib/hooks/use-debounce";
-import type { ProtocolDefinition } from "@/keeperhub/lib/protocol-registry";
+import { HubHero } from "@/components/hub/hub-hero";
+import { HubResults } from "@/components/hub/hub-results";
+import { ProtocolDetailModal } from "@/components/hub/protocol-detail-modal";
+import { ProtocolStrip } from "@/components/hub/protocol-strip";
+import { WorkflowSearchFilter } from "@/components/hub/workflow-search-filter";
 import { api, type PublicTag, type SavedWorkflow } from "@/lib/api-client";
+import { useDebounce } from "@/lib/hooks/use-debounce";
+import type { ProtocolDefinition } from "@/lib/protocol-registry";
 
 export default function HubPage(): React.ReactElement {
   return (

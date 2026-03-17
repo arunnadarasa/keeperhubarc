@@ -5,7 +5,7 @@ import {
   isSdkRetryError,
   reconcileMaxRetriesFailures,
   reconcileSdkFailures,
-} from "@/keeperhub/lib/max-retries-reconciler";
+} from "@/lib/max-retries-reconciler";
 
 describe("isSdkRetryError", () => {
   it("should match 'exceeded max retries' error format", () => {

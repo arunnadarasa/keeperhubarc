@@ -14,10 +14,7 @@ import {
 import { createAccessControl } from "better-auth/plugins/access";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import {
-  sendInvitationEmail,
-  sendVerificationOTP,
-} from "@/keeperhub/lib/email";
+import { sendInvitationEmail, sendVerificationOTP } from "@/lib/email";
 import { isAiGatewayManagedKeysEnabled } from "./ai-gateway/config";
 import { db } from "./db";
 import {

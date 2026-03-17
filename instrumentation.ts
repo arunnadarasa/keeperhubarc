@@ -50,12 +50,12 @@ export async function register() {
     // Initialize Prometheus metrics collector if enabled
     if (process.env.METRICS_COLLECTOR === "prometheus") {
       const { prometheusMetricsCollector } = await import(
-        "@/keeperhub/lib/metrics/collectors/prometheus"
+        "@/lib/metrics/collectors/prometheus"
       );
       const { createDualWriteCollector } = await import(
-        "@/keeperhub/lib/metrics/collectors/dual"
+        "@/lib/metrics/collectors/dual"
       );
-      const { setMetricsCollector } = await import("@/keeperhub/lib/metrics");
+      const { setMetricsCollector } = await import("@/lib/metrics");
 
       // Use dual-write to send metrics to both console and Prometheus
       const dualCollector = createDualWriteCollector(
