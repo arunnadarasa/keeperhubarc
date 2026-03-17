@@ -10,6 +10,7 @@ import {
 import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { getMetricsCollector } from "@/lib/metrics";
 import { MetricNames } from "@/lib/metrics/types";
+import { isTestnetChain } from "@/lib/web3/chainlink-feeds";
 import { isSponsorshipSupported } from "@/lib/web3/pimlico-config";
 import { createSponsoredClient } from "@/lib/web3/sponsored-client";
 
@@ -174,6 +175,7 @@ export async function executeSponsoredContractTransaction(
 
 /**
  * Wait for receipt, record gas usage, and build the result.
+ * Skips billing on testnets (Pimlico doesn't charge for testnet sponsorship).
  */
 async function finalizeSponsoredTx(
   txHash: Hex,
@@ -197,7 +199,24 @@ async function finalizeSponsoredTx(
   const gasUsed = receipt.gasUsed;
   const effectiveGasPrice = receipt.effectiveGasPrice;
 
-  const ethPriceUsd = await getEthPriceUsd();
+  const metrics = getMetricsCollector();
+  const labels = {
+    chain_id: chainId.toString(),
+    organization_id: organizationId,
+  };
+
+  metrics.incrementCounter(MetricNames.SPONSORSHIP_TRANSACTIONS_TOTAL, labels);
+  metrics.incrementCounter(
+    MetricNames.SPONSORSHIP_GAS_USED_TOTAL,
+    labels,
+    Number(gasUsed)
+  );
+
+  const TESTNET_ETH_PRICE_USD = 0;
+  const isTestnet = isTestnetChain(chainId);
+  const ethPriceUsd = isTestnet
+    ? TESTNET_ETH_PRICE_USD
+    : await getEthPriceUsd(rpcUrl, chainId);
 
   try {
     await recordGasUsage({
@@ -220,27 +239,17 @@ async function finalizeSponsoredTx(
     );
   }
 
-  const gasCostWei = gasUsed * effectiveGasPrice;
-  const gasCostEth = Number(gasCostWei) / 1e18;
-  const gasCostUsd = gasCostEth * ethPriceUsd;
+  if (!isTestnet) {
+    const gasCostWei = gasUsed * effectiveGasPrice;
+    const gasCostEth = Number(gasCostWei) / 1e18;
+    const gasCostUsd = gasCostEth * ethPriceUsd;
 
-  const metrics = getMetricsCollector();
-  const labels = {
-    chain_id: chainId.toString(),
-    organization_id: organizationId,
-  };
-
-  metrics.incrementCounter(MetricNames.SPONSORSHIP_TRANSACTIONS_TOTAL, labels);
-  metrics.incrementCounter(
-    MetricNames.SPONSORSHIP_GAS_USED_TOTAL,
-    labels,
-    Number(gasUsed)
-  );
-  metrics.incrementCounter(
-    MetricNames.SPONSORSHIP_GAS_COST_USD_MICRO_TOTAL,
-    labels,
-    Math.ceil(gasCostUsd * 1_000_000)
-  );
+    metrics.incrementCounter(
+      MetricNames.SPONSORSHIP_GAS_COST_USD_MICRO_TOTAL,
+      labels,
+      Math.ceil(gasCostUsd * 1_000_000)
+    );
+  }
 
   return {
     success: true,

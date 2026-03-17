@@ -9,11 +9,17 @@ const mockGetEthPriceUsd = vi.fn();
 vi.mock("@/lib/billing/gas-credits", () => ({
   checkGasCredits: (...args: unknown[]) => mockCheckGasCredits(...args),
   recordGasUsage: (...args: unknown[]) => mockRecordGasUsage(...args),
-  getEthPriceUsd: () => mockGetEthPriceUsd(),
+  getEthPriceUsd: (...args: unknown[]) => mockGetEthPriceUsd(...args),
 }));
 
 vi.mock("@/lib/billing/feature-flag", () => ({
   isBillingEnabled: vi.fn().mockReturnValue(true),
+}));
+
+const mockIsTestnetChain = vi.fn();
+
+vi.mock("@/lib/web3/chainlink-feeds", () => ({
+  isTestnetChain: (...args: unknown[]) => mockIsTestnetChain(...args),
 }));
 
 const mockIsSponsorshipSupported = vi.fn();
@@ -47,9 +53,11 @@ vi.mock("@/lib/logging", () => ({
   logSystemError: vi.fn(),
 }));
 
+const mockIncrementCounter = vi.fn();
+
 vi.mock("@/lib/metrics", () => ({
   getMetricsCollector: () => ({
-    incrementCounter: vi.fn(),
+    incrementCounter: (...args: unknown[]) => mockIncrementCounter(...args),
   }),
 }));
 
@@ -86,6 +94,7 @@ const baseContractParams = {
 
 function setupSuccessfulSponsorship(): void {
   mockIsSponsorshipSupported.mockReturnValue(true);
+  mockIsTestnetChain.mockReturnValue(false);
   mockCheckGasCredits.mockResolvedValue({
     allowed: true,
     remainingCents: 500,
@@ -211,6 +220,58 @@ describe("executeSponsoredTransaction", () => {
 
     expect(result).not.toBeNull();
     expect(result?.success).toBe(true);
+  });
+
+  it("passes rpcUrl and chainId to getEthPriceUsd", async () => {
+    setupSuccessfulSponsorship();
+    const mainnetParams = { ...baseTxParams, chainId: 8453 };
+
+    await executeSponsoredTransaction(mainnetParams);
+
+    expect(mockGetEthPriceUsd).toHaveBeenCalledWith(
+      "https://rpc.example.com",
+      8453
+    );
+  });
+
+  it("records gas usage with zero price on testnet chains", async () => {
+    setupSuccessfulSponsorship();
+    mockIsTestnetChain.mockReturnValue(true);
+
+    const result = await executeSponsoredTransaction(baseTxParams);
+
+    expect(result).not.toBeNull();
+    expect(result?.success).toBe(true);
+    expect(mockGetEthPriceUsd).not.toHaveBeenCalled();
+    expect(mockRecordGasUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org_1",
+        chainId: 11_155_111,
+        ethPriceUsd: 0,
+      })
+    );
+  });
+
+  it("still emits transaction and gas_used metrics on testnet", async () => {
+    setupSuccessfulSponsorship();
+    mockIsTestnetChain.mockReturnValue(true);
+
+    await executeSponsoredTransaction(baseTxParams);
+
+    expect(mockIncrementCounter).toHaveBeenCalledWith(
+      "sponsorship.transactions.total",
+      expect.objectContaining({ chain_id: "11155111" })
+    );
+    expect(mockIncrementCounter).toHaveBeenCalledWith(
+      "sponsorship.gas_used.total",
+      expect.objectContaining({ chain_id: "11155111" }),
+      21_000
+    );
+    expect(mockIncrementCounter).not.toHaveBeenCalledWith(
+      "sponsorship.gas_cost_usd_micro.total",
+      expect.anything(),
+      expect.anything()
+    );
   });
 });
 

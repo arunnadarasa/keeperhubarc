@@ -2,6 +2,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
+const mockReadContract = vi.fn();
+
+vi.mock("viem", () => ({
+  createPublicClient: () => ({ readContract: mockReadContract }),
+  http: () => ({}),
+}));
+
+vi.mock("@/lib/web3/chainlink-feeds", () => ({
+  AGGREGATOR_V3_ABI: [],
+  getEthUsdFeedAddress: (chainId: number) => {
+    const feeds: Record<number, string> = {
+      1: "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
+      8453: "0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70",
+    };
+    return feeds[chainId];
+  },
+}));
+
 const mockInsertValues = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("@/lib/db", () => ({
@@ -67,6 +85,7 @@ vi.mock("@/lib/billing/feature-flag", () => ({
 import { isBillingEnabled } from "@/lib/billing/feature-flag";
 import {
   checkGasCredits,
+  getEthPriceUsd,
   getGasCreditCapCents,
   recordGasUsage,
 } from "@/lib/billing/gas-credits";
@@ -74,6 +93,7 @@ import {
 beforeEach(() => {
   vi.clearAllMocks();
   mockInsertValues.mockResolvedValue(undefined);
+  mockReadContract.mockReset();
   process.env.GAS_CREDITS_FREE_CENTS = undefined;
   process.env.GAS_CREDITS_PRO_CENTS = undefined;
 });
@@ -130,5 +150,55 @@ describe("recordGasUsage", () => {
     });
 
     expect(mockInsertValues).toHaveBeenCalledOnce();
+  });
+});
+
+describe("getEthPriceUsd", () => {
+  const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+
+  it("reads price from Chainlink oracle", async () => {
+    mockReadContract.mockResolvedValue([
+      BigInt(1),
+      BigInt(250_000_000_000),
+      nowSeconds,
+      nowSeconds,
+      BigInt(1),
+    ]);
+
+    const price = await getEthPriceUsd("https://rpc.example.com", 1);
+
+    expect(price).toBe(2500);
+    expect(mockReadContract).toHaveBeenCalledOnce();
+  });
+
+  it("returns fallback when chain has no feed address", async () => {
+    const price = await getEthPriceUsd("https://rpc.example.com", 999);
+
+    expect(price).toBe(3000);
+    expect(mockReadContract).not.toHaveBeenCalled();
+  });
+
+  it("returns fallback when oracle call fails", async () => {
+    mockReadContract.mockRejectedValue(new Error("RPC timeout"));
+
+    const price = await getEthPriceUsd("https://rpc.example.com", 8453);
+
+    expect(price).toBe(3000);
+  });
+
+  it("rejects stale oracle prices", async () => {
+    const twoHoursAgo = BigInt(Math.floor(Date.now() / 1000) - 7200);
+
+    mockReadContract.mockResolvedValue([
+      BigInt(1),
+      BigInt(250_000_000_000),
+      twoHoursAgo,
+      twoHoursAgo,
+      BigInt(1),
+    ]);
+
+    const price = await getEthPriceUsd("https://rpc.example.com", 8453);
+
+    expect(price).toBe(3000);
   });
 });

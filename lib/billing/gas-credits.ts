@@ -1,10 +1,12 @@
 import "server-only";
 import { and, eq, gte, sql } from "drizzle-orm";
-import {
-  gasCreditAllocations,
-  gasCreditUsage,
-} from "@/keeperhub/db/schema-extensions";
+import { createPublicClient, http } from "viem";
+import { gasCreditAllocations, gasCreditUsage } from "@/db/schema-extensions";
 import { db } from "@/lib/db";
+import {
+  AGGREGATOR_V3_ABI,
+  getEthUsdFeedAddress,
+} from "@/lib/web3/chainlink-feeds";
 import { isBillingEnabled } from "./feature-flag";
 import { getPlanLimits, type PlanName, parsePlanName } from "./plans";
 import { getOrgSubscription } from "./plans-server";
@@ -215,51 +217,64 @@ export async function recordGasUsage(
     .onConflictDoNothing();
 }
 
-// ETH price cache (60-second TTL to avoid rate limits)
-let cachedEthPrice: { usd: number; fetchedAt: number } | undefined;
+// ETH price cache (60-second TTL, keyed by chainId)
+const ethPriceCache = new Map<number, { usd: number; fetchedAt: number }>();
 const ETH_PRICE_CACHE_TTL_MS = 60_000;
+const STALE_PRICE_THRESHOLD_MS = 3_600_000; // 1 hour
+const FALLBACK_ETH_PRICE_USD = 3000;
 
 /**
- * Fetch current ETH/USD price from CoinGecko.
- * Results are cached for 60 seconds to avoid rate limits.
- * Returns the cached price (even if stale) on fetch failure.
+ * Fetch current ETH/USD price from a Chainlink oracle on the given chain.
+ * Results are cached for 60 seconds per chainId.
+ * Fallback chain: oracle failure -> stale cache -> $3000 conservative estimate.
  */
-export async function getEthPriceUsd(): Promise<number> {
+export async function getEthPriceUsd(
+  rpcUrl: string,
+  chainId: number
+): Promise<number> {
   const now = Date.now();
+  const cached = ethPriceCache.get(chainId);
 
-  if (
-    cachedEthPrice !== undefined &&
-    now - cachedEthPrice.fetchedAt < ETH_PRICE_CACHE_TTL_MS
-  ) {
-    return cachedEthPrice.usd;
+  if (cached !== undefined && now - cached.fetchedAt < ETH_PRICE_CACHE_TTL_MS) {
+    return cached.usd;
+  }
+
+  const feedAddress = getEthUsdFeedAddress(chainId);
+  if (feedAddress === undefined) {
+    return cached?.usd ?? FALLBACK_ETH_PRICE_USD;
   }
 
   try {
-    const response = await fetch(
-      "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd",
-      { signal: AbortSignal.timeout(5000) }
-    );
+    const client = createPublicClient({ transport: http(rpcUrl) });
 
-    if (!response.ok) {
-      throw new Error(`CoinGecko returned ${response.status}`);
+    const result = await client.readContract({
+      address: feedAddress,
+      abi: AGGREGATOR_V3_ABI,
+      functionName: "latestRoundData",
+    });
+
+    const [, answer, , updatedAt] = result;
+    const updatedAtMs = Number(updatedAt) * 1000;
+
+    if (now - updatedAtMs > STALE_PRICE_THRESHOLD_MS) {
+      throw new Error(
+        `Chainlink price stale: updatedAt ${new Date(updatedAtMs).toISOString()}`
+      );
     }
 
-    const data: unknown = await response.json();
-    const price = (data as { ethereum?: { usd?: number } })?.ethereum?.usd;
+    const price = Number(answer) / 1e8;
 
-    if (typeof price !== "number" || price <= 0) {
-      throw new Error("Invalid ETH price from CoinGecko");
+    if (price <= 0) {
+      throw new Error(`Invalid Chainlink price: ${price}`);
     }
 
-    cachedEthPrice = { usd: price, fetchedAt: now };
+    ethPriceCache.set(chainId, { usd: price, fetchedAt: now });
     return price;
   } catch {
-    // Return stale cache if available
-    if (cachedEthPrice !== undefined) {
-      return cachedEthPrice.usd;
+    if (cached !== undefined) {
+      return cached.usd;
     }
-    // Last resort fallback -- conservative estimate to avoid undercharging
-    return 3000;
+    return FALLBACK_ETH_PRICE_USD;
   }
 }
 
