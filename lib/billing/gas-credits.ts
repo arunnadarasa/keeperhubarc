@@ -6,6 +6,8 @@ import { isBillingEnabled } from "./feature-flag";
 import { getPlanLimits, parsePlanName, parseTierKey } from "./plans";
 import { getOrgSubscription } from "./plans-server";
 
+const MICRO_USD_PER_CENT = 10_000;
+
 type GasCreditBalance = {
   totalCents: number;
   usedCents: number;
@@ -20,7 +22,7 @@ type GasCreditCheckResult =
 /**
  * Get the gas credit balance for an organization in the current billing period.
  *
- * Computes: plan allowance - sum of gas_cost_usd_cents since period start.
+ * Computes: plan allowance - sum of gas_cost_micro_usd since period start.
  * If no subscription exists, uses the free plan defaults.
  */
 export async function getGasCreditBalance(
@@ -35,7 +37,7 @@ export async function getGasCreditBalance(
 
   const result = await db
     .select({
-      total: sql<number>`coalesce(sum(${gasCreditUsage.gasCostUsdCents}), 0)`,
+      total: sql<string>`coalesce(sum(${gasCreditUsage.gasCostMicroUsd}::bigint), 0)::text`,
     })
     .from(gasCreditUsage)
     .where(
@@ -45,7 +47,8 @@ export async function getGasCreditBalance(
       )
     );
 
-  const usedCents = Number(result[0]?.total ?? 0);
+  const usedMicroUsd = Number(result[0]?.total ?? "0");
+  const usedCents = Math.ceil(usedMicroUsd / MICRO_USD_PER_CENT);
   const remainingCents = Math.max(0, totalCents - usedCents);
 
   return { totalCents, usedCents, remainingCents, plan: planName };
@@ -56,7 +59,7 @@ export async function getGasCreditBalance(
  *
  * Returns { allowed: true } if billing is disabled (sponsorship is free)
  * or if credits remain. Returns { allowed: false } if credits are exhausted
- * on the free plan. Paid plans always return allowed (overage is billed later).
+ * for any plan (all plans block at cap, falling back to direct signing).
  */
 export async function checkGasCredits(
   organizationId: string
@@ -69,11 +72,6 @@ export async function checkGasCredits(
 
   if (balance.remainingCents > 0) {
     return { allowed: true, remainingCents: balance.remainingCents };
-  }
-
-  // Paid plans allow overage (billed at month-end)
-  if (balance.plan !== "free") {
-    return { allowed: true, remainingCents: 0 };
   }
 
   return {
@@ -95,15 +93,18 @@ type RecordGasUsageParams = {
 /**
  * Record gas usage for a sponsored transaction.
  *
- * Converts gas cost from wei to USD cents using the provided ETH price.
- * Idempotent via unique constraint on (organizationId, txHash).
+ * Converts gas cost from wei to micro-USD (1/1,000,000 of a dollar) for
+ * sub-cent precision on L2s. Idempotent via unique constraint on
+ * (organizationId, txHash).
  */
 export async function recordGasUsage(
   params: RecordGasUsageParams
 ): Promise<void> {
   const gasCostWei = params.gasUsed * params.gasPrice;
   const gasCostEth = Number(gasCostWei) / 1e18;
-  const gasCostUsdCents = Math.ceil(gasCostEth * params.ethPriceUsd * 100);
+  const gasCostMicroUsd = Math.ceil(
+    gasCostEth * params.ethPriceUsd * 1_000_000
+  );
 
   await db
     .insert(gasCreditUsage)
@@ -115,7 +116,7 @@ export async function recordGasUsage(
       gasUsed: params.gasUsed.toString(),
       gasPriceWei: params.gasPrice.toString(),
       gasCostWei: gasCostWei.toString(),
-      gasCostUsdCents,
+      gasCostMicroUsd: gasCostMicroUsd.toString(),
       ethPriceUsd: params.ethPriceUsd.toString(),
     })
     .onConflictDoNothing();

@@ -189,15 +189,26 @@ async function finalizeSponsoredTx(
 
   const ethPriceUsd = await getEthPriceUsd();
 
-  await recordGasUsage({
-    organizationId,
-    chainId,
-    txHash,
-    executionId,
-    gasUsed,
-    gasPrice: effectiveGasPrice,
-    ethPriceUsd,
-  });
+  try {
+    await recordGasUsage({
+      organizationId,
+      chainId,
+      txHash,
+      executionId,
+      gasUsed,
+      gasPrice: effectiveGasPrice,
+      ethPriceUsd,
+    });
+  } catch (billingError) {
+    logSystemError(
+      ErrorCategory.TRANSACTION,
+      "[Sponsorship] Failed to record gas usage (tx already confirmed on-chain)",
+      billingError instanceof Error
+        ? billingError
+        : new Error(String(billingError)),
+      { organizationId, chainId: chainId.toString(), txHash }
+    );
+  }
 
   return {
     success: true,

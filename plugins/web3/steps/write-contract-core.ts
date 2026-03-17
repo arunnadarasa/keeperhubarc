@@ -11,7 +11,8 @@ import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
 import { reshapeArgsForAbi } from "@/lib/abi-struct-args";
 import { db } from "@/lib/db";
-import { workflowExecutions } from "@/lib/db/schema";
+import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
+import { getTransactionUrl } from "@/lib/explorer";
 import { ErrorCategory, logUserError } from "@/lib/logging";
 import {
   getOrganizationWalletAddress,
@@ -25,6 +26,7 @@ import { getChainAdapter } from "@/lib/web3/chain-adapter";
 import { formatContractError } from "@/lib/web3/decode-revert-error";
 import { resolveGasLimitOverrides } from "@/lib/web3/gas-defaults";
 import { resolveOrganizationContext } from "@/lib/web3/resolve-org-context";
+import { executeSponsoredContractTransaction } from "@/lib/web3/sponsored-transaction-manager";
 import {
   type TransactionContext,
   withNonceSession,
@@ -235,9 +237,64 @@ export async function writeContractCore(
     rpcManager,
   };
 
+  // Try gas-sponsored execution first (ERC-4337 via Pimlico)
+  try {
+    const sponsoredResult = await executeSponsoredContractTransaction({
+      organizationId,
+      executionId: _context?.executionId ?? "direct-execution",
+      chainId,
+      rpcUrl,
+      walletAddress,
+      to: contractAddress,
+      // biome-ignore lint/suspicious/noExplicitAny: ABI parsed from user-provided JSON string, type is unknown[]
+      abi: parsedAbi as any,
+      functionName: abiFunction,
+      args,
+      value: parsedEthValue,
+    });
+
+    if (sponsoredResult !== null) {
+      const explorerConfig = await db.query.explorerConfigs.findFirst({
+        where: eq(explorerConfigs.chainId, chainId),
+      });
+      const transactionLink = explorerConfig
+        ? getTransactionUrl(explorerConfig, sponsoredResult.transactionHash)
+        : "";
+
+      return {
+        success: true,
+        transactionHash: sponsoredResult.transactionHash,
+        transactionLink,
+        gasUsed: sponsoredResult.gasUsed,
+      };
+    }
+
+    logUserError(
+      ErrorCategory.NETWORK_RPC,
+      "[Write Contract] Sponsorship skipped (credits exhausted, chain unsupported, or client creation failed), falling back to direct signing",
+      undefined,
+      {
+        plugin_name: "web3",
+        action_name: "write-contract",
+        chain_id: String(chainId),
+      }
+    );
+  } catch (error) {
+    logUserError(
+      ErrorCategory.NETWORK_RPC,
+      "[Write Contract] Sponsorship attempted but failed, falling back to direct signing",
+      error,
+      {
+        plugin_name: "web3",
+        action_name: "write-contract",
+        chain_id: String(chainId),
+      }
+    );
+  }
+
+  // Fall back to direct signing with nonce management and RPC failover
   const adapter = getChainAdapter(chainId);
 
-  // Execute transaction with nonce management
   return withNonceSession(txContext, walletAddress, async (session) => {
     // Initialize Para signer
     let signer: Awaited<ReturnType<typeof initializeParaSigner>>;

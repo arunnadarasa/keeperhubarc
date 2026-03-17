@@ -585,7 +585,7 @@ export const gasCreditUsage = pgTable(
     gasUsed: text("gas_used").notNull(),
     gasPriceWei: text("gas_price_wei").notNull(),
     gasCostWei: text("gas_cost_wei").notNull(),
-    gasCostUsdCents: integer("gas_cost_usd_cents").notNull(),
+    gasCostMicroUsd: text("gas_cost_micro_usd").notNull(),
     ethPriceUsd: text("eth_price_usd").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
