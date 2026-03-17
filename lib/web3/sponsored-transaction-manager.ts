@@ -194,7 +194,6 @@ async function finalizeSponsoredTx(
 
   const gasUsed = receipt.gasUsed;
   const effectiveGasPrice = receipt.effectiveGasPrice;
-  const gasCostWei = gasUsed * effectiveGasPrice;
 
   const ethPriceUsd = await getEthPriceUsd();
 
@@ -219,10 +218,17 @@ async function finalizeSponsoredTx(
     );
   }
 
+  console.info("[Sponsorship] Sponsored transaction confirmed", {
+    organizationId,
+    chainId,
+    txHash,
+    gasUsed: gasUsed.toString(),
+  });
+
   return {
     success: true,
     transactionHash: txHash,
-    gasUsed: gasCostWei.toString(),
+    gasUsed: gasUsed.toString(),
     sponsored: true,
   };
 }

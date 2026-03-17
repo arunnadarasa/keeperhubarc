@@ -6,14 +6,15 @@ import { createPimlicoClient } from "permissionless/clients/pimlico";
 import type { Address, LocalAccount, PublicClient } from "viem";
 import { createPublicClient, defineChain, http } from "viem";
 import { entryPoint08Address } from "viem/account-abstraction";
-import { createParaViemAccount } from "@/keeperhub/lib/para/viem-account-adapter";
-import { recordDelegationIfNeeded } from "@/keeperhub/lib/web3/eip7702-delegation";
+import { db } from "@/lib/db";
+import { chains } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
+import { createParaViemAccount } from "@/lib/para/viem-account-adapter";
+import { recordDelegationIfNeeded } from "@/lib/web3/eip7702-delegation";
 import {
   getPimlicoUrl,
   isSponsorshipSupported,
-} from "@/keeperhub/lib/web3/pimlico-config";
-import { db } from "@/lib/db";
-import { chains } from "@/lib/db/schema";
+} from "@/lib/web3/pimlico-config";
 
 const LOG_PREFIX = "[Sponsorship]";
 
@@ -50,20 +51,9 @@ export async function createSponsoredClient(
   }
 
   try {
-    console.log(
-      LOG_PREFIX,
-      "Creating Para viem account for org:",
-      organizationId
-    );
     const { account, walletRecord } =
       await createParaViemAccount(organizationId);
     const walletAddress = walletRecord.walletAddress as Address;
-
-    console.log(
-      LOG_PREFIX,
-      "Creating Pimlico smart account client for",
-      walletAddress
-    );
     const chainRecord = await db.query.chains.findFirst({
       where: eq(chains.chainId, chainId),
     });
@@ -121,15 +111,13 @@ export async function createSponsoredClient(
       rpcUrl,
       walletAddress
     ).catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(LOG_PREFIX, "Failed to record delegation:", message);
+      logSystemError(
+        ErrorCategory.TRANSACTION,
+        `${LOG_PREFIX} Failed to record delegation`,
+        error
+      );
     });
 
-    console.log(
-      LOG_PREFIX,
-      "Sponsored client created successfully for",
-      walletAddress
-    );
     return {
       smartAccountClient,
       smartAccount,
@@ -139,8 +127,11 @@ export async function createSponsoredClient(
       chainId,
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(LOG_PREFIX, "Failed to create sponsored client:", message);
+    logSystemError(
+      ErrorCategory.TRANSACTION,
+      `${LOG_PREFIX} Failed to create sponsored client`,
+      error
+    );
     return null;
   }
 }

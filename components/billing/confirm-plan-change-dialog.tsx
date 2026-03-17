@@ -26,8 +26,7 @@ import {
   type TierKey,
 } from "@/lib/billing/plans";
 import { cn } from "@/lib/utils";
-
-type GasCreditCapsMap = Record<PlanName, number>;
+import type { GasCreditCapsMap } from "./pricing-table/types";
 
 type ChangeDirection = "upgrade" | "downgrade" | "same";
 

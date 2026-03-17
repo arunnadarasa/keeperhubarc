@@ -86,18 +86,14 @@ async function resolveAllocation(
 
   const capCents = getGasCreditCapCents(planName);
 
-  try {
-    await db
-      .insert(gasCreditAllocations)
-      .values({
-        organizationId,
-        periodStart,
-        allocatedCents: capCents,
-      })
-      .onConflictDoNothing();
-  } catch {
-    // Race condition: another request inserted first. Read it back.
-  }
+  await db
+    .insert(gasCreditAllocations)
+    .values({
+      organizationId,
+      periodStart,
+      allocatedCents: capCents,
+    })
+    .onConflictDoNothing();
 
   const inserted = await db
     .select({ allocatedCents: gasCreditAllocations.allocatedCents })

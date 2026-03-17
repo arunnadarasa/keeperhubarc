@@ -6,8 +6,6 @@ import { gasSponsorshipDelegations } from "@/keeperhub/db/schema-extensions";
 import { getSimpleAccount7702Address } from "@/keeperhub/lib/web3/pimlico-config";
 import { db } from "@/lib/db";
 
-const LOG_PREFIX = "[EIP-7702]";
-
 /**
  * Check if an EOA already has EIP-7702 delegation active on a given chain.
  * Looks at on-chain code at the EOA address -- if bytecode exists,
@@ -75,13 +73,6 @@ export async function recordDelegationIfNeeded(
   );
 
   if (hasOnChainDelegation) {
-    console.log(
-      LOG_PREFIX,
-      "On-chain delegation detected, recording in DB for",
-      walletAddress,
-      "on chain",
-      chainId
-    );
     await recordDelegation(
       organizationId,
       walletAddress,
