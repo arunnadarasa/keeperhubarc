@@ -52,7 +52,6 @@ vi.mock("@/db/schema-extensions", () => ({
     workflowId: "workflow_id",
     gasPrice: "gas_price",
     status: "status",
-    id: "id",
   },
   walletLocks: {
     walletAddress: "wallet_address",
@@ -397,7 +396,8 @@ describe("NonceManager", () => {
           where: vi.fn().mockReturnValue({
             orderBy: vi.fn().mockResolvedValue([
               {
-                id: 1,
+                walletAddress: "0x1234567890123456789012345678901234567890",
+                chainId: 1,
                 nonce: 4, // Less than chain nonce (5)
                 txHash: "0xconfirmed",
                 status: "pending",
@@ -432,7 +432,8 @@ describe("NonceManager", () => {
           where: vi.fn().mockReturnValue({
             orderBy: vi.fn().mockResolvedValue([
               {
-                id: 1,
+                walletAddress: "0x1234567890123456789012345678901234567890",
+                chainId: 1,
                 nonce: 4, // Less than chain nonce (5)
                 txHash: "0xreplaced",
                 status: "pending",
@@ -479,7 +480,8 @@ describe("NonceManager", () => {
           where: vi.fn().mockReturnValue({
             orderBy: vi.fn().mockResolvedValue([
               {
-                id: 1,
+                walletAddress: "0x1234567890123456789012345678901234567890",
+                chainId: 1,
                 nonce: 5, // Same as chain nonce
                 txHash: "0xdropped",
                 status: "pending",
