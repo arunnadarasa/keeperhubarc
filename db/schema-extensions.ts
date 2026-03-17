@@ -20,7 +20,6 @@ import {
   jsonb,
   pgTable,
   primaryKey,
-  serial,
   text,
   timestamp,
   unique,
@@ -213,7 +212,6 @@ export type NewWalletLock = typeof walletLocks.$inferInsert;
 export const pendingTransactions = pgTable(
   "pending_transactions",
   {
-    id: serial("id").primaryKey(),
     walletAddress: text("wallet_address").notNull(),
     chainId: integer("chain_id").notNull(),
     nonce: integer("nonce").notNull(),
@@ -226,11 +224,7 @@ export const pendingTransactions = pgTable(
     status: text("status").default("pending"), // pending, confirmed, dropped, replaced
   },
   (table) => [
-    unique("pending_tx_wallet_chain_nonce").on(
-      table.walletAddress,
-      table.chainId,
-      table.nonce
-    ),
+    primaryKey({ columns: [table.walletAddress, table.chainId, table.nonce] }),
     index("idx_pending_tx_status").on(
       table.walletAddress,
       table.chainId,
