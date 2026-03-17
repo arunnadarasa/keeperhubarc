@@ -135,32 +135,32 @@ jobs:
           files: docker-bake.hcl
           push: true
 
-      # ── Copy images to secondary ECR (e.g. TechOps account) ──
-      - name: Configure secondary ECR credentials
-        if: steps.skip.outputs.skip_build != 'true' && steps.check-image.outputs.exists != 'true' && vars.SECONDARY_ECR_REGION != ''
+      # ── Copy images to TechOps ECR ──
+      - name: Configure TechOps AWS credentials
+        if: steps.skip.outputs.skip_build != 'true' && steps.check-image.outputs.exists != 'true'
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          aws-access-key-id: ${{ secrets.SECONDARY_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.SECONDARY_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.SECONDARY_ECR_REGION }}
+          aws-access-key-id: ${{ secrets.TO_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.TO_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.TO_REGION }}
 
-      - name: Login to secondary ECR
-        if: steps.skip.outputs.skip_build != 'true' && steps.check-image.outputs.exists != 'true' && vars.SECONDARY_ECR_REGION != ''
-        id: login-secondary-ecr
+      - name: Login to TechOps ECR
+        if: steps.skip.outputs.skip_build != 'true' && steps.check-image.outputs.exists != 'true'
+        id: login-techops-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Copy images to secondary ECR
-        if: steps.skip.outputs.skip_build != 'true' && steps.check-image.outputs.exists != 'true' && vars.SECONDARY_ECR_REGION != ''
+      - name: Copy images to TechOps ECR
+        if: steps.skip.outputs.skip_build != 'true' && steps.check-image.outputs.exists != 'true'
         env:
           SRC_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          DST_REGISTRY: ${{ steps.login-secondary-ecr.outputs.registry }}
+          DST_REGISTRY: ${{ steps.login-techops-ecr.outputs.registry }}
           ECR_REPO: ${{ env.AWS_ECR_NAME }}
           IMAGE_TAG: ${{ steps.vars.outputs.sha_short }}
         run: |
           for prefix in app migrator; do
-            echo "Copying ${prefix}-${IMAGE_TAG} to secondary ECR..."
+            echo "Copying ${prefix}-${IMAGE_TAG} to TechOps ECR..."
             docker buildx imagetools create \
               --tag "${DST_REGISTRY}/${ECR_REPO}:${prefix}-${IMAGE_TAG}" \
               "${SRC_REGISTRY}/${ECR_REPO}:${prefix}-${IMAGE_TAG}"
           done
-          echo "Secondary ECR push complete"
+          echo "TechOps ECR push complete"
