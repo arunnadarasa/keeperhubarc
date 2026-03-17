@@ -1,7 +1,7 @@
 <overview>
 Custom workflow plugins provide integrations with external services and internal infrastructure for the KeeperHub workflow builder.
 
-- All custom plugins go in `plugins/` (NOT `plugins/`)
+- All custom plugins go in `plugins/`
 - Each plugin has a directory: `plugins/[plugin-name]/`
 - `pnpm discover-plugins` auto-generates `plugins/index.ts`, `lib/step-registry.ts`, `lib/codegen-registry.ts`
 - Three plugin variants: credential-based (external API), system plugin (pure logic), infrastructure plugin (uses internal infra)

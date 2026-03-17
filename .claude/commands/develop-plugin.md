@@ -19,7 +19,7 @@ Plugin development guide: @plugins/AGENTS.md
 </context>
 
 <architecture>
-CRITICAL: Follow these conventions EXACTLY. All custom plugins go in `plugins/` (NOT `plugins/`).
+CRITICAL: Follow these conventions EXACTLY. All custom plugins go in `plugins/`.
 
 DIRECTORY STRUCTURE for each plugin:
 ```
