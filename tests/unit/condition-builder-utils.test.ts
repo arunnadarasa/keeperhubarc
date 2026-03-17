@@ -3,14 +3,14 @@ import { describe, expect, it } from "vitest";
 import type {
   ConditionGroup,
   ConditionRule,
-} from "@/keeperhub/lib/condition-builder-types";
+} from "@/lib/condition-builder-types";
 import {
   createEmptyGroup,
   createEmptyRule,
   expressionToConditionGroup,
   isUnaryOperator,
   visualConditionToExpression,
-} from "@/keeperhub/lib/condition-builder-utils";
+} from "@/lib/condition-builder-utils";
 
 function rule(
   left: string,

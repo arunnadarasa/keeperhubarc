@@ -6,11 +6,11 @@ vi.mock("@/lib/steps/step-handler", () => ({
   withStepLogging: (_input: unknown, fn: () => unknown) => fn(),
 }));
 
-vi.mock("@/keeperhub/lib/metrics/instrumentation/plugin", () => ({
+vi.mock("@/lib/metrics/instrumentation/plugin", () => ({
   withPluginMetrics: (_opts: unknown, fn: () => unknown) => fn(),
 }));
 
-vi.mock("@/keeperhub/lib/logging", () => ({
+vi.mock("@/lib/logging", () => ({
   ErrorCategory: { VALIDATION: "VALIDATION" },
   // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op mock
   logUserError: () => {},
@@ -20,7 +20,7 @@ import {
   type RunCodeCoreInput,
   type RunCodeInput,
   runCodeStep,
-} from "@/keeperhub/plugins/code/steps/run-code";
+} from "@/plugins/code/steps/run-code";
 
 const UUID_V4_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;

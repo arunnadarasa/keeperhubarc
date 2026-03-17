@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  getProtocol,
-  registerProtocol,
-} from "@/keeperhub/lib/protocol-registry";
-import compoundDef from "@/keeperhub/protocols/compound";
+import { getProtocol, registerProtocol } from "@/lib/protocol-registry";
+import compoundDef from "@/protocols/compound-v3";
 
 const KEBAB_CASE_REGEX = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const ETH_ADDRESS_REGEX = /^0x[0-9a-fA-F]{40}$/;

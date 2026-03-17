@@ -1,9 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-
-import { authenticateInternalService } from "@/keeperhub/lib/internal-service-auth";
 import { db } from "@/lib/db";
 import { workflowSchedules, workflows } from "@/lib/db/schema";
+import { authenticateInternalService } from "@/lib/internal-service-auth";
 
 export async function GET(request: Request) {
   const auth = authenticateInternalService(request);

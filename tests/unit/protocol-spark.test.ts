@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  getProtocol,
-  registerProtocol,
-} from "@/keeperhub/lib/protocol-registry";
-import sparkDef from "@/keeperhub/protocols/spark";
+import { getProtocol, registerProtocol } from "@/lib/protocol-registry";
+import sparkDef from "@/protocols/spark";
 
 const KEBAB_CASE_REGEX = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const ETH_ADDRESS_REGEX = /^0x[0-9a-fA-F]{40}$/;
@@ -77,15 +74,15 @@ describe("Spark Protocol Definition", () => {
     }
   });
 
-  it("has exactly 12 actions", () => {
-    expect(sparkDef.actions).toHaveLength(12);
+  it("has exactly 25 actions", () => {
+    expect(sparkDef.actions).toHaveLength(25);
   });
 
-  it("has 7 write actions and 5 read actions", () => {
+  it("has 9 write actions and 16 read actions", () => {
     const readActions = sparkDef.actions.filter((a) => a.type === "read");
     const writeActions = sparkDef.actions.filter((a) => a.type === "write");
-    expect(writeActions).toHaveLength(7);
-    expect(readActions).toHaveLength(5);
+    expect(writeActions).toHaveLength(9);
+    expect(readActions).toHaveLength(16);
   });
 
   it("has 3 contracts", () => {
@@ -136,23 +133,23 @@ describe("Spark Protocol Definition", () => {
     expect(outputNames).toContain("healthFactor");
   });
 
-  it("sDAI read actions have correct outputs", () => {
+  it("sDAI vault read actions have correct outputs", () => {
     const balanceAction = sparkDef.actions.find(
-      (a) => a.slug === "get-sdai-balance"
+      (a) => a.slug === "vault-balance"
     );
     expect(balanceAction).toBeDefined();
     expect(balanceAction?.outputs).toHaveLength(1);
     expect(balanceAction?.outputs?.[0]?.name).toBe("balance");
 
     const totalAssetsAction = sparkDef.actions.find(
-      (a) => a.slug === "get-sdai-total-assets"
+      (a) => a.slug === "vault-total-assets"
     );
     expect(totalAssetsAction).toBeDefined();
     expect(totalAssetsAction?.outputs).toHaveLength(1);
     expect(totalAssetsAction?.outputs?.[0]?.name).toBe("totalAssets");
 
     const convertAction = sparkDef.actions.find(
-      (a) => a.slug === "get-sdai-convert-to-assets"
+      (a) => a.slug === "vault-convert-to-assets"
     );
     expect(convertAction).toBeDefined();
     expect(convertAction?.outputs).toHaveLength(1);

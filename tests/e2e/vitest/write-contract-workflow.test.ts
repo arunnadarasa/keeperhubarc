@@ -25,7 +25,6 @@ const TX_HASH_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 vi.unmock("@/lib/db");
 vi.mock("server-only", () => ({}));
 
-import type { WriteContractInput } from "@/keeperhub/plugins/web3/steps/write-contract";
 import {
   chains,
   organization,
@@ -35,11 +34,15 @@ import {
   workflows,
 } from "@/lib/db/schema";
 import { generateId } from "@/lib/utils/id";
+import type { WriteContractInput } from "@/plugins/web3/steps/write-contract";
 
 // Skip if infrastructure not available (requires DB + Para API for tx signing)
 const shouldSkip =
-  !(process.env.DATABASE_URL && process.env.PARA_API_KEY) ||
-  process.env.SKIP_INFRA_TESTS === "true";
+  !(
+    process.env.DATABASE_URL &&
+    process.env.PARA_API_KEY &&
+    process.env.TEST_PARA_USER_SHARE
+  ) || process.env.SKIP_INFRA_TESTS === "true";
 
 // SimpleStorage contract on Sepolia
 const SIMPLE_STORAGE_ADDRESS = "0x069d34E130ccA7D435351FB30c0e97F2Ce6B42Ad";
@@ -167,7 +170,7 @@ describe.skipIf(shouldSkip)("Write Contract Workflow E2E", () => {
   it("should execute write-contract step and verify on-chain state", async () => {
     // Dynamically import writeContractStep (it has "server-only" via wallet-helpers)
     const { writeContractStep } = await import(
-      "@/keeperhub/plugins/web3/steps/write-contract"
+      "@/plugins/web3/steps/write-contract"
     );
 
     // Pick a random value to store

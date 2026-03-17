@@ -5,14 +5,14 @@ import { start } from "workflow/api";
 import {
   createTimer,
   getMetricsCollector,
-} from "@/keeperhub/lib/metrics";
-import { LabelKeys, MetricNames } from "@/keeperhub/lib/metrics/types";
+} from "@/lib/metrics";
+import { LabelKeys, MetricNames } from "@/lib/metrics/types";
 import {
   EXECUTION_LIMIT_ERROR,
   enforceExecutionLimit,
-} from "@/keeperhub/lib/billing/execution-guard";
-import { checkConcurrencyLimit } from "@/keeperhub/api/execute/_lib/concurrency-limit";
-import { recordWebhookMetrics } from "@/keeperhub/lib/metrics/instrumentation/api";
+} from "@/lib/billing/execution-guard";
+import { checkConcurrencyLimit } from "@/app/api/execute/_lib/concurrency-limit";
+import { recordWebhookMetrics } from "@/lib/metrics/instrumentation/api";
 import { db } from "@/lib/db";
 import { validateWorkflowIntegrations } from "@/lib/db/integrations";
 import { apiKeys, workflowExecutions, workflows } from "@/lib/db/schema";

@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { Handle, Position } from "@xyflow/react";
 import type { ComponentProps } from "react";
 import { AnimatedBorder } from "@/components/ui/animated-border";
-import { AddStepButton } from "@/keeperhub/components/workflow/add-step-button";
+import { AddStepButton } from "@/components/workflow/add-step-button";
 
 export type SourceHandleConfig = {
   id: string;

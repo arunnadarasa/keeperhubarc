@@ -26,17 +26,17 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { SqlTemplateEditor } from "@/keeperhub/components/ui/sql-template-editor";
-import { TemplateCodeEditor } from "@/keeperhub/components/ui/template-code-editor";
-import { actionRequiresCredentials } from "@/keeperhub/lib/integration-helpers";
-import { ConditionQueryBuilder } from "@/keeperhub/components/workflow/condition-query-builder";
-import type { ConditionGroup } from "@/keeperhub/lib/condition-builder-types";
+import { SqlTemplateEditor } from "@/components/ui/sql-template-editor";
+import { TemplateCodeEditor } from "@/components/ui/template-code-editor";
+import { actionRequiresCredentials } from "@/lib/integration-helpers";
+import { ConditionQueryBuilder } from "@/components/workflow/condition-query-builder";
+import type { ConditionGroup } from "@/lib/condition-builder-types";
 import {
   createEmptyGroup,
   expressionToConditionGroup,
   visualConditionToExpression,
-} from "@/keeperhub/lib/condition-builder-utils";
-import { resolveConditionExpression } from "@/keeperhub/lib/condition-resolver";
+} from "@/lib/condition-builder-utils";
+import { resolveConditionExpression } from "@/lib/condition-resolver";
 import { aiGatewayStatusAtom } from "@/lib/ai-gateway/state";
 import { validateConditionExpressionUI } from "@/lib/condition-validator";
 import {
@@ -49,7 +49,7 @@ import {
   extractObjectPaths,
   resolveArraySourceElement,
   traverseDotPath,
-} from "@/keeperhub/lib/for-each-utils";
+} from "@/lib/for-each-utils";
 import {
   executionLogsAtom,
   lastExecutionLogsAtom,

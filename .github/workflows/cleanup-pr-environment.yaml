@@ -4,9 +4,7 @@ on:
   pull_request:
     types: [closed, unlabeled]
     branches:
-      - production
       - staging
-      - KEEP-1188-Deploy-to-our-own-K8s
 
 jobs:
   check-cleanup:
@@ -41,8 +39,8 @@ jobs:
     environment: staging
     env:
       PR_NUMBER: ${{ github.event.pull_request.number }}
-      REGION: us-east-1
-      CLUSTER_NAME: techops-staging
+      REGION: ${{ vars.TO_REGION }}
+      CLUSTER_NAME: ${{ vars.TO_CLUSTER_NAME }}
       NAMESPACE: pr-${{ github.event.pull_request.number }}
 
     steps:

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   resolveForEachSyntheticOutput,
   traverseDotPath,
-} from "@/keeperhub/lib/for-each-utils";
+} from "@/lib/for-each-utils";
 
 // ---------------------------------------------------------------------------
 // Helpers

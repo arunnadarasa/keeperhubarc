@@ -7,8 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
-import { refetchOrganizations } from "@/keeperhub/lib/refetch-organizations";
-import { refetchSidebar } from "@/keeperhub/lib/refetch-sidebar";
 import {
   authClient,
   signIn,
@@ -16,6 +14,8 @@ import {
   signUp,
   useSession,
 } from "@/lib/auth-client";
+import { refetchOrganizations } from "@/lib/refetch-organizations";
+import { refetchSidebar } from "@/lib/refetch-sidebar";
 
 type InvitationData = {
   id: string;

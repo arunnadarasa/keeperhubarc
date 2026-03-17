@@ -23,19 +23,19 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("server-only", () => ({}));
 
-vi.mock("@/keeperhub/api/execute/_lib/auth", () => ({
+vi.mock("@/app/api/execute/_lib/auth", () => ({
   validateApiKey: mocks.validateApiKey,
 }));
 
-vi.mock("@/keeperhub/api/execute/_lib/rate-limit", () => ({
+vi.mock("@/app/api/execute/_lib/rate-limit", () => ({
   checkRateLimit: mocks.checkRateLimit,
 }));
 
-vi.mock("@/keeperhub/api/execute/_lib/spending-cap", () => ({
+vi.mock("@/app/api/execute/_lib/spending-cap", () => ({
   checkSpendingCap: mocks.checkSpendingCap,
 }));
 
-vi.mock("@/keeperhub/api/execute/_lib/execution-service", () => ({
+vi.mock("@/app/api/execute/_lib/execution-service", () => ({
   createExecution: mocks.createExecution,
   markRunning: mocks.markRunning,
   completeExecution: mocks.completeExecution,
@@ -43,27 +43,27 @@ vi.mock("@/keeperhub/api/execute/_lib/execution-service", () => ({
   redactInput: mocks.redactInput,
 }));
 
-vi.mock("@/keeperhub/plugins/web3/steps/transfer-funds-core", () => ({
+vi.mock("@/plugins/web3/steps/transfer-funds-core", () => ({
   transferFundsCore: mocks.transferFundsCore,
 }));
 
-vi.mock("@/keeperhub/plugins/web3/steps/transfer-token-core", () => ({
+vi.mock("@/plugins/web3/steps/transfer-token-core", () => ({
   transferTokenCore: mocks.transferTokenCore,
 }));
 
-vi.mock("@/keeperhub/plugins/web3/steps/read-contract-core", () => ({
+vi.mock("@/plugins/web3/steps/read-contract-core", () => ({
   readContractCore: mocks.readContractCore,
 }));
 
-vi.mock("@/keeperhub/plugins/web3/steps/write-contract-core", () => ({
+vi.mock("@/plugins/web3/steps/write-contract-core", () => ({
   writeContractCore: mocks.writeContractCore,
 }));
 
-vi.mock("@/keeperhub/lib/abi-cache", () => ({
+vi.mock("@/lib/abi-cache", () => ({
   resolveAbi: mocks.resolveAbi,
 }));
 
-vi.mock("@/keeperhub/api/execute/_lib/wallet-check", () => ({
+vi.mock("@/app/api/execute/_lib/wallet-check", () => ({
   requireWallet: vi.fn().mockResolvedValue(null),
 }));
 
@@ -103,11 +103,11 @@ vi.mock("@/lib/db", () => ({
 // Route imports (after mocks are registered)
 // ---------------------------------------------------------------------------
 
-import { GET as statusGET } from "@/keeperhub/api/execute/[executionId]/status/route";
-import { POST as checkAndExecutePOST } from "@/keeperhub/api/execute/check-and-execute/route";
-import { POST as contractCallPOST } from "@/keeperhub/api/execute/contract-call/route";
-import { POST as swapPOST } from "@/keeperhub/api/execute/swap/route";
-import { POST as transferPOST } from "@/keeperhub/api/execute/transfer/route";
+import { GET as statusGET } from "@/app/api/execute/[executionId]/status/route";
+import { POST as checkAndExecutePOST } from "@/app/api/execute/check-and-execute/route";
+import { POST as contractCallPOST } from "@/app/api/execute/contract-call/route";
+import { POST as swapPOST } from "@/app/api/execute/swap/route";
+import { POST as transferPOST } from "@/app/api/execute/transfer/route";
 
 // ---------------------------------------------------------------------------
 // Fixtures

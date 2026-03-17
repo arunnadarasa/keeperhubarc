@@ -23,7 +23,26 @@ if [ -z "$PROJECT_DIR" ]; then
     PROJECT_DIR="$CLAUDE_PROJECT_DIR"
 fi
 
-cd "$PROJECT_DIR"
+# Only run pnpm checks when committing within the keeperhub project.
+# Extract the first cd path from the command (handles `cd "/path" && git commit` patterns).
+KEEPERHUB_DIR="$CLAUDE_PROJECT_DIR"
+
+# Extract path after first `cd "` using bash string manipulation
+AFTER_CD="${COMMAND#*cd \"}"
+if [ "$AFTER_CD" != "$COMMAND" ]; then
+    CMD_CWD="${AFTER_CD%%\"*}"
+else
+    CMD_CWD=""
+fi
+
+# Fallback to PROJECT_DIR if no cd path found
+COMMIT_DIR="${CMD_CWD:-$PROJECT_DIR}"
+
+if [[ "$COMMIT_DIR" != "$KEEPERHUB_DIR"* ]]; then
+    exit 0
+fi
+
+cd "$KEEPERHUB_DIR"
 
 # Ensure .claude directory exists
 mkdir -p .claude

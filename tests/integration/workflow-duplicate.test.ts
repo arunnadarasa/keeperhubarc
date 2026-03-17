@@ -80,7 +80,7 @@ vi.mock("@/lib/auth", () => ({
   },
 }));
 
-vi.mock("@/keeperhub/lib/middleware/org-context", () => ({
+vi.mock("@/lib/middleware/org-context", () => ({
   getOrgContext: vi.fn().mockResolvedValue({
     organization: { id: "org-1" },
     isAnonymous: false,

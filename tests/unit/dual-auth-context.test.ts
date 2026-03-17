@@ -7,7 +7,7 @@ const { mockAuthenticateApiKey, mockGetSession, mockGetOrgContext } =
     mockGetOrgContext: vi.fn(),
   }));
 
-vi.mock("@/keeperhub/lib/api-key-auth", () => ({
+vi.mock("@/lib/api-key-auth", () => ({
   authenticateApiKey: mockAuthenticateApiKey,
 }));
 
@@ -19,11 +19,11 @@ vi.mock("@/lib/auth", () => ({
   },
 }));
 
-vi.mock("@/keeperhub/lib/middleware/org-context", () => ({
+vi.mock("@/lib/middleware/org-context", () => ({
   getOrgContext: mockGetOrgContext,
 }));
 
-import { getDualAuthContext } from "@/keeperhub/lib/middleware/auth-helpers";
+import { getDualAuthContext } from "@/lib/middleware/auth-helpers";
 
 function makeRequest(headers: Record<string, string> = {}): Request {
   return new Request("http://localhost/test", {

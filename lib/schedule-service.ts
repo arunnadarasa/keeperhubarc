@@ -1,8 +1,8 @@
 import { CronExpressionParser } from "cron-parser";
 import { eq } from "drizzle-orm";
-import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 import { db } from "@/lib/db";
 import { workflowSchedules } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { generateId } from "@/lib/utils/id";
 import type { WorkflowNode } from "@/lib/workflow-store";
 

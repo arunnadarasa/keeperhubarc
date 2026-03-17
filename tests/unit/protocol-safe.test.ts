@@ -3,8 +3,8 @@ import {
   buildEventAbiFragment,
   getProtocol,
   registerProtocol,
-} from "@/keeperhub/lib/protocol-registry";
-import safeDef from "@/keeperhub/protocols/safe";
+} from "@/lib/protocol-registry";
+import safeDef from "@/protocols/safe";
 
 const KEBAB_CASE_REGEX = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 

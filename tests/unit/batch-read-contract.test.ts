@@ -6,11 +6,11 @@ vi.mock("@/lib/steps/step-handler", () => ({
   withStepLogging: (_input: unknown, fn: () => unknown) => fn(),
 }));
 
-vi.mock("@/keeperhub/lib/metrics/instrumentation/plugin", () => ({
+vi.mock("@/lib/metrics/instrumentation/plugin", () => ({
   withPluginMetrics: (_opts: unknown, fn: () => unknown) => fn(),
 }));
 
-vi.mock("@/keeperhub/lib/logging", () => ({
+vi.mock("@/lib/logging", () => ({
   ErrorCategory: { VALIDATION: "validation", NETWORK_RPC: "network_rpc" },
   logUserError: vi.fn(),
 }));
@@ -146,7 +146,7 @@ import {
   type BatchReadContractCoreInput,
   type BatchReadContractInput,
   batchReadContractStep,
-} from "@/keeperhub/plugins/web3/steps/batch-read-contract";
+} from "@/plugins/web3/steps/batch-read-contract";
 
 type SuccessResult = {
   success: true;

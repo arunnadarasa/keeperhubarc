@@ -26,10 +26,7 @@ import {
 vi.unmock("@/lib/db");
 vi.unmock("server-only");
 
-import {
-  AdaptiveGasStrategy,
-  resetGasStrategy,
-} from "@/keeperhub/lib/web3/gas-strategy";
+import { AdaptiveGasStrategy, resetGasStrategy } from "@/lib/web3/gas-strategy";
 
 // Skip if SKIP_INFRA_TESTS is true (no network access)
 const shouldSkip = process.env.SKIP_INFRA_TESTS === "true";
@@ -359,9 +356,7 @@ describe.skipIf(shouldSkip)("Gas Strategy E2E", () => {
 
   describe("Singleton Pattern", () => {
     it("should return same instance from getGasStrategy", async () => {
-      const { getGasStrategy } = await import(
-        "@/keeperhub/lib/web3/gas-strategy"
-      );
+      const { getGasStrategy } = await import("@/lib/web3/gas-strategy");
 
       const strategy1 = getGasStrategy();
       const strategy2 = getGasStrategy();
@@ -371,7 +366,7 @@ describe.skipIf(shouldSkip)("Gas Strategy E2E", () => {
 
     it("should return new instance after reset", async () => {
       const { getGasStrategy: getStrategy, resetGasStrategy: resetStrategy } =
-        await import("@/keeperhub/lib/web3/gas-strategy");
+        await import("@/lib/web3/gas-strategy");
 
       const strategy1 = getStrategy();
       resetStrategy();

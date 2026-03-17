@@ -59,9 +59,6 @@ jobs:
           if [ -z "$PREV_TAG" ]; then
             echo "No previous tag found. Scanning all files in release tag."
             RAW_FILES=$(git ls-tree -r --name-only "$RELEASE_TAG" -- \
-              'keeperhub/plugins/' \
-              'keeperhub/api/' \
-              'keeperhub/lib/' \
               'lib/' \
               'plugins/' \
               'app/api/' \
@@ -72,9 +69,6 @@ jobs:
           else
             echo "Previous release: $PREV_TAG"
             RAW_FILES=$(git diff --name-only "$PREV_TAG".."$RELEASE_TAG" -- \
-              'keeperhub/plugins/' \
-              'keeperhub/api/' \
-              'keeperhub/lib/' \
               'lib/' \
               'plugins/' \
               'app/api/' \
@@ -84,22 +78,7 @@ jobs:
               || true)
           fi
 
-          # Deduplicate: if keeperhub/ version exists, drop the app/ or lib/ mirror
-          CHANGED_FILES=""
-          while IFS= read -r f; do
-            [ -z "$f" ] && continue
-            MIRROR=""
-            case "$f" in
-              app/api/*) MIRROR="keeperhub/api/${f#app/api/}" ;;
-              lib/*) MIRROR="keeperhub/lib/${f#lib/}" ;;
-              plugins/*) MIRROR="keeperhub/plugins/${f#plugins/}" ;;
-            esac
-            if [ -n "$MIRROR" ] && echo "$RAW_FILES" | grep -qF "$MIRROR"; then
-              echo "Skipping mirror: $f (keeperhub version exists)"
-              continue
-            fi
-            CHANGED_FILES="${CHANGED_FILES}${f}"$'\n'
-          done <<< "$RAW_FILES"
+          CHANGED_FILES="$RAW_FILES"
 
           # Trim trailing newline and cap at 40 files, prioritizing plugins > api > lib
           CHANGED_FILES=$(echo "$CHANGED_FILES" | sed '/^$/d' \
@@ -146,10 +125,7 @@ jobs:
           # Exclusion pattern for non-doc-relevant files
           EXCLUDE_PATTERN='(og/|metrics/|internal/|db/|test-connection|extensions\.tsx)'
 
-          RAW_FILES=$(git log --since="${DAYS_BACK} days ago" --name-only --pretty=format: -- \
-            'keeperhub/plugins/' \
-            'keeperhub/api/' \
-            'keeperhub/lib/' \
+          CHANGED_FILES=$(git log --since="${DAYS_BACK} days ago" --name-only --pretty=format: -- \
             'lib/' \
             'plugins/' \
             'app/api/' \
@@ -158,23 +134,6 @@ jobs:
             | grep -vE '\.(test|spec|stories)\.' \
             | grep -vE "$EXCLUDE_PATTERN" \
             || true)
-
-          # Deduplicate: if keeperhub/ version exists, drop the app/ or lib/ mirror
-          CHANGED_FILES=""
-          while IFS= read -r f; do
-            [ -z "$f" ] && continue
-            MIRROR=""
-            case "$f" in
-              app/api/*) MIRROR="keeperhub/api/${f#app/api/}" ;;
-              lib/*) MIRROR="keeperhub/lib/${f#lib/}" ;;
-              plugins/*) MIRROR="keeperhub/plugins/${f#plugins/}" ;;
-            esac
-            if [ -n "$MIRROR" ] && echo "$RAW_FILES" | grep -qF "$MIRROR"; then
-              echo "Skipping mirror: $f (keeperhub version exists)"
-              continue
-            fi
-            CHANGED_FILES="${CHANGED_FILES}${f}"$'\n'
-          done <<< "$RAW_FILES"
 
           # Trim trailing newline and cap at 40 files, prioritizing plugins > api > lib
           CHANGED_FILES=$(echo "$CHANGED_FILES" | sed '/^$/d' \
@@ -327,143 +286,157 @@ jobs:
             exit 1
           fi
 
+      - name: Setup Node.js
+        if: steps.tag.outputs.release_tag != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Write Claude prompt
+        if: steps.tag.outputs.release_tag != ''
+        env:
+          REPO_NAME: ${{ github.repository }}
+          RELEASE_TAG: ${{ steps.tag.outputs.release_tag }}
+          CHANGED_FILES: ${{ github.event_name != 'workflow_dispatch' && steps.release_changes.outputs.changed_files || steps.manual_changes.outputs.changed_files }}
+        run: |
+          cat > /tmp/claude-prompt.txt << PROMPT_EOF
+          REPO: ${REPO_NAME}
+          RELEASE TAG: ${RELEASE_TAG}
+
+          CHANGED FILES:
+          ${CHANGED_FILES}
+
+          ---
+
+          You are a documentation maintenance agent for KeeperHub, a blockchain automation
+          platform. A new release has been published and the code files listed above have
+          changed. Your job is to ensure the documentation in /docs/ stays accurate and
+          in sync with the codebase.
+
+          ## CRITICAL: Turn Budget
+
+          You have a maximum of 75 turns. Manage them carefully:
+          - Turns 1-5: Read pre-loaded context files and docs listing.
+          - Turns 6-40: Analyze changes and search/read relevant docs.
+          - Turns 41-65: Make edits to documentation files.
+          - Turns 66-75: Commit changes (git add + git commit). You MUST commit
+            before turn 70. If you reach turn 50 without finding docs that need
+            updates, immediately state "Documentation is up to date" and stop.
+          - Do NOT spend turns reading source files individually when the diff
+            already provides the information you need.
+          - Maximize parallel tool calls -- read multiple docs pages in one turn.
+
+          ## IMPORTANT: Tool Usage
+
+          You have access to: Read, Write, Edit, Glob, Grep, and Bash (git/gh commands only).
+          - Use Glob to find files (NOT find via Bash - it will be denied)
+          - Use Grep to search file contents (NOT grep or rg via Bash)
+          - Use Read to read files (NOT cat or head via Bash)
+          - Use Bash ONLY for git and gh commands
+          - Call multiple tools in parallel when they are independent of each other
+
+          ## Pre-loaded Context
+
+          The file /tmp/file-diffs.txt contains compact unified diffs for all
+          changed files (capped at 60 lines per file, 3000 lines total).
+          The file /tmp/docs-listing.txt contains the full docs directory listing.
+
+          Start by reading these two files instead of individually reading each source
+          file. This saves significant time. Only read individual source files if you need
+          more context than the diff provides.
+
+          NOTE: Internal/non-user-facing files (OG images, metrics, db internals,
+          internal APIs) have already been filtered out. All files in the list are
+          potentially docs-relevant.
+
+          ## Documentation Infrastructure
+
+          - Documentation lives in the /docs/ directory at the repository root.
+          - The docs site uses Nextra 4 (a Next.js-based docs framework). Content is plain
+            Markdown with YAML frontmatter.
+          - Navigation is controlled by _meta.json files in each directory. The root
+            _meta.json at /docs/_meta.json defines the top-level sections. Each
+            subdirectory has its own _meta.json for page ordering within that section.
+          - There are approximately 35 documentation pages organized across these sections:
+            intro, getting-started, keepers, workflows, keeper-runs, notifications,
+            wallet-management, users-teams-orgs, practices, api, FAQ.
+          - Two sections are hidden from navigation: api and plans-features.
+
+          ## Documentation Style Rules
+
+          Follow these rules strictly when editing or creating documentation:
+
+          - Every page starts with YAML frontmatter containing title and description.
+          - Use one H1 heading per page matching the frontmatter title.
+          - Use H2 for major sections, H3 for subsections.
+          - Write in a professional, instructive tone. Use second person ("you") for
+            instructions and third person for feature descriptions.
+          - Use short paragraphs, bullet lists, and tables. Use bold for emphasis and key
+            terms.
+          - Do NOT use emojis anywhere in the documentation. This is strictly enforced.
+          - Use code blocks for configuration examples, API responses, addresses, and code
+            snippets.
+          - File and directory naming convention is kebab-case.
+
+          ## Your Task
+
+          1. Read /tmp/file-diffs.txt and /tmp/docs-listing.txt first.
+             Analyze the diffs to understand what changed. Focus on: API endpoint changes,
+             plugin interface changes, configuration changes, new features, removed features.
+
+          2. For each meaningful user-facing change, search the /docs/ directory for
+             related documentation pages. Check:
+             - Are code examples in the docs still correct?
+             - Are API signatures, types, and endpoints still accurate?
+             - Are plugin configuration options still complete and correct?
+             - Are instructions and procedures still valid?
+
+          3. Fix ONLY what is broken or inaccurate:
+             - Update incorrect code examples to match the current code.
+             - Fix wrong API signatures, types, and endpoint paths.
+             - Update outdated configuration examples.
+             - Add minimal documentation for significant new features that have absolutely
+               no existing documentation coverage. Only do this for user-facing features.
+             - If a plugin gained new configuration options, add them to the relevant
+               docs table or list.
+
+          4. Do NOT do any of the following:
+             - Do NOT rewrite working documentation for style or tone improvements.
+             - Do NOT add changelog or release notes entries.
+             - Do NOT reorganize existing documentation structure or navigation.
+             - Do NOT add sections about internal implementation details.
+             - Do NOT modify documentation that is already accurate.
+             - Do NOT create documentation for test utilities, internal helpers, or
+               non-user-facing code.
+
+          5. If you create any new documentation pages:
+             - Use kebab-case filenames.
+             - Add the page to the appropriate _meta.json file.
+             - Include proper YAML frontmatter with title and description.
+             - Match the writing style and depth of existing pages in that section.
+
+          6. If after analyzing all changes you determine that no documentation updates
+             are needed (the docs are already accurate), report that finding and do not
+             create a PR. Simply state: "Documentation is up to date. No changes needed."
+
+          7. If you do make changes, commit them to the current branch. Use a commit
+             message format like: "docs: sync documentation with ${RELEASE_TAG}"
+             and include a summary of what was updated and why in the commit body.
+             The CI system will push the branch and create a PR automatically after you commit.
+          PROMPT_EOF
+
       - name: Run Claude Code docs sync
         if: steps.tag.outputs.release_tag != ''
         id: claude
-        uses: anthropics/claude-code-action@v1
         env:
-          CLAUDE_BRANCH: ${{ steps.branch.outputs.branch_name }}
-          BASE_BRANCH: staging
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: |
-            REPO: ${{ github.repository }}
-            RELEASE TAG: ${{ steps.tag.outputs.release_tag }}
-
-            CHANGED FILES:
-            ${{ github.event_name != 'workflow_dispatch' && steps.release_changes.outputs.changed_files || steps.manual_changes.outputs.changed_files }}
-
-            ---
-
-            You are a documentation maintenance agent for KeeperHub, a blockchain automation
-            platform. A new release has been published and the code files listed above have
-            changed. Your job is to ensure the documentation in `/docs/` stays accurate and
-            in sync with the codebase.
-
-            ## CRITICAL: Turn Budget
-
-            You have a maximum of 75 turns. Manage them carefully:
-            - Turns 1-5: Read pre-loaded context files and docs listing.
-            - Turns 6-40: Analyze changes and search/read relevant docs.
-            - Turns 41-65: Make edits to documentation files.
-            - Turns 66-75: Commit changes (git add + git commit). You MUST commit
-              before turn 70. If you reach turn 50 without finding docs that need
-              updates, immediately state "Documentation is up to date" and stop.
-            - Do NOT spend turns reading source files individually when the diff
-              already provides the information you need.
-            - Maximize parallel tool calls -- read multiple docs pages in one turn.
-
-            ## IMPORTANT: Tool Usage
-
-            You have access to: Read, Write, Edit, Glob, Grep, and Bash (git/gh commands only).
-            - Use **Glob** to find files (NOT `find` via Bash - it will be denied)
-            - Use **Grep** to search file contents (NOT `grep` or `rg` via Bash)
-            - Use **Read** to read files (NOT `cat` or `head` via Bash)
-            - Use **Bash** ONLY for `git` and `gh` commands
-            - Call multiple tools in parallel when they are independent of each other
-
-            ## Pre-loaded Context
-
-            The file `/tmp/file-diffs.txt` contains compact unified diffs for all
-            changed files (capped at 60 lines per file, 3000 lines total).
-            The file `/tmp/docs-listing.txt` contains the full docs directory listing.
-
-            **Start by reading these two files** instead of individually reading each source
-            file. This saves significant time. Only read individual source files if you need
-            more context than the diff provides.
-
-            NOTE: Internal/non-user-facing files (OG images, metrics, db internals,
-            internal APIs) have already been filtered out. All files in the list are
-            potentially docs-relevant.
-
-            ## Documentation Infrastructure
-
-            - Documentation lives in the `/docs/` directory at the repository root.
-            - The docs site uses Nextra 4 (a Next.js-based docs framework). Content is plain
-              Markdown with YAML frontmatter.
-            - Navigation is controlled by `_meta.json` files in each directory. The root
-              `_meta.json` at `/docs/_meta.json` defines the top-level sections. Each
-              subdirectory has its own `_meta.json` for page ordering within that section.
-            - There are approximately 35 documentation pages organized across these sections:
-              intro, getting-started, keepers, workflows, keeper-runs, notifications,
-              wallet-management, users-teams-orgs, practices, api, FAQ.
-            - Two sections are hidden from navigation: `api` and `plans-features`.
-
-            ## Documentation Style Rules
-
-            Follow these rules strictly when editing or creating documentation:
-
-            - Every page starts with YAML frontmatter containing `title` and `description`.
-            - Use one `# H1` heading per page matching the frontmatter title.
-            - Use `## H2` for major sections, `### H3` for subsections.
-            - Write in a professional, instructive tone. Use second person ("you") for
-              instructions and third person for feature descriptions.
-            - Use short paragraphs, bullet lists, and tables. Use bold for emphasis and key
-              terms.
-            - Do NOT use emojis anywhere in the documentation. This is strictly enforced.
-            - Use code blocks for configuration examples, API responses, addresses, and code
-              snippets.
-            - File and directory naming convention is kebab-case.
-
-            ## Your Task
-
-            1. Read `/tmp/file-diffs.txt` and `/tmp/docs-listing.txt` first.
-               Analyze the diffs to understand what changed. Focus on: API endpoint changes,
-               plugin interface changes, configuration changes, new features, removed features.
-
-            2. For each meaningful user-facing change, search the `/docs/` directory for
-               related documentation pages. Check:
-               - Are code examples in the docs still correct?
-               - Are API signatures, types, and endpoints still accurate?
-               - Are plugin configuration options still complete and correct?
-               - Are instructions and procedures still valid?
-
-            3. Fix ONLY what is broken or inaccurate:
-               - Update incorrect code examples to match the current code.
-               - Fix wrong API signatures, types, and endpoint paths.
-               - Update outdated configuration examples.
-               - Add minimal documentation for significant new features that have absolutely
-                 no existing documentation coverage. Only do this for user-facing features.
-               - If a plugin gained new configuration options, add them to the relevant
-                 docs table or list.
-
-            4. Do NOT do any of the following:
-               - Do NOT rewrite working documentation for style or tone improvements.
-               - Do NOT add changelog or release notes entries.
-               - Do NOT reorganize existing documentation structure or navigation.
-               - Do NOT add sections about internal implementation details.
-               - Do NOT modify documentation that is already accurate.
-               - Do NOT create documentation for test utilities, internal helpers, or
-                 non-user-facing code.
-
-            5. If you create any new documentation pages:
-               - Use kebab-case filenames.
-               - Add the page to the appropriate `_meta.json` file.
-               - Include proper YAML frontmatter with title and description.
-               - Match the writing style and depth of existing pages in that section.
-
-            6. If after analyzing all changes you determine that no documentation updates
-               are needed (the docs are already accurate), report that finding and do not
-               create a PR. Simply state: "Documentation is up to date. No changes needed."
-
-            7. If you do make changes, commit them to the current branch. Use a commit
-               message format like: "docs: sync documentation with ${{ steps.tag.outputs.release_tag }}"
-               and include a summary of what was updated and why in the commit body.
-               The CI system will push the branch and create a PR automatically after you commit.
-          claude_args: |
-            --model claude-sonnet-4-5-20250929
-            --max-turns 75
-            --allowedTools "Read,Write,Edit,Glob,Grep,Bash(git:*),Bash(gh:*)"
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          npx -y @anthropic-ai/claude-code@latest \
+            --print \
+            --model claude-sonnet-4-5-20250929 \
+            --max-turns 75 \
+            --allowedTools "Read,Write,Edit,Glob,Grep,Bash(git:*),Bash(gh:*)" \
+            < /tmp/claude-prompt.txt
 
       - name: Push branch and create PR
         if: steps.claude.outcome == 'success' && steps.branch.outputs.branch_name != ''
@@ -485,7 +458,6 @@ jobs:
 
           echo "Found $COMMIT_COUNT new commit(s). Pushing branch and creating PR."
 
-          # Re-set remote URL with token (claude-code-action reconfigures git auth)
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
           git push origin "$BRANCH"
 

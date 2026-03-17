@@ -5,15 +5,15 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Provider } from "jotai";
 import { type ReactNode, Suspense } from "react";
 import { AuthProvider } from "@/components/auth/provider";
+import { KeeperHubExtensionLoader } from "@/components/extension-loader";
 import { GitHubStarsLoader } from "@/components/github-stars-loader";
 import { GitHubStarsProvider } from "@/components/github-stars-provider";
 import { GlobalModals } from "@/components/global-modals";
 import { LayoutContent } from "@/components/layout-content";
+import { MobileWarningDialog } from "@/components/mobile-warning-dialog";
 import { OverlayProvider } from "@/components/overlays/overlay-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
-import { KeeperHubExtensionLoader } from "@/keeperhub/components/extension-loader";
-import { MobileWarningDialog } from "@/keeperhub/components/mobile-warning-dialog";
 import { mono, sans } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 

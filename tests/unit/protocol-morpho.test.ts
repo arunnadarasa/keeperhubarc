@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  getProtocol,
-  registerProtocol,
-} from "@/keeperhub/lib/protocol-registry";
-import morphoDef from "@/keeperhub/protocols/morpho";
+import { getProtocol, registerProtocol } from "@/lib/protocol-registry";
+import morphoDef from "@/protocols/morpho";
 
 const KEBAB_CASE_REGEX = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const HEX_ADDRESS_REGEX = /^0x[\dA-Fa-f]{40}$/;
@@ -68,30 +65,32 @@ describe("Morpho Protocol Definition", () => {
     }
   });
 
-  it("each action's contract has at least one chain address", () => {
+  it("each action's contract has at least one chain address or is user-specified", () => {
     for (const action of morphoDef.actions) {
       const contract = morphoDef.contracts[action.contract];
       expect(contract).toBeDefined();
-      expect(
-        Object.keys(contract.addresses).length,
-        `contract "${action.contract}" for action "${action.slug}" must have at least one chain`
-      ).toBeGreaterThan(0);
+      if (!contract.userSpecifiedAddress) {
+        expect(
+          Object.keys(contract.addresses).length,
+          `contract "${action.contract}" for action "${action.slug}" must have at least one chain`
+        ).toBeGreaterThan(0);
+      }
     }
   });
 
-  it("has exactly 14 actions", () => {
-    expect(morphoDef.actions).toHaveLength(14);
+  it("has exactly 32 actions", () => {
+    expect(morphoDef.actions).toHaveLength(32);
   });
 
-  it("has 1 contract", () => {
-    expect(Object.keys(morphoDef.contracts)).toHaveLength(1);
+  it("has 2 contracts", () => {
+    expect(Object.keys(morphoDef.contracts)).toHaveLength(2);
   });
 
-  it("has 4 read actions and 10 write actions", () => {
+  it("has 18 read actions and 14 write actions", () => {
     const readActions = morphoDef.actions.filter((a) => a.type === "read");
     const writeActions = morphoDef.actions.filter((a) => a.type === "write");
-    expect(readActions).toHaveLength(4);
-    expect(writeActions).toHaveLength(10);
+    expect(readActions).toHaveLength(18);
+    expect(writeActions).toHaveLength(14);
   });
 
   it("all MarketParams actions include the 5 struct fields as flat inputs", () => {

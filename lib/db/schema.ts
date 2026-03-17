@@ -351,7 +351,23 @@ export {
   type WorkflowPublicTag,
   walletLocks,
   workflowPublicTags,
-} from "../../keeperhub/db/schema-extensions";
+} from "@/db/schema-extensions";
+
+// Better Auth: Device Authorization table (for CLI device flow)
+export const deviceCode = pgTable("device_code", {
+  id: text("id").primaryKey(),
+  deviceCode: text("device_code").notNull(),
+  userCode: text("user_code").notNull(),
+  userId: text("user_id").references(() => users.id),
+  expiresAt: timestamp("expires_at").notNull(),
+  status: text("status").notNull(),
+  lastPolledAt: timestamp("last_polled_at"),
+  pollingInterval: integer("polling_interval"),
+  clientId: text("client_id"),
+  scope: text("scope"),
+  createdAt: timestamp("created_at"),
+  updatedAt: timestamp("updated_at"),
+});
 
 // API Keys table for webhook authentication
 export const apiKeys = pgTable("api_keys", {
@@ -617,7 +633,7 @@ export type WorkflowExecution = typeof workflowExecutions.$inferSelect;
 export type NewWorkflowExecution = typeof workflowExecutions.$inferInsert;
 export type WorkflowExecutionLog = typeof workflowExecutionLogs.$inferSelect;
 export type NewWorkflowExecutionLog = typeof workflowExecutionLogs.$inferInsert;
-// ParaWallet types are exported from @/keeperhub/db/schema-extensions
+// ParaWallet types are exported from @/db/schema-extensions
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type NewApiKey = typeof apiKeys.$inferInsert;
 export type BetaAccessRequest = typeof betaAccessRequests.$inferSelect;

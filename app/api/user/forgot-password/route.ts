@@ -1,14 +1,11 @@
 import { randomInt } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import {
-  sendOAuthPasswordResetEmail,
-  sendVerificationOTP,
-} from "@/keeperhub/lib/email";
-import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
-import { hashPassword } from "@/keeperhub/lib/password";
 import { db } from "@/lib/db";
 import { accounts, users, verifications } from "@/lib/db/schema";
+import { sendOAuthPasswordResetEmail, sendVerificationOTP } from "@/lib/email";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
+import { hashPassword } from "@/lib/password";
 import { generateId } from "@/lib/utils/id";
 
 const OAUTH_PROVIDERS = ["vercel", "github", "google"];

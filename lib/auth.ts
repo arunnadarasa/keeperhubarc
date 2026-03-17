@@ -3,6 +3,10 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import {
   anonymous,
+  // start custom keeperhub code //
+  bearer,
+  deviceAuthorization,
+  // end keeperhub code //
   emailOTP,
   genericOAuth,
   organization,
@@ -10,14 +14,12 @@ import {
 import { createAccessControl } from "better-auth/plugins/access";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import {
-  sendInvitationEmail,
-  sendVerificationOTP,
-} from "@/keeperhub/lib/email";
+import { sendInvitationEmail, sendVerificationOTP } from "@/lib/email";
 import { isAiGatewayManagedKeysEnabled } from "./ai-gateway/config";
 import { db } from "./db";
 import {
   accounts,
+  deviceCode,
   integrations,
   invitationRelations,
   invitation as invitationTable,
@@ -80,6 +82,7 @@ const schema = {
   session: sessions,
   account: accounts,
   verification: verifications,
+  deviceCode,
   workflows,
   workflowExecutions,
   workflowExecutionLogs,
@@ -118,6 +121,13 @@ function getBaseURL() {
 
 // Build plugins array conditionally
 const plugins = [
+  // start custom keeperhub code //
+  bearer(),
+  deviceAuthorization({
+    expiresIn: "15m",
+    interval: "5s",
+  }),
+  // end keeperhub code //
   emailOTP({
     async sendVerificationOTP({ email, otp, type }) {
       console.log(`[Auth] Sending OTP to ${email} for ${type}`);
@@ -452,6 +462,9 @@ export const auth = betterAuth({
   },
   trustedOrigins: [
     "http://localhost:3000",
+    // start custom keeperhub code //
+    "http://127.0.0.1:*", // CLI browser auth callback (dynamic port)
+    // end keeperhub code //
     "https://app-staging.keeperhub.com",
     "https://*.keeperhub.com",
   ],

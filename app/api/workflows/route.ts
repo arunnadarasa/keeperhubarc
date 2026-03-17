@@ -1,8 +1,8 @@
 import { and, asc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { authenticateApiKey } from "@/keeperhub/lib/api-key-auth";
-import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
-import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
+import { authenticateApiKey } from "@/lib/api-key-auth";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
+import { getOrgContext } from "@/lib/middleware/org-context";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { workflows } from "@/lib/db/schema";

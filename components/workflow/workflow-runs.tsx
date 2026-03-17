@@ -16,14 +16,14 @@ import {
 import Image from "next/image";
 import type { JSX } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toChecksumAddress } from "@/keeperhub/lib/address-utils";
+import { toChecksumAddress } from "@/lib/address-utils";
 import {
   FOR_EACH_GROUP_TYPE,
   buildChildLogsLookup,
   groupLogsByIteration,
   type ChildLogsLookup,
   type IterationGroup,
-} from "@/keeperhub/lib/iteration-grouping";
+} from "@/lib/iteration-grouping";
 import { api } from "@/lib/api-client";
 import {
   OUTPUT_DISPLAY_CONFIGS,
@@ -585,7 +585,7 @@ function ExecutionProgress({ execution }: { execution: WorkflowExecution }) {
 
 // Types and functions (ExecutionLog, IterationGroup, GroupedLogEntry,
 // buildIterationGroups, groupLogsByIteration) imported from
-// @/keeperhub/lib/iteration-grouping
+// @/lib/iteration-grouping
 
 /** Sum the duration (ms) of all logs in an iteration. */
 function computeIterationDuration(
@@ -1193,9 +1193,11 @@ export function WorkflowRuns({
     }
   };
 
+  const isReady = !loading;
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
+      <div data-ready={String(isReady)} data-testid="workflow-runs" className="flex items-center justify-center py-12">
         <Spinner />
       </div>
     );
@@ -1203,7 +1205,7 @@ export function WorkflowRuns({
 
   if (executions.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16">
+      <div data-ready={String(isReady)} data-testid="workflow-runs" className="flex flex-col items-center justify-center py-16">
         <div className="mb-3 rounded-lg border border-dashed p-4">
           <Play className="h-6 w-6 text-muted-foreground" />
         </div>
@@ -1216,7 +1218,7 @@ export function WorkflowRuns({
   }
 
   return (
-    <div className="space-y-3">
+    <div data-ready={String(isReady)} data-testid="workflow-runs" className="space-y-3">
       {executions.map((execution, index) => {
         const isExpanded = expandedRuns.has(execution.id);
         const isSelected = selectedExecutionId === execution.id;

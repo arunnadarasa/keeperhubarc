@@ -14,4 +14,5 @@ export default {
   guides: "Guides",
   FAQ: "FAQ",
   api: "API",
+  cli: "CLI",
 };

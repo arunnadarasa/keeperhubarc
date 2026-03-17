@@ -31,11 +31,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { OrgSwitcher } from "@/keeperhub/components/organization/org-switcher";
-import { GoLiveOverlay } from "@/keeperhub/components/overlays/go-live-overlay";
-import { Switch } from "@/keeperhub/components/ui/switch";
-import { BUILTIN_NODE_ID } from "@/keeperhub/lib/builtin-variables";
-import { isAnonymousUser } from "@/keeperhub/lib/is-anonymous";
+import { OrgSwitcher } from "@/components/organization/org-switcher";
+import { GoLiveOverlay } from "@/components/overlays/go-live-overlay";
+import { Switch } from "@/components/ui/switch";
+import { BUILTIN_NODE_ID } from "@/lib/builtin-variables";
+import { isAnonymousUser } from "@/lib/is-anonymous";
 import { api, type Project, type Tag } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
 import { getCustomLogo } from "@/lib/extension-registry";

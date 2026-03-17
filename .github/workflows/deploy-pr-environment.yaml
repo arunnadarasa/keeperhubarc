@@ -4,9 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
     branches:
-      - production
       - staging
-      - KEEP-1188-Deploy-to-our-own-K8s
 
 jobs:
   check-labels:
@@ -96,8 +94,8 @@ jobs:
             cache_key: cache-workflow-runner
     env:
       PR_NUMBER: ${{ github.event.pull_request.number }}
-      REGION: us-east-1
-      AWS_ECR_NAME: keeperhub-staging
+      REGION: ${{ vars.TO_REGION }}
+      AWS_ECR_NAME: ${{ vars.TO_ECR_NAME }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -144,7 +142,7 @@ jobs:
           target: ${{ matrix.image.target }}
           push: true
           provenance: false
-          build-args: ${{ matrix.image.build_args == true && format('NEXT_PUBLIC_AUTH_PROVIDERS={0}\nNEXT_PUBLIC_GITHUB_CLIENT_ID={1}\nNEXT_PUBLIC_GOOGLE_CLIENT_ID={2}\nNEXT_PUBLIC_BILLING_ENABLED={3}', vars.NEXT_PUBLIC_AUTH_PROVIDERS, vars.NEXT_PUBLIC_GITHUB_CLIENT_ID, vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID, vars.NEXT_PUBLIC_BILLING_ENABLED_STAGING) || '' }}
+          build-args: ${{ matrix.image.build_args == true && format('NEXT_PUBLIC_AUTH_PROVIDERS={0}\nNEXT_PUBLIC_GITHUB_CLIENT_ID={1}\nNEXT_PUBLIC_GOOGLE_CLIENT_ID={2}\nNEXT_PUBLIC_BILLING_ENABLED={3}', vars.NEXT_PUBLIC_AUTH_PROVIDERS, vars.NEXT_PUBLIC_GITHUB_CLIENT_ID, vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID, vars.NEXT_PUBLIC_BILLING_ENABLED) || '' }}
           tags: |
             ${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_NAME }}:${{ matrix.image.tag_prefix }}-${{ steps.vars.outputs.sha_short }}
           cache-from: |
@@ -160,7 +158,7 @@ jobs:
     env:
       PR_NUMBER: ${{ github.event.pull_request.number }}
       REGION: us-east-1
-      CLUSTER_NAME: techops-staging
+      CLUSTER_NAME: ${{ vars.TO_CLUSTER_NAME }}
       NAMESPACE: pr-${{ github.event.pull_request.number }}
       AWS_ECR_NAME: keeperhub-staging
       PG_VERSION: "16"
@@ -285,7 +283,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ steps.vars.outputs.sha_short }}
           DB_PASSWORD: ${{ steps.db-password.outputs.password }}
-          SERVICE_ACCOUNT_ROLE_ARN: ${{ vars.TECHOPS_SERVICE_ACCOUNT_ROLE_ARN }}
+          SERVICE_ACCOUNT_ROLE_ARN: ${{ vars.TO_SERVICE_ACCOUNT_ROLE_ARN }}
           TEST_PARA_USER_SHARE: ${{ secrets.TEST_PARA_USER_SHARE }}
         run: |
           envsubst < deploy/pr-environment/values.template.yaml > ${{ github.workspace }}/values-pr-${{ env.PR_NUMBER }}.yaml
@@ -392,14 +390,14 @@ jobs:
             const namespace = 'pr-' + prNumber;
             const url = `https://app-pr-${prNumber}.keeperhub.com`;
 
-            const comment = `## PR Environment Deployed (TechOps)
+            const comment = `## PR Environment Deployed
 
-            Your PR environment has been deployed to the TechOps cluster!
+            Your PR environment has been deployed!
 
             **Environment Details:**
             - URL: [${url}](${url})
             - Namespace: \`${namespace}\`
-            - Cluster: \`techops-staging\`
+            - Cluster: \`${{ vars.TO_CLUSTER_NAME }}\`
             - Image Tag: \`${{ steps.vars.outputs.sha_short }}\`
             - Commit: \`${{ github.event.pull_request.head.sha }}\`
 
@@ -465,7 +463,7 @@ jobs:
       PR_NUMBER: ${{ github.event.pull_request.number }}
       NAMESPACE: pr-${{ github.event.pull_request.number }}
       REGION: us-east-1
-      CLUSTER_NAME: techops-staging
+      CLUSTER_NAME: ${{ vars.TO_CLUSTER_NAME }}
       KEEPERHUB_URL: https://app-pr-${{ github.event.pull_request.number }}.keeperhub.com
 
     steps:
@@ -547,8 +545,8 @@ jobs:
           echo "PR environment did not become ready in time"
           exit 1
         env:
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.TO_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.TO_CF_ACCESS_CLIENT_SECRET }}
 
       - name: Run E2E Vitest tests (remote)
         run: >-
@@ -595,7 +593,7 @@ jobs:
       PR_NUMBER: ${{ github.event.pull_request.number }}
       NAMESPACE: pr-${{ github.event.pull_request.number }}
       REGION: us-east-1
-      CLUSTER_NAME: techops-staging
+      CLUSTER_NAME: ${{ vars.TO_CLUSTER_NAME }}
       BASE_URL: https://app-pr-${{ github.event.pull_request.number }}.keeperhub.com
 
     steps:
@@ -665,8 +663,8 @@ jobs:
           echo "PR environment did not become ready in time"
           exit 1
         env:
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.TO_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.TO_CF_ACCESS_CLIENT_SECRET }}
 
       - name: Fetch TEST_API_KEY from deployed environment
         run: |
@@ -692,8 +690,8 @@ jobs:
         env:
           BASE_URL: ${{ env.BASE_URL }}
           TEST_API_KEY: ${{ env.TEST_API_KEY }}
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.TO_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.TO_CF_ACCESS_CLIENT_SECRET }}
           CI: true
 
       - name: Cleanup port-forwards

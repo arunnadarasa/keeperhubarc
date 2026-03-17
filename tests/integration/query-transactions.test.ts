@@ -156,11 +156,11 @@ vi.mock("@/lib/utils", () => ({
   ),
 }));
 
+import type { NormalizedTransaction } from "@/lib/explorer";
 // ---------------------------------------------------------------------------
 // Import module under test AFTER all mocks
 // ---------------------------------------------------------------------------
-import { queryTransactionsCore } from "@/keeperhub/plugins/web3/steps/query-transactions-core";
-import type { NormalizedTransaction } from "@/lib/explorer";
+import { queryTransactionsCore } from "@/plugins/web3/steps/query-transactions-core";
 
 // ---------------------------------------------------------------------------
 // Fixtures

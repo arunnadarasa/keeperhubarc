@@ -29,7 +29,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/keeperhub/lib/billing/providers", () => ({
+vi.mock("@/lib/billing/providers", () => ({
   getBillingProvider: vi.fn(),
 }));
 
@@ -38,9 +38,9 @@ import {
   clearDebtForInvoice,
   getActiveDebtExecutions,
   scanAndCreateDebt,
-} from "@/keeperhub/lib/billing/execution-debt";
-import type { BillingProvider } from "@/keeperhub/lib/billing/provider";
-import { getBillingProvider } from "@/keeperhub/lib/billing/providers";
+} from "@/lib/billing/execution-debt";
+import type { BillingProvider } from "@/lib/billing/provider";
+import { getBillingProvider } from "@/lib/billing/providers";
 import { db } from "@/lib/db";
 
 function mockProvider(overrides: Partial<BillingProvider>): void {

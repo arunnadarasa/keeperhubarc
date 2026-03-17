@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { decrypt, encrypt } from "@/lib/db/integrations";
 import { accounts, integrations } from "@/lib/db/schema";
 import { generateId } from "@/lib/utils/id";
-import { ErrorCategory, logUserError, logSystemError } from "@/keeperhub/lib/logging";
+import { ErrorCategory, logUserError, logSystemError } from "@/lib/logging";
 
 const API_KEY_PURPOSE = "ai-gateway";
 const API_KEY_NAME = "Workflow Builder Gateway Key";

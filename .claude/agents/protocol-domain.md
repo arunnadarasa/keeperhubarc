@@ -1,9 +1,9 @@
 <overview>
 Protocol plugins are "meta-plugins" that define DeFi protocol interactions declaratively.
 
-- Protocols go in `keeperhub/protocols/` as `{slug}.ts` files
-- Each file uses `defineProtocol()` from `@/keeperhub/lib/protocol-registry`
-- `pnpm discover-plugins` generates the barrel (`keeperhub/protocols/index.ts`) and registers to `lib/types/integration.ts`
+- Protocols go in `protocols/` as `{slug}.ts` files
+- Each file uses `defineProtocol()` from `@/lib/protocol-registry`
+- `pnpm discover-plugins` generates the barrel (`protocols/index.ts`) and registers to `lib/types/integration.ts`
 - The generic protocol-read/protocol-write step handlers route to the correct contract/function via `_protocolMeta` JSON injected into action config
 - If any protocol definition fails validation, the entire import chain fails and the server won't start
 - Each protocol slug becomes its own `IntegrationType` entry (e.g., `"weth"`, `"sky"`)
@@ -13,7 +13,7 @@ Protocol plugins are "meta-plugins" that define DeFi protocol interactions decla
 Complete `defineProtocol()` TypeScript shape:
 
 ```typescript
-import { defineProtocol } from "@/keeperhub/lib/protocol-registry";
+import { defineProtocol } from "@/lib/protocol-registry";
 
 export default defineProtocol({
   name: string,           // Display name (e.g., "Sky Protocol")
@@ -84,6 +84,52 @@ Supported chains with their numeric string keys:
 - Add a comment noting proxy status: `// Proxy -- ABI auto-resolved via abi-cache`
 </abi_handling>
 
+<erc4626_vault_standard>
+ERC-4626 is the tokenized vault standard. Many DeFi protocols implement ERC-4626 for savings/staking vaults (e.g., sUSDS, sDAI). A shared module at `lib/standards/erc4626.ts` provides standardized vault actions.
+
+How to detect ERC-4626 compliance:
+- The contract implements `deposit(uint256,address)`, `mint(uint256,address)`, `withdraw(uint256,address,address)`, `redeem(uint256,address,address)`, `asset()`, `totalAssets()`, `convertToAssets(uint256)`, `convertToShares(uint256)`, `previewDeposit(uint256)`, `previewMint(uint256)`, `previewWithdraw(uint256)`, `previewRedeem(uint256)`, `maxDeposit(address)`, `maxMint(address)`, `maxWithdraw(address)`, `maxRedeem(address)`, `balanceOf(address)`, `totalSupply()`
+- The protocol documentation or contract source explicitly states ERC-4626 compliance
+- The contract inherits from OpenZeppelin's ERC4626 or a similar implementation
+
+Usage in protocol definitions:
+```typescript
+import { defineProtocol } from "@/lib/protocol-registry";
+import { erc4626VaultActions } from "@/lib/standards/erc4626";
+
+export default defineProtocol({
+  // ...
+  actions: [
+    ...erc4626VaultActions("vaultContractKey"),  // Spread 18 standard vault actions
+    // Protocol-specific non-vault actions below
+  ],
+});
+```
+
+The `erc4626VaultActions(contract, options?)` function returns 18 `ProtocolAction[]` items:
+- 4 write: vault-deposit, vault-mint, vault-withdraw, vault-redeem
+- 14 read: vault-asset, vault-total-assets, vault-total-supply, vault-balance, vault-convert-to-assets, vault-convert-to-shares, vault-preview-deposit, vault-preview-mint, vault-preview-withdraw, vault-preview-redeem, vault-max-deposit, vault-max-mint, vault-max-withdraw, vault-max-redeem
+
+Options: `{ slugPrefix?, labelPrefix?, decimals? }`. Use `decimals` for non-18-decimal vaults (e.g., USDC = 6).
+
+All slugs are prefixed with `vault-` to avoid collisions with protocol-specific actions.
+
+When NOT to use the shared standard:
+- The vault uses custom/non-standard function signatures (e.g., Ajna vaults with `drain`, `move`, `moveFromBuffer`)
+- The vault only partially implements ERC-4626 (missing required functions)
+- The protocol wraps ERC-4626 with additional parameters not in the standard interface
+
+Protocols that SHOULD use erc4626VaultActions:
+- Sky (sUSDS vault) -- contract key: "sUsds"
+- Spark (sDAI vault) -- contract key: "sdai"
+- Any future protocol with an ERC-4626 compliant vault
+
+Protocols that should NOT use it:
+- Ajna (custom vault functions, not ERC-4626 compliant)
+
+Slug migration note: When porting an existing protocol to use `erc4626VaultActions`, action slugs change (e.g., `deposit-ssr` becomes `vault-deposit`). Existing workflows referencing old slugs need a database migration to update the `actionType` field in workflow nodes. Include migration SQL in the PR description.
+</erc4626_vault_standard>
+
 <user_specified_address>
 For protocols with user-specific addresses (e.g., Safe multisig):
 
@@ -91,7 +137,7 @@ For protocols with user-specific addresses (e.g., Safe multisig):
 - The `addresses` field serves as chain-availability metadata -- use reference addresses (e.g., singleton/implementation addresses) so `collectAllChains()` in the UI correctly shows supported chains
 - At build time, `buildConfigFieldsFromAction()` auto-inserts a `contractAddress` template-input field
 - At runtime, `protocol-read.ts` and `protocol-write.ts` read `input.contractAddress` instead of looking up from the fixed addresses map
-- Reference: `keeperhub/protocols/safe.ts` (canonical example)
+- Reference: `protocols/safe.ts` (canonical example)
 </user_specified_address>
 
 <icon_handling>
@@ -120,14 +166,14 @@ Post-creation steps in this exact order:
 2. `pnpm check` -- lint check
 3. `pnpm type-check` -- TypeScript validation
 
-NEVER manually edit `keeperhub/protocols/index.ts` or `lib/types/integration.ts` -- these are auto-generated.
+NEVER manually edit `protocols/index.ts` or `lib/types/integration.ts` -- these are auto-generated.
 </registration>
 
 <weth_reference>
 Canonical WETH example -- 5 chains, 3 actions (wrap, unwrap, balance-of):
 
 ```typescript
-import { defineProtocol } from "@/keeperhub/lib/protocol-registry";
+import { defineProtocol } from "@/lib/protocol-registry";
 
 export default defineProtocol({
   name: "WETH",

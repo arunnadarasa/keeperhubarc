@@ -1,7 +1,7 @@
 import type { Edge, EdgeChange, Node, NodeChange } from "@xyflow/react";
 import { applyEdgeChanges, applyNodeChanges } from "@xyflow/react";
 import { atom } from "jotai";
-import { buildExecutionLogsMap } from "@/keeperhub/lib/template-helpers";
+import { buildExecutionLogsMap } from "@/lib/template-helpers";
 import { api } from "./api-client";
 
 export type WorkflowNodeType = "trigger" | "action" | "add";

@@ -1,7 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { getOrgContext } from "@/keeperhub/lib/middleware/org-context";
-import { auth } from "@/lib/auth";
+import { getDualAuthContext } from "@/lib/middleware/auth-helpers";
 import { db } from "@/lib/db";
 import { workflowExecutionLogs, workflowExecutions } from "@/lib/db/schema";
 import { redactSensitiveData } from "@/lib/utils/redact";
@@ -12,12 +11,21 @@ export async function GET(
 ) {
   try {
     const { executionId } = await context.params;
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
 
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authContext = await getDualAuthContext(request);
+    if ("error" in authContext) {
+      return NextResponse.json(
+        { error: authContext.error },
+        { status: authContext.status }
+      );
+    }
+    const { userId, organizationId } = authContext;
+
+    if (!userId && !organizationId) {
+      return NextResponse.json(
+        { error: "API key has no associated user or organization. Please recreate the API key." },
+        { status: 403 }
+      );
     }
 
     // Get the execution and verify ownership
@@ -36,12 +44,11 @@ export async function GET(
     }
 
     // Verify access: owner or org member
-    const isOwner = execution.workflow.userId === session.user.id;
-    const orgContext = await getOrgContext();
+    const isOwner = userId !== null && execution.workflow.userId === userId;
     const isSameOrg =
       !execution.workflow.isAnonymous &&
       execution.workflow.organizationId &&
-      orgContext.organization?.id === execution.workflow.organizationId;
+      organizationId === execution.workflow.organizationId;
 
     if (!(isOwner || isSameOrg)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

@@ -1,24 +1,15 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
-import {
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { FeaturedCarousel } from "@/keeperhub/components/hub/featured-carousel";
-import { getWorkflowTrigger } from "@/keeperhub/components/hub/get-workflow-trigger";
-import { HubHero } from "@/keeperhub/components/hub/hub-hero";
-import { HubResults } from "@/keeperhub/components/hub/hub-results";
-import { ProtocolDetailModal } from "@/keeperhub/components/hub/protocol-detail-modal";
-import { ProtocolStrip } from "@/keeperhub/components/hub/protocol-strip";
-import { WorkflowSearchFilter } from "@/keeperhub/components/hub/workflow-search-filter";
-import { useDebounce } from "@/keeperhub/lib/hooks/use-debounce";
-import type { ProtocolDefinition } from "@/keeperhub/lib/protocol-registry";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { HubHero } from "@/components/hub/hub-hero";
+import { HubResults } from "@/components/hub/hub-results";
+import { ProtocolDetailModal } from "@/components/hub/protocol-detail-modal";
+import { ProtocolStrip } from "@/components/hub/protocol-strip";
+import { WorkflowSearchFilter } from "@/components/hub/workflow-search-filter";
 import { api, type PublicTag, type SavedWorkflow } from "@/lib/api-client";
+import { useDebounce } from "@/lib/hooks/use-debounce";
+import type { ProtocolDefinition } from "@/lib/protocol-registry";
 
 export default function HubPage(): React.ReactElement {
   return (
@@ -29,7 +20,6 @@ export default function HubPage(): React.ReactElement {
 }
 
 function HubPageContent(): React.ReactElement {
-  const router = useRouter();
   const [featuredWorkflows, setFeaturedWorkflows] = useState<SavedWorkflow[]>(
     []
   );
@@ -39,7 +29,6 @@ function HubPageContent(): React.ReactElement {
   const [publicTags, setPublicTags] = useState<PublicTag[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTrigger, setSelectedTrigger] = useState<string | null>(null);
   const [selectedTagSlugs, setSelectedTagSlugs] = useState<string[]>([]);
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
@@ -59,9 +48,9 @@ function HubPageContent(): React.ReactElement {
       setSelectedProtocolSlug(slug);
       const params = new URLSearchParams(searchParams.toString());
       params.set("protocol", slug);
-      router.replace(`/hub?${params.toString()}`, { scroll: false });
+      window.history.replaceState(null, "", `/hub?${params.toString()}`);
     },
-    [router, searchParams]
+    [searchParams]
   );
 
   const clearProtocolSelection = useCallback((): void => {
@@ -69,24 +58,35 @@ function HubPageContent(): React.ReactElement {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("protocol");
     const qs = params.toString();
-    router.replace(qs ? `/hub?${qs}` : "/hub", { scroll: false });
-  }, [router, searchParams]);
+    window.history.replaceState(null, "", qs ? `/hub?${qs}` : "/hub");
+  }, [searchParams]);
 
-  const triggers = useMemo(() => {
-    const unique = new Set<string>();
-    for (const workflow of communityWorkflows) {
-      const trigger = getWorkflowTrigger(workflow.nodes);
-      if (trigger) {
-        unique.add(trigger);
+  /** Merge featured + community, featured first, deduplicated */
+  const allWorkflows = useMemo((): SavedWorkflow[] => {
+    const seen = new Set<string>();
+    const merged: SavedWorkflow[] = [];
+    for (const w of featuredWorkflows) {
+      if (!seen.has(w.id)) {
+        seen.add(w.id);
+        merged.push(w);
       }
     }
-    return Array.from(unique).sort();
-  }, [communityWorkflows]);
+    for (const w of communityWorkflows) {
+      if (!seen.has(w.id)) {
+        seen.add(w.id);
+        merged.push(w);
+      }
+    }
+    return merged;
+  }, [featuredWorkflows, communityWorkflows]);
+
+  const featuredIds = useMemo(
+    () => new Set(featuredWorkflows.map((w) => w.id)),
+    [featuredWorkflows]
+  );
 
   const isSearchActive = Boolean(
-    debouncedSearchQuery.trim() ||
-      selectedTrigger ||
-      selectedTagSlugs.length > 0
+    debouncedSearchQuery.trim() || selectedTagSlugs.length > 0
   );
 
   const searchResults = useMemo((): SavedWorkflow[] | null => {
@@ -95,15 +95,7 @@ function HubPageContent(): React.ReactElement {
     }
 
     const query = debouncedSearchQuery.trim().toLowerCase();
-
-    let filtered = communityWorkflows;
-
-    if (selectedTrigger) {
-      filtered = filtered.filter((w) => {
-        const trigger = getWorkflowTrigger(w.nodes);
-        return trigger === selectedTrigger;
-      });
-    }
+    let filtered = allWorkflows;
 
     if (selectedTagSlugs.length > 0) {
       filtered = filtered.filter((w) =>
@@ -120,19 +112,18 @@ function HubPageContent(): React.ReactElement {
     }
 
     return filtered;
-  }, [
-    isSearchActive,
-    communityWorkflows,
-    selectedTrigger,
-    selectedTagSlugs,
-    debouncedSearchQuery,
-  ]);
+  }, [isSearchActive, allWorkflows, selectedTagSlugs, debouncedSearchQuery]);
 
   const handleToggleTag = (slug: string): void => {
     setSelectedTagSlugs((prev) =>
       prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
     );
   };
+
+  const clearFilters = useCallback((): void => {
+    setSearchQuery("");
+    setSelectedTagSlugs([]);
+  }, []);
 
   useEffect(() => {
     const fetchWorkflows = async (): Promise<void> => {
@@ -145,8 +136,8 @@ function HubPageContent(): React.ReactElement {
         setFeaturedWorkflows(featured);
         setCommunityWorkflows(community);
         setPublicTags(tags);
-      } catch (error) {
-        console.error("Failed to fetch workflows:", error);
+      } catch {
+        // Workflow fetch failure handled by empty state
       } finally {
         setIsLoading(false);
       }
@@ -171,120 +162,69 @@ function HubPageContent(): React.ReactElement {
     fetchProtocols();
   }, []);
 
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const gradientRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    const gradient = gradientRef.current;
-    if (!(container && gradient)) {
-      return;
-    }
-
-    const handleScroll = (): void => {
-      const scrollTop = container.scrollTop;
-      const fadeDistance = 500;
-      const opacity = Math.max(0, 1 - scrollTop / fadeDistance);
-      gradient.style.opacity = String(opacity);
-    };
-
-    container.addEventListener("scroll", handleScroll, { passive: true });
-    return () => container.removeEventListener("scroll", handleScroll);
-  }, []);
-
   return (
-    <div
-      className="pointer-events-auto fixed inset-0 overflow-y-auto bg-sidebar [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      ref={scrollContainerRef}
-    >
-      <div className="transition-[margin-left] duration-200 ease-out md:ml-[var(--nav-sidebar-width,60px)]">
+    <div className="pointer-events-auto fixed inset-0 overflow-x-hidden overflow-y-auto bg-sidebar [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex min-h-full flex-col transition-[margin-left] duration-200 ease-out md:ml-[var(--nav-sidebar-width,60px)]">
         {isLoading ? (
-          <div className="container mx-auto px-4 pt-20 pb-8 animate-pulse">
-            {/* Hero skeleton */}
-            <div className="grid items-center gap-8 lg:grid-cols-2">
-              <div>
-                <div className="mb-4 h-10 w-3/4 rounded bg-muted/30" />
-                <div className="mb-2 h-4 w-full max-w-lg rounded bg-muted/20" />
-                <div className="mb-6 h-4 w-2/3 max-w-lg rounded bg-muted/20" />
-                <div className="flex gap-3">
-                  <div className="h-10 w-36 rounded-md bg-muted/20" />
-                  <div className="h-10 w-32 rounded-md bg-muted/20" />
-                </div>
-              </div>
-              <div className="hidden h-[200px] rounded-lg bg-muted/10 lg:block" />
-            </div>
-            {/* Featured skeleton */}
-            <div className="mt-10 flex gap-4">
-              {Array.from({ length: 4 }).map((_, i) => (
+          <div className="container mx-auto max-w-7xl px-6 pt-20 pb-8 animate-pulse">
+            <div className="mb-1 h-8 w-64 rounded bg-muted/20" />
+            <div className="mb-5 h-4 w-80 rounded bg-muted/10" />
+            <div className="mb-8 h-10 w-96 rounded-lg bg-muted/10" />
+            <div className="mb-6 flex gap-2">
+              {Array.from({ length: 5 }).map((_, i) => (
                 <div
-                  className="h-[240px] w-[280px] shrink-0 rounded-lg bg-muted/10"
-                  key={`feat-${String(i)}`}
+                  className="h-9 w-28 rounded-lg bg-muted/10"
+                  key={`proto-${String(i)}`}
                 />
               ))}
             </div>
-            {/* Content skeleton */}
-            <div className="mt-10">
-              <div className="mx-auto mb-4 h-8 w-48 rounded bg-muted/20" />
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div
-                    className="h-[200px] rounded-lg bg-muted/10"
-                    key={`card-${String(i)}`}
-                  />
-                ))}
-              </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  className="h-[180px] rounded-xl bg-muted/10"
+                  key={`card-${String(i)}`}
+                />
+              ))}
             </div>
           </div>
         ) : (
-          <>
-            <div className="relative">
-              <div className="container mx-auto px-4 pt-20">
-                <HubHero />
-              </div>
-            </div>
-            <div className="bg-white/[0.03] py-6 relative">
-              <div className="absolute top-0 h-full bg-[var(--color-hub-overlay)] w-full" />
-              <div className="container mx-auto px-4">
-                <FeaturedCarousel workflows={featuredWorkflows} />
-              </div>
-            </div>
+          <div className="container mx-auto max-w-7xl px-6 pt-20 pb-8">
+            <HubHero
+              onSearchChange={setSearchQuery}
+              searchQuery={searchQuery}
+            />
 
             {protocols.length > 0 && (
-              <div className="bg-sidebar py-6">
-                <div className="container mx-auto px-4">
-                  <ProtocolStrip
-                    onSelect={handleProtocolSelect}
-                    protocols={protocols}
-                  />
-                </div>
-              </div>
+              <ProtocolStrip
+                onSelect={handleProtocolSelect}
+                protocols={protocols}
+              />
             )}
 
-            <div className="relative pt-6 pb-8">
-              <div className="absolute inset-0 bg-[var(--color-hub-overlay)]" />
-              <div className="relative container mx-auto px-4">
-                <h2 className="mb-4 font-bold text-2xl">Community Workflows</h2>
-                <div className="grid grid-cols-[1fr_3fr] items-start gap-8">
-                  <div className="sticky top-28">
-                    <WorkflowSearchFilter
-                      onSearchChange={setSearchQuery}
-                      onTagToggle={handleToggleTag}
-                      onTriggerChange={setSelectedTrigger}
-                      publicTags={publicTags}
-                      searchQuery={searchQuery}
-                      selectedTagSlugs={selectedTagSlugs}
-                      selectedTrigger={selectedTrigger}
-                      triggers={triggers}
-                    />
-                  </div>
-
-                  <HubResults
-                    communityWorkflows={communityWorkflows}
-                    isSearchActive={isSearchActive}
-                    searchResults={searchResults}
-                  />
+            <div className="mt-4 mb-4">
+              <div className="mb-4">
+                <div className="mb-3 flex items-center gap-3">
+                  <div className="h-px flex-1 bg-border/30" />
+                  <h2 className="shrink-0 text-[var(--color-text-accent)]/60 text-xs uppercase tracking-widest">
+                    Templates
+                  </h2>
+                  <div className="h-px flex-1 bg-border/30" />
                 </div>
+
+                <WorkflowSearchFilter
+                  onTagToggle={handleToggleTag}
+                  publicTags={publicTags}
+                  selectedTagSlugs={selectedTagSlugs}
+                />
               </div>
+
+              <HubResults
+                communityWorkflows={allWorkflows}
+                featuredIds={featuredIds}
+                isSearchActive={isSearchActive}
+                onClearFilters={clearFilters}
+                searchResults={searchResults}
+              />
             </div>
 
             <ProtocolDetailModal
@@ -296,7 +236,7 @@ function HubPageContent(): React.ReactElement {
               open={selectedProtocolSlug !== null}
               protocol={selectedProtocol}
             />
-          </>
+          </div>
         )}
       </div>
     </div>

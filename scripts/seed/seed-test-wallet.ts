@@ -30,7 +30,7 @@ import { hashPassword } from "better-auth/crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { encryptUserShare } from "../../keeperhub/lib/encryption";
+import { encryptUserShare } from "@/lib/encryption";
 import { getDatabaseUrl } from "../../lib/db/connection-utils";
 import {
   accounts,
