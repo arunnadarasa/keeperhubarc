@@ -1,0 +1,193 @@
+import { eq } from "drizzle-orm";
+import { ethers } from "ethers";
+import { db } from "@/lib/db";
+import { explorerConfigs } from "@/lib/db/schema";
+import {
+  getAddressUrl as buildAddressUrl,
+  getTransactionUrl as buildTransactionUrl,
+} from "@/lib/explorer";
+import type { AdaptiveGasStrategy } from "../gas-strategy";
+import type { NonceManager, NonceSession } from "../nonce-manager";
+import type {
+  ChainAdapter,
+  ContractCallRequest,
+  SendTransactionRequest,
+  TransactionOptions,
+  TransactionReceipt,
+} from "./types";
+
+export class EvmChainAdapter implements ChainAdapter {
+  readonly chainFamily = "evm";
+  private readonly chainId: number;
+  private readonly gasStrategy: AdaptiveGasStrategy;
+  private readonly nonceManager: NonceManager;
+
+  constructor(
+    chainId: number,
+    gasStrategy: AdaptiveGasStrategy,
+    nonceManager: NonceManager
+  ) {
+    this.chainId = chainId;
+    this.gasStrategy = gasStrategy;
+    this.nonceManager = nonceManager;
+  }
+
+  async sendTransaction(
+    signer: ethers.Signer,
+    request: SendTransactionRequest,
+    session: NonceSession,
+    options: TransactionOptions
+  ): Promise<TransactionReceipt> {
+    const provider = signer.provider;
+    if (!provider) {
+      throw new Error("Signer has no provider");
+    }
+
+    const walletAddress = await signer.getAddress();
+    const baseTx = { to: request.to, value: request.value };
+
+    await provider.call({ ...baseTx, from: walletAddress });
+
+    const nonce = this.nonceManager.getNextNonce(session);
+
+    const estimatedGas = await provider.estimateGas({
+      ...baseTx,
+      from: walletAddress,
+    });
+
+    const gasConfig = await this.gasStrategy.getGasConfig(
+      provider,
+      options.triggerType,
+      estimatedGas,
+      this.chainId,
+      options.gasOverrides.multiplierOverride,
+      options.gasOverrides.gasLimitOverride
+    );
+
+    const tx = await signer.sendTransaction({
+      ...baseTx,
+      nonce,
+      gasLimit: gasConfig.gasLimit,
+      maxFeePerGas: gasConfig.maxFeePerGas,
+      maxPriorityFeePerGas: gasConfig.maxPriorityFeePerGas,
+    });
+
+    await this.nonceManager.recordTransaction(
+      session,
+      nonce,
+      tx.hash,
+      options.workflowId,
+      gasConfig.maxFeePerGas.toString()
+    );
+
+    const receipt = await tx.wait();
+    if (!receipt) {
+      throw new Error("Transaction sent but receipt not available");
+    }
+
+    await this.nonceManager.confirmTransaction(tx.hash);
+
+    return {
+      hash: receipt.hash,
+      gasUsed: receipt.gasUsed,
+      effectiveGasPrice: receipt.gasPrice,
+      blockNumber: receipt.blockNumber,
+    };
+  }
+
+  async executeContractCall(
+    signer: ethers.Signer,
+    request: ContractCallRequest,
+    session: NonceSession,
+    options: TransactionOptions
+  ): Promise<TransactionReceipt> {
+    const provider = signer.provider;
+    if (!provider) {
+      throw new Error("Signer has no provider");
+    }
+
+    const contract = new ethers.Contract(
+      request.contractAddress,
+      request.abi,
+      signer
+    );
+
+    const valueOverride = request.value ? { value: request.value } : {};
+
+    await contract[request.functionKey].staticCall(
+      ...request.args,
+      valueOverride
+    );
+
+    const nonce = this.nonceManager.getNextNonce(session);
+
+    const estimatedGas = await contract[request.functionKey].estimateGas(
+      ...request.args,
+      valueOverride
+    );
+
+    const gasConfig = await this.gasStrategy.getGasConfig(
+      provider,
+      options.triggerType,
+      estimatedGas,
+      this.chainId,
+      options.gasOverrides.multiplierOverride,
+      options.gasOverrides.gasLimitOverride
+    );
+
+    const tx = await contract[request.functionKey](...request.args, {
+      nonce,
+      gasLimit: gasConfig.gasLimit,
+      maxFeePerGas: gasConfig.maxFeePerGas,
+      maxPriorityFeePerGas: gasConfig.maxPriorityFeePerGas,
+      ...valueOverride,
+    });
+
+    await this.nonceManager.recordTransaction(
+      session,
+      nonce,
+      tx.hash,
+      options.workflowId,
+      gasConfig.maxFeePerGas.toString()
+    );
+
+    const receipt = await tx.wait();
+    if (!receipt) {
+      throw new Error("Transaction sent but receipt not available");
+    }
+
+    await this.nonceManager.confirmTransaction(tx.hash);
+
+    return {
+      hash: receipt.hash,
+      gasUsed: receipt.gasUsed,
+      effectiveGasPrice: receipt.gasPrice,
+      blockNumber: receipt.blockNumber,
+    };
+  }
+
+  async getTransactionUrl(txHash: string): Promise<string> {
+    const config = await this.getExplorerConfig();
+    if (!config) {
+      return "";
+    }
+    return buildTransactionUrl(config, txHash);
+  }
+
+  async getAddressUrl(address: string): Promise<string> {
+    const config = await this.getExplorerConfig();
+    if (!config) {
+      return "";
+    }
+    return buildAddressUrl(config, address);
+  }
+
+  private async getExplorerConfig(): Promise<
+    typeof explorerConfigs.$inferSelect | undefined
+  > {
+    const config = await db.query.explorerConfigs.findFirst({
+      where: eq(explorerConfigs.chainId, this.chainId),
+    });
+    return config ?? undefined;
+  }
+}

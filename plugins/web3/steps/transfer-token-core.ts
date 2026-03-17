@@ -12,11 +12,9 @@ import { ethers } from "ethers";
 import ERC20_ABI from "@/lib/contracts/abis/erc20.json";
 import { db } from "@/lib/db";
 import {
-  explorerConfigs,
   supportedTokens,
   workflowExecutions,
 } from "@/lib/db/schema";
-import { getTransactionUrl } from "@/lib/explorer";
 import { ErrorCategory, logUserError } from "@/lib/logging";
 import {
   getOrganizationWalletAddress,
@@ -25,10 +23,9 @@ import {
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
 import { getErrorMessage } from "@/lib/utils";
+import { getChainAdapter } from "@/lib/web3/chain-adapter";
 import { formatContractError } from "@/lib/web3/decode-revert-error";
 import { resolveGasLimitOverrides } from "@/lib/web3/gas-defaults";
-import { getGasStrategy } from "@/lib/web3/gas-strategy";
-import { getNonceManager } from "@/lib/web3/nonce-manager";
 import { resolveOrganizationContext } from "@/lib/web3/resolve-org-context";
 import {
   type TransactionContext,
@@ -297,11 +294,10 @@ export async function transferTokenCore(
     triggerType: _context.triggerType as TransactionContext["triggerType"],
   };
 
-  // Execute transaction with nonce management and gas strategy
-  return withNonceSession(txContext, walletAddress, async (session) => {
-    const nonceManager = getNonceManager();
-    const gasStrategy = getGasStrategy();
+  const adapter = getChainAdapter(chainId);
 
+  // Execute transaction with nonce management
+  return withNonceSession(txContext, walletAddress, async (session) => {
     // Initialize Para signer
     let signer: Awaited<ReturnType<typeof initializeParaSigner>>;
     let signerAddress: string;
@@ -315,7 +311,7 @@ export async function transferTokenCore(
       };
     }
 
-    // Create contract instance with signer
+    // Create contract instance for pre-flight checks (decimals, symbol, balance)
     const contract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
 
     try {
@@ -348,73 +344,19 @@ export async function transferTokenCore(
         };
       }
 
-      // Simulate call first to get decodable revert data on failure
-      await contract.transfer.staticCall(recipientAddress, amountRaw);
-
-      // Get nonce from session
-      const nonce = nonceManager.getNextNonce(session);
-
-      // Estimate gas for the transfer
-      const estimatedGas = await contract.transfer.estimateGas(
-        recipientAddress,
-        amountRaw
-      );
-
-      // Get gas configuration from strategy
-      const provider = signer.provider;
-      if (!provider) {
-        throw new Error("Signer has no provider");
-      }
-
-      const txGasConfig = await gasStrategy.getGasConfig(
-        provider,
-        txContext.triggerType ?? "manual",
-        estimatedGas,
-        chainId,
-        multiplierOverride,
-        gasLimitOverride
-      );
-
-      // Execute transfer with managed nonce and gas config
-      const tx = await contract.transfer(recipientAddress, amountRaw, {
-        nonce,
-        gasLimit: txGasConfig.gasLimit,
-        maxFeePerGas: txGasConfig.maxFeePerGas,
-        maxPriorityFeePerGas: txGasConfig.maxPriorityFeePerGas,
-      });
-
-      // Record pending transaction
-      await nonceManager.recordTransaction(
-        session,
-        nonce,
-        tx.hash,
+      const receipt = await adapter.executeContractCall(signer, {
+        contractAddress: tokenAddress,
+        abi: ERC20_ABI,
+        functionKey: "transfer",
+        args: [recipientAddress, amountRaw],
+      }, session, {
+        triggerType: txContext.triggerType ?? "manual",
+        gasOverrides: { multiplierOverride, gasLimitOverride },
         workflowId,
-        txGasConfig.maxFeePerGas.toString()
-      );
-
-      // Wait for transaction to be mined
-      const receipt = await tx.wait();
-
-      if (!receipt) {
-        return {
-          success: false,
-          error: "Transaction sent but receipt not available",
-        };
-      }
-
-      // Mark transaction as confirmed
-      await nonceManager.confirmTransaction(tx.hash);
-
-      // Compute gas cost in wei: gasUnits * effectiveGasPrice
-      const gasCostWei = (receipt.gasUsed * receipt.gasPrice).toString();
-
-      // Fetch explorer config for transaction link
-      const explorerConfig = await db.query.explorerConfigs.findFirst({
-        where: eq(explorerConfigs.chainId, chainId),
       });
-      const transactionLink = explorerConfig
-        ? getTransactionUrl(explorerConfig, receipt.hash)
-        : "";
+
+      const gasCostWei = (receipt.gasUsed * receipt.effectiveGasPrice).toString();
+      const transactionLink = await adapter.getTransactionUrl(receipt.hash);
 
       return {
         success: true,
