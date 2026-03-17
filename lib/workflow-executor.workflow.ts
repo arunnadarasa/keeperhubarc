@@ -102,6 +102,8 @@ export type WorkflowExecutionInput = {
   triggerInput?: Record<string, unknown>;
   executionId?: string;
   workflowId?: string; // Used by steps to fetch credentials
+  organizationId?: string;
+  organizationName?: string; // Used for log filtering by org name
 };
 
 /**
@@ -317,6 +319,7 @@ export function evaluateConditionExpression(
         "[Condition] Failed to evaluate user expression:",
         error,
         {
+          ...baseLogLabels,
           expression: conditionExpression,
         }
       );
@@ -1010,14 +1013,30 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
 
   console.log("[Workflow Executor] Starting workflow execution");
 
-  const { nodes, edges, triggerInput = {}, executionId, workflowId } = input;
+  const {
+    nodes,
+    edges,
+    triggerInput = {},
+    executionId,
+    workflowId,
+    organizationId,
+    organizationName,
+  } = input;
 
   console.log("[Workflow Executor] Input:", {
     nodeCount: nodes.length,
     edgeCount: edges.length,
     hasExecutionId: !!executionId,
     workflowId: workflowId || "none",
+    organizationId: organizationId || "none",
   });
+
+  // Common labels for error logging — includes org name for log filtering
+  const baseLogLabels: Record<string, string> = {
+    ...(workflowId ? { workflow_id: workflowId } : {}),
+    ...(executionId ? { execution_id: executionId } : {}),
+    ...(organizationName ? { org_name: organizationName } : {}),
+  };
 
   const outputs: NodeOutputs = {};
   const results: Record<string, ExecutionResult> = {};
@@ -1231,6 +1250,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
         nodeType: actionType,
         iterationIndex: iterationMeta?.iterationIndex,
         forEachNodeId: iterationMeta?.forEachNodeId,
+        organizationId,
       };
 
       const stepResult = await executeActionStep({
@@ -1538,6 +1558,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             nodeName: collectLabel,
             nodeType: "Collect",
             forEachNodeId,
+            organizationId,
           } satisfies StepContext,
         });
       }
@@ -1656,10 +1677,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
               ErrorCategory.VALIDATION,
               "[Workflow Executor] Failed to parse webhook mock request:",
               error,
-              {
-                ...(workflowId ? { workflow_id: workflowId } : {}),
-                ...(executionId ? { execution_id: executionId } : {}),
-              }
+              baseLogLabels
             );
           }
         } else if (triggerInput && Object.keys(triggerInput).length > 0) {
@@ -1710,6 +1728,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           nodeId: node.id,
           nodeName: getNodeName(node),
           nodeType: node.data.type,
+          organizationId,
         };
 
         // Execute trigger step (handles logging internally)
@@ -1753,6 +1772,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           nodeName: getNodeName(node),
           nodeType: actionType,
           triggerType: workflowTriggerType,
+          organizationId,
         };
 
         // Execute the action step with stepHandler (logging is handled inside)
@@ -1914,8 +1934,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
         "[Workflow Executor] Error executing node:",
         error,
         {
-          ...(workflowId ? { workflow_id: workflowId } : {}),
-          ...(executionId ? { execution_id: executionId } : {}),
+          ...baseLogLabels,
           node_id: nodeId,
         }
       );
@@ -2010,10 +2029,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           ErrorCategory.WORKFLOW_ENGINE,
           "[Workflow Executor] Failed to update execution record:",
           completeError,
-          {
-            ...(workflowId ? { workflow_id: workflowId } : {}),
-            ...(executionId ? { execution_id: executionId } : {}),
-          }
+          baseLogLabels
         );
       }
     }
@@ -2028,10 +2044,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       ErrorCategory.WORKFLOW_ENGINE,
       "[Workflow Executor] Fatal error during workflow execution:",
       error,
-      {
-        ...(workflowId ? { workflow_id: workflowId } : {}),
-        ...(executionId ? { execution_id: executionId } : {}),
-      }
+      baseLogLabels
     );
 
     const errorMessage = await getErrorMessageAsync(error);
@@ -2063,10 +2076,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           ErrorCategory.INFRASTRUCTURE,
           "[Workflow Executor] Failed to log error:",
           logError,
-          {
-            ...(workflowId ? { workflow_id: workflowId } : {}),
-            ...(executionId ? { execution_id: executionId } : {}),
-          }
+          baseLogLabels
         );
       }
     }

@@ -37,6 +37,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { validateWorkflowIntegrations } from "../../../lib/db/integrations";
 import {
+  organization,
   workflowExecutions,
   workflowSchedules,
   workflows,
@@ -726,6 +727,16 @@ async function main(): Promise<void> {
 
     console.log(`[Runner] Loaded workflow: ${workflow.name || workflowId}`);
 
+    // Resolve organization name for log filtering
+    let organizationName: string | undefined;
+    if (workflow.organizationId) {
+      const org = await db.query.organization.findFirst({
+        where: eq(organization.id, workflow.organizationId),
+        columns: { name: true },
+      });
+      organizationName = org?.name;
+    }
+
     const nodes = workflow.nodes as WorkflowNode[];
     const edges = workflow.edges as WorkflowEdge[];
     const validation = await validateWorkflowIntegrations(
@@ -753,6 +764,8 @@ async function main(): Promise<void> {
       triggerInput: input,
       executionId,
       workflowId,
+      organizationId: workflow.organizationId ?? undefined,
+      organizationName,
     });
 
     profiler.markStepEnd("workflow-execution");

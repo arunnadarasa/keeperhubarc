@@ -24,6 +24,7 @@ export type StepContext = {
   triggerType?: string;
   iterationIndex?: number;
   forEachNodeId?: string;
+  organizationId?: string;
 };
 
 /**
