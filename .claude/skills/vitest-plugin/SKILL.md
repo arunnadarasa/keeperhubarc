@@ -3,7 +3,7 @@ name: vitest-plugin
 description: >-
   Generate Vitest unit tests for KeeperHub plugin step files. Use when asked to
   "write tests for", "test this step", "generate tests", or "add unit tests"
-  for any file in keeperhub/plugins/*/steps/.
+  for any file in plugins/*/steps/.
 version: 0.1.0
 ---
 
@@ -15,7 +15,7 @@ Generate a complete, passing Vitest unit test for a KeeperHub plugin step file.
 
 ### Step 1: Identify the step file
 
-Accept a path argument or find the step file from conversation context. The step file lives at `keeperhub/plugins/{plugin}/steps/{step-name}.ts`.
+Accept a path argument or find the step file from conversation context. The step file lives at `plugins/{plugin}/steps/{step-name}.ts`.
 
 If a corresponding `-core.ts` file exists (e.g., `read-contract-core.ts` for `read-contract.ts`), read both files -- the core file contains shared logic that the step file imports.
 
@@ -46,11 +46,11 @@ vi.mock("@/lib/steps/step-handler", () => ({
   withStepLogging: (_input: unknown, fn: () => unknown) => fn(),
 }));
 
-vi.mock("@/keeperhub/lib/metrics/instrumentation/plugin", () => ({
+vi.mock("@/lib/metrics/instrumentation/plugin", () => ({
   withPluginMetrics: (_opts: unknown, fn: () => unknown) => fn(),
 }));
 
-vi.mock("@/keeperhub/lib/logging", () => ({
+vi.mock("@/lib/logging", () => ({
   ErrorCategory: {
     VALIDATION: "validation",
     NETWORK_RPC: "network_rpc",
@@ -141,8 +141,8 @@ vi.mock("@/lib/utils", () => ({
 #### c) Import the SUT (system under test) after all mocks
 
 ```typescript
-import { stepFunctionName } from "@/keeperhub/plugins/{plugin}/steps/{step-name}";
-import type { InputType } from "@/keeperhub/plugins/{plugin}/steps/{step-name}";
+import { stepFunctionName } from "@/plugins/{plugin}/steps/{step-name}";
+import type { InputType } from "@/plugins/{plugin}/steps/{step-name}";
 ```
 
 #### d) Test helper functions
@@ -254,8 +254,8 @@ If tests fail, read the error output and fix. Common issues:
 Read these files for patterns and context:
 
 - `tests/unit/batch-read-contract.test.ts` -- canonical example of a comprehensive step test
-- `keeperhub/plugins/web3/steps/check-balance.ts` -- simple step to understand anatomy
-- `keeperhub/plugins/web3/steps/batch-read-contract.ts` -- complex step with multiple modes
-- `keeperhub/plugins/web3/steps/read-contract-core.ts` -- core-file pattern example
+- `plugins/web3/steps/check-balance.ts` -- simple step to understand anatomy
+- `plugins/web3/steps/batch-read-contract.ts` -- complex step with multiple modes
+- `plugins/web3/steps/read-contract-core.ts` -- core-file pattern example
 - `vitest.config.mts` -- test configuration (aliases, setup file, exclusions)
 - `tests/setup.ts` -- global test setup (provides some default mocks for `@/lib/db`)

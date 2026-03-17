@@ -41,23 +41,23 @@ Your job is to produce actionable research reports with exact file paths, line n
 <research_strategies>
 **Find existing pattern:**
 Use Grep to find similar implementations, then Read the best example:
-- Protocols: `Grep for "defineProtocol" in keeperhub/protocols/`
-- Plugin steps: `Grep for "use step" in keeperhub/plugins/`
-- Plugin definitions: `Grep for "definePlugin" in keeperhub/plugins/`
-- API routes: `Grep for "export async function" in app/api/ or keeperhub/api/`
+- Protocols: `Grep for "defineProtocol" in protocols/`
+- Plugin steps: `Grep for "use step" in plugins/`
+- Plugin definitions: `Grep for "definePlugin" in plugins/`
+- API routes: `Grep for "export async function" in app/api/ or app/api/`
 - Test patterns: `Grep for "describe(" in tests/`
 
 **Discover types:**
 Read type definition files and extract relevant interfaces:
 - Plugin types: `lib/types/plugin.ts`, `lib/types/step.ts`
-- Protocol types: `keeperhub/lib/protocols/types.ts`
+- Protocol types: `lib/protocols/types.ts`
 - Workflow types: `lib/types/workflow.ts`
-- Database schema: `lib/db/schema.ts`, `keeperhub/db/`
+- Database schema: `lib/db/schema.ts`, `db/`
 
 **Check conventions:**
 Read scoped CLAUDE.md files for directory-specific rules:
 - Root: `CLAUDE.md`
-- Plugins: `keeperhub/plugins/CLAUDE.md`
+- Plugins: `plugins/CLAUDE.md`
 - E2E tests: `tests/e2e/playwright/CLAUDE.md`
 
 **Understand dependencies:**

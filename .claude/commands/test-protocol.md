@@ -1,169 +1,174 @@
 ---
 description: Test all actions for a protocol by creating workflows, executing them, and verifying results
-argument: protocol-slug (e.g. sky, spark, aave, compound)
+argument: protocol-slug (e.g. sky, spark, aave, compound, lido, ethena, yearn)
 ---
 
 # Test Protocol: $ARGUMENTS
 
-You are testing all actions for the **$ARGUMENTS** protocol. Follow these steps precisely.
+Test all actions for the **$ARGUMENTS** protocol across read and write operations.
 
-## Step 1: Read Protocol Definition
+## Step 0: Determine Target Environment
+
+Ask the user which environment to test against if not obvious from context:
+- **dev**: `mcp__keeperhub-dev__*` tools (localhost:3000)
+- **staging**: `mcp__keeperhub-staging__*` tools (app-staging.keeperhub.com)
+- **prod**: `mcp__keeperhub__*` tools (app.keeperhub.com)
+
+Use the corresponding MCP tool prefix for ALL workflow and execution operations throughout this test.
+
+## Step 1: Get Wallet Address
+
+The wallet address is needed for read actions (balance checks) and write actions (recipient/onBehalfOf). Do NOT hardcode any wallet address.
+
+Create a workflow to read the wallet info:
+```
+Trigger -> web3/check-balance (network: "1", address: any known contract)
+```
+
+Or use the `/api/user/wallet` endpoint via MCP if available. The wallet address will be in the execution output or can be extracted from the organization's wallet integration.
+
+If you already know the wallet address from prior conversation context, confirm it with the user before proceeding.
+
+## Step 2: Read Protocol Definition
 
 Read the protocol definition file:
 ```
-keeperhub/protocols/$ARGUMENTS.ts
+protocols/$ARGUMENTS.ts
 ```
 
-If it does not exist, check for alternate names (e.g., `aave-v3.ts` for `aave`). List what you find:
-- Protocol name and slug
+If it does not exist, check alternate names (e.g., `aave-v3.ts` for `aave`, `compound-v3.ts` for `compound`, `uniswap-v3.ts` for `uniswap`, `yearn-v3.ts` for `yearn`).
+
+Extract:
+- Protocol name, slug, and description
 - All contracts with their addresses and supported chains
 - All actions grouped by type (read vs write)
-- Which chains are available (especially check for Sepolia 11155111)
+- Whether contracts use `userSpecifiedAddress` (need a real vault/pool address)
+- Which chains have the most contract coverage
 
-## Step 2: Check for Existing Seed Workflows
+## Step 3: Check for Existing Seed Workflows
 
 Look for pre-built workflow JSON files:
 ```
 scripts/seed/workflows/$ARGUMENTS/
 ```
 
-If seed workflows exist, use them. If not, you will need to generate them in Step 3.
+If `mcp-test-*.json` files exist, they can be used as reference but may need wallet address updates.
 
-## Step 3: Generate Seed Workflows (if needed)
+## Step 4: Test Read Actions via Direct MCP
 
-If no seed workflows exist, create them:
+For protocols with read actions, test them directly via MCP tools first (faster than workflows):
 
-### Read Actions Workflow
-Create `scripts/seed/workflows/$ARGUMENTS/read-actions.json` with:
-- One trigger node (Manual)
-- One action node per read action in the protocol
-- All actions connected from trigger via edges
-- Network: use chain "1" (mainnet) as default, or whichever chain has the most contract coverage
-- For `account`/`user` address inputs: use the first contract address from the protocol definition (it will return 0 but the call succeeds, proving the action works)
-- For `amount`/`assets`/`shares` inputs: use "1000000000000000000" (1e18)
-- For `asset` address inputs: use a well-known token address for that chain (e.g., DAI 0x6B175474E89094C44Da98b954EedeAC495271d0F on mainnet)
+```
+mcp__keeperhub-{env}__$ARGUMENTS_{action-slug}
+```
 
-Node format:
+For each read action:
+- Use the wallet address for `account`/`user` fields
+- Use `"1000000000000000000"` (1e18) for `amount`/`assets`/`shares` fields
+- Use well-known token addresses for `asset` fields (DAI, USDC, WETH for mainnet)
+- For `userSpecifiedAddress` contracts, use a well-known vault/pool address from docs or block explorers
+- Use the chain with the most contract coverage (usually "1" for mainnet)
+
+Record results as you go. If a direct MCP call returns 501 (not supported for direct execution), fall back to workflow execution in Step 5.
+
+## Step 5: Test via Workflows (for write actions + any 501 reads)
+
+### Write Action Workflows
+
+For each write action that needs testing, create a workflow using `mcp__keeperhub-{env}__workflow_create`:
+
+**Sequential chaining pattern** (approve -> action):
+```
+Trigger -> Approve Token -> Protocol Action
+```
+
+Important rules:
+- Chain write actions **sequentially** (not parallel from trigger) to avoid nonce contention
+- Include `web3/approve-token` nodes before any DeFi action that spends tokens
+- Use realistic but small amounts (0.001 ETH, 1 USDC, etc.)
+- Use the org wallet address for `recipient`/`onBehalfOf`/`receiver`/`owner`/`to` fields
+- Run write workflows **one at a time** -- parallel execution causes nonce lock failures on the same wallet
+
+### Read Action Workflows (for 501 fallbacks)
+
+Create a single workflow with all read actions chained **sequentially**:
+```
+Trigger -> Read1 -> Read2 -> Read3 -> ...
+```
+
+Sequential edges prevent the workflow engine from aborting remaining nodes if one fails.
+
+### Execution
+
+Execute with `mcp__keeperhub-{env}__workflow_execute`, then poll with `mcp__keeperhub-{env}__execution_status`. Wait 25-35 seconds between status checks for write workflows.
+
+Get detailed results with `mcp__keeperhub-{env}__execution_logs` after completion.
+
+## Step 6: Save Seed Workflows
+
+Save tested workflow configurations to `scripts/seed/workflows/$ARGUMENTS/` for reuse:
+
+**File naming convention**:
+- `mcp-test-{action-description}.json` for write action workflows
+- `mcp-test-reads.json` for the consolidated read actions workflow
+
+**Important**: Seed files should use placeholder comments for wallet-specific values. Use the actual wallet address in the file but add a top-level `"wallet"` field documenting which address was used:
+
 ```json
 {
-  "id": "unique-id",
-  "type": "action",
-  "position": { "x": 450, "y": "<increment by 150>" },
-  "data": {
-    "label": "<action label>",
-    "description": "<action description>",
-    "type": "action",
-    "config": {
-      "actionType": "<protocol-slug>/<action-slug>",
-      "network": "1",
-      "...input fields as key-value pairs"
-    },
-    "status": "idle"
-  }
+  "protocol": "$ARGUMENTS",
+  "network": "1",
+  "networkName": "mainnet",
+  "type": "write",
+  "wallet": "0x... (Testing org on staging)",
+  "name": "MCP Test: ...",
+  "description": "...",
+  "nodes": [...],
+  "edges": [...]
 }
 ```
 
-### Write Actions (optional)
-Only if the protocol has Sepolia (11155111) addresses. If not, skip write tests and note it in the report.
+## Step 7: Withdraw Test Funds
 
-## Step 4: Create Test Workflows
+After write tests, create and execute withdrawal workflows to recover deposited funds:
+- `vault-withdraw` / `vault-redeem` for ERC-4626 vaults
+- Protocol-specific withdraw actions (e.g., `aave/withdraw`, `compound/withdraw`)
+- Run withdrawals **sequentially** (same nonce contention concern)
 
-Use the kh CLI to create workflows on the local dev server:
+Verify final balances match expectations.
 
-```bash
-kh wf create --name "Protocol Test: $ARGUMENTS Read Actions" --nodes-file scripts/seed/workflows/$ARGUMENTS/read-actions.json --host http://localhost:3000 --json
-```
-
-If `kh wf create` is not available, fall back to curl:
-```bash
-curl -s -X POST http://localhost:3000/api/workflows/create \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: <key>" \
-  -d @scripts/seed/workflows/$ARGUMENTS/read-actions.json
-```
-
-Save the returned workflow ID.
-
-## Step 5: Execute Test Workflows
-
-Execute each workflow:
-
-```bash
-kh wf run <workflow-id> --wait --timeout 2m --host http://localhost:3000 --json
-```
-
-If `kh wf run` is not available, fall back to curl:
-```bash
-# Execute
-curl -s -X POST http://localhost:3000/api/workflow/<workflow-id>/execute \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: <key>" \
-  -d '{}'
-
-# Poll status
-curl -s http://localhost:3000/api/workflows/executions/<execution-id>/status \
-  -H "x-api-key: <key>"
-```
-
-## Step 6: Verify Results
-
-After execution completes, check the results:
-
-```bash
-kh r logs <execution-id> --host http://localhost:3000 --json
-```
-
-Or via curl to the logs endpoint:
-```bash
-curl -s http://localhost:3000/api/workflows/executions/<execution-id>/logs \
-  -H "x-api-key: <key>"
-```
-
-Check that:
-- Overall execution status is "success"
-- Each node's status is "success"
-- No error messages in any node output
-
-## Step 7: Report Results
+## Step 8: Report Results
 
 Print a results table:
 
-| Action | Slug | Status | Duration | Error |
-|--------|------|--------|----------|-------|
-| Get sUSDS Balance | sky/get-susds-balance | success | 245ms | - |
-| ... | ... | ... | ... | ... |
+| Action | Slug | Type | Status | Notes |
+|--------|------|------|--------|-------|
+| Get Balance | protocol/get-balance | read | Pass | returned 0 |
+| Supply WETH | protocol/supply | write | Pass | tx confirmed |
+| Swap Tokens | protocol/swap | write | Fail | tuple[] encoding bug |
 
 Summary:
 - Total actions tested: X
-- Passed: Y
-- Failed: Z
-- Skipped (write, no testnet): W
-
-## Step 8: Cleanup
-
-Delete the test workflows:
-
-```bash
-kh wf delete <workflow-id> --yes --host http://localhost:3000
-```
-
-Or via curl:
-```bash
-curl -s -X DELETE http://localhost:3000/api/workflows/<workflow-id> \
-  -H "x-api-key: <key>"
-```
+- Reads: Y/Y passed
+- Writes: Z/W passed
+- Skipped: N (reason)
+- Seed workflows saved: list files
 
 ## Error Handling
 
-- If workflow creation fails: check if the dev server is running (`curl http://localhost:3000/api/health`)
-- If execution times out: report which nodes completed and which are stuck
-- If individual actions fail: report the specific error from the node logs, continue testing remaining actions
-- If kh CLI is not available: use curl fallback for all operations
+- **501 on direct MCP call**: Action is not a protocol action (e.g., `web3/check-balance`). Test via workflow instead.
+- **Nonce lock failure**: Too many parallel write workflows. Re-run sequentially.
+- **"Function not found in ABI"**: Contract ABI auto-resolution failed. May need inline ABI in protocol definition -- file a fix.
+- **"exceed deposit limit"**: Vault is full. Try a different vault address or smaller amount.
+- **"OperationNotAllowed"**: Protocol-specific restriction (cooldowns, timelocks). Note as expected behavior.
+- **Contract revert with no data**: Usually means insufficient balance, missing approval, or wrong function args.
 
-## Notes
+## Key Differences from Legacy Command
 
-- Always use `--host http://localhost:3000` to target the local dev server
-- The protocol slug matches the filename in `keeperhub/protocols/` (without .ts)
-- Read actions should always succeed as they only query on-chain state
-- Write actions need funded wallets and testnet addresses -- skip if not available
-- Save seed workflows for reuse in future test runs
+- Uses MCP tools (`mcp__keeperhub-{env}__*`) not raw curl/CLI
+- Supports dev/staging/prod environments
+- Tests writes via approve->action workflow chains
+- Recovers test funds via withdrawal workflows
+- Saves seed files with wallet metadata
+- Runs write workflows sequentially to avoid nonce contention
+- Does NOT hardcode wallet addresses -- discovers them at runtime

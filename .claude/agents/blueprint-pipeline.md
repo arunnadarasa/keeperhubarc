@@ -205,7 +205,7 @@ Deviations:
 
 **Process:**
 1. Read all created and modified files
-2. Check each file follows KeeperHub conventions (keeperhub/ directory, proper imports, no emojis, "use step" compliance)
+2. Check each file follows KeeperHub conventions (proper imports, no emojis, "use step" compliance)
 3. Run automated checks:
    - `pnpm check` -- lint must pass
    - `pnpm type-check` -- TypeScript must pass
@@ -231,7 +231,7 @@ Success Criteria:
 2. [criterion text]: [PASS|FAIL] [evidence]
 
 Convention Compliance:
-- keeperhub/ directory: [PASS|FAIL]
+- Directory structure: [PASS|FAIL]
 - "use step" patterns: [PASS|FAIL|N/A]
 - No emojis: [PASS|FAIL]
 - No debug artifacts: [PASS|FAIL]

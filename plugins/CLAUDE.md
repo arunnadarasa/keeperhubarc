@@ -7,7 +7,7 @@ This file supplements the root CLAUDE.md with plugin-specific rules. All root CL
 Every plugin follows this layout. Reference `web3/` as the canonical example.
 
 ```
-keeperhub/plugins/{plugin-name}/
+plugins/{plugin-name}/
   index.ts          # Plugin definition (IntegrationPlugin), registers actions
   icon.tsx          # Plugin icon component
   steps/            # Step files (one per action)
@@ -44,8 +44,8 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
-import { ErrorCategory, logUserError } from "@/keeperhub/lib/logging";
-import { withPluginMetrics } from "@/keeperhub/lib/metrics/instrumentation/plugin";
+import { ErrorCategory, logUserError } from "@/lib/logging";
+import { withPluginMetrics } from "@/lib/metrics/instrumentation/plugin";
 import { db } from "@/lib/db";
 import { workflowExecutions } from "@/lib/db/schema";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
@@ -120,11 +120,11 @@ vi.mock("@/lib/steps/step-handler", () => ({
   withStepLogging: (_input: unknown, fn: () => unknown) => fn(),
 }));
 
-vi.mock("@/keeperhub/lib/metrics/instrumentation/plugin", () => ({
+vi.mock("@/lib/metrics/instrumentation/plugin", () => ({
   withPluginMetrics: (_opts: unknown, fn: () => unknown) => fn(),
 }));
 
-vi.mock("@/keeperhub/lib/logging", () => ({
+vi.mock("@/lib/logging", () => ({
   ErrorCategory: { VALIDATION: "validation", NETWORK_RPC: "network_rpc", EXTERNAL_SERVICE: "external_service" },
   logUserError: vi.fn(),
 }));

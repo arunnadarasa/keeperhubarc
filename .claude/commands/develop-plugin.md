@@ -10,20 +10,20 @@ This command has deep knowledge of the KeeperHub plugin architecture and creates
 </objective>
 
 <context>
-Existing keeperhub plugins: !`ls keeperhub/plugins/`
+Existing keeperhub plugins: !`ls plugins/`
 Available integration types: @lib/types/integration.ts
-Current plugin index: @keeperhub/plugins/index.ts
+Current plugin index: @plugins/index.ts
 Plugin registry: @plugins/registry.ts
 CLAUDE.md rules: @CLAUDE.md
 Plugin development guide: @plugins/AGENTS.md
 </context>
 
 <architecture>
-CRITICAL: Follow these conventions EXACTLY. All custom plugins go in `keeperhub/plugins/` (NOT `plugins/`).
+CRITICAL: Follow these conventions EXACTLY. All custom plugins go in `plugins/` (NOT `plugins/`).
 
 DIRECTORY STRUCTURE for each plugin:
 ```
-keeperhub/plugins/[plugin-name]/
+plugins/[plugin-name]/
   index.ts          # Plugin definition + registerIntegration()
   icon.tsx          # SVG icon component
   credentials.ts    # Credential type (skip if requiresCredentials: false)
@@ -107,7 +107,7 @@ FILE 2 - steps/[action-slug].ts (TWO-LAYER PATTERN):
 ```typescript
 import "server-only";
 
-import { withPluginMetrics } from "@/keeperhub/lib/metrics/instrumentation/plugin";
+import { withPluginMetrics } from "@/lib/metrics/instrumentation/plugin";
 import { fetchCredentials } from "@/lib/credential-fetcher";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import { getErrorMessage } from "@/lib/utils";
@@ -205,7 +205,7 @@ Use this pattern for system/utility plugins that don't call external APIs.
 ```typescript
 import "server-only";
 
-import { withPluginMetrics } from "@/keeperhub/lib/metrics/instrumentation/plugin";
+import { withPluginMetrics } from "@/lib/metrics/instrumentation/plugin";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import { getErrorMessage } from "@/lib/utils";
 
@@ -382,7 +382,7 @@ CRITICAL RULES:
 4. Must export `_integrationType` constant matching plugin type
 5. Wrap with withPluginMetrics AND withStepLogging (see discord/steps/send-message.ts)
 6. No emojis in code or comments
-7. All custom code in keeperhub/ directory
+7. Plugins in plugins/, protocols in protocols/
 8. Security-critical steps must set maxRetries = 0 (fail-safe, not fail-open)
 
 WORKFLOW BUNDLER CONSTRAINTS ("use step"):
@@ -484,8 +484,8 @@ UTILITY PLUGINS:
 
 4. CREATE PLUGIN FILES
    If NEW PLUGIN:
-   - Create directory: `keeperhub/plugins/[name]/`
-   - Create `keeperhub/plugins/[name]/steps/` directory
+   - Create directory: `plugins/[name]/`
+   - Create `plugins/[name]/steps/` directory
    - Write index.ts following the exact pattern above
    - Write icon.tsx (use a Lucide icon or placeholder SVG)
    - Write credentials.ts (if requiresCredentials: true, skip for system plugins)
@@ -499,7 +499,7 @@ UTILITY PLUGINS:
 
 5. REGISTER PLUGIN
    - Run: `pnpm discover-plugins`
-   - This auto-generates: keeperhub/plugins/index.ts, lib/types/integration.ts, lib/step-registry.ts
+   - This auto-generates: plugins/index.ts, lib/types/integration.ts, lib/step-registry.ts
 
 6. VALIDATE
    - Run: `pnpm type-check`
@@ -576,8 +576,8 @@ UTILITY PLUGINS:
 
 <verification>
 Before completing, verify:
-- All plugin files exist in keeperhub/plugins/[name]/
-- `pnpm discover-plugins` ran successfully (plugin appears in keeperhub/plugins/index.ts)
+- All plugin files exist in plugins/[name]/
+- `pnpm discover-plugins` ran successfully (plugin appears in plugins/index.ts)
 - `pnpm type-check` passes with no errors
 - `pnpm check` passes with no lint errors
 - Plugin type appears in lib/types/integration.ts
@@ -587,7 +587,7 @@ Before completing, verify:
 </verification>
 
 <success_criteria>
-- Plugin directory created at keeperhub/plugins/[name]/
+- Plugin directory created at plugins/[name]/
 - All required files present: index.ts, icon.tsx, test.ts, steps/*.ts
 - credentials.ts present if plugin requires credentials
 - Plugin registered via pnpm discover-plugins
@@ -595,7 +595,7 @@ Before completing, verify:
 - Lint checks pass
 - Plugin follows all naming conventions
 - Step functions use two-layer pattern with withPluginMetrics + withStepLogging
-- All imports use correct paths (@/plugins/registry, @/keeperhub/lib/metrics/...)
+- All imports use correct paths (@/plugins/registry, @/lib/metrics/...)
 - No SDK dependencies - uses fetch() directly
 - No emojis in any files
 - Documentation page created/updated at docs/plugins/ with actions table, inputs, outputs, example workflows, and when-to-use guidance

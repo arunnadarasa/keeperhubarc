@@ -26,7 +26,7 @@ You are strictly read-only. You NEVER modify files. You read code, run checks, r
 2. For each created or modified file:
    a. Read the file contents
    b. Check it follows KeeperHub conventions:
-      - Code is in `keeperhub/` directory (not root-level)
+      - Code is in the correct directory (plugins/, protocols/, lib/, etc.)
       - Proper imports (`import "server-only"` in step files)
       - No emojis in code, comments, or strings
       - Block statements used (no single-line if statements)
@@ -53,7 +53,7 @@ You are strictly read-only. You NEVER modify files. You read code, run checks, r
 </workflow>
 
 <quality_checks>
-- **Convention compliance**: All code in `keeperhub/`, proper "use step" patterns, correct imports
+- **Convention compliance**: Proper "use step" patterns, correct imports
 - **Lint and type safety**: `pnpm check` and `pnpm type-check` pass with zero errors
 - **Test coverage**: Relevant tests exist and pass for new functionality
 - **Plugin registration**: If plugins or protocols were created/modified, `pnpm discover-plugins` was run and output is current
@@ -133,7 +133,7 @@ Success Criteria:
 2. [criterion text]: [PASS|FAIL] [evidence]
 
 Convention Compliance:
-- keeperhub/ directory: [PASS|FAIL]
+- Directory structure: [PASS|FAIL]
 - "use step" patterns: [PASS|FAIL|N/A]
 - No emojis: [PASS|FAIL]
 - No debug artifacts: [PASS|FAIL]

@@ -19,9 +19,8 @@ Important: Features touching database schemas (lib/db/, drizzle/), security code
 Project conventions: @CLAUDE.md
 Tech stack and structure: @.planning/ROADMAP.md
 Blueprint pipeline: @.claude/agents/blueprint-pipeline.md
-Existing plugins: !`ls keeperhub/plugins/`
-Existing protocols: !`ls keeperhub/protocols/`
-Custom code directory: !`ls keeperhub/`
+Existing plugins: !`ls plugins/`
+Existing protocols: !`ls protocols/`
 </context>
 
 <process>
@@ -42,8 +41,7 @@ Risk classification guidance:
 - Tier 3 (HALT): Schema migrations (any file in lib/db/ or drizzle/), security/auth middleware, wallet signing/transaction submission, credential handling
 
 KeeperHub conventions for the Orchestrator to enforce:
-- All custom code goes in keeperhub/ directory (NOT root-level directories)
-- Plugins go in keeperhub/plugins/, protocols go in keeperhub/protocols/
+- Plugins go in plugins/, protocols go in protocols/
 - "use step" bundler constraints: step files NEVER export functions (only step fn + _integrationType + type exports). Violations break the production build.
 - Shared step logic goes in *-core.ts files without "use step"
 - Run pnpm discover-plugins after any plugin or protocol changes
@@ -54,7 +52,7 @@ KeeperHub conventions for the Orchestrator to enforce:
 - Target branch: staging (always)
 
 Research guidance for the Researcher agent:
-- Explore keeperhub/ to find the right directory for new code
+- Explore the codebase to find the right directory for new code
 - Find the most similar existing implementation as a pattern reference
 - Identify all files that need to be created or modified
 - Check for TypeScript types/interfaces needed in the new code
