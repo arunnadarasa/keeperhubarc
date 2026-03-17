@@ -287,7 +287,7 @@ export class NonceManager {
           gasPrice,
           status: "pending",
           submittedAt: new Date(),
-          confirmedAt: null,
+          confirmedAt: sql`null`,
         },
       });
 
