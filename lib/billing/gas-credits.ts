@@ -1,12 +1,50 @@
 import "server-only";
 import { and, eq, gte, sql } from "drizzle-orm";
-import { gasCreditUsage } from "@/keeperhub/db/schema-extensions";
+import {
+  gasCreditAllocations,
+  gasCreditUsage,
+} from "@/keeperhub/db/schema-extensions";
 import { db } from "@/lib/db";
 import { isBillingEnabled } from "./feature-flag";
-import { getPlanLimits, parsePlanName, parseTierKey } from "./plans";
+import { getPlanLimits, type PlanName, parsePlanName } from "./plans";
 import { getOrgSubscription } from "./plans-server";
 
 const MICRO_USD_PER_CENT = 10_000;
+
+const PLAN_ENV_KEYS: Record<PlanName, string> = {
+  free: "GAS_CREDITS_FREE_CENTS",
+  pro: "GAS_CREDITS_PRO_CENTS",
+  business: "GAS_CREDITS_BUSINESS_CENTS",
+  enterprise: "GAS_CREDITS_ENTERPRISE_CENTS",
+};
+
+/**
+ * Get the gas credit cap for a plan, preferring env var override.
+ * Falls back to the hardcoded plan default if the env var is unset or invalid.
+ */
+export function getGasCreditCapCents(plan: PlanName): number {
+  const envVal = process.env[PLAN_ENV_KEYS[plan]];
+  if (envVal !== undefined && envVal !== "") {
+    const parsed = Number(envVal);
+    if (!Number.isNaN(parsed) && parsed >= 0) {
+      return parsed;
+    }
+  }
+  return getPlanLimits(plan).gasCreditsCents;
+}
+
+/**
+ * Get the current gas credit caps for all plans (env-driven with fallbacks).
+ * Intended for API responses so the UI can display accurate values.
+ */
+export function getGasCreditCaps(): Record<PlanName, number> {
+  return {
+    free: getGasCreditCapCents("free"),
+    pro: getGasCreditCapCents("pro"),
+    business: getGasCreditCapCents("business"),
+    enterprise: getGasCreditCapCents("enterprise"),
+  };
+}
 
 type GasCreditBalance = {
   totalCents: number;
@@ -20,9 +58,65 @@ type GasCreditCheckResult =
   | { allowed: false; reason: string };
 
 /**
+ * Resolve the gas credit allocation for an org in the current billing period.
+ *
+ * On first call per period, snapshots the current env-driven cap to the DB.
+ * Subsequent calls in the same period return the persisted value, ensuring
+ * mid-period env changes don't affect existing orgs.
+ */
+async function resolveAllocation(
+  organizationId: string,
+  planName: PlanName,
+  periodStart: Date
+): Promise<number> {
+  const existing = await db
+    .select({ allocatedCents: gasCreditAllocations.allocatedCents })
+    .from(gasCreditAllocations)
+    .where(
+      and(
+        eq(gasCreditAllocations.organizationId, organizationId),
+        eq(gasCreditAllocations.periodStart, periodStart)
+      )
+    )
+    .limit(1);
+
+  if (existing[0] !== undefined) {
+    return existing[0].allocatedCents;
+  }
+
+  const capCents = getGasCreditCapCents(planName);
+
+  try {
+    await db
+      .insert(gasCreditAllocations)
+      .values({
+        organizationId,
+        periodStart,
+        allocatedCents: capCents,
+      })
+      .onConflictDoNothing();
+  } catch {
+    // Race condition: another request inserted first. Read it back.
+  }
+
+  const inserted = await db
+    .select({ allocatedCents: gasCreditAllocations.allocatedCents })
+    .from(gasCreditAllocations)
+    .where(
+      and(
+        eq(gasCreditAllocations.organizationId, organizationId),
+        eq(gasCreditAllocations.periodStart, periodStart)
+      )
+    )
+    .limit(1);
+
+  return inserted[0]?.allocatedCents ?? capCents;
+}
+
+/**
  * Get the gas credit balance for an organization in the current billing period.
  *
- * Computes: plan allowance - sum of gas_cost_micro_usd since period start.
+ * Computes: persisted allocation - sum of gas_cost_micro_usd since period start.
  * If no subscription exists, uses the free plan defaults.
  */
 export async function getGasCreditBalance(
@@ -30,10 +124,13 @@ export async function getGasCreditBalance(
 ): Promise<GasCreditBalance> {
   const sub = await getOrgSubscription(organizationId);
   const planName = parsePlanName(sub?.plan);
-  const limits = getPlanLimits(planName, parseTierKey(sub?.tier));
-  const totalCents = limits.gasCreditsCents;
-
   const periodStart = sub?.currentPeriodStart ?? getDefaultPeriodStart();
+
+  const totalCents = await resolveAllocation(
+    organizationId,
+    planName,
+    periodStart
+  );
 
   const result = await db
     .select({

@@ -27,6 +27,8 @@ import {
 } from "@/lib/billing/plans";
 import { cn } from "@/lib/utils";
 
+type GasCreditCapsMap = Record<PlanName, number>;
+
 type ChangeDirection = "upgrade" | "downgrade" | "same";
 
 type FeatureChange = {
@@ -62,6 +64,7 @@ type ConfirmPlanChangeDialogProps = {
   newPlanName: PlanName;
   newTier: TierKey | null;
   newExecutions: number;
+  gasCreditCaps?: GasCreditCapsMap;
   onConfirm: () => Promise<void>;
 };
 
@@ -462,6 +465,7 @@ export function ConfirmPlanChangeDialog({
   newPlanName,
   newTier,
   newExecutions,
+  gasCreditCaps,
   onConfirm,
 }: ConfirmPlanChangeDialogProps): React.ReactElement {
   const [loading, setLoading] = useState(false);
@@ -501,8 +505,18 @@ export function ConfirmPlanChangeDialog({
       ? ` (${formatExecutions(currentExecutions)} executions)`
       : "";
 
-  const currentFeatures = PLANS[currentPlanName].features;
-  const newFeatures = PLANS[newPlanName].features;
+  const currentFeatures: PlanLimits = gasCreditCaps
+    ? {
+        ...PLANS[currentPlanName].features,
+        gasCreditsCents: gasCreditCaps[currentPlanName],
+      }
+    : PLANS[currentPlanName].features;
+  const newFeatures: PlanLimits = gasCreditCaps
+    ? {
+        ...PLANS[newPlanName].features,
+        gasCreditsCents: gasCreditCaps[newPlanName],
+      }
+    : PLANS[newPlanName].features;
   const changes = buildFeatureChanges(
     currentFeatures,
     newFeatures,

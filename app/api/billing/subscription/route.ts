@@ -3,7 +3,10 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { isBillingEnabled } from "@/lib/billing/feature-flag";
-import { getGasCreditBalance } from "@/lib/billing/gas-credits";
+import {
+  getGasCreditBalance,
+  getGasCreditCaps,
+} from "@/lib/billing/gas-credits";
 import {
   getPlanLimits,
   parsePlanName,
@@ -75,6 +78,7 @@ export async function GET(): Promise<NextResponse> {
       .limit(5);
 
     const gasBalance = await getGasCreditBalance(activeOrgId);
+    const gasCreditCaps = getGasCreditCaps();
 
     return NextResponse.json({
       usage: {
@@ -86,6 +90,7 @@ export async function GET(): Promise<NextResponse> {
         usedCents: gasBalance.usedCents,
         remainingCents: gasBalance.remainingCents,
       },
+      gasCreditCaps,
       overageCharges: recentOverage,
       subscription: sub
         ? {

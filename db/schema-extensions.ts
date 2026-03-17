@@ -600,3 +600,38 @@ export const gasCreditUsage = pgTable(
 
 export type GasCreditUsageRecord = typeof gasCreditUsage.$inferSelect;
 export type NewGasCreditUsageRecord = typeof gasCreditUsage.$inferInsert;
+
+/**
+ * Gas Credit Allocations table
+ *
+ * Snapshots the gas credit cap for an org at the start of each billing period.
+ * Once locked in, the allocation persists for the entire period even if the
+ * env-driven cap changes mid-period.
+ *
+ * Unique constraint on (organizationId, periodStart) ensures one allocation
+ * per org per billing period. The first credit check in a period creates the row.
+ */
+export const gasCreditAllocations = pgTable(
+  "gas_credit_allocations",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => generateId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    periodStart: timestamp("period_start").notNull(),
+    allocatedCents: integer("allocated_cents").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    unique("gas_credit_alloc_org_period").on(
+      table.organizationId,
+      table.periodStart
+    ),
+    index("idx_gas_credit_alloc_org").on(table.organizationId),
+  ]
+);
+
+export type GasCreditAllocation = typeof gasCreditAllocations.$inferSelect;
+export type NewGasCreditAllocation = typeof gasCreditAllocations.$inferInsert;
