@@ -1,9 +1,20 @@
 import "server-only";
 import { Environment, Para as ParaServer } from "@getpara/server-sdk";
-import type { Address, Hex, LocalAccount, SignableMessage } from "viem";
-import { hashMessage, hashTypedData, serializeTransaction } from "viem/utils";
+import type {
+  Address,
+  AuthorizationRequest,
+  Hex,
+  LocalAccount,
+  SignableMessage,
+  SignedAuthorization,
+} from "viem";
+import {
+  hashAuthorization,
+  hashMessage,
+  hashTypedData,
+  serializeTransaction,
+} from "viem/utils";
 import { decryptUserShare } from "@/keeperhub/lib/encryption";
-import { ErrorCategory, logSystemError } from "@/keeperhub/lib/logging";
 import { getOrganizationWallet } from "@/keeperhub/lib/para/wallet-helpers";
 
 type ParaWalletRecord = {
@@ -33,9 +44,11 @@ function initializeParaClient(): ParaServer {
     throw new Error("PARA_API_KEY not configured");
   }
   const env = process.env.PARA_ENVIRONMENT || "beta";
+  const disableWebSockets = process.env.PARA_DISABLE_WEBSOCKETS === "true";
   return new ParaServer(
     env === "prod" ? Environment.PROD : Environment.BETA,
-    apiKey
+    apiKey,
+    { disableWebSockets }
   );
 }
 
@@ -46,10 +59,10 @@ function initializeParaClient(): ParaServer {
  * to Para's server-side MPC protocol via user shares. This allows it to
  * be used as the `owner` for permissionless.js smart account clients.
  *
- * Note: signAuthorization is NOT implemented here because EIP-7702
- * authorization requires raw private key access (Para's MPC signing
- * adds EIP-191/712 prefixes). The delegation module handles this
- * separately via getPrivateKey().
+ * Para's signMessage signs raw bytes directly -- the EIP-191/712 prefixes
+ * are added by viem's hashMessage/hashTypedData at the adapter layer.
+ * This means account.sign({ hash }) works for EIP-7702 authorization
+ * signing via hashAuthorization() + sign().
  */
 export async function createParaViemAccount(
   organizationId: string
@@ -71,7 +84,14 @@ export async function createParaViemAccount(
     if (!("signature" in res)) {
       throw new Error("Para signing was denied");
     }
-    return `0x${res.signature}` as Hex;
+    // Para returns v as yParity (0/1) but on-chain ECDSA expects v=27/28
+    const sig = res.signature;
+    const vByte = Number.parseInt(sig.slice(-2), 16);
+    if (vByte < 27) {
+      const normalizedV = (vByte + 27).toString(16).padStart(2, "0");
+      return `0x${sig.slice(0, -2)}${normalizedV}` as Hex;
+    }
+    return `0x${sig}` as Hex;
   }
 
   const account: LocalAccount = {
@@ -114,38 +134,28 @@ export async function createParaViemAccount(
       const hash = hashTypedData(parameters);
       return await signRawHash(hash);
     },
+
+    async signAuthorization(
+      authorization: AuthorizationRequest
+    ): Promise<SignedAuthorization> {
+      const hash = hashAuthorization(authorization);
+      const sigHex = await signRawHash(hash);
+      const { r, s, v } = parseSignature(sigHex);
+      const yParity = v === BigInt(28) ? 1 : 0;
+      const contractAddress =
+        "address" in authorization
+          ? authorization.address
+          : authorization.contractAddress;
+      return {
+        address: contractAddress,
+        chainId: authorization.chainId ?? 0,
+        nonce: authorization.nonce ?? 0,
+        r,
+        s,
+        yParity,
+      } as SignedAuthorization;
+    },
   };
 
   return { account, walletRecord };
-}
-
-/**
- * Creates a Para client with user share set, ready for signing operations.
- * Used by the EIP-7702 delegation module which needs the raw Para client
- * for private key extraction.
- */
-export async function createParaClientForOrg(organizationId: string): Promise<{
-  paraClient: ParaServer;
-  walletRecord: ParaWalletRecord;
-  decryptedShare: string;
-}> {
-  const walletRecord = await getOrganizationWallet(organizationId);
-  const paraClient = initializeParaClient();
-
-  const decryptedShare = decryptUserShare(walletRecord.userShare);
-  await paraClient.setUserShare(decryptedShare);
-
-  try {
-    await paraClient.setUserId(walletRecord.userId);
-  } catch (error) {
-    logSystemError(
-      ErrorCategory.INFRASTRUCTURE,
-      "[Para] Failed to set userId for private key operations",
-      error instanceof Error ? error : new Error(String(error)),
-      { component: "viem-adapter", organizationId }
-    );
-    throw error;
-  }
-
-  return { paraClient, walletRecord, decryptedShare };
 }

@@ -1,12 +1,13 @@
 import "server-only";
 import type { Address } from "viem";
 
-const PIMLICO_BASE_URL = "https://api.pimlico.io/v2";
-
-export const ENTRYPOINT_V07_ADDRESS =
-  "0x0000000071727De22E5E9d8BAf0edAc6f37da032" as Address;
-
-export const ENTRYPOINT_VERSION = "0.7" as const;
+function getPimlicoBaseUrl(): string {
+  const url = process.env.PIMLICO_BASE_URL;
+  if (!url) {
+    throw new Error("PIMLICO_BASE_URL not configured");
+  }
+  return url;
+}
 
 /**
  * Chain IDs where gas sponsorship via EIP-7702 + Pimlico is supported.
@@ -44,5 +45,5 @@ export function getPimlicoUrl(chainId: number): string {
   if (!apiKey) {
     throw new Error("PIMLICO_API_KEY not configured");
   }
-  return `${PIMLICO_BASE_URL}/${chainId}/rpc?apikey=${apiKey}`;
+  return `${getPimlicoBaseUrl()}/${chainId}/rpc?apikey=${apiKey}`;
 }

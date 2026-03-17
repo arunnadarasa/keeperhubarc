@@ -318,6 +318,8 @@ export {
   directExecutions,
   type ExecutionDebt,
   executionDebt,
+  gasCreditUsage,
+  gasSponsorshipDelegations,
   type NewBillingEvent,
   type NewDirectExecution,
   type NewExecutionDebt,
