@@ -1,6 +1,7 @@
 import "server-only";
 import type { Address, Hex } from "viem";
 import { createPublicClient, encodeFunctionData, http } from "viem";
+import { isBillingEnabled } from "@/keeperhub/lib/billing/feature-flag";
 import {
   checkGasCredits,
   getEthPriceUsd,
@@ -52,6 +53,10 @@ type SponsoredContractTxParams = {
 export async function executeSponsoredTransaction(
   params: SponsoredTxParams
 ): Promise<SponsoredTransactionResult> {
+  if (!isBillingEnabled()) {
+    return null;
+  }
+
   if (!isSponsorshipSupported(params.chainId)) {
     return null;
   }
@@ -108,6 +113,10 @@ export async function executeSponsoredTransaction(
 export async function executeSponsoredContractTransaction(
   params: SponsoredContractTxParams
 ): Promise<SponsoredTransactionResult> {
+  if (!isBillingEnabled()) {
+    return null;
+  }
+
   if (!isSponsorshipSupported(params.chainId)) {
     return null;
   }
