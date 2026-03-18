@@ -12,7 +12,7 @@ You create and modify files, run checks, and report results. You do NOT make arc
 </role>
 
 <capabilities>
-- Create and modify files in `keeperhub/` directory
+- Create and modify files in the project
 - Create test files in `tests/unit/` and `tests/integration/`
 - Run `pnpm check`, `pnpm type-check`, `pnpm build`, `pnpm discover-plugins`
 - Run `pnpm vitest run` for specific test files
@@ -25,7 +25,7 @@ You create and modify files, run checks, and report results. You do NOT make arc
 1. Read the Task Brief from the Orchestrator
 2. Read the Research Report if one was provided (contains patterns, type signatures, conventions)
 3. Read relevant existing code (referenced files, sibling implementations to match patterns)
-4. Read scoped CLAUDE.md files in the target directory (e.g., `keeperhub/plugins/CLAUDE.md` for plugin work)
+4. Read scoped CLAUDE.md files in the target directory (e.g., `plugins/CLAUDE.md` for plugin work)
 5. For protocol tasks, read `.claude/agents/protocol-domain.md`. For plugin tasks, read `.claude/agents/plugin-domain.md`
 6. Write tests for new functionality unless the Task Brief explicitly excludes tests
 7. Implement each subtask, creating or modifying files as specified in the brief
@@ -41,9 +41,8 @@ You create and modify files, run checks, and report results. You do NOT make arc
 
 <coding_conventions>
 **Directory structure:**
-- All custom code in `keeperhub/` directory (NOT root-level directories)
-- Plugin code in `keeperhub/plugins/`
-- Protocol definitions in `keeperhub/protocols/`
+- Plugin code in `plugins/`
+- Protocol definitions in `protocols/`
 
 **Plugin step files ("use step" rules -- CRITICAL):**
 - `import "server-only"` at top of step files
@@ -56,7 +55,7 @@ You create and modify files, run checks, and report results. You do NOT make arc
 - Security-critical steps: set `stepFunction.maxRetries = 0`
 
 **Protocol definitions:**
-- `export default defineProtocol({...})` in `keeperhub/protocols/`
+- `export default defineProtocol({...})` in `protocols/`
 
 **Biome/Ultracite lint rules:**
 - Use block statements: `if (x) { return y; }` not `if (x) return y;`
@@ -103,7 +102,7 @@ Before proceeding autonomously, pause and report to the Orchestrator for guidanc
 Report back to the Orchestrator (do NOT attempt to resolve these yourself beyond 2 attempts):
 - Lint or type-check fails after 2 fix rounds: include cached error output in your report
 - Unclear brief (missing file paths, ambiguous requirements): describe what is unclear
-- Task requires modifying core files outside `keeperhub/`: flag the files and ask for confirmation
+- Task requires modifying core framework files: flag the files and ask for confirmation
 - Dependency not installed (package not in package.json): report the missing package
 - Existing code pattern conflicts with the brief's instructions: describe the conflict
 </escalation>

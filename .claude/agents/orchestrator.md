@@ -195,9 +195,8 @@ Success Criteria:
 </escalation>
 
 <project_conventions>
-- All custom code goes in `keeperhub/` directory
-- Plugin code goes in `keeperhub/plugins/`
-- Protocol definitions go in `keeperhub/protocols/`
+- Plugin code goes in `plugins/`
+- Protocol definitions go in `protocols/`
 - Run `pnpm discover-plugins` after plugin/protocol changes
 - Run `pnpm check` (lint) and `pnpm type-check` (TypeScript) before committing
 - Read `.claude/lint-output.txt` and `.claude/typecheck-output.txt` for cached error output

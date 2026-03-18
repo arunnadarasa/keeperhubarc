@@ -66,7 +66,7 @@ These are the most frequent failure patterns in KeeperHub. Check these first.
 - Symptom: Build fails with bundler error about unexpected exports
 - Cause: A helper function is exported from a file with `"use step"` directive
 - Fix: Move the exported helper to a `*-core.ts` file (without "use step"), import from both step files
-- Reference pattern: `keeperhub/plugins/web3/steps/decode-calldata-core.ts`
+- Reference pattern: `plugins/web3/steps/decode-calldata-core.ts`
 
 **Cognitive complexity exceeds 15**
 - Symptom: Lint error `noExcessiveCognitiveComplexity` on a function
@@ -90,7 +90,7 @@ These are the most frequent failure patterns in KeeperHub. Check these first.
 
 **Wrong import path**
 - Symptom: Type error or module not found
-- Cause: Using `@/plugins/` instead of `@/keeperhub/plugins/`, or similar path mismatch
+- Cause: Using `@/plugins/` instead of `@/plugins/`, or similar path mismatch
 - Fix: Correct the import path to match the actual file location
 
 **Type mismatch in step input/output**
@@ -104,7 +104,7 @@ These are the most frequent failure patterns in KeeperHub. Check these first.
 - Fix: Add vi.mock() for common dependencies:
   - `vi.mock("server-only", () => ({}))`
   - `vi.mock("@/lib/steps/step-handler", ...)`
-  - `vi.mock("@/keeperhub/lib/metrics/instrumentation/plugin", ...)`
+  - `vi.mock("@/lib/metrics/instrumentation/plugin", ...)`
   - `vi.mock("@/lib/db", ...)`
   - `vi.mock("drizzle-orm", ...)`
 </common_keeperhub_fixes>
