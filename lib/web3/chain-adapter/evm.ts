@@ -21,6 +21,8 @@ export class EvmChainAdapter implements ChainAdapter {
   private readonly chainId: number;
   private readonly gasStrategy: AdaptiveGasStrategy;
   private readonly nonceManager: NonceManager;
+  private explorerConfigCache: typeof explorerConfigs.$inferSelect | null = null;
+  private explorerConfigLoaded = false;
 
   constructor(
     chainId: number,
@@ -198,9 +200,16 @@ export class EvmChainAdapter implements ChainAdapter {
   private async getExplorerConfig(): Promise<
     typeof explorerConfigs.$inferSelect | undefined
   > {
+    if (this.explorerConfigLoaded) {
+      return this.explorerConfigCache ?? undefined;
+    }
+
     const config = await db.query.explorerConfigs.findFirst({
       where: eq(explorerConfigs.chainId, this.chainId),
     });
+
+    this.explorerConfigCache = config ?? null;
+    this.explorerConfigLoaded = true;
     return config ?? undefined;
   }
 }
