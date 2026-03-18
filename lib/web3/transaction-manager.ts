@@ -6,14 +6,26 @@
  * steps to execute transactions with proper nonce handling and adaptive
  * gas estimation.
  *
+ * submitAndConfirm / submitContractCallAndConfirm consolidate the
+ * send -> record -> wait -> confirm -> explorer-link flow into one place
+ * and add RPC failover: if the primary provider fails with a retryable
+ * error, the signer (or contract) is reconnected to the fallback provider
+ * and the send is retried once. Same nonce ensures idempotency.
+ *
  * @see docs/keeperhub/KEEP-1240/nonce.md for nonce specification
  * @see docs/keeperhub/KEEP-1240/gas.md for gas strategy specification
  */
 
+import { eq } from "drizzle-orm";
 import type { ethers } from "ethers";
+import { db } from "@/lib/db";
+import { explorerConfigs } from "@/lib/db/schema";
+import { getTransactionUrl } from "@/lib/explorer";
 import { ErrorCategory, logUserError } from "@/lib/logging";
 import { initializeParaSigner } from "@/lib/para/wallet-helpers";
 import { getRpcProviderFromUrls } from "@/lib/rpc/provider-factory";
+import type { RpcProviderManager } from "@/lib/rpc-provider";
+import { isNonRetryableError } from "@/lib/rpc-provider/error-classification";
 import {
   type TriggerType as GasTriggerType,
   getGasStrategy,
@@ -29,6 +41,7 @@ export type TransactionContext = {
   chainId: number;
   rpcUrl: string;
   triggerType?: TriggerType;
+  rpcManager?: RpcProviderManager;
 };
 
 export type TransactionResult = {
@@ -39,14 +52,202 @@ export type TransactionResult = {
   nonce?: number;
 };
 
+export type SubmitAndConfirmOptions = {
+  rpcManager: RpcProviderManager;
+  session: NonceSession;
+  nonce: number;
+  workflowId?: string;
+  chainId: number;
+  maxFeePerGas: bigint;
+};
+
+export type SubmitAndConfirmResult = {
+  txHash: string;
+  receipt: ethers.TransactionReceipt;
+  gasCostWei: string;
+  transactionLink: string;
+};
+
+/**
+ * Attempt to send a signer-based transaction with RPC failover.
+ *
+ * 1. Try sendTransaction on the current provider.
+ * 2. If the error is non-retryable, throw immediately.
+ * 3. If retryable and a fallback provider exists, reconnect the signer
+ *    and retry once. Same nonce ensures idempotency.
+ * 4. After successful send: record -> wait -> confirm -> explorer link.
+ */
+export async function submitAndConfirm(
+  signer: ReturnType<typeof initializeParaSigner> extends Promise<infer T>
+    ? T
+    : never,
+  txRequest: ethers.TransactionRequest,
+  options: SubmitAndConfirmOptions
+): Promise<SubmitAndConfirmResult> {
+  const { rpcManager, session, nonce, workflowId, chainId, maxFeePerGas } =
+    options;
+  const nonceManager = getNonceManager();
+
+  let tx: ethers.TransactionResponse;
+  try {
+    tx = await signer.sendTransaction(txRequest);
+  } catch (primaryError) {
+    if (isNonRetryableError(primaryError)) {
+      throw primaryError;
+    }
+
+    const fallbackProvider = rpcManager.getFallbackProvider();
+    if (!fallbackProvider) {
+      throw primaryError;
+    }
+
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        event: "WRITE_TX_FAILOVER",
+        message: `Primary RPC failed during sendTransaction for chain ${rpcManager.getChainName()}, retrying on fallback`,
+        chain: rpcManager.getChainName(),
+        error:
+          primaryError instanceof Error
+            ? primaryError.message
+            : String(primaryError),
+        timestamp: new Date().toISOString(),
+      })
+    );
+
+    const reconnectedSigner = signer.connect(fallbackProvider) as typeof signer;
+    tx = await reconnectedSigner.sendTransaction(txRequest);
+  }
+
+  return await confirmAndBuildResult(
+    tx,
+    nonceManager,
+    session,
+    nonce,
+    workflowId,
+    chainId,
+    maxFeePerGas
+  );
+}
+
+/**
+ * Attempt to send a contract method call with RPC failover.
+ *
+ * Same failover logic as submitAndConfirm but for contract interactions.
+ * On failover, both the signer and contract are reconnected to the fallback.
+ */
+export async function submitContractCallAndConfirm(
+  contract: ethers.Contract,
+  method: string,
+  args: unknown[],
+  overrides: Record<string, unknown>,
+  signer: ReturnType<typeof initializeParaSigner> extends Promise<infer T>
+    ? T
+    : never,
+  options: SubmitAndConfirmOptions
+): Promise<SubmitAndConfirmResult> {
+  const { rpcManager, session, nonce, workflowId, chainId, maxFeePerGas } =
+    options;
+  const nonceManager = getNonceManager();
+
+  let tx: ethers.TransactionResponse;
+  try {
+    tx = await contract[method](...args, overrides);
+  } catch (primaryError) {
+    if (isNonRetryableError(primaryError)) {
+      throw primaryError;
+    }
+
+    const fallbackProvider = rpcManager.getFallbackProvider();
+    if (!fallbackProvider) {
+      throw primaryError;
+    }
+
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        event: "WRITE_TX_CONTRACT_FAILOVER",
+        message: `Primary RPC failed during ${method}() for chain ${rpcManager.getChainName()}, retrying on fallback`,
+        chain: rpcManager.getChainName(),
+        method,
+        error:
+          primaryError instanceof Error
+            ? primaryError.message
+            : String(primaryError),
+        timestamp: new Date().toISOString(),
+      })
+    );
+
+    const reconnectedSigner = signer.connect(fallbackProvider) as typeof signer;
+    const reconnectedContract = contract.connect(
+      reconnectedSigner
+    ) as typeof contract;
+    tx = await reconnectedContract[method](...args, overrides);
+  }
+
+  return await confirmAndBuildResult(
+    tx,
+    nonceManager,
+    session,
+    nonce,
+    workflowId,
+    chainId,
+    maxFeePerGas
+  );
+}
+
+/**
+ * Shared post-send flow: record pending tx, wait for mining, confirm,
+ * compute gas cost, and build explorer link.
+ */
+async function confirmAndBuildResult(
+  tx: ethers.TransactionResponse,
+  nonceManager: ReturnType<typeof getNonceManager>,
+  session: NonceSession,
+  nonce: number,
+  workflowId: string | undefined,
+  chainId: number,
+  maxFeePerGas: bigint
+): Promise<SubmitAndConfirmResult> {
+  await nonceManager.recordTransaction(
+    session,
+    nonce,
+    tx.hash,
+    workflowId,
+    maxFeePerGas.toString()
+  );
+
+  const receipt = await tx.wait();
+
+  if (!receipt) {
+    throw new Error("Transaction sent but receipt not available");
+  }
+
+  await nonceManager.confirmTransaction(tx.hash);
+
+  const gasCostWei = (receipt.gasUsed * receipt.gasPrice).toString();
+
+  const explorerConfig = await db.query.explorerConfigs.findFirst({
+    where: eq(explorerConfigs.chainId, chainId),
+  });
+  const transactionLink = explorerConfig
+    ? getTransactionUrl(explorerConfig, receipt.hash)
+    : "";
+
+  return {
+    txHash: receipt.hash,
+    receipt,
+    gasCostWei,
+    transactionLink,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Legacy helpers (still used by executeTransaction / executeContractTransaction)
+// ---------------------------------------------------------------------------
+
 /**
  * Execute a single transaction with nonce management and gas strategy.
- *
- * @param context - Transaction context with execution and chain info
- * @param walletAddress - The wallet address executing the transaction
- * @param buildTx - Function that builds the transaction given a nonce
- * @param session - Active nonce session
- * @returns Transaction result with success/failure status
  */
 export async function executeTransaction(
   context: TransactionContext,
@@ -57,14 +258,11 @@ export async function executeTransaction(
   const nonceManager = getNonceManager();
   const gasStrategy = getGasStrategy();
 
-  // Get next nonce from session
   const nonce = nonceManager.getNextNonce(session);
 
   try {
-    // Build base transaction
     const baseTx = buildTx(nonce);
 
-    // Initialize signer
     const signer = await initializeParaSigner(
       context.organizationId,
       context.rpcUrl
@@ -75,13 +273,11 @@ export async function executeTransaction(
       throw new Error("Signer has no provider");
     }
 
-    // Estimate gas for the transaction
     const estimatedGas = await provider.estimateGas({
       ...baseTx,
       from: walletAddress,
     });
 
-    // Get gas configuration from strategy
     const gasConfig = await gasStrategy.getGasConfig(
       provider,
       context.triggerType ?? "manual",
@@ -89,7 +285,6 @@ export async function executeTransaction(
       context.chainId
     );
 
-    // Build final transaction with nonce and gas config
     const txRequest: ethers.TransactionRequest = {
       ...baseTx,
       nonce,
@@ -98,10 +293,8 @@ export async function executeTransaction(
       maxPriorityFeePerGas: gasConfig.maxPriorityFeePerGas,
     };
 
-    // Send transaction
     const tx = await signer.sendTransaction(txRequest);
 
-    // Record pending transaction
     await nonceManager.recordTransaction(
       session,
       nonce,
@@ -110,17 +303,9 @@ export async function executeTransaction(
       gasConfig.maxFeePerGas.toString()
     );
 
-    // Wait for confirmation
     const receipt = await tx.wait();
 
-    // Mark confirmed
     await nonceManager.confirmTransaction(tx.hash);
-
-    console.log(
-      `[TransactionManager] Transaction confirmed: hash=${tx.hash}, ` +
-        `nonce=${nonce}, gasUsed=${receipt?.gasUsed}, ` +
-        `gasLimit=${gasConfig.gasLimit}`
-    );
 
     return {
       success: true,
@@ -149,14 +334,6 @@ export async function executeTransaction(
 
 /**
  * Execute a transaction via contract method call with nonce management and gas strategy.
- *
- * @param context - Transaction context with execution and chain info
- * @param walletAddress - The wallet address executing the transaction
- * @param contract - The ethers contract instance (connected to signer)
- * @param method - The method name to call
- * @param args - Arguments to pass to the method
- * @param session - Active nonce session
- * @returns Transaction result with success/failure status
  */
 export async function executeContractTransaction(
   context: TransactionContext,
@@ -169,7 +346,6 @@ export async function executeContractTransaction(
   const nonceManager = getNonceManager();
   const gasStrategy = getGasStrategy();
 
-  // Get next nonce from session
   const nonce = nonceManager.getNextNonce(session);
 
   try {
@@ -178,10 +354,8 @@ export async function executeContractTransaction(
       throw new Error("Contract has no provider");
     }
 
-    // Estimate gas for the contract call
     const estimatedGas = await contract[method].estimateGas(...args);
 
-    // Get gas configuration from strategy
     const gasConfig = await gasStrategy.getGasConfig(
       provider as ethers.Provider,
       context.triggerType ?? "manual",
@@ -189,7 +363,6 @@ export async function executeContractTransaction(
       context.chainId
     );
 
-    // Call contract method with nonce and gas config
     const tx = await contract[method](...args, {
       nonce,
       gasLimit: gasConfig.gasLimit,
@@ -197,7 +370,6 @@ export async function executeContractTransaction(
       maxPriorityFeePerGas: gasConfig.maxPriorityFeePerGas,
     });
 
-    // Record pending transaction
     await nonceManager.recordTransaction(
       session,
       nonce,
@@ -206,17 +378,9 @@ export async function executeContractTransaction(
       gasConfig.maxFeePerGas.toString()
     );
 
-    // Wait for confirmation
     const receipt = await tx.wait();
 
-    // Mark confirmed
     await nonceManager.confirmTransaction(tx.hash);
-
-    console.log(
-      `[TransactionManager] Contract tx confirmed: hash=${tx.hash}, ` +
-        `nonce=${nonce}, method=${method}, gasUsed=${receipt?.gasUsed}, ` +
-        `gasLimit=${gasConfig.gasLimit}`
-    );
 
     return {
       success: true,
@@ -247,24 +411,6 @@ export async function executeContractTransaction(
 /**
  * Wrapper for workflow execution with nonce session management.
  * Handles session lifecycle (start, execute, end) automatically.
- *
- * @param context - Transaction context with execution and chain info
- * @param walletAddress - The wallet address for the session
- * @param fn - Function to execute within the session
- * @returns Result of the function
- *
- * @example
- * ```typescript
- * const result = await withNonceSession(context, walletAddress, async (session) => {
- *   // Execute one or more transactions
- *   const result = await executeTransaction(context, walletAddress, (nonce) => ({
- *     to: recipientAddress,
- *     value: ethers.parseEther(amount),
- *   }), session);
- *
- *   return result;
- * });
- * ```
  */
 export async function withNonceSession<T>(
   context: TransactionContext,
@@ -272,10 +418,10 @@ export async function withNonceSession<T>(
   fn: (session: NonceSession) => Promise<T>
 ): Promise<T> {
   const nonceManager = getNonceManager();
-  const rpcManager = getRpcProviderFromUrls(context.rpcUrl);
+  const rpcManager =
+    context.rpcManager ?? getRpcProviderFromUrls(context.rpcUrl);
   const provider = rpcManager.getProvider();
 
-  // Start session (acquires lock, fetches nonce, validates)
   const { session, validation } = await nonceManager.startSession(
     walletAddress,
     context.chainId,
@@ -283,7 +429,6 @@ export async function withNonceSession<T>(
     provider
   );
 
-  // Log validation results
   if (!validation.valid) {
     console.warn(
       "[TransactionManager] Starting workflow with warnings:",
@@ -294,7 +439,6 @@ export async function withNonceSession<T>(
   try {
     return await fn(session);
   } finally {
-    // Always release session
     await nonceManager.endSession(session);
   }
 }
@@ -302,10 +446,6 @@ export async function withNonceSession<T>(
 /**
  * Get the current nonce from the chain for a wallet.
  * Useful for checking state without acquiring a lock.
- *
- * @param walletAddress - The wallet address
- * @param rpcUrl - RPC endpoint to query
- * @returns Current pending nonce from chain
  */
 export async function getCurrentNonce(
   walletAddress: string,

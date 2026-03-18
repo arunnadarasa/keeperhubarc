@@ -11,8 +11,7 @@ import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
 import ERC20_ABI from "@/lib/contracts/abis/erc20.json";
 import { db } from "@/lib/db";
-import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
-import { getTransactionUrl } from "@/lib/explorer";
+import { workflowExecutions } from "@/lib/db/schema";
 import { ErrorCategory, logUserError } from "@/lib/logging";
 import {
   getOrganizationWalletAddress,
@@ -28,6 +27,7 @@ import { getNonceManager } from "@/lib/web3/nonce-manager";
 import { resolveOrganizationContext } from "@/lib/web3/resolve-org-context";
 import {
   type TransactionContext,
+  submitContractCallAndConfirm,
   withNonceSession,
 } from "@/lib/web3/transaction-manager";
 import { parseTokenAddress } from "./transfer-token-core";
@@ -136,8 +136,9 @@ export async function approveTokenCore(
 
   // Resolve RPC config (with failover)
   let rpcUrl: string;
+  let rpcManager: Awaited<ReturnType<typeof getRpcProvider>>;
   try {
-    const rpcManager = await getRpcProvider({ chainId, userId });
+    rpcManager = await getRpcProvider({ chainId, userId });
     rpcUrl = await rpcManager.resolveActiveRpcUrl();
   } catch (error) {
     logUserError(
@@ -187,6 +188,7 @@ export async function approveTokenCore(
     chainId,
     rpcUrl,
     triggerType: _context.triggerType as TransactionContext["triggerType"],
+    rpcManager,
   };
 
   // Execute transaction with nonce management and gas strategy
@@ -262,52 +264,33 @@ export async function approveTokenCore(
         gasLimitOverride
       );
 
-      // Execute approve with managed nonce and gas config
-      const tx = await contract.approve(spenderAddress, amountRaw, {
-        nonce,
-        gasLimit: txGasConfig.gasLimit,
-        maxFeePerGas: txGasConfig.maxFeePerGas,
-        maxPriorityFeePerGas: txGasConfig.maxPriorityFeePerGas,
-      });
-
-      // Record pending transaction
-      await nonceManager.recordTransaction(
-        session,
-        nonce,
-        tx.hash,
-        workflowId,
-        txGasConfig.maxFeePerGas.toString()
+      // Submit with RPC failover, then confirm and build explorer link
+      const result = await submitContractCallAndConfirm(
+        contract,
+        "approve",
+        [spenderAddress, amountRaw],
+        {
+          nonce,
+          gasLimit: txGasConfig.gasLimit,
+          maxFeePerGas: txGasConfig.maxFeePerGas,
+          maxPriorityFeePerGas: txGasConfig.maxPriorityFeePerGas,
+        },
+        signer,
+        {
+          rpcManager,
+          session,
+          nonce,
+          workflowId,
+          chainId,
+          maxFeePerGas: txGasConfig.maxFeePerGas,
+        }
       );
-
-      // Wait for transaction to be mined
-      const receipt = await tx.wait();
-
-      if (!receipt) {
-        return {
-          success: false,
-          error: "Transaction sent but receipt not available",
-        };
-      }
-
-      // Mark transaction as confirmed
-      await nonceManager.confirmTransaction(tx.hash);
-
-      // Compute gas cost in wei: gasUnits * effectiveGasPrice
-      const gasCostWei = (receipt.gasUsed * receipt.gasPrice).toString();
-
-      // Fetch explorer config for transaction link
-      const explorerConfig = await db.query.explorerConfigs.findFirst({
-        where: eq(explorerConfigs.chainId, chainId),
-      });
-      const transactionLink = explorerConfig
-        ? getTransactionUrl(explorerConfig, receipt.hash)
-        : "";
 
       return {
         success: true,
-        transactionHash: receipt.hash,
-        transactionLink,
-        gasUsed: gasCostWei,
+        transactionHash: result.txHash,
+        transactionLink: result.transactionLink,
+        gasUsed: result.gasCostWei,
         approvedAmount: approvedAmountDisplay,
         spender: spenderAddress,
         symbol,

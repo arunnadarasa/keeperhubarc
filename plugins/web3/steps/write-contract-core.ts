@@ -11,8 +11,7 @@ import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
 import { reshapeArgsForAbi } from "@/lib/abi-struct-args";
 import { db } from "@/lib/db";
-import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
-import { getTransactionUrl } from "@/lib/explorer";
+import { workflowExecutions } from "@/lib/db/schema";
 import { ErrorCategory, logUserError } from "@/lib/logging";
 import {
   getOrganizationWalletAddress,
@@ -29,6 +28,7 @@ import { getNonceManager } from "@/lib/web3/nonce-manager";
 import { resolveOrganizationContext } from "@/lib/web3/resolve-org-context";
 import {
   type TransactionContext,
+  submitContractCallAndConfirm,
   withNonceSession,
 } from "@/lib/web3/transaction-manager";
 
@@ -165,13 +165,12 @@ export async function writeContractCore(
   // Get chain ID and resolve RPC config (with user preferences + failover)
   let chainId: number;
   let rpcUrl: string;
+  let rpcManager: Awaited<ReturnType<typeof getRpcProvider>>;
   try {
     chainId = getChainIdFromNetwork(network);
-    console.log("[Write Contract] Resolved chain ID:", chainId);
 
-    const rpcManager = await getRpcProvider({ chainId, userId });
+    rpcManager = await getRpcProvider({ chainId, userId });
     rpcUrl = await rpcManager.resolveActiveRpcUrl();
-    console.log("[Write Contract] Using RPC URL:", rpcUrl);
   } catch (error) {
     logUserError(
       ErrorCategory.VALIDATION,
@@ -236,6 +235,7 @@ export async function writeContractCore(
     chainId,
     rpcUrl,
     triggerType: _context?.triggerType as TransactionContext["triggerType"],
+    rpcManager,
   };
 
   // Execute transaction with nonce management and gas strategy
@@ -248,10 +248,6 @@ export async function writeContractCore(
     try {
       signer = await initializeParaSigner(organizationId, rpcUrl);
     } catch (error) {
-      console.error(
-        "[Write Contract] Failed to initialize organization wallet:",
-        error
-      );
       return {
         success: false,
         error: `Failed to initialize organization wallet: ${getErrorMessage(error)}`,
@@ -263,10 +259,6 @@ export async function writeContractCore(
     try {
       contract = new ethers.Contract(contractAddress, parsedAbi, signer);
     } catch (error) {
-      console.error(
-        "[Write Contract] Failed to create contract instance:",
-        error
-      );
       return {
         success: false,
         error: `Failed to create contract instance: ${getErrorMessage(error)}`,
@@ -314,61 +306,34 @@ export async function writeContractCore(
         gasLimitOverride
       );
 
-      console.log("[Write Contract] Gas config:", {
-        function: abiFunction,
-        estimatedGas: estimatedGas.toString(),
-        gasLimit: txGasConfig.gasLimit.toString(),
-        maxFeePerGas: `${ethers.formatUnits(txGasConfig.maxFeePerGas, "gwei")} gwei`,
-        maxPriorityFeePerGas: `${ethers.formatUnits(txGasConfig.maxPriorityFeePerGas, "gwei")} gwei`,
-      });
-
-      // Execute contract call with managed nonce and gas config
-      const tx = await contract[abiFunctionKey](...args, {
-        nonce,
-        gasLimit: txGasConfig.gasLimit,
-        maxFeePerGas: txGasConfig.maxFeePerGas,
-        maxPriorityFeePerGas: txGasConfig.maxPriorityFeePerGas,
-        ...valueOverride,
-      });
-
-      // Record pending transaction
-      await nonceManager.recordTransaction(
-        session,
-        nonce,
-        tx.hash,
-        workflowId,
-        txGasConfig.maxFeePerGas.toString()
+      // Submit with RPC failover, then confirm and build explorer link
+      const result = await submitContractCallAndConfirm(
+        contract,
+        abiFunctionKey,
+        args,
+        {
+          nonce,
+          gasLimit: txGasConfig.gasLimit,
+          maxFeePerGas: txGasConfig.maxFeePerGas,
+          maxPriorityFeePerGas: txGasConfig.maxPriorityFeePerGas,
+          ...valueOverride,
+        },
+        signer,
+        {
+          rpcManager,
+          session,
+          nonce,
+          workflowId,
+          chainId,
+          maxFeePerGas: txGasConfig.maxFeePerGas,
+        }
       );
-
-      // Wait for transaction to be mined
-      const receipt = await tx.wait();
-
-      // Mark transaction as confirmed
-      await nonceManager.confirmTransaction(tx.hash);
-
-      // Compute gas cost in wei: gasUnits * effectiveGasPrice
-      const gasCostWei = (receipt.gasUsed * receipt.gasPrice).toString();
-
-      console.log("[Write Contract] Transaction confirmed:", {
-        hash: receipt.hash,
-        gasUsed: receipt.gasUsed.toString(),
-        effectiveGasPrice: `${ethers.formatUnits(receipt.gasPrice, "gwei")} gwei`,
-        gasCostWei,
-      });
-
-      // Fetch explorer config for transaction link
-      const explorerConfig = await db.query.explorerConfigs.findFirst({
-        where: eq(explorerConfigs.chainId, chainId),
-      });
-      const transactionLink = explorerConfig
-        ? getTransactionUrl(explorerConfig, receipt.hash)
-        : "";
 
       return {
         success: true,
-        transactionHash: receipt.hash,
-        transactionLink,
-        gasUsed: gasCostWei,
+        transactionHash: result.txHash,
+        transactionLink: result.transactionLink,
+        gasUsed: result.gasCostWei,
         result: undefined,
       };
     } catch (error) {

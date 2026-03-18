@@ -119,6 +119,33 @@ vi.mock("@/lib/web3/transaction-manager", () => ({
     _wallet: unknown,
     fn: (session: unknown) => unknown
   ) => fn({ id: "mock-session" }),
+  submitContractCallAndConfirm: async (
+    contract: Record<
+      string,
+      (...a: unknown[]) => Promise<{
+        hash: string;
+        wait: () => Promise<{
+          hash: string;
+          gasUsed: bigint;
+          gasPrice: bigint;
+        }>;
+      }>
+    >,
+    method: string,
+    args: unknown[],
+    overrides: Record<string, unknown>,
+    _signer: unknown,
+    _options: unknown
+  ) => {
+    const tx = await contract[method](...args, overrides);
+    const receipt = await tx.wait();
+    return {
+      txHash: receipt.hash,
+      receipt,
+      gasCostWei: (receipt.gasUsed * receipt.gasPrice).toString(),
+      transactionLink: `https://etherscan.io/tx/${receipt.hash}`,
+    };
+  },
 }));
 
 // Mock ethers
@@ -266,7 +293,7 @@ describe("approve-token - successful approval", () => {
       expect(result.approvedAmount).toBe("100");
       expect(result.spender).toBe(VALID_SPENDER);
       expect(result.symbol).toBe("DAI");
-      expect(result.transactionLink).toBe("https://etherscan.io/tx/0xabc");
+      expect(result.transactionLink).toBe("https://etherscan.io/tx/0xtxhash");
     }
   });
 
