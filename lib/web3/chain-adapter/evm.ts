@@ -106,11 +106,24 @@ export class EvmChainAdapter implements ChainAdapter {
       throw new Error("Signer has no provider");
     }
 
-    const contract = new ethers.Contract(
-      request.contractAddress,
-      request.abi,
-      signer
-    );
+    let contract: ethers.Contract;
+    try {
+      contract = new ethers.Contract(
+        request.contractAddress,
+        request.abi,
+        signer
+      );
+    } catch (error) {
+      throw new Error(
+        `Failed to create contract instance: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+
+    if (typeof contract[request.functionKey] !== "function") {
+      throw new Error(
+        `Function '${request.functionKey}' not found in contract ABI`
+      );
+    }
 
     const valueOverride = request.value ? { value: request.value } : {};
 
