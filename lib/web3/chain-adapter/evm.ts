@@ -6,7 +6,7 @@ import {
   getAddressUrl as buildAddressUrl,
   getTransactionUrl as buildTransactionUrl,
 } from "@/lib/explorer";
-import type { AdaptiveGasStrategy } from "../gas-strategy";
+import type { AdaptiveGasStrategy, GasConfig } from "../gas-strategy";
 import type { NonceManager, NonceSession } from "../nonce-manager";
 import type {
   ChainAdapter,
@@ -21,7 +21,8 @@ export class EvmChainAdapter implements ChainAdapter {
   private readonly chainId: number;
   private readonly gasStrategy: AdaptiveGasStrategy;
   private readonly nonceManager: NonceManager;
-  private explorerConfigCache: typeof explorerConfigs.$inferSelect | null = null;
+  private explorerConfigCache: typeof explorerConfigs.$inferSelect | null =
+    null;
   private explorerConfigLoaded = false;
 
   constructor(
@@ -46,7 +47,11 @@ export class EvmChainAdapter implements ChainAdapter {
     }
 
     const walletAddress = await signer.getAddress();
-    const baseTx = { to: request.to, value: request.value };
+    const baseTx: ethers.TransactionRequest = {
+      to: request.to,
+      value: request.value,
+      data: request.data,
+    };
 
     await provider.call({ ...baseTx, from: walletAddress });
 
@@ -74,27 +79,7 @@ export class EvmChainAdapter implements ChainAdapter {
       maxPriorityFeePerGas: gasConfig.maxPriorityFeePerGas,
     });
 
-    await this.nonceManager.recordTransaction(
-      session,
-      nonce,
-      tx.hash,
-      options.workflowId,
-      gasConfig.maxFeePerGas.toString()
-    );
-
-    const receipt = await tx.wait();
-    if (!receipt) {
-      throw new Error("Transaction sent but receipt not available");
-    }
-
-    await this.nonceManager.confirmTransaction(tx.hash);
-
-    return {
-      hash: receipt.hash,
-      gasUsed: receipt.gasUsed,
-      effectiveGasPrice: receipt.gasPrice,
-      blockNumber: receipt.blockNumber,
-    };
+    return this.confirmTransaction(tx, session, nonce, gasConfig, options);
   }
 
   async executeContractCall(
@@ -158,6 +143,32 @@ export class EvmChainAdapter implements ChainAdapter {
       ...valueOverride,
     });
 
+    return this.confirmTransaction(tx, session, nonce, gasConfig, options);
+  }
+
+  async getTransactionUrl(txHash: string): Promise<string> {
+    const config = await this.getExplorerConfig();
+    if (!config) {
+      return "";
+    }
+    return buildTransactionUrl(config, txHash);
+  }
+
+  async getAddressUrl(address: string): Promise<string> {
+    const config = await this.getExplorerConfig();
+    if (!config) {
+      return "";
+    }
+    return buildAddressUrl(config, address);
+  }
+
+  private async confirmTransaction(
+    tx: ethers.TransactionResponse,
+    session: NonceSession,
+    nonce: number,
+    gasConfig: GasConfig,
+    options: TransactionOptions
+  ): Promise<TransactionReceipt> {
     await this.nonceManager.recordTransaction(
       session,
       nonce,
@@ -179,22 +190,6 @@ export class EvmChainAdapter implements ChainAdapter {
       effectiveGasPrice: receipt.gasPrice,
       blockNumber: receipt.blockNumber,
     };
-  }
-
-  async getTransactionUrl(txHash: string): Promise<string> {
-    const config = await this.getExplorerConfig();
-    if (!config) {
-      return "";
-    }
-    return buildTransactionUrl(config, txHash);
-  }
-
-  async getAddressUrl(address: string): Promise<string> {
-    const config = await this.getExplorerConfig();
-    if (!config) {
-      return "";
-    }
-    return buildAddressUrl(config, address);
   }
 
   private async getExplorerConfig(): Promise<
