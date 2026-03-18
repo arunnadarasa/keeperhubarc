@@ -74,27 +74,46 @@ describe("Chainlink Protocol Definition", () => {
     }
   });
 
-  it("has exactly 6 actions", () => {
-    expect(chainlinkDef.actions).toHaveLength(6);
+  it("has 14 actions (8 named feeds + 6 custom feed)", () => {
+    expect(chainlinkDef.actions).toHaveLength(14);
   });
 
-  it("has 6 read actions and 0 write actions", () => {
+  it("has 14 read actions and 0 write actions", () => {
     const readActions = chainlinkDef.actions.filter((a) => a.type === "read");
     const writeActions = chainlinkDef.actions.filter((a) => a.type === "write");
-    expect(readActions).toHaveLength(6);
+    expect(readActions).toHaveLength(14);
     expect(writeActions).toHaveLength(0);
   });
 
-  it("has 1 contract", () => {
-    expect(Object.keys(chainlinkDef.contracts)).toHaveLength(1);
+  it("has 9 contracts (8 named feeds + 1 custom)", () => {
+    expect(Object.keys(chainlinkDef.contracts)).toHaveLength(9);
   });
 
-  it("priceFeed contract has userSpecifiedAddress enabled", () => {
-    expect(chainlinkDef.contracts.priceFeed.userSpecifiedAddress).toBe(true);
+  it("customFeed contract has userSpecifiedAddress enabled", () => {
+    expect(chainlinkDef.contracts.customFeed.userSpecifiedAddress).toBe(true);
   });
 
-  it("priceFeed contract is available on 5 chains", () => {
-    const chains = Object.keys(chainlinkDef.contracts.priceFeed.addresses);
+  it("named feed contracts do not have userSpecifiedAddress", () => {
+    const namedFeeds = [
+      "ethUsd",
+      "btcUsd",
+      "linkUsd",
+      "usdcUsd",
+      "daiUsd",
+      "usdtUsd",
+      "linkEth",
+      "btcEth",
+    ];
+    for (const key of namedFeeds) {
+      expect(
+        chainlinkDef.contracts[key].userSpecifiedAddress,
+        `contract "${key}" should not have userSpecifiedAddress`
+      ).toBeUndefined();
+    }
+  });
+
+  it("ETH/USD feed is available on 5 chains including Sepolia", () => {
+    const chains = Object.keys(chainlinkDef.contracts.ethUsd.addresses);
     expect(chains).toHaveLength(5);
     expect(chains).toContain("1");
     expect(chains).toContain("8453");
@@ -103,15 +122,32 @@ describe("Chainlink Protocol Definition", () => {
     expect(chains).toContain("11155111");
   });
 
-  it("latestRoundData action has 5 outputs", () => {
-    const action = chainlinkDef.actions.find(
-      (a) => a.slug === "latest-round-data"
-    );
-    expect(action).toBeDefined();
-    expect(action?.outputs).toHaveLength(5);
+  it("customFeed contract is available on 5 chains", () => {
+    const chains = Object.keys(chainlinkDef.contracts.customFeed.addresses);
+    expect(chains).toHaveLength(5);
+    expect(chains).toContain("1");
+    expect(chains).toContain("11155111");
   });
 
-  it("getRoundData action has 1 input and 5 outputs", () => {
+  it("each named feed has a latestRoundData action with 5 outputs", () => {
+    const feedSlugs = [
+      "eth-usd-latest-round-data",
+      "btc-usd-latest-round-data",
+      "link-usd-latest-round-data",
+      "usdc-usd-latest-round-data",
+      "dai-usd-latest-round-data",
+      "usdt-usd-latest-round-data",
+      "link-eth-latest-round-data",
+      "btc-eth-latest-round-data",
+    ];
+    for (const slug of feedSlugs) {
+      const action = chainlinkDef.actions.find((a) => a.slug === slug);
+      expect(action, `action "${slug}" should exist`).toBeDefined();
+      expect(action?.outputs).toHaveLength(5);
+    }
+  });
+
+  it("custom getRoundData action has 1 input and 5 outputs", () => {
     const action = chainlinkDef.actions.find(
       (a) => a.slug === "get-round-data"
     );
