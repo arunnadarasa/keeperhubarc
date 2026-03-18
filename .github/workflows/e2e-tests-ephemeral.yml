@@ -207,6 +207,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: test
           AWS_REGION: us-east-1
           TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
+          CHAIN_RPC_CONFIG: ${{ secrets.CHAIN_RPC_CONFIG }}
 
       - name: Dump app container logs
         if: failure() && inputs.image_tag != ''
