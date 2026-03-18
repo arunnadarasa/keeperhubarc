@@ -5,6 +5,7 @@ export type {
   ChainAdapter,
   ContractCallRequest,
   GasOverrides,
+  ReadContractRequest,
   SendTransactionRequest,
   TransactionOptions,
   TransactionReceipt,

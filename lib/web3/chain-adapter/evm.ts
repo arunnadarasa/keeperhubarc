@@ -6,11 +6,13 @@ import {
   getAddressUrl as buildAddressUrl,
   getTransactionUrl as buildTransactionUrl,
 } from "@/lib/explorer";
+import type { RpcProviderManager } from "@/lib/rpc-provider";
 import type { AdaptiveGasStrategy, GasConfig } from "../gas-strategy";
 import type { NonceManager, NonceSession } from "../nonce-manager";
 import type {
   ChainAdapter,
   ContractCallRequest,
+  ReadContractRequest,
   SendTransactionRequest,
   TransactionOptions,
   TransactionReceipt,
@@ -144,6 +146,45 @@ export class EvmChainAdapter implements ChainAdapter {
     });
 
     return this.confirmTransaction(tx, session, nonce, gasConfig, options);
+  }
+
+  async readContract(
+    rpcManager: RpcProviderManager,
+    request: ReadContractRequest
+  ): Promise<unknown> {
+    return await rpcManager.executeWithFailover(async (provider) => {
+      const contract = new ethers.Contract(
+        request.contractAddress,
+        request.abi,
+        provider
+      );
+
+      if (typeof contract[request.functionKey] !== "function") {
+        throw new Error(
+          `Function '${request.functionKey}' not found in contract ABI`
+        );
+      }
+
+      return request.isView
+        ? await contract[request.functionKey](...request.args)
+        : await contract[request.functionKey].staticCall(...request.args);
+    });
+  }
+
+  async getBalance(
+    rpcManager: RpcProviderManager,
+    address: string
+  ): Promise<bigint> {
+    return await rpcManager.executeWithFailover(async (provider) =>
+      provider.getBalance(address)
+    );
+  }
+
+  async executeWithFailover<T>(
+    rpcManager: RpcProviderManager,
+    operation: (provider: ethers.JsonRpcProvider) => Promise<T>
+  ): Promise<T> {
+    return await rpcManager.executeWithFailover(operation);
   }
 
   async getTransactionUrl(txHash: string): Promise<string> {

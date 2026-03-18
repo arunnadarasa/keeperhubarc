@@ -1,8 +1,10 @@
 import type { ethers } from "ethers";
+import type { RpcProviderManager } from "@/lib/rpc-provider";
 import type { NonceSession } from "../nonce-manager";
 import type {
   ChainAdapter,
   ContractCallRequest,
+  ReadContractRequest,
   SendTransactionRequest,
   TransactionOptions,
   TransactionReceipt,
@@ -38,6 +40,37 @@ export class SolanaChainAdapter implements ChainAdapter {
     return Promise.reject(
       new Error(
         `Solana executeContractCall not implemented (chainId: ${this.chainId})`
+      )
+    );
+  }
+
+  readContract(
+    _rpcManager: RpcProviderManager,
+    _request: ReadContractRequest
+  ): Promise<unknown> {
+    return Promise.reject(
+      new Error(
+        `Solana readContract not implemented (chainId: ${this.chainId})`
+      )
+    );
+  }
+
+  getBalance(
+    _rpcManager: RpcProviderManager,
+    _address: string
+  ): Promise<bigint> {
+    return Promise.reject(
+      new Error(`Solana getBalance not implemented (chainId: ${this.chainId})`)
+    );
+  }
+
+  executeWithFailover<T>(
+    _rpcManager: RpcProviderManager,
+    _operation: (provider: ethers.JsonRpcProvider) => Promise<T>
+  ): Promise<T> {
+    return Promise.reject(
+      new Error(
+        `Solana executeWithFailover not implemented (chainId: ${this.chainId})`
       )
     );
   }
