@@ -176,7 +176,7 @@ const DEFAULT_CHAINS: NewChain[] = [
       type: "fallback",
     }),
     isTestnet: getChainConfigValue("tempo-mainnet", "isTestnet", false),
-    isEnabled: getChainConfigValue("tempo-mainnet", "isEnabled", false),
+    isEnabled: getChainConfigValue("tempo-mainnet", "isEnabled", true),
   },
   // Solana chains (non-EVM - uses SolanaProviderManager)
   {
