@@ -705,8 +705,11 @@ describe.skipIf(skipRealTx)("Real Transaction Tests (Sepolia)", () => {
     await paraClient.setUserShare(decryptedShare);
 
     sepoliaProvider = new ethers.JsonRpcProvider(SEPOLIA_RPC);
-    // biome-ignore lint/suspicious/noExplicitAny: Para server-sdk type incompatibility with core-sdk ParaCore
-    wallet = new ParaEthersSigner(paraClient as any, sepoliaProvider);
+    wallet = new ParaEthersSigner(
+      // biome-ignore lint/suspicious/noExplicitAny: Para server-sdk type incompatibility with core-sdk ParaCore
+      paraClient as any,
+      sepoliaProvider
+    );
 
     console.log(`Test wallet (Para): ${walletAddress}`);
 
