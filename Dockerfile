@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile for Next.js application
 # Stage 1: Dependencies
-FROM node:25-alpine AS deps
+FROM node:24-alpine AS deps
 RUN apk add --no-cache libc6-compat
 RUN wget -O /etc/ssl/certs/rds-combined-ca-bundle.pem https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
 WORKDIR /app
@@ -17,7 +17,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 
 # Stage 2: Source (dependencies + source files, no build)
-FROM node:25-alpine AS source
+FROM node:24-alpine AS source
 WORKDIR /app
 RUN npm install -g pnpm@9
 
@@ -45,7 +45,7 @@ ENV NEXT_PUBLIC_BILLING_ENABLED=$NEXT_PUBLIC_BILLING_ENABLED
 RUN pnpm build
 
 # Stage 2.6: Migration stage (for running migrations and seeding)
-FROM node:25-alpine AS migrator
+FROM node:24-alpine AS migrator
 WORKDIR /app
 RUN npm install -g pnpm@9 tsx@4
 COPY --from=deps /etc/ssl/certs/rds-combined-ca-bundle.pem /etc/ssl/certs/rds-combined-ca-bundle.pem
@@ -70,7 +70,7 @@ COPY --from=source /app/tsconfig.json ./tsconfig.json
 # Stage 2.7a: Scheduler Dependencies (uses main project deps)
 # The scheduler scripts now live in scripts/scheduler/ and import from
 # the main project's dependencies, so we reuse the full deps stage.
-FROM node:25-alpine AS scheduler-deps
+FROM node:24-alpine AS scheduler-deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -85,7 +85,7 @@ RUN --mount=type=cache,id=pnpm-scheduler,target=/root/.local/share/pnpm/store \
     pnpm install --prod --frozen-lockfile
 
 # Stage 2.7b: Scheduler stage (for schedule dispatcher and job spawner)
-FROM node:25-alpine AS scheduler
+FROM node:24-alpine AS scheduler
 WORKDIR /app
 RUN npm install -g tsx@4
 COPY --from=deps /etc/ssl/certs/rds-combined-ca-bundle.pem /etc/ssl/certs/rds-combined-ca-bundle.pem
@@ -110,7 +110,7 @@ ENV NODE_ENV=production
 # Run job spawner: docker run keeperhub-scheduler tsx scripts/scheduler/job-spawner.ts
 
 # Stage 2.8: Workflow Runner stage (for executing workflows in K8s Jobs)
-FROM node:25-alpine AS workflow-runner
+FROM node:24-alpine AS workflow-runner
 WORKDIR /app
 RUN npm install -g pnpm@9 tsx@4
 COPY --from=deps /etc/ssl/certs/rds-combined-ca-bundle.pem /etc/ssl/certs/rds-combined-ca-bundle.pem
@@ -149,7 +149,7 @@ ENV NODE_ENV=production
 CMD ["tsx", "scripts/runtime/workflow-runner.ts"]
 
 # Stage 3: Runner (main Next.js app)
-FROM node:25-alpine AS runner
+FROM node:24-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production

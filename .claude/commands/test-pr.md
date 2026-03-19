@@ -107,7 +107,7 @@ gh pr view $PR_NUMBER --json title,body,files,labels
 
 From the output:
 - Identify changed features and components
-- Map changed files to affected pages and flows (e.g., changes in `keeperhub/plugins/web3/` affect the action grid and workflow canvas)
+- Map changed files to affected pages and flows (e.g., changes in `plugins/web3/` affect the action grid and workflow canvas)
 - Record findings to guide Step 6
 
 ### Step 6: Smoke test (browser)
@@ -163,7 +163,7 @@ Tailor tests to what actually changed. Do not test unchanged areas in this step.
 
 ### Step 7p: Protocol plugin testing (conditional)
 
-**Trigger**: Only run this step if the PR modifies files matching `keeperhub/protocols/*.ts`. Check the file list from Step 5. If no protocol files changed, skip to Step 8.
+**Trigger**: Only run this step if the PR modifies files matching `protocols/*.ts`. Check the file list from Step 5. If no protocol files changed, skip to Step 8.
 
 **7p-a: Read the protocol definition**
 

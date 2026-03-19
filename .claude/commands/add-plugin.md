@@ -9,17 +9,17 @@ Add a new KeeperHub workflow plugin. $ARGUMENTS is either:
 - Just a plugin name (e.g., "coinbase") -- pipeline will ask for details
 - Empty -- pipeline will ask what plugin to build
 
-This command invokes the Orchestrator agent which runs the full Blueprint pipeline: DECOMPOSE -> RESEARCH -> IMPLEMENT -> VERIFY -> PR. The pipeline produces a complete, lint-clean plugin in `keeperhub/plugins/` with step files, icon, credentials (if needed), and documentation.
+This command invokes the Orchestrator agent which runs the full Blueprint pipeline: DECOMPOSE -> RESEARCH -> IMPLEMENT -> VERIFY -> PR. The pipeline produces a complete, lint-clean plugin in `plugins/` with step files, icon, credentials (if needed), and documentation.
 </objective>
 
 <context>
 Domain knowledge: @.claude/agents/plugin-domain.md
-Example credential plugin: @keeperhub/plugins/discord/index.ts
-Example system plugin: @keeperhub/plugins/web3/index.ts
+Example credential plugin: @plugins/discord/index.ts
+Example system plugin: @plugins/web3/index.ts
 Plugin registry: @plugins/registry.ts
 Project conventions: @CLAUDE.md
 Blueprint pipeline: @.claude/agents/blueprint-pipeline.md
-Existing plugins: !`ls keeperhub/plugins/`
+Existing plugins: !`ls plugins/`
 </context>
 
 <process>
@@ -39,25 +39,25 @@ Orchestrator: Before spawning agents, determine:
 3. What actions does this plugin need?
 
 Required artifacts for a NEW plugin:
-- keeperhub/plugins/{name}/index.ts -- plugin definition
-- keeperhub/plugins/{name}/icon.tsx -- SVG icon
-- keeperhub/plugins/{name}/credentials.ts -- credential type (if credential-based)
-- keeperhub/plugins/{name}/test.ts -- connection test
-- keeperhub/plugins/{name}/steps/{action-slug}.ts -- one per action
+- plugins/{name}/index.ts -- plugin definition
+- plugins/{name}/icon.tsx -- SVG icon
+- plugins/{name}/credentials.ts -- credential type (if credential-based)
+- plugins/{name}/test.ts -- connection test
+- plugins/{name}/steps/{action-slug}.ts -- one per action
 - docs/plugins/{name}.md -- documentation page
 
 Required artifacts for an ACTION ADDITION to an existing plugin:
-- keeperhub/plugins/{existing-plugin}/steps/{action-slug}.ts -- new step file
-- keeperhub/plugins/{existing-plugin}/index.ts -- add action entry to actions array
+- plugins/{existing-plugin}/steps/{action-slug}.ts -- new step file
+- plugins/{existing-plugin}/index.ts -- add action entry to actions array
 
 Required modifications (both cases):
 - docs/plugins/_meta.json -- add/update nav entry
 - docs/plugins/overview.md -- add/update Available Plugins table
-- (auto-generated) keeperhub/plugins/index.ts
+- (auto-generated) plugins/index.ts
 - (auto-generated) lib/step-registry.ts
 
 Research questions for the Researcher agent:
-- Does a similar plugin already exist (check keeperhub/plugins/)?
+- Does a similar plugin already exist (check plugins/)?
 - Should this be a new plugin or a new action on an existing plugin?
 - What does the API for this service look like (authentication, endpoints)?
 - What patterns does the most similar existing plugin use?
@@ -76,7 +76,7 @@ The Orchestrator handles: determining plugin variant, decomposing subtasks, dele
 
 <success_criteria>
 - Orchestrator pipeline completes end-to-end
-- Plugin directory exists at keeperhub/plugins/{name}/ with all required files
+- Plugin directory exists at plugins/{name}/ with all required files
 - All checks pass: pnpm check, pnpm type-check, pnpm discover-plugins
 - PR created targeting staging branch with conventional commit format
 - Verifier agent explicitly approved before PR creation (SAFE-04 gate)

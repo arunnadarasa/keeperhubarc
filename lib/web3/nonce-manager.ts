@@ -178,14 +178,26 @@ export class NonceManager {
           await db
             .update(pendingTransactions)
             .set({ status: "confirmed", confirmedAt: new Date() })
-            .where(eq(pendingTransactions.id, tx.id));
+            .where(
+              and(
+                eq(pendingTransactions.walletAddress, tx.walletAddress),
+                eq(pendingTransactions.chainId, tx.chainId),
+                eq(pendingTransactions.nonce, tx.nonce)
+              )
+            );
           reconciledCount += 1;
         } else {
           // Nonce used but our tx not confirmed - likely replaced or dropped
           await db
             .update(pendingTransactions)
             .set({ status: "replaced" })
-            .where(eq(pendingTransactions.id, tx.id));
+            .where(
+              and(
+                eq(pendingTransactions.walletAddress, tx.walletAddress),
+                eq(pendingTransactions.chainId, tx.chainId),
+                eq(pendingTransactions.nonce, tx.nonce)
+              )
+            );
           warnings.push(
             `Transaction ${tx.txHash} (nonce ${tx.nonce}) was replaced or dropped`
           );
@@ -206,7 +218,13 @@ export class NonceManager {
           await db
             .update(pendingTransactions)
             .set({ status: "dropped" })
-            .where(eq(pendingTransactions.id, tx.id));
+            .where(
+              and(
+                eq(pendingTransactions.walletAddress, tx.walletAddress),
+                eq(pendingTransactions.chainId, tx.chainId),
+                eq(pendingTransactions.nonce, tx.nonce)
+              )
+            );
           warnings.push(
             `Transaction ${tx.txHash} (nonce ${tx.nonce}) dropped from mempool`
           );
@@ -287,7 +305,7 @@ export class NonceManager {
           gasPrice,
           status: "pending",
           submittedAt: new Date(),
-          confirmedAt: null,
+          confirmedAt: sql`null`,
         },
       });
 

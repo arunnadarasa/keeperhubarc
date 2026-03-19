@@ -113,7 +113,8 @@ export function logUserError(
   const context = extractContext(message);
 
   // Log as warning (user errors don't wake up DevOps)
-  console.warn(message, error ?? "");
+  const orgTag = labels?.org_name ? ` [org:${labels.org_name}]` : "";
+  console.warn(`${message}${orgTag}`, error ?? "");
 
   // Emit metric
   metrics.recordError(
@@ -155,7 +156,8 @@ export function logSystemError(
   const context = extractContext(message);
 
   // Log as error (system failures are critical)
-  console.error(message, error);
+  const orgTag = labels?.org_name ? ` [org:${labels.org_name}]` : "";
+  console.error(`${message}${orgTag}`, error);
 
   // Emit metric
   metrics.recordError(
