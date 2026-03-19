@@ -179,6 +179,7 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
           TEST_PARA_USER_SHARE: ${{ secrets.TEST_PARA_USER_SHARE }}
           WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
+          CHAIN_RPC_CONFIG: ${{ secrets.CHAIN_RPC_CONFIG }}
 
       - name: Start application
         uses: ./.github/actions/start-app
@@ -207,6 +208,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: test
           AWS_REGION: us-east-1
           TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
+          CHAIN_RPC_CONFIG: ${{ secrets.CHAIN_RPC_CONFIG }}
 
       - name: Dump app container logs
         if: failure() && inputs.image_tag != ''
@@ -272,6 +274,7 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
           TEST_PARA_USER_SHARE: ${{ secrets.TEST_PARA_USER_SHARE }}
           WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
+          CHAIN_RPC_CONFIG: ${{ secrets.CHAIN_RPC_CONFIG }}
 
       - name: Start application
         uses: ./.github/actions/start-app

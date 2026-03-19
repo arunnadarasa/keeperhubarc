@@ -1,9 +1,9 @@
 <overview>
 Custom workflow plugins provide integrations with external services and internal infrastructure for the KeeperHub workflow builder.
 
-- All custom plugins go in `keeperhub/plugins/` (NOT `plugins/`)
-- Each plugin has a directory: `keeperhub/plugins/[plugin-name]/`
-- `pnpm discover-plugins` auto-generates `keeperhub/plugins/index.ts`, `lib/step-registry.ts`, `lib/codegen-registry.ts`
+- All custom plugins go in `plugins/`
+- Each plugin has a directory: `plugins/[plugin-name]/`
+- `pnpm discover-plugins` auto-generates `plugins/index.ts`, `lib/step-registry.ts`, `lib/codegen-registry.ts`
 - Three plugin variants: credential-based (external API), system plugin (pure logic), infrastructure plugin (uses internal infra)
 </overview>
 
@@ -11,7 +11,7 @@ Custom workflow plugins provide integrations with external services and internal
 Exact file layout for a plugin:
 
 ```
-keeperhub/plugins/[plugin-name]/
+plugins/[plugin-name]/
   index.ts          # Plugin definition + registerIntegration()
   icon.tsx          # SVG icon component
   credentials.ts    # Credential type (skip if requiresCredentials: false)
@@ -89,7 +89,7 @@ STEP FILE TEMPLATE (CREDENTIAL-BASED):
 ```typescript
 import "server-only";
 
-import { withPluginMetrics } from "@/keeperhub/lib/metrics/instrumentation/plugin";
+import { withPluginMetrics } from "@/lib/metrics/instrumentation/plugin";
 import { fetchCredentials } from "@/lib/credential-fetcher";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import { getErrorMessage } from "@/lib/utils";
@@ -162,7 +162,7 @@ STEP FILE TEMPLATE (SYSTEM PLUGIN -- no credentials):
 ```typescript
 import "server-only";
 
-import { withPluginMetrics } from "@/keeperhub/lib/metrics/instrumentation/plugin";
+import { withPluginMetrics } from "@/lib/metrics/instrumentation/plugin";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import { getErrorMessage } from "@/lib/utils";
 
@@ -316,7 +316,7 @@ CRITICAL "use step" bundler rules (violations break production builds):
 <registration>
 Post-creation steps:
 
-1. `pnpm discover-plugins` -- auto-generates keeperhub/plugins/index.ts, lib/step-registry.ts
+1. `pnpm discover-plugins` -- auto-generates plugins/index.ts, lib/step-registry.ts
 2. `pnpm check` -- lint check
 3. `pnpm type-check` -- TypeScript validation
 </registration>
@@ -330,7 +330,7 @@ Production rules (violations break the build):
 4. Must export `_integrationType` constant matching plugin type
 5. Wrap with `withPluginMetrics` AND `withStepLogging` (see discord/steps/send-message.ts as reference)
 6. No emojis in code or comments
-7. All custom code in keeperhub/ directory
+7. Plugins in plugins/, protocols in protocols/
 8. Security-critical steps must set `maxRetries = 0`
 </critical_rules>
 
