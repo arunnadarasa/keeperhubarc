@@ -88,7 +88,10 @@ export async function initializeParaSigner(
   // Create blockchain provider (with batching disabled) and signer
   const rpcManager = getRpcProviderFromUrls(rpcUrl);
   // biome-ignore lint/suspicious/noExplicitAny: Para server-sdk type incompatibility with core-sdk ParaCore (claimPregenWallets return type mismatch)
-  const signer = new ParaEthersSigner(paraClient as any, rpcManager.getProvider());
+  const signer = new ParaEthersSigner(
+    paraClient as any,
+    rpcManager.getProvider()
+  );
 
   return signer;
 }
