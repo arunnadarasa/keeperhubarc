@@ -7,6 +7,7 @@ import { getBillingProvider } from "@/lib/billing/providers";
 import { UnknownEventTypeError } from "@/lib/billing/providers/stripe";
 import { db } from "@/lib/db";
 import { billingEvents } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 async function claimEvent(
   providerEventId: string,
@@ -95,8 +96,12 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("[Billing Webhook] Handler failed:", message);
+    logSystemError(
+      ErrorCategory.EXTERNAL_SERVICE,
+      "[Billing Webhook] Handler failed",
+      error,
+      { endpoint: "/api/billing/webhooks/stripe", operation: "post" }
+    );
     return NextResponse.json(
       { error: "Webhook processing failed" },
       { status: 500 }

@@ -6,6 +6,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 export async function GET(): Promise<NextResponse> {
   if (process.env.METRICS_COLLECTOR !== "prometheus") {
@@ -29,7 +30,12 @@ export async function GET(): Promise<NextResponse> {
       },
     });
   } catch (error) {
-    console.error("[Metrics] Failed to get DB metrics:", error);
+    logSystemError(
+      ErrorCategory.INFRASTRUCTURE,
+      "Failed to get DB metrics",
+      error,
+      { endpoint: "/api/metrics/db", operation: "get" }
+    );
     return NextResponse.json(
       { error: "Failed to collect metrics" },
       { status: 500 }

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { member, organization } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 export async function GET(request: Request) {
   try {
@@ -30,7 +31,12 @@ export async function GET(request: Request) {
 
     return NextResponse.json(rows, { status: 200 });
   } catch (error) {
-    console.error("Failed to list organizations:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "Failed to list organizations",
+      error,
+      { endpoint: "/api/organizations", operation: "get" }
+    );
     return NextResponse.json(
       { error: "Failed to list organizations" },
       { status: 500 }

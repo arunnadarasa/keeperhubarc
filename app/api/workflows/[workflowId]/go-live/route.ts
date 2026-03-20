@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { workflowPublicTags, workflows } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { getOrgContext } from "@/lib/middleware/org-context";
 
 export async function PUT(
@@ -100,7 +101,7 @@ export async function PUT(
       isOwner: true,
     });
   } catch (error) {
-    console.error("[GoLive] Failed to go live:", error);
+    logSystemError(ErrorCategory.DATABASE, "[GoLive] Failed to go live", error, { endpoint: "/api/workflows/[workflowId]/go-live", operation: "put" });
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Failed to go live",

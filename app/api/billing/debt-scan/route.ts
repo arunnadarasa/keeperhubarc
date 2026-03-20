@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { scanAndCreateDebt } from "@/lib/billing/execution-debt";
 import { isBillingEnabled } from "@/lib/billing/feature-flag";
 import { authenticateInternalService } from "@/lib/internal-service-auth";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 /**
  * Internal POST endpoint for scanning unpaid overage and creating debt records.
@@ -24,8 +25,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     const result = await scanAndCreateDebt();
     return NextResponse.json(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("[Billing] Debt scan error:", message);
+    logSystemError(
+      ErrorCategory.EXTERNAL_SERVICE,
+      "[Billing] Debt scan error",
+      error,
+      { endpoint: "/api/billing/debt-scan", operation: "post" }
+    );
     return NextResponse.json({ error: "Debt scan failed" }, { status: 500 });
   }
 }

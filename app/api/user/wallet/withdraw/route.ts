@@ -6,6 +6,7 @@ import { apiError } from "@/lib/api-error";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { chains } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { getActiveOrgId } from "@/lib/middleware/org-context";
 import {
   getOrganizationWalletAddress,
@@ -316,7 +317,10 @@ export async function POST(request: Request) {
       recipient,
     });
   } catch (error) {
-    console.error("[Withdraw] Failed:", error);
+    logSystemError(ErrorCategory.EXTERNAL_SERVICE, "[Withdraw] Failed", error, {
+      endpoint: "/api/user/wallet/withdraw",
+      operation: "post",
+    });
     const errorResponse = handleTransferError(error);
     return errorResponse ?? apiError(error, "Failed to execute withdrawal");
   }

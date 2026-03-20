@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { authenticateAdmin, validateTestEmail } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { verifications } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 export async function GET(request: Request): Promise<NextResponse> {
   const auth = authenticateAdmin(request);
@@ -46,7 +47,10 @@ export async function GET(request: Request): Promise<NextResponse> {
     const otp = result[0].value.split(":")[0];
     return NextResponse.json({ otp });
   } catch (error) {
-    console.error("Admin OTP lookup failed:", error);
+    logSystemError(ErrorCategory.DATABASE, "Admin OTP lookup failed", error, {
+      endpoint: "/api/admin/test/otp",
+      operation: "get",
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

@@ -2,6 +2,7 @@ import { ethers } from "ethers";
 import { NextResponse } from "next/server";
 import { normalizeAddressForStorage } from "@/lib/address-utils";
 import ERC20_ABI from "@/lib/contracts/abis/erc20.json";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
 
@@ -77,7 +78,12 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    console.error("[Validate Token] Error:", error);
+    logSystemError(
+      ErrorCategory.INFRASTRUCTURE,
+      "Validate token error",
+      error,
+      { endpoint: "/api/validate-token", operation: "get" }
+    );
     return NextResponse.json(
       { valid: false, error: "Not a valid ERC20 token" },
       { status: 200 }

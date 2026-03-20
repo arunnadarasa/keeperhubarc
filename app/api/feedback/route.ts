@@ -89,7 +89,12 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error("[Feedback] Service error:", errorData);
+      logSystemError(
+        ErrorCategory.EXTERNAL_SERVICE,
+        "[Feedback] Service error",
+        new Error(JSON.stringify(errorData)),
+        { endpoint: "/api/feedback", operation: "post" }
+      );
       return NextResponse.json(
         { error: errorData.error || "Failed to submit feedback" },
         { status: response.status }
@@ -99,7 +104,10 @@ export async function POST(request: Request) {
     const result = await response.json();
     return NextResponse.json(result);
   } catch (error) {
-    console.error("[Feedback] Error:", error);
+    logSystemError(ErrorCategory.EXTERNAL_SERVICE, "[Feedback] Error", error, {
+      endpoint: "/api/feedback",
+      operation: "post",
+    });
     return NextResponse.json(
       { error: "Failed to submit feedback" },
       { status: 500 }

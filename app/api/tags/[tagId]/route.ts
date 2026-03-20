@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { tags } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 
 export async function PATCH(
@@ -64,7 +65,10 @@ export async function PATCH(
       updatedAt: updated.updatedAt.toISOString(),
     });
   } catch (error) {
-    console.error("[Tags] Failed to update tag:", error);
+    logSystemError(ErrorCategory.DATABASE, "Failed to update tag", error, {
+      endpoint: "/api/tags/[tagId]",
+      operation: "patch",
+    });
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Failed to update tag",
@@ -102,7 +106,10 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("[Tags] Failed to delete tag:", error);
+    logSystemError(ErrorCategory.DATABASE, "Failed to delete tag", error, {
+      endpoint: "/api/tags/[tagId]",
+      operation: "delete",
+    });
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Failed to delete tag",

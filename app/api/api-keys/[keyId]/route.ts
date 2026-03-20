@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { apiKeys } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 // DELETE - Delete an API key
 export async function DELETE(
@@ -31,7 +32,10 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Failed to delete API key:", error);
+    logSystemError(ErrorCategory.DATABASE, "Failed to delete API key", error, {
+      endpoint: "/api/api-keys/[keyId]",
+      operation: "delete",
+    });
     return NextResponse.json(
       {
         error:

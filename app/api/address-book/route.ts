@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { normalizeAddressForStorage } from "@/lib/address-utils";
 import { db } from "@/lib/db";
 import { addressBookEntry, users } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import {
   resolveCreatorContext,
   resolveOrganizationId,
@@ -59,7 +60,12 @@ export async function GET(request: Request) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("[Address Book] Failed to list entries:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "[Address Book] Failed to list entries",
+      error,
+      { endpoint: "/api/address-book", operation: "list" }
+    );
     return NextResponse.json(
       {
         error:
@@ -128,7 +134,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json(newEntry, { status: 201 });
   } catch (error) {
-    console.error("[Address Book] Failed to create entry:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "[Address Book] Failed to create entry",
+      error,
+      { endpoint: "/api/address-book", operation: "create" }
+    );
     return NextResponse.json(
       {
         error:
