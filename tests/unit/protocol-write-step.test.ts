@@ -176,6 +176,18 @@ describe("protocolWriteStep", () => {
       expect(mockWithStepLogging).toHaveBeenCalledTimes(1);
       expect(result.success).toBe(false);
     });
+
+    it("propagates thrown errors from writeContractCore through withStepLogging", async () => {
+      mockResolveProtocolMeta.mockReturnValue(COMPOUND_SUPPLY_META);
+      mockGetProtocol.mockReturnValue(COMPOUND_PROTOCOL);
+      mockResolveAbi.mockResolvedValue({ abi: "[]" });
+      mockWriteContractCore.mockRejectedValue(new Error("RPC timeout"));
+
+      await expect(protocolWriteStep(makeInput())).rejects.toThrow(
+        "RPC timeout"
+      );
+      expect(mockWithStepLogging).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("meta resolution failures", () => {
