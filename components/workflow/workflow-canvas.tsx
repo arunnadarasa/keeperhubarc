@@ -97,7 +97,8 @@ export function WorkflowCanvas() {
   const [showMinimap] = useAtom(showMinimapAtom);
   const rightPanelWidth = useAtomValue(rightPanelWidthAtom);
   const isPanelAnimating = useAtomValue(isPanelAnimatingAtom);
-  const isSidebarCollapsed = useAtomValue(isSidebarCollapsedAtom);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useAtom(isSidebarCollapsedAtom);
+  const setIsPanelAnimating = useSetAtom(isPanelAnimatingAtom);
   const [isTransitioningFromHomepage, setIsTransitioningFromHomepage] = useAtom(
     isTransitioningFromHomepageAtom
   );
@@ -472,8 +473,13 @@ export function WorkflowCanvas() {
   const onNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
       setSelectedNode(node.id);
+      if (isSidebarCollapsed) {
+        setIsPanelAnimating(true);
+        setIsSidebarCollapsed(false);
+        setTimeout(() => setIsPanelAnimating(false), 350);
+      }
     },
-    [setSelectedNode]
+    [setSelectedNode, isSidebarCollapsed, setIsPanelAnimating, setIsSidebarCollapsed]
   );
 
   const connectingHandleId = useRef<string | null>(null);
