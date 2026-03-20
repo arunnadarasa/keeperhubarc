@@ -5,35 +5,17 @@ const NODE_HEIGHT = 192;
 const H_GAP = 60;
 const V_GAP = 40;
 
-type NodeConfig = { actionType?: string };
-type NodeData = { config?: NodeConfig };
-
-function getActionType(node: Node): string | undefined {
-  return (node.data as NodeData | undefined)?.config?.actionType;
-}
-
-function isBranchingNode(node: Node): boolean {
-  const actionType = getActionType(node);
-  return actionType === "Condition" || actionType === "For Each";
-}
-
 type GraphData = {
-  nodeMap: Map<string, Node>;
   outEdges: Map<string, Edge[]>;
   inDegree: Map<string, number>;
-  inEdges: Map<string, Edge[]>;
 };
 
 function buildGraph(realNodes: Node[], forwardEdges: Edge[]): GraphData {
-  const nodeMap = new Map<string, Node>();
   const outEdges = new Map<string, Edge[]>();
-  const inEdges = new Map<string, Edge[]>();
   const inDegree = new Map<string, number>();
 
   for (const node of realNodes) {
-    nodeMap.set(node.id, node);
     outEdges.set(node.id, []);
-    inEdges.set(node.id, []);
     inDegree.set(node.id, 0);
   }
 
@@ -42,14 +24,10 @@ function buildGraph(realNodes: Node[], forwardEdges: Edge[]): GraphData {
     if (out) {
       out.push(edge);
     }
-    const inp = inEdges.get(edge.target);
-    if (inp) {
-      inp.push(edge);
-    }
     inDegree.set(edge.target, (inDegree.get(edge.target) ?? 0) + 1);
   }
 
-  return { nodeMap, outEdges, inEdges, inDegree };
+  return { outEdges, inDegree };
 }
 
 function findRoots(realNodes: Node[], inDegree: Map<string, number>): string[] {
@@ -116,24 +94,16 @@ function assignColumns(
   return column;
 }
 
-type SortedEdges = {
-  children: string[];
-  hasMultipleBranches: boolean;
-};
-
 /**
  * Sort outgoing edges of each node so that:
  * - "true"/"loop" targets come first (top)
  * - normal targets in the middle
  * - "false"/"done" targets last (bottom)
- *
- * Also reports whether the node actually fans out into multiple
- * distinct handle groups (used to decide branching vs linear layout).
  */
 function sortedChildren(
   nodeId: string,
   outEdges: Map<string, Edge[]>
-): SortedEdges {
+): string[] {
   const edges = outEdges.get(nodeId) ?? [];
   const top: string[] = [];
   const normal: string[] = [];
@@ -150,22 +120,7 @@ function sortedChildren(
     }
   }
 
-  // Count how many non-empty groups we have
-  let groupCount = 0;
-  if (top.length > 0) {
-    groupCount++;
-  }
-  if (normal.length > 0) {
-    groupCount++;
-  }
-  if (bottom.length > 0) {
-    groupCount++;
-  }
-
-  return {
-    children: [...top, ...normal, ...bottom],
-    hasMultipleBranches: groupCount >= 2,
-  };
+  return [...top, ...normal, ...bottom];
 }
 
 /**
@@ -177,7 +132,6 @@ function sortedChildren(
 function computeOwnedSize(
   nodeId: string,
   outEdges: Map<string, Edge[]>,
-  nodeMap: Map<string, Node>,
   claimed: Set<string>,
   cache: Map<string, number>
 ): number {
@@ -189,26 +143,22 @@ function computeOwnedSize(
   }
   claimed.add(nodeId);
 
-  const { children, hasMultipleBranches } = sortedChildren(nodeId, outEdges);
+  const children = sortedChildren(nodeId, outEdges);
   if (children.length === 0) {
     cache.set(nodeId, 1);
     return 1;
   }
 
-  const node = nodeMap.get(nodeId);
-  const branching =
-    node !== undefined && isBranchingNode(node) && hasMultipleBranches;
-
-  // For branching nodes: sum children sizes (they fan out vertically)
-  // For linear nodes: max of children sizes (they stack in the same lane)
+  // Any node with multiple children fans out vertically (sum sizes).
+  // Single-child nodes are linear (inherit the child's size).
   let size = 0;
-  if (branching) {
+  if (children.length > 1) {
     for (const child of children) {
-      size += computeOwnedSize(child, outEdges, nodeMap, claimed, cache);
+      size += computeOwnedSize(child, outEdges, claimed, cache);
     }
   } else {
     for (const child of children) {
-      const cs = computeOwnedSize(child, outEdges, nodeMap, claimed, cache);
+      const cs = computeOwnedSize(child, outEdges, claimed, cache);
       if (cs > size) {
         size = cs;
       }
@@ -224,7 +174,6 @@ type LayoutState = {
   positions: Map<string, { x: number; y: number }>;
   columns: Map<string, number>;
   outEdges: Map<string, Edge[]>;
-  nodeMap: Map<string, Node>;
   placed: Set<string>;
   ownedSizes: Map<string, number>;
 };
@@ -246,19 +195,12 @@ function placeNode(
   const centerY = bandTop + bandHeight / 2 - NODE_HEIGHT / 2;
   state.positions.set(nodeId, { x, y: centerY });
 
-  const { children, hasMultipleBranches } = sortedChildren(
-    nodeId,
-    state.outEdges
-  );
+  const children = sortedChildren(nodeId, state.outEdges);
   if (children.length === 0) {
     return;
   }
 
-  const node = state.nodeMap.get(nodeId);
-  const branching =
-    node !== undefined && isBranchingNode(node) && hasMultipleBranches;
-
-  if (branching) {
+  if (children.length > 1) {
     placeBranchChildren(children, bandTop, bandHeight, state);
   } else {
     placeLinearChildren(children, bandTop, bandHeight, state);
@@ -335,7 +277,7 @@ export function computeAutoLayout(
   const ownedSizes = new Map<string, number>();
   const claimed = new Set<string>();
   for (const root of roots) {
-    computeOwnedSize(root, graph.outEdges, graph.nodeMap, claimed, ownedSizes);
+    computeOwnedSize(root, graph.outEdges, claimed, ownedSizes);
   }
 
   // Total vertical space needed
@@ -349,7 +291,6 @@ export function computeAutoLayout(
     positions: new Map(),
     columns,
     outEdges: graph.outEdges,
-    nodeMap: graph.nodeMap,
     placed: new Set(),
     ownedSizes,
   };

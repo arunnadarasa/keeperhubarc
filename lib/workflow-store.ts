@@ -1,7 +1,7 @@
 import type { Edge, EdgeChange, Node, NodeChange } from "@xyflow/react";
 import { applyEdgeChanges, applyNodeChanges } from "@xyflow/react";
 import { atom } from "jotai";
-import { computeAutoLayout } from "@/keeperhub/lib/auto-layout";
+import { computeAutoLayout } from "@/lib/auto-layout";
 import { buildExecutionLogsMap } from "@/lib/template-helpers";
 import { api } from "./api-client";
 
