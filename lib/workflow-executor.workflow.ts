@@ -34,6 +34,12 @@ import {
   collectSkippedTargets,
   type ConditionDecision,
 } from "@/lib/skipped-branch-utils";
+import {
+  buildEdgesByTarget,
+  getReadyDownstreamIds,
+  propagateConvergenceSkips,
+  signalConvergenceArrival,
+} from "@/lib/convergence-barrier";
 import { resolveConditionExpression } from "@/lib/condition-resolver";
 import {
   applyBigIntConversion,
@@ -1051,6 +1057,9 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     edgesBySource.set(edge.source, targets);
   }
 
+  const edgesByTarget = buildEdgesByTarget(edges);
+  const convergenceArrivals = new Map<string, Set<string>>();
+
   // Find trigger nodes
   const nodesWithIncoming = new Set(edges.map((e) => e.target));
   const triggerNodes = nodes.filter(
@@ -1599,6 +1608,32 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     }
   }
 
+  /**
+   * Execute downstream nodes with convergence barrier support.
+   * For convergence nodes (multiple incoming edges), waits until all
+   * upstream branches have signaled arrival before executing.
+   */
+  async function executeReadyDownstream(
+    fromNodeId: string,
+    nextNodeIds: string[],
+    visited: Set<string>
+  ): Promise<void> {
+    const readyIds = getReadyDownstreamIds(
+      fromNodeId,
+      nextNodeIds,
+      edgesByTarget,
+      convergenceArrivals,
+      visited
+    );
+
+    if (readyIds.length > 0) {
+      const settled = await Promise.allSettled(
+        readyIds.map((id) => executeNode(id, visited))
+      );
+      processSettledResults(settled, readyIds);
+    }
+  }
+
   // Helper to execute a single node
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Node execution requires type checking and error handling
   async function executeNode(nodeId: string, visited: Set<string> = new Set()) {
@@ -1627,11 +1662,8 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
         data: null,
       };
 
-      const nextNodes = edgesBySource.get(nodeId) || [];
-      const settled = await Promise.allSettled(
-        nextNodes.map((nextNodeId) => executeNode(nextNodeId, visited))
-      );
-      processSettledResults(settled, nextNodes);
+      const nextNodes = edgesBySource.get(nodeId) ?? [];
+      await executeReadyDownstream(nodeId, nextNodes, visited);
       return;
     }
 
@@ -1860,10 +1892,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             currentEdgesBySource: edgesBySource,
             continueAfterCollect: async (collectId) => {
               const nextNodes = edgesBySource.get(collectId) ?? [];
-              const settled = await Promise.allSettled(
-                nextNodes.map((nextNodeId) => executeNode(nextNodeId, visited))
-              );
-              processSettledResults(settled, nextNodes);
+              await executeReadyDownstream(collectId, nextNodes, visited);
             },
           });
 
@@ -1895,22 +1924,31 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
                 edgesBySourceHandle
               ),
             });
-            const handleSettled = await Promise.allSettled(
-              handleTargets.map((nextNodeId) =>
-                executeNode(nextNodeId, visited)
-              )
-            );
-            processSettledResults(handleSettled, handleTargets);
+            await executeReadyDownstream(nodeId, handleTargets, visited);
+
+            // Propagate skip signals for the not-taken branch so convergence
+            // nodes downstream receive arrival signals from skipped sources
+            const skippedTargets = handleMap.get(notTakenHandle) ?? [];
+            if (skippedTargets.length > 0) {
+              const unblockedIds = propagateConvergenceSkips(
+                skippedTargets,
+                edgesBySource,
+                edgesByTarget,
+                convergenceArrivals,
+                visited
+              );
+              if (unblockedIds.length > 0) {
+                const settled = await Promise.allSettled(
+                  unblockedIds.map((id) => executeNode(id, visited))
+                );
+                processSettledResults(settled, unblockedIds);
+              }
+            }
           } else {
             // Legacy fallback: no sourceHandle on edges, use old gate behavior
             if (conditionResult === true) {
               const nextNodes = edgesBySource.get(nodeId) ?? [];
-              const legacySettled = await Promise.allSettled(
-                nextNodes.map((nextNodeId) =>
-                  executeNode(nextNodeId, visited)
-                )
-              );
-              processSettledResults(legacySettled, nextNodes);
+              await executeReadyDownstream(nodeId, nextNodes, visited);
             }
           }
         } else {
@@ -1921,10 +1959,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             nextNodes.length,
             "next nodes in parallel"
           );
-          const nextSettled = await Promise.allSettled(
-            nextNodes.map((nextNodeId) => executeNode(nextNodeId, visited))
-          );
-          processSettledResults(nextSettled, nextNodes);
+          await executeReadyDownstream(nodeId, nextNodes, visited);
         }
       }
     } catch (error) {
@@ -1943,8 +1978,32 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
         error: errorMessage,
       };
       results[nodeId] = errorResult;
-      // Note: stepHandler already logged the error for action steps
-      // Trigger steps don't throw, so this catch is mainly for unexpected errors
+
+      // Store null output so downstream templates resolve to null rather than
+      // being undefined (same pattern as disabled nodes).
+      const sanitizedNodeId = nodeId.replace(/[^a-zA-Z0-9]/g, "_");
+      outputs[sanitizedNodeId] = {
+        label: getNodeName(node),
+        data: null,
+      };
+
+      // Signal arrival at downstream convergence nodes to prevent deadlocks.
+      // If this failure was the last arrival, execute the convergence node
+      // with partial data rather than hanging forever.
+      const nextNodes = edgesBySource.get(nodeId) ?? [];
+      const unblockedIds = signalConvergenceArrival(
+        nodeId,
+        nextNodes,
+        edgesByTarget,
+        convergenceArrivals,
+        visited
+      );
+      if (unblockedIds.length > 0) {
+        const settled = await Promise.allSettled(
+          unblockedIds.map((id) => executeNode(id, visited))
+        );
+        processSettledResults(settled, unblockedIds);
+      }
     }
   }
 
