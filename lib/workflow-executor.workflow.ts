@@ -1054,7 +1054,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
   // Reverse edge map: target -> source[] (for convergence detection)
   const edgesByTarget = new Map<string, string[]>();
   for (const edge of edges) {
-    const sources = edgesByTarget.get(edge.target) || [];
+    const sources = edgesByTarget.get(edge.target) ?? [];
     sources.push(edge.source);
     edgesByTarget.set(edge.target, sources);
   }
@@ -1741,7 +1741,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
         data: null,
       };
 
-      const nextNodes = edgesBySource.get(nodeId) || [];
+      const nextNodes = edgesBySource.get(nodeId) ?? [];
       await executeReadyDownstream(nodeId, nextNodes, visited);
       return;
     }
