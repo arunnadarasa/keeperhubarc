@@ -64,7 +64,7 @@ Create a pull request for the current branch against the staging base branch, wi
    ```
 8. Create the PR targeting staging with review requested from the keeperhub team.
    Do NOT ask for confirmation -- proceed directly:
-   `gh pr create --base staging --reviewer techops-services/keeperhub --title "..." --body "..."`
+   `gh pr create --base staging --reviewer KeeperHub/keeperhub --title "..." --body "..."`
 9. Output the PR URL.
 </process>
 
@@ -73,7 +73,7 @@ Create a pull request for the current branch against the staging base branch, wi
 - All changes committed before PR creation
 - PR targets staging as base branch
 - PR title follows conventional commit format
-- Review requested from techops-services/keeperhub
+- Review requested from KeeperHub/keeperhub
 - PR summary leads with intent (why), not a changelog of what changed
 - PR URL returned to the user
   </success_criteria>
