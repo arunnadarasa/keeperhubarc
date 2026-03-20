@@ -32,7 +32,9 @@ export function buildEdgesBySourceHandle(
       result.set(edge.source, handleMap);
     }
     const targets = handleMap.get(edge.sourceHandle) || [];
-    targets.push(edge.target);
+    if (!targets.includes(edge.target)) {
+      targets.push(edge.target);
+    }
     handleMap.set(edge.sourceHandle, targets);
   }
 

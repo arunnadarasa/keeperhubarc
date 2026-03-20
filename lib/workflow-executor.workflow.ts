@@ -35,6 +35,7 @@ import {
   type ConditionDecision,
 } from "@/lib/skipped-branch-utils";
 import {
+  buildEdgesBySource,
   buildEdgesByTarget,
   getReadyDownstreamIds,
   propagateConvergenceSkips,
@@ -1048,14 +1049,9 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
 
   // Build node and edge maps
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-  const edgesBySource = new Map<string, string[]>();
+  const edgesBySource = buildEdgesBySource(edges);
   const edgesBySourceHandle = buildEdgesBySourceHandle(edges);
   const conditionDecisions = new Map<string, ConditionDecision>();
-  for (const edge of edges) {
-    const targets = edgesBySource.get(edge.source) || [];
-    targets.push(edge.target);
-    edgesBySource.set(edge.source, targets);
-  }
 
   const edgesByTarget = buildEdgesByTarget(edges);
   const convergenceArrivals = new Map<string, Set<string>>();
