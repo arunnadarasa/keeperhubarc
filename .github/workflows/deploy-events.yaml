@@ -89,20 +89,6 @@ jobs:
         run: |
           aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.REGION }}
 
-      - name: Deploy sc-event-tracker
-        if: steps.skip.outputs.skip_deploy != 'true'
-        uses: bitovi/github-actions-deploy-eks-helm@v1.2.12
-        with:
-          cluster-name: ${{ env.CLUSTER_NAME }}
-          config-files: ${{ env.TRACKER_HELM_FILE }}
-          chart-path: techops-services/common
-          namespace: ${{ env.NAMESPACE }}
-          timeout: 5m0s
-          name: keeperhub-events-tracker
-          chart-repository: https://techops-services.github.io/helm-charts
-          version: 0.2.1
-          atomic: true
-
       - name: Deploy sc-event-worker
         if: steps.skip.outputs.skip_deploy != 'true'
         uses: bitovi/github-actions-deploy-eks-helm@v1.2.12
@@ -113,6 +99,20 @@ jobs:
           namespace: ${{ env.NAMESPACE }}
           timeout: 5m0s
           name: keeperhub-events-worker
+          chart-repository: https://techops-services.github.io/helm-charts
+          version: 0.2.1
+          atomic: true
+
+      - name: Deploy sc-event-tracker
+        if: steps.skip.outputs.skip_deploy != 'true'
+        uses: bitovi/github-actions-deploy-eks-helm@v1.2.12
+        with:
+          cluster-name: ${{ env.CLUSTER_NAME }}
+          config-files: ${{ env.TRACKER_HELM_FILE }}
+          chart-path: techops-services/common
+          namespace: ${{ env.NAMESPACE }}
+          timeout: 5m0s
+          name: keeperhub-events-tracker
           chart-repository: https://techops-services.github.io/helm-charts
           version: 0.2.1
           atomic: true
