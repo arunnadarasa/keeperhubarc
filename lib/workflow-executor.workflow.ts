@@ -2064,6 +2064,14 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       };
       results[nodeId] = errorResult;
 
+      // Store null output so downstream templates resolve to null rather than
+      // being undefined (same pattern as disabled nodes).
+      const sanitizedNodeId = nodeId.replace(/[^a-zA-Z0-9]/g, "_");
+      outputs[sanitizedNodeId] = {
+        label: getNodeName(node),
+        data: null,
+      };
+
       // Signal arrival at downstream convergence nodes to prevent deadlocks.
       // If this failure was the last arrival, execute the convergence node
       // with partial data rather than hanging forever.
