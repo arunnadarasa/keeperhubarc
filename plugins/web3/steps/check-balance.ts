@@ -9,9 +9,9 @@ import { ErrorCategory, logUserError } from "@/lib/logging";
 import { withPluginMetrics } from "@/lib/metrics/instrumentation/plugin";
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
-import type { RpcProviderManager } from "@/lib/rpc-provider";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import { getErrorMessage } from "@/lib/utils";
+import { getChainAdapter } from "@/lib/web3/chain-adapter";
 
 /**
  * Get userId from executionId by querying the workflowExecutions table
@@ -111,7 +111,7 @@ async function stepHandler(
   }
 
   // Resolve RPC provider with failover support
-  let rpcManager: RpcProviderManager;
+  let rpcManager: Awaited<ReturnType<typeof getRpcProvider>>;
   try {
     rpcManager = await getRpcProvider({ chainId, userId });
   } catch (error) {
@@ -131,28 +131,14 @@ async function stepHandler(
     };
   }
 
+  const adapter = getChainAdapter(chainId);
+
   // Check balance
   try {
-    console.log("[Check Balance] Checking balance for address:", address);
-
-    const balance = await rpcManager.executeWithFailover(async (provider) =>
-      provider.getBalance(address)
-    );
+    const balance = await adapter.getBalance(rpcManager, address);
     const balanceEth = ethers.formatEther(balance);
 
-    console.log("[Check Balance] Balance retrieved successfully:", {
-      address,
-      balanceWei: balance.toString(),
-      balanceEth,
-    });
-
-    // Fetch explorer config for address link
-    const explorerConfig = await db.query.explorerConfigs.findFirst({
-      where: eq(explorerConfigs.chainId, chainId),
-    });
-    const addressLink = explorerConfig
-      ? getAddressUrl(explorerConfig, address)
-      : "";
+    const addressLink = await adapter.getAddressUrl(address);
 
     return {
       success: true,
