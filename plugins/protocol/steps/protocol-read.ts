@@ -52,75 +52,80 @@ export async function protocolReadStep(
 ): Promise<ReadContractResult> {
   "use step";
 
-  // 1. Resolve protocol metadata from config or action type
-  const meta = resolveProtocolMeta(input);
-  if (!meta) {
-    return {
-      success: false,
-      error:
-        "Invalid _protocolMeta: failed to parse JSON and could not derive from action type",
-    };
-  }
+  return await withStepLogging(input, async () => {
+    // 1. Resolve protocol metadata from config or action type
+    const meta = resolveProtocolMeta(input);
+    if (!meta) {
+      return {
+        success: false,
+        error:
+          "Invalid _protocolMeta: failed to parse JSON and could not derive from action type",
+      };
+    }
 
-  // 2. Look up protocol definition from runtime registry
-  const protocol = getProtocol(meta.protocolSlug);
-  if (!protocol) {
-    return { success: false, error: `Unknown protocol: ${meta.protocolSlug}` };
-  }
+    // 2. Look up protocol definition from runtime registry
+    const protocol = getProtocol(meta.protocolSlug);
+    if (!protocol) {
+      return {
+        success: false,
+        error: `Unknown protocol: ${meta.protocolSlug}`,
+      };
+    }
 
-  // 3. Resolve contract for the selected network
-  const contract = protocol.contracts[meta.contractKey];
-  if (!contract) {
-    return {
-      success: false,
-      error: `Unknown contract key "${meta.contractKey}" in protocol "${meta.protocolSlug}"`,
-    };
-  }
+    // 3. Resolve contract for the selected network
+    const contract = protocol.contracts[meta.contractKey];
+    if (!contract) {
+      return {
+        success: false,
+        error: `Unknown contract key "${meta.contractKey}" in protocol "${meta.protocolSlug}"`,
+      };
+    }
 
-  const contractAddress = contract.userSpecifiedAddress
-    ? input.contractAddress
-    : contract.addresses[input.network];
-  if (!contractAddress) {
-    return {
-      success: false,
-      error: contract.userSpecifiedAddress
-        ? `Missing contract address for "${meta.contractKey}" in protocol "${meta.protocolSlug}"`
-        : `Protocol "${meta.protocolSlug}" contract "${meta.contractKey}" is not deployed on network "${input.network}"`,
-    };
-  }
+    const contractAddress = contract.userSpecifiedAddress
+      ? input.contractAddress
+      : contract.addresses[input.network];
+    if (!contractAddress) {
+      return {
+        success: false,
+        error: contract.userSpecifiedAddress
+          ? `Missing contract address for "${meta.contractKey}" in protocol "${meta.protocolSlug}"`
+          : `Protocol "${meta.protocolSlug}" contract "${meta.contractKey}" is not deployed on network "${input.network}"`,
+      };
+    }
 
-  // 4. Resolve ABI (from definition or auto-fetch from explorer)
-  let resolvedAbi: string;
-  try {
-    const abiResult = await resolveAbi({
+    // 4. Resolve ABI (from definition or auto-fetch from explorer)
+    let resolvedAbi: string;
+    try {
+      const abiResult = await resolveAbi({
+        contractAddress,
+        network: input.network,
+        abi: contract.abi,
+      });
+      resolvedAbi = abiResult.abi;
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to resolve ABI for contract "${meta.contractKey}" in protocol "${meta.protocolSlug}": ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+
+    // 5. Build function arguments from named inputs ordered by action definition
+    const functionArgs = buildFunctionArgs(input, meta);
+
+    // 6. Delegate to readContractCore
+    const coreInput: ReadContractCoreInput = {
       contractAddress,
       network: input.network,
-      abi: contract.abi,
-    });
-    resolvedAbi = abiResult.abi;
-  } catch (error) {
-    return {
-      success: false,
-      error: `Failed to resolve ABI for contract "${meta.contractKey}" in protocol "${meta.protocolSlug}": ${error instanceof Error ? error.message : String(error)}`,
+      abi: resolvedAbi,
+      abiFunction: meta.functionName,
+      functionArgs,
+      _context: input._context
+        ? { executionId: input._context.executionId }
+        : undefined,
     };
-  }
 
-  // 5. Build function arguments from named inputs ordered by action definition
-  const functionArgs = buildFunctionArgs(input, meta);
-
-  // 6. Delegate to readContractCore
-  const coreInput: ReadContractCoreInput = {
-    contractAddress,
-    network: input.network,
-    abi: resolvedAbi,
-    abiFunction: meta.functionName,
-    functionArgs,
-    _context: input._context
-      ? { executionId: input._context.executionId }
-      : undefined,
-  };
-
-  return await withStepLogging(input, () => readContractCore(coreInput));
+    return await readContractCore(coreInput);
+  });
 }
 
 protocolReadStep.maxRetries = 0;
