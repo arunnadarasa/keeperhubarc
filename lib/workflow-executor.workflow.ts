@@ -34,6 +34,12 @@ import {
   collectSkippedTargets,
   type ConditionDecision,
 } from "@/lib/skipped-branch-utils";
+import {
+  buildEdgesByTarget,
+  getReadyDownstreamIds,
+  propagateConvergenceSkips,
+  signalConvergenceArrival,
+} from "@/lib/convergence-barrier";
 import { resolveConditionExpression } from "@/lib/condition-resolver";
 import {
   applyBigIntConversion,
@@ -1051,15 +1057,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     edgesBySource.set(edge.source, targets);
   }
 
-  // Reverse edge map: target -> source[] (for convergence detection)
-  const edgesByTarget = new Map<string, string[]>();
-  for (const edge of edges) {
-    const sources = edgesByTarget.get(edge.target) ?? [];
-    sources.push(edge.source);
-    edgesByTarget.set(edge.target, sources);
-  }
-
-  // Track arrivals at convergence nodes (nodes with >1 incoming edge)
+  const edgesByTarget = buildEdgesByTarget(edges);
   const convergenceArrivals = new Map<string, Set<string>>();
 
   // Find trigger nodes
@@ -1611,35 +1609,6 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
   }
 
   /**
-   * Signal arrival at convergence nodes (nodes with >1 incoming edge) and
-   * return the IDs of any that became fully unblocked. Non-convergence nodes
-   * in targetNodeIds are ignored.
-   */
-  function signalConvergenceArrival(
-    fromNodeId: string,
-    targetNodeIds: string[],
-    visited: Set<string>
-  ): string[] {
-    const unblocked: string[] = [];
-    for (const nextId of targetNodeIds) {
-      const incomingSources = edgesByTarget.get(nextId);
-      if (incomingSources === undefined || incomingSources.length <= 1) {
-        continue;
-      }
-      let arrivals = convergenceArrivals.get(nextId);
-      if (arrivals === undefined) {
-        arrivals = new Set<string>();
-        convergenceArrivals.set(nextId, arrivals);
-      }
-      arrivals.add(fromNodeId);
-      if (arrivals.size >= incomingSources.length && !visited.has(nextId)) {
-        unblocked.push(nextId);
-      }
-    }
-    return unblocked;
-  }
-
-  /**
    * Execute downstream nodes with convergence barrier support.
    * For convergence nodes (multiple incoming edges), waits until all
    * upstream branches have signaled arrival before executing.
@@ -1649,85 +1618,19 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     nextNodeIds: string[],
     visited: Set<string>
   ): Promise<void> {
-    const readyIds: string[] = [];
-
-    for (const nextId of nextNodeIds) {
-      const incomingSources = edgesByTarget.get(nextId);
-      const isConvergenceNode =
-        incomingSources !== undefined && incomingSources.length > 1;
-
-      if (!isConvergenceNode) {
-        readyIds.push(nextId);
-      }
-    }
-
-    readyIds.push(...signalConvergenceArrival(fromNodeId, nextNodeIds, visited));
+    const readyIds = getReadyDownstreamIds(
+      fromNodeId,
+      nextNodeIds,
+      edgesByTarget,
+      convergenceArrivals,
+      visited
+    );
 
     if (readyIds.length > 0) {
       const settled = await Promise.allSettled(
         readyIds.map((id) => executeNode(id, visited))
       );
       processSettledResults(settled, readyIds);
-    }
-  }
-
-  /**
-   * Propagate skip signals through branches that were not taken by a condition.
-   * Ensures convergence nodes downstream of skipped branches still receive
-   * arrival signals so they can unblock when the taken branch completes.
-   */
-  async function propagateConvergenceSkips(
-    skippedNodeIds: string[],
-    visited: Set<string>
-  ): Promise<void> {
-    // BFS through the skipped subtree
-    const queue = [...skippedNodeIds];
-    const seen = new Set<string>();
-
-    while (queue.length > 0) {
-      const currentId = queue.shift() as string;
-      if (seen.has(currentId)) {
-        continue;
-      }
-      seen.add(currentId);
-
-      const incomingSources = edgesByTarget.get(currentId);
-      const isConvergenceNode =
-        incomingSources !== undefined && incomingSources.length > 1;
-
-      if (isConvergenceNode) {
-        // Find which source(s) in the skipped subtree lead here
-        for (const src of incomingSources) {
-          if (seen.has(src) || skippedNodeIds.includes(src)) {
-            let arrivals = convergenceArrivals.get(currentId);
-            if (arrivals === undefined) {
-              arrivals = new Set<string>();
-              convergenceArrivals.set(currentId, arrivals);
-            }
-            arrivals.add(src);
-          }
-        }
-
-        // If all arrivals received, execute this convergence node
-        if (
-          (convergenceArrivals.get(currentId)?.size ?? 0) >=
-          incomingSources.length
-        ) {
-          if (!visited.has(currentId)) {
-            await executeNode(currentId, visited);
-          }
-          // Don't propagate further; executeNode handles downstream
-          continue;
-        }
-      }
-
-      // Propagate skip to downstream nodes
-      const downstream = edgesBySource.get(currentId) ?? [];
-      for (const downId of downstream) {
-        if (!seen.has(downId)) {
-          queue.push(downId);
-        }
-      }
     }
   }
 
@@ -2027,7 +1930,19 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             // nodes downstream receive arrival signals from skipped sources
             const skippedTargets = handleMap.get(notTakenHandle) ?? [];
             if (skippedTargets.length > 0) {
-              await propagateConvergenceSkips(skippedTargets, visited);
+              const unblockedIds = propagateConvergenceSkips(
+                skippedTargets,
+                edgesBySource,
+                edgesByTarget,
+                convergenceArrivals,
+                visited
+              );
+              if (unblockedIds.length > 0) {
+                const settled = await Promise.allSettled(
+                  unblockedIds.map((id) => executeNode(id, visited))
+                );
+                processSettledResults(settled, unblockedIds);
+              }
             }
           } else {
             // Legacy fallback: no sourceHandle on edges, use old gate behavior
@@ -2076,7 +1991,13 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       // If this failure was the last arrival, execute the convergence node
       // with partial data rather than hanging forever.
       const nextNodes = edgesBySource.get(nodeId) ?? [];
-      const unblockedIds = signalConvergenceArrival(nodeId, nextNodes, visited);
+      const unblockedIds = signalConvergenceArrival(
+        nodeId,
+        nextNodes,
+        edgesByTarget,
+        convergenceArrivals,
+        visited
+      );
       if (unblockedIds.length > 0) {
         const settled = await Promise.allSettled(
           unblockedIds.map((id) => executeNode(id, visited))
