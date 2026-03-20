@@ -175,7 +175,7 @@ KEEPERHUB_API_KEY=kh_your_key pnpm start
 
 **Via Claude Code Plugin** -- if you install the [Claude Code plugin](/ai-tools/claude-code-plugin), the MCP server is set up automatically. No manual config needed.
 
-Source code and full docs: [github.com/techops-services/keeperhub-mcp](https://github.com/techops-services/keeperhub-mcp)
+Source code and full docs: [github.com/KeeperHub/keeperhub-mcp](https://github.com/KeeperHub/keeperhub-mcp)
 
 ### How do I connect Claude Code to KeeperHub?
 
@@ -198,7 +198,7 @@ Add this to your MCP client config (e.g. `~/.claude.json`):
 Or skip the manual config entirely -- install the Claude Code plugin and run `/keeperhub:login`:
 
 ```bash
-/plugin marketplace add techops-services/claude-plugins
+/plugin marketplace add KeeperHub/claude-plugins
 /plugin install keeperhub@techops-plugins
 /keeperhub:login
 ```

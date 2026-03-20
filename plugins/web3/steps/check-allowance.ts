@@ -8,9 +8,9 @@ import { workflowExecutions } from "@/lib/db/schema";
 import { ErrorCategory, logUserError } from "@/lib/logging";
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
-import type { RpcProviderManager } from "@/lib/rpc-provider";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import { getErrorMessage } from "@/lib/utils";
+import { getChainAdapter } from "@/lib/web3/chain-adapter";
 import { parseTokenAddress } from "./transfer-token-core";
 
 export type CheckAllowanceCoreInput = {
@@ -99,7 +99,7 @@ async function stepHandler(
   const userId = await getUserIdFromExecution(_context?.executionId);
 
   // Resolve RPC provider with failover support
-  let rpcManager: RpcProviderManager;
+  let rpcManager: Awaited<ReturnType<typeof getRpcProvider>>;
   try {
     rpcManager = await getRpcProvider({ chainId, userId });
   } catch (error) {
@@ -116,16 +116,20 @@ async function stepHandler(
     return { success: false, error: getErrorMessage(error) };
   }
 
+  const adapter = getChainAdapter(chainId);
+
   try {
-    const [allowanceRaw, decimals, symbol] =
-      await rpcManager.executeWithFailover((provider) => {
+    const [allowanceRaw, decimals, symbol] = await adapter.executeWithFailover(
+      rpcManager,
+      (provider) => {
         const contract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
         return Promise.all([
           contract.allowance(ownerAddress, spenderAddress) as Promise<bigint>,
           contract.decimals() as Promise<bigint>,
           contract.symbol() as Promise<string>,
         ]);
-      });
+      }
+    );
 
     const decimalsNum = Number(decimals);
     const allowance = ethers.formatUnits(allowanceRaw, decimalsNum);

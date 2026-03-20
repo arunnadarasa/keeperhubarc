@@ -5,7 +5,7 @@ description: "Model Context Protocol server for AI agents to build and manage Ke
 
 # MCP Server
 
-[GitHub](https://github.com/techops-services/keeperhub-mcp)
+[GitHub](https://github.com/KeeperHub/keeperhub-mcp)
 
 The KeeperHub MCP server exposes 19 tools over the Model Context Protocol, enabling AI agents to create, execute, and monitor blockchain automation workflows.
 

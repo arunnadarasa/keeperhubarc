@@ -50,6 +50,7 @@ vi.mock("@/lib/rpc/network-utils", () => ({
 
 vi.mock("@/lib/rpc/provider-factory", () => ({
   getRpcProvider: (...args: unknown[]) => mockGetRpcProvider(...args),
+  isSolanaChain: () => false,
 }));
 
 const mockContractFunction = vi.fn();

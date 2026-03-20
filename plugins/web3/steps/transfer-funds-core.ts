@@ -10,8 +10,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
 import { db } from "@/lib/db";
-import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
-import { getTransactionUrl } from "@/lib/explorer";
+import { workflowExecutions } from "@/lib/db/schema";
 import { ErrorCategory, logUserError } from "@/lib/logging";
 import {
   getOrganizationWalletAddress,
@@ -20,10 +19,9 @@ import {
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
 import { getErrorMessage } from "@/lib/utils";
+import { getChainAdapter } from "@/lib/web3/chain-adapter";
 import { formatContractError } from "@/lib/web3/decode-revert-error";
 import { resolveGasLimitOverrides } from "@/lib/web3/gas-defaults";
-import { getGasStrategy } from "@/lib/web3/gas-strategy";
-import { getNonceManager } from "@/lib/web3/nonce-manager";
 import { resolveOrganizationContext } from "@/lib/web3/resolve-org-context";
 import {
   type TransactionContext,
@@ -162,11 +160,10 @@ export async function transferFundsCore(
     triggerType: _context.triggerType as TransactionContext["triggerType"],
   };
 
-  // Execute transaction with nonce management and gas strategy
-  return withNonceSession(txContext, walletAddress, async (session) => {
-    const nonceManager = getNonceManager();
-    const gasStrategy = getGasStrategy();
+  const adapter = getChainAdapter(chainId);
 
+  // Execute transaction with nonce management
+  return withNonceSession(txContext, walletAddress, async (session) => {
     let signer: Awaited<ReturnType<typeof initializeParaSigner>>;
     try {
       signer = await initializeParaSigner(organizationId, rpcUrl);
@@ -177,78 +174,18 @@ export async function transferFundsCore(
       };
     }
 
-    // Get nonce from session
-    const nonce = nonceManager.getNextNonce(session);
-
-    // Send transaction with managed nonce and gas strategy
     try {
-      const provider = signer.provider;
-      if (!provider) {
-        throw new Error("Signer has no provider");
-      }
-
-      const baseTx = { to: recipientAddress, value: amountInWei };
-
-      // Simulate call first to get decodable revert data on failure
-      await provider.call({ ...baseTx, from: walletAddress });
-
-      // Estimate gas
-      const estimatedGas = await provider.estimateGas({
-        ...baseTx,
-        from: walletAddress,
-      });
-
-      // Get gas configuration from strategy
-      const txGasConfig = await gasStrategy.getGasConfig(
-        provider,
-        txContext.triggerType ?? "manual",
-        estimatedGas,
-        chainId,
-        multiplierOverride,
-        gasLimitOverride
-      );
-
-      // Send transaction with nonce and gas config
-      const tx = await signer.sendTransaction({
-        ...baseTx,
-        nonce,
-        gasLimit: txGasConfig.gasLimit,
-        maxFeePerGas: txGasConfig.maxFeePerGas,
-        maxPriorityFeePerGas: txGasConfig.maxPriorityFeePerGas,
-      });
-
-      // Record pending transaction
-      await nonceManager.recordTransaction(
-        session,
-        nonce,
-        tx.hash,
+      const receipt = await adapter.sendTransaction(signer, {
+        to: recipientAddress,
+        value: amountInWei,
+      }, session, {
+        triggerType: txContext.triggerType ?? "manual",
+        gasOverrides: { multiplierOverride, gasLimitOverride },
         workflowId,
-        txGasConfig.maxFeePerGas.toString()
-      );
-
-      // Wait for transaction to be mined
-      const receipt = await tx.wait();
-
-      if (!receipt) {
-        return {
-          success: false,
-          error: "Transaction sent but receipt not available",
-        };
-      }
-
-      // Mark transaction as confirmed
-      await nonceManager.confirmTransaction(tx.hash);
-
-      // Compute gas cost in wei: gasUnits * effectiveGasPrice
-      const gasCostWei = (receipt.gasUsed * receipt.gasPrice).toString();
-
-      // Fetch explorer config for transaction link
-      const explorerConfig = await db.query.explorerConfigs.findFirst({
-        where: eq(explorerConfigs.chainId, chainId),
       });
-      const transactionLink = explorerConfig
-        ? getTransactionUrl(explorerConfig, receipt.hash)
-        : "";
+
+      const gasCostWei = (receipt.gasUsed * receipt.effectiveGasPrice).toString();
+      const transactionLink = await adapter.getTransactionUrl(receipt.hash);
 
       return {
         success: true,

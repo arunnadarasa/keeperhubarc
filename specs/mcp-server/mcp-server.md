@@ -18,7 +18,7 @@ Create a standalone MCP (Model Context Protocol) server for KeeperHub that enabl
 - **Single org scope** - each API key bound to one organization
 
 ### Architecture
-- **Separate repository** (`techops-services/keeperhub-mcp`)
+- **Separate repository** (`KeeperHub/keeperhub-mcp`)
 - **TypeScript/Node.js** runtime for type sharing with main app
 - **Docker container** distribution (similar to Terraform MCP pattern)
 - **Calls KeeperHub REST APIs** for all operations
@@ -149,7 +149,7 @@ CMD ["node", "dist/index.js"]
         "--rm",
         "-e",
         "KEEPERHUB_API_KEY",
-        "techops-services/keeperhub-mcp"
+        "KeeperHub/keeperhub-mcp"
       ]
     }
   }
@@ -253,7 +253,7 @@ Add to organization settings:
 ## Open Questions
 
 - Should we support streaming for AI workflow generation via MCP?
-- Docker image naming: `techops-services/keeperhub-mcp` or `ghcr.io/techops-services/keeperhub-mcp`?
+- Docker image naming: `KeeperHub/keeperhub-mcp` or `ghcr.io/KeeperHub/keeperhub-mcp`?
 
 ## Out of Scope
 
