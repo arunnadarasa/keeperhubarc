@@ -106,12 +106,12 @@ jobs:
           for repo in keeperhub-events keeperhub-scheduler; do
             status=$(curl -sf -o /dev/null -w "%{http_code}" \
               -H "Authorization: Bearer $TOKEN" \
-              "https://api.github.com/repos/techops-services/$repo")
+              "https://api.github.com/repos/KeeperHub/$repo")
             if [ "$status" != "200" ]; then
-              echo "::error::KEEPERHUB_SUBMODULE_TOKEN cannot access techops-services/$repo (HTTP $status). Token may be expired or revoked."
+              echo "::error::KEEPERHUB_SUBMODULE_TOKEN cannot access KeeperHub/$repo (HTTP $status). Token may be expired or revoked."
               exit 1
             fi
-            echo "Verified access to techops-services/$repo"
+            echo "Verified access to KeeperHub/$repo"
           done
 
       - name: Set up Docker Buildx

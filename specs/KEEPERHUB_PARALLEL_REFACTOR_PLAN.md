@@ -8,7 +8,7 @@ This document outlines the complete plan to refactor KeeperHub from editing the 
 
 - `upstream` - Vercel's original template (`vercel-labs/workflow-builder-template`)
 - `origin` - TechOps fork (`techops-services/workflow-builder-template`)
-- `fork` - KeeperHub repo (`techops-services/keeperhub`)
+- `fork` - KeeperHub repo (`KeeperHub/keeperhub`)
 
 **Current Approach:** Directly editing upstream files, merging upstream changes with conflict resolution.
 
