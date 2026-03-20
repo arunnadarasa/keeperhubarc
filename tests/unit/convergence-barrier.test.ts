@@ -9,6 +9,7 @@ import {
   propagateConvergenceSkips,
   signalConvergenceArrival,
 } from "@/lib/convergence-barrier";
+import { buildEdgesBySourceHandle } from "@/lib/edge-handle-utils";
 
 describe("convergence barrier", () => {
   describe("basic convergence: A -> [B, C, D] -> E", () => {
@@ -283,6 +284,97 @@ describe("convergence barrier", () => {
     });
   });
 
+  describe("all-skip convergence should not execute", () => {
+    it("should not unblock convergence node when all inputs are from skipped subtree", () => {
+      // Cond -> [false: A -> B, false: A -> C] -> D (convergence)
+      // Both B and C feed into D, all in the skipped subtree
+      const edges = [
+        { source: "Cond", target: "A" },
+        { source: "A", target: "B" },
+        { source: "A", target: "C" },
+        { source: "B", target: "D" },
+        { source: "C", target: "D" },
+      ];
+      const sourceMap = buildEdgesBySource(edges);
+      const targetMap = buildEdgesByTarget(edges);
+      const arrivals = new Map<string, Set<string>>();
+      const visited = new Set<string>();
+
+      // Skip A (the false branch root)
+      const unblocked = propagateConvergenceSkips(
+        ["A"],
+        sourceMap,
+        targetMap,
+        arrivals,
+        visited
+      );
+
+      // D should NOT be unblocked -- all its inputs are from skipped nodes
+      expect(unblocked).toEqual([]);
+    });
+
+    it("should unblock convergence node when at least one input is from real execution", () => {
+      // Real: X executes and arrives at D
+      // Skip: B is skipped and propagates to D
+      const edges = [
+        { source: "B", target: "D" },
+        { source: "X", target: "D" },
+      ];
+      const sourceMap = buildEdgesBySource(edges);
+      const targetMap = buildEdgesByTarget(edges);
+      const arrivals = new Map<string, Set<string>>();
+      const visited = new Set<string>();
+
+      // X arrives at D via real execution
+      signalConvergenceArrival("X", ["D"], targetMap, arrivals, visited);
+
+      // B gets skipped
+      const unblocked = propagateConvergenceSkips(
+        ["B"],
+        sourceMap,
+        targetMap,
+        arrivals,
+        visited
+      );
+
+      // D should be unblocked -- X was a real arrival
+      expect(unblocked).toEqual(["D"]);
+    });
+
+    it("should propagate skip through fully-skipped convergence nodes to downstream", () => {
+      // Cond -> [false: A -> B] and [false: A -> C] -> D (convergence) -> E
+      // D is all-skip, so skip should continue to E
+      const edges = [
+        { source: "Cond", target: "A" },
+        { source: "A", target: "B" },
+        { source: "A", target: "C" },
+        { source: "B", target: "D" },
+        { source: "C", target: "D" },
+        { source: "D", target: "E" },
+        { source: "X", target: "E" },
+      ];
+      const sourceMap = buildEdgesBySource(edges);
+      const targetMap = buildEdgesByTarget(edges);
+      const arrivals = new Map<string, Set<string>>();
+      const visited = new Set<string>();
+
+      // X arrives at E via real execution first
+      signalConvergenceArrival("X", ["E"], targetMap, arrivals, visited);
+
+      // Skip A -- should propagate through B, C, D (all-skip), then reach E
+      const unblocked = propagateConvergenceSkips(
+        ["A"],
+        sourceMap,
+        targetMap,
+        arrivals,
+        visited
+      );
+
+      // E should be unblocked (X was real, D arrival was skip-propagated)
+      expect(unblocked).toEqual(["E"]);
+    });
+  });
+
   describe("failure signaling at convergence nodes", () => {
     it("should allow signaling arrival for failed nodes", () => {
       // A -> [B, C] -> E where B fails
@@ -306,6 +398,73 @@ describe("convergence barrier", () => {
         visited
       );
       expect(ready).toEqual(["E"]);
+    });
+  });
+
+  describe("duplicate edge deduplication", () => {
+    it("should not inflate convergence threshold from duplicate edges", () => {
+      const edges = [
+        { source: "A", target: "B" },
+        { source: "A", target: "B" },
+        { source: "A", target: "B" },
+        { source: "A", target: "B" },
+        { source: "A", target: "B" },
+        { source: "C", target: "B" },
+      ];
+      const targetMap = buildEdgesByTarget(edges);
+      const arrivals = new Map<string, Set<string>>();
+      const visited = new Set<string>();
+
+      // B has 2 unique sources (A, C), not 6
+      expect(targetMap.get("B")).toEqual(["A", "C"]);
+
+      // A arrives
+      getReadyDownstreamIds("A", ["B"], targetMap, arrivals, visited);
+      expect(arrivals.get("B")?.size).toBe(1);
+
+      // C arrives -- barrier should unblock
+      const ready = getReadyDownstreamIds(
+        "C",
+        ["B"],
+        targetMap,
+        arrivals,
+        visited
+      );
+      expect(ready).toEqual(["B"]);
+    });
+
+    it("buildEdgesByTarget returns deduplicated source arrays", () => {
+      const edges = [
+        { source: "X", target: "Y" },
+        { source: "X", target: "Y" },
+        { source: "Z", target: "Y" },
+      ];
+      const targetMap = buildEdgesByTarget(edges);
+      expect(targetMap.get("Y")).toEqual(["X", "Z"]);
+    });
+
+    it("buildEdgesBySource returns deduplicated target arrays", () => {
+      const edges = [
+        { source: "A", target: "B" },
+        { source: "A", target: "B" },
+        { source: "A", target: "C" },
+      ];
+      const sourceMap = buildEdgesBySource(edges);
+      expect(sourceMap.get("A")).toEqual(["B", "C"]);
+    });
+
+    it("buildEdgesBySourceHandle deduplicates targets per handle", () => {
+      const edges = [
+        { source: "Cond", target: "B", sourceHandle: "true" },
+        { source: "Cond", target: "B", sourceHandle: "true" },
+        { source: "Cond", target: "C", sourceHandle: "false" },
+        { source: "Cond", target: "C", sourceHandle: "false" },
+        { source: "Cond", target: "C", sourceHandle: "false" },
+      ];
+      const handleMap = buildEdgesBySourceHandle(edges);
+      const condHandles = handleMap.get("Cond");
+      expect(condHandles?.get("true")).toEqual(["B"]);
+      expect(condHandles?.get("false")).toEqual(["C"]);
     });
   });
 });

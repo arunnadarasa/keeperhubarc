@@ -14,7 +14,9 @@ export function buildEdgesByTarget(edges: EdgeLike[]): Map<string, string[]> {
   const map = new Map<string, string[]>();
   for (const edge of edges) {
     const sources = map.get(edge.target) ?? [];
-    sources.push(edge.source);
+    if (!sources.includes(edge.source)) {
+      sources.push(edge.source);
+    }
     map.set(edge.target, sources);
   }
   return map;
@@ -25,7 +27,9 @@ export function buildEdgesBySource(edges: EdgeLike[]): Map<string, string[]> {
   const map = new Map<string, string[]>();
   for (const edge of edges) {
     const targets = map.get(edge.source) ?? [];
-    targets.push(edge.target);
+    if (!targets.includes(edge.target)) {
+      targets.push(edge.target);
+    }
     map.set(edge.source, targets);
   }
   return map;
@@ -144,6 +148,22 @@ export function propagateConvergenceSkips(
         (convergenceArrivals.get(currentId)?.size ?? 0) >=
         incomingSources.length
       ) {
+        // Check if any arrival came from a real (non-skip) execution.
+        // If all arrivals are from the skipped subtree, this node should
+        // also be skipped -- continue BFS instead of executing it.
+        const allFromSkipped = incomingSources.every(
+          (src) => seen.has(src) || skippedNodeIds.includes(src)
+        );
+        if (allFromSkipped) {
+          // Continue propagating skip through this convergence node
+          const downstream = edgesBySource.get(currentId) ?? [];
+          for (const downId of downstream) {
+            if (!seen.has(downId)) {
+              queue.push(downId);
+            }
+          }
+          continue;
+        }
         if (!visited.has(currentId)) {
           unblocked.push(currentId);
         }
