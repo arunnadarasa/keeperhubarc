@@ -60,6 +60,22 @@ jobs:
         run: |
           echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
+      - name: Check if events images already exist
+        if: steps.skip.outputs.skip_build == 'true'
+        id: check-image
+        run: |
+          IMAGE_TAG="${{ steps.vars.outputs.sha_short }}"
+          for repo in "$TRACKER_ECR_NAME" "$WORKER_ECR_NAME"; do
+            if ! aws ecr describe-images \
+              --repository-name "$repo" \
+              --image-ids "imageTag=app-${IMAGE_TAG}" \
+              --region "${{ env.REGION }}" >/dev/null 2>&1; then
+              echo "::error::Cannot skip build: app-${IMAGE_TAG} not found in ${repo}. Remove [skip build] or push a build first."
+              exit 1
+            fi
+            echo "app-${IMAGE_TAG} exists in ${repo}"
+          done
+
       - name: Build and push events images
         if: steps.skip.outputs.skip_build != 'true'
         uses: docker/bake-action@v6
