@@ -317,5 +317,112 @@ export function computeAutoLayout(
     }
   }
 
+  // Post-process: center convergence nodes between their placed parents
+  centerConvergenceNodes(state.positions, forwardEdges, graph.inDegree);
+
   return state.positions;
+}
+
+/**
+ * For nodes with multiple parents, reposition them to the vertical
+ * center of their parents. This keeps convergence points aligned
+ * with the visual midpoint of the branches feeding into them.
+ * Also shifts all downstream nodes by the same delta.
+ */
+type AdjacencyLists = {
+  parents: Map<string, string[]>;
+  children: Map<string, string[]>;
+};
+
+function buildAdjacencyLists(forwardEdges: Edge[]): AdjacencyLists {
+  const parents = new Map<string, string[]>();
+  const children = new Map<string, string[]>();
+
+  for (const edge of forwardEdges) {
+    const p = parents.get(edge.target);
+    if (p) {
+      p.push(edge.source);
+    } else {
+      parents.set(edge.target, [edge.source]);
+    }
+    const c = children.get(edge.source);
+    if (c) {
+      c.push(edge.target);
+    } else {
+      children.set(edge.source, [edge.target]);
+    }
+  }
+
+  return { parents, children };
+}
+
+function computeParentCenterY(
+  nodeParents: string[],
+  positions: Map<string, { x: number; y: number }>
+): number | undefined {
+  let sumY = 0;
+  let count = 0;
+  for (const parentId of nodeParents) {
+    const parentPos = positions.get(parentId);
+    if (parentPos) {
+      sumY += parentPos.y;
+      count++;
+    }
+  }
+  return count > 0 ? sumY / count : undefined;
+}
+
+function centerConvergenceNodes(
+  positions: Map<string, { x: number; y: number }>,
+  forwardEdges: Edge[],
+  inDegree: Map<string, number>
+): void {
+  const { parents, children } = buildAdjacencyLists(forwardEdges);
+
+  for (const [nodeId, degree] of inDegree) {
+    if (degree <= 1) {
+      continue;
+    }
+
+    const nodeParents = parents.get(nodeId);
+    const pos = positions.get(nodeId);
+    if (!(nodeParents && pos)) {
+      continue;
+    }
+
+    const targetY = computeParentCenterY(nodeParents, positions);
+    if (targetY === undefined) {
+      continue;
+    }
+
+    const deltaY = targetY - pos.y;
+    if (Math.abs(deltaY) < 1) {
+      continue;
+    }
+
+    shiftSubtree(nodeId, deltaY, positions, children, new Set());
+  }
+}
+
+/** Shift a node and all its descendants by deltaY */
+function shiftSubtree(
+  nodeId: string,
+  deltaY: number,
+  positions: Map<string, { x: number; y: number }>,
+  children: Map<string, string[]>,
+  visited: Set<string>
+): void {
+  if (visited.has(nodeId)) {
+    return;
+  }
+  visited.add(nodeId);
+
+  const pos = positions.get(nodeId);
+  if (pos) {
+    positions.set(nodeId, { x: pos.x, y: pos.y + deltaY });
+  }
+
+  for (const child of children.get(nodeId) ?? []) {
+    shiftSubtree(child, deltaY, positions, children, visited);
+  }
 }
