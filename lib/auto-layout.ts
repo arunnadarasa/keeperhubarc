@@ -244,11 +244,14 @@ function placeChildrenOf(parentId: string, ctx: PlacementCtx): void {
   }
 
   // 2+ children: compute centered positions for ALL children,
-  // but only place the unplaced ones
+  // but only place the unplaced ones.
+  // Linear children (0-1 outgoing edges) get spread=1 for even spacing.
+  // Only children that themselves branch get their full subtree spread.
   const spreads: number[] = [];
   let totalSpread = 0;
   for (const id of allChildren) {
-    const s = ctx.spreadMap.get(id) ?? 1;
+    const childEdgeCount = (ctx.outEdges.get(id) ?? []).length;
+    const s = childEdgeCount > 1 ? (ctx.spreadMap.get(id) ?? 1) : 1;
     spreads.push(s);
     totalSpread += s;
   }
@@ -311,12 +314,139 @@ function placeLevelByLevel(
 }
 
 /**
+ * Build parent map from forward edges.
+ */
+function buildParentMap(forwardEdges: Edge[]): Map<string, string[]> {
+  const parents = new Map<string, string[]>();
+  for (const edge of forwardEdges) {
+    const p = parents.get(edge.target);
+    if (p) {
+      if (!p.includes(edge.source)) {
+        p.push(edge.source);
+      }
+    } else {
+      parents.set(edge.target, [edge.source]);
+    }
+  }
+  return parents;
+}
+
+/**
+ * Check if all parents of a node are in the same column (siblings).
+ */
+function areParentsSiblings(
+  nodeParents: string[],
+  columns: Map<string, number>
+): boolean {
+  const firstCol = columns.get(nodeParents[0]);
+  for (const p of nodeParents) {
+    if (columns.get(p) !== firstCol) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Compute the average Y position of a list of parent nodes.
+ * Returns undefined if no parents have positions.
+ */
+function averageParentY(
+  nodeParents: string[],
+  positions: Map<string, { x: number; y: number }>
+): number | undefined {
+  let sumY = 0;
+  let count = 0;
+  for (const parentId of nodeParents) {
+    const parentPos = positions.get(parentId);
+    if (parentPos) {
+      sumY += parentPos.y;
+      count++;
+    }
+  }
+  return count > 0 ? sumY / count : undefined;
+}
+
+/**
+ * Center convergence nodes between their parents, but ONLY when all parents
+ * are in the same column (siblings). Shifts uniquely-owned descendants
+ * (inDegree=1) to avoid cascading through shared subtrees.
+ */
+function centerSiblingConvergence(
+  positions: Map<string, { x: number; y: number }>,
+  forwardEdges: Edge[],
+  inDegree: Map<string, number>,
+  columns: Map<string, number>,
+  outEdges: Map<string, Edge[]>
+): void {
+  const parents = buildParentMap(forwardEdges);
+
+  for (const [nodeId, degree] of inDegree) {
+    if (degree <= 1) {
+      continue;
+    }
+
+    const nodeParents = parents.get(nodeId);
+    const pos = positions.get(nodeId);
+    if (!(nodeParents && pos)) {
+      continue;
+    }
+
+    if (!areParentsSiblings(nodeParents, columns)) {
+      continue;
+    }
+
+    const targetY = averageParentY(nodeParents, positions);
+    if (targetY === undefined) {
+      continue;
+    }
+
+    const deltaY = targetY - pos.y;
+    if (Math.abs(deltaY) < 1) {
+      continue;
+    }
+
+    shiftOwned(nodeId, deltaY, positions, outEdges, inDegree, new Set());
+  }
+}
+
+/**
+ * Shift a node and its descendants that have inDegree=1 (uniquely owned).
+ * Stops at convergence nodes to avoid cascading into shared subtrees.
+ */
+function shiftOwned(
+  nodeId: string,
+  deltaY: number,
+  positions: Map<string, { x: number; y: number }>,
+  outEdges: Map<string, Edge[]>,
+  inDegree: Map<string, number>,
+  visited: Set<string>
+): void {
+  if (visited.has(nodeId)) {
+    return;
+  }
+  visited.add(nodeId);
+
+  const pos = positions.get(nodeId);
+  if (pos) {
+    positions.set(nodeId, { x: pos.x, y: pos.y + deltaY });
+  }
+
+  for (const edge of outEdges.get(nodeId) ?? []) {
+    const childDegree = inDegree.get(edge.target) ?? 0;
+    if (childDegree <= 1) {
+      shiftOwned(edge.target, deltaY, positions, outEdges, inDegree, visited);
+    }
+  }
+}
+
+/**
  * Compute a clean left-to-right DAG layout for workflow nodes.
  *
  * - Columns via longest-path topological sort (handles convergence)
  * - Rows via level-by-level forward sweep with subtree-spread sizing
  * - Edge ordering: true/loop on top, false/done on bottom
- * - Covered children (reachable from a sibling) are placed by the sibling
+ * - Sibling convergence nodes centered between their parents
  */
 export function computeAutoLayout(
   nodes: Node[],
@@ -375,6 +505,15 @@ export function computeAutoLayout(
       nextUnplacedY += STEP_Y;
     }
   }
+
+  // Phase 3: Center convergence nodes whose parents are siblings (same column)
+  centerSiblingConvergence(
+    positions,
+    forwardEdges,
+    graph.inDegree,
+    columns,
+    graph.outEdges
+  );
 
   return positions;
 }
