@@ -281,8 +281,8 @@ services:
   # ===========================================================================
   sc-event-worker:
     build:
-      context: ./keeperhub-events/sc-event-worker
-      dockerfile: Dockerfile
+      context: ./keeperhub-events
+      dockerfile: sc-event-worker/Dockerfile
     container_name: keeperhub-event-worker
     hostname: sc-event-worker
     restart: unless-stopped
@@ -316,8 +316,8 @@ services:
   # ===========================================================================
   sc-event-tracker:
     build:
-      context: ./keeperhub-events/sc-event-tracker
-      dockerfile: Dockerfile
+      context: ./keeperhub-events
+      dockerfile: sc-event-tracker/Dockerfile
     container_name: keeperhub-event-tracker
     restart: unless-stopped
     environment:

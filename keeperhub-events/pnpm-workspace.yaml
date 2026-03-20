@@ -1,0 +1,4 @@
+packages:
+  - "sc-event-tracker"
+  - "sc-event-worker"
+  - "event-executor"

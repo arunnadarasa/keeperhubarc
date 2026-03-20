@@ -14,9 +14,19 @@ variable "NEXT_PUBLIC_GITHUB_CLIENT_ID" { default = "" }
 variable "NEXT_PUBLIC_GOOGLE_CLIENT_ID" { default = "" }
 variable "NEXT_PUBLIC_BILLING_ENABLED" { default = "" }
 variable "ENVIRONMENT_TAG" { default = "" }
+variable "EVENTS_ECR_TRACKER_REPO" { default = "" }
+variable "EVENTS_ECR_WORKER_REPO" { default = "" }
 
 group "default" {
   targets = ["app", "migrator"]
+}
+
+group "events" {
+  targets = ["sc-event-tracker", "sc-event-worker"]
+}
+
+group "all" {
+  targets = ["app", "migrator", "sc-event-tracker", "sc-event-worker"]
 }
 
 target "app" {
@@ -51,4 +61,26 @@ target "migrator" {
     "type=registry,ref=${ECR_REGISTRY}/${ECR_REPO}:cache-migrator",
   ]
   cache-to = ["type=registry,ref=${ECR_REGISTRY}/${ECR_REPO}:cache-migrator,mode=max"]
+}
+
+target "sc-event-tracker" {
+  context    = "./keeperhub-events"
+  dockerfile = "sc-event-tracker/Dockerfile"
+  tags = [
+    "${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:app-${IMAGE_TAG}",
+    "${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:app-latest",
+  ]
+  cache-from = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:cache"]
+  cache-to   = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:cache,mode=max"]
+}
+
+target "sc-event-worker" {
+  context    = "./keeperhub-events"
+  dockerfile = "sc-event-worker/Dockerfile"
+  tags = [
+    "${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:app-${IMAGE_TAG}",
+    "${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:app-latest",
+  ]
+  cache-from = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:cache"]
+  cache-to   = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:cache,mode=max"]
 }
