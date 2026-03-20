@@ -11,6 +11,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmOverlay } from "@/components/overlays/confirm-overlay";
+import { DeleteWorkflowWithRunsOverlay } from "@/components/overlays/delete-workflow-overlay";
 import { useOverlay } from "@/components/overlays/overlay-provider";
 import {
   AlertDialog,
@@ -184,8 +185,8 @@ export const PanelInner = () => {
   const [showDeleteDialog, setShowDeleteDialog] = useAtom(showDeleteDialogAtom);
   const clearNodeStatuses = useSetAtom(clearNodeStatusesAtom);
   const clearWorkflow = useSetAtom(clearWorkflowAtom);
-  const { open: openOverlay } = useOverlay();
   const setPropertiesPanelActiveTab = useSetAtom(propertiesPanelActiveTabAtom);
+  const { open: openOverlay } = useOverlay();
 
   // Watch showDeleteDialog atom: check for executions first, then open delete overlay or warn and switch to runs
   useEffect(() => {
@@ -223,16 +224,27 @@ export const PanelInner = () => {
       });
     };
 
-    const openCannotDeleteWarning = () => {
-      openOverlay(ConfirmOverlay, {
-        title: "Cannot delete workflow",
-        message:
-          "This workflow has run history. Run history may contain sensitive data you want to save before deleting. Delete all executions from the Runs tab first, then you can delete the workflow.",
-        confirmLabel: "View runs",
-        cancelLabel: "Cancel",
-        destructive: false,
-        onConfirm: () => {
+    const openHasExecutionsOverlay = () => {
+      openOverlay(DeleteWorkflowWithRunsOverlay, {
+        workflowName: currentWorkflowName,
+        onViewRuns: () => {
           setPropertiesPanelActiveTab("runs");
+        },
+        onForceDelete: async () => {
+          if (!currentWorkflowId) {
+            return;
+          }
+          try {
+            await api.workflow.delete(currentWorkflowId, { force: true });
+            toast.success("Workflow deleted successfully");
+            window.location.href = "/";
+          } catch (error) {
+            const msg =
+              error instanceof Error
+                ? error.message
+                : "Failed to delete workflow. Please try again.";
+            toast.error(msg);
+          }
         },
       });
     };
@@ -253,7 +265,7 @@ export const PanelInner = () => {
         setShowDeleteDialog(false);
         const executionList = Array.isArray(executions) ? executions : [];
         if (executionList.length > 0) {
-          openCannotDeleteWarning();
+          openHasExecutionsOverlay();
           return;
         }
         openDeleteWorkflowOverlay();
