@@ -1611,6 +1611,35 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
   }
 
   /**
+   * Signal arrival at convergence nodes (nodes with >1 incoming edge) and
+   * return the IDs of any that became fully unblocked. Non-convergence nodes
+   * in targetNodeIds are ignored.
+   */
+  function signalConvergenceArrival(
+    fromNodeId: string,
+    targetNodeIds: string[],
+    visited: Set<string>
+  ): string[] {
+    const unblocked: string[] = [];
+    for (const nextId of targetNodeIds) {
+      const incomingSources = edgesByTarget.get(nextId);
+      if (incomingSources === undefined || incomingSources.length <= 1) {
+        continue;
+      }
+      let arrivals = convergenceArrivals.get(nextId);
+      if (arrivals === undefined) {
+        arrivals = new Set<string>();
+        convergenceArrivals.set(nextId, arrivals);
+      }
+      arrivals.add(fromNodeId);
+      if (arrivals.size >= incomingSources.length && !visited.has(nextId)) {
+        unblocked.push(nextId);
+      }
+    }
+    return unblocked;
+  }
+
+  /**
    * Execute downstream nodes with convergence barrier support.
    * For convergence nodes (multiple incoming edges), waits until all
    * upstream branches have signaled arrival before executing.
@@ -1627,23 +1656,12 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       const isConvergenceNode =
         incomingSources !== undefined && incomingSources.length > 1;
 
-      if (isConvergenceNode) {
-        // Signal arrival from this source
-        let arrivals = convergenceArrivals.get(nextId);
-        if (arrivals === undefined) {
-          arrivals = new Set<string>();
-          convergenceArrivals.set(nextId, arrivals);
-        }
-        arrivals.add(fromNodeId);
-
-        // Only execute when all incoming sources have arrived
-        if (arrivals.size >= incomingSources.length) {
-          readyIds.push(nextId);
-        }
-      } else {
+      if (!isConvergenceNode) {
         readyIds.push(nextId);
       }
     }
+
+    readyIds.push(...signalConvergenceArrival(fromNodeId, nextNodeIds, visited));
 
     if (readyIds.length > 0) {
       const settled = await Promise.allSettled(
@@ -2050,25 +2068,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       // If this failure was the last arrival, execute the convergence node
       // with partial data rather than hanging forever.
       const nextNodes = edgesBySource.get(nodeId) ?? [];
-      const unblockedIds: string[] = [];
-      for (const nextId of nextNodes) {
-        const incomingSources = edgesByTarget.get(nextId);
-        if (incomingSources !== undefined && incomingSources.length > 1) {
-          let arrivals = convergenceArrivals.get(nextId);
-          if (arrivals === undefined) {
-            arrivals = new Set<string>();
-            convergenceArrivals.set(nextId, arrivals);
-          }
-          arrivals.add(nodeId);
-
-          if (
-            arrivals.size >= incomingSources.length &&
-            !visited.has(nextId)
-          ) {
-            unblockedIds.push(nextId);
-          }
-        }
-      }
+      const unblockedIds = signalConvergenceArrival(nodeId, nextNodes, visited);
       if (unblockedIds.length > 0) {
         const settled = await Promise.allSettled(
           unblockedIds.map((id) => executeNode(id, visited))
