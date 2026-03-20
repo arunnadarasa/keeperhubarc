@@ -36,7 +36,7 @@ import { GoLiveOverlay } from "@/components/overlays/go-live-overlay";
 import { Switch } from "@/components/ui/switch";
 import { BUILTIN_NODE_ID } from "@/lib/builtin-variables";
 import { isAnonymousUser } from "@/lib/is-anonymous";
-import { api, type Project, type Tag } from "@/lib/api-client";
+import { api, ApiError, type Project, type Tag } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
 import { getCustomLogo } from "@/lib/extension-registry";
 import { integrationsAtom } from "@/lib/integrations-store";
@@ -947,22 +947,35 @@ function useWorkflowActions(state: ReturnType<typeof useWorkflowState>) {
     });
   };
 
-  const handleDeleteWorkflow = () => {
+  const handleDeleteWorkflow = (force?: boolean) => {
+    const title = force ? "Delete Workflow and All Runs" : "Delete Workflow";
+    const message = force
+      ? `Are you sure you want to delete "${workflowName}" and all its execution history? This cannot be undone.`
+      : `Are you sure you want to delete "${workflowName}"? This will permanently delete the workflow. This cannot be undone.`;
+    const confirmLabel = force ? "Delete Everything" : "Delete Workflow";
+
     openOverlay(ConfirmOverlay, {
-      title: "Delete Workflow",
-      message: `Are you sure you want to delete "${workflowName}"? This will permanently delete the workflow. This cannot be undone.`,
-      confirmLabel: "Delete Workflow",
+      title,
+      message,
+      confirmLabel,
       confirmVariant: "destructive" as const,
       destructive: true,
       onConfirm: async () => {
         // biome-ignore lint/style/useBlockStatements: upstream code
         if (!currentWorkflowId) return;
         try {
-          await api.workflow.delete(currentWorkflowId);
+          await api.workflow.delete(currentWorkflowId, { force });
           toast.success("Workflow deleted successfully");
           window.location.href = "/";
         } catch (error) {
-          console.error("Failed to delete workflow:", error);
+          if (
+            error instanceof ApiError &&
+            error.status === 409 &&
+            !force
+          ) {
+            handleDeleteWorkflow(true);
+            return;
+          }
           toast.error("Failed to delete workflow. Please try again.");
         }
       },

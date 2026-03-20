@@ -7,6 +7,7 @@ import {
   type NodeMouseHandler,
   type OnConnect,
   type OnConnectStartParams,
+  useOnViewportChange,
   useReactFlow,
   useUpdateNodeInternals,
   type Connection as XYFlowConnection,
@@ -22,8 +23,10 @@ import "@xyflow/react/dist/style.css";
 
 import { PlayCircle, Zap } from "lucide-react";
 import { nanoid } from "nanoid";
+import { toast } from "sonner";
 import {
   addNodeAtom,
+  autoLayoutAtom,
   autosaveAtom,
   currentWorkflowIdAtom,
   edgesAtom,
@@ -40,6 +43,7 @@ import {
   selectedEdgeAtom,
   selectedNodeAtom,
   showMinimapAtom,
+  undoAtom,
   type WorkflowNode,
   type WorkflowNodeType,
 } from "@/lib/workflow-store";
@@ -85,6 +89,9 @@ function getActionType(node: { data?: unknown }): string | undefined {
   return config?.actionType as string | undefined;
 }
 
+const VIEWPORT_STORAGE_PREFIX = "wf-viewport-";
+const FIT_VIEW_DEFAULTS = { maxZoom: 1, minZoom: 0.1, padding: 0.2, duration: 0 } as const;
+
 export function WorkflowCanvas() {
   const [nodes, setNodes] = useAtom(nodesAtom);
   const [edges, setEdges] = useAtom(edgesAtom);
@@ -103,6 +110,8 @@ export function WorkflowCanvas() {
   const setSelectedNode = useSetAtom(selectedNodeAtom);
   const setSelectedEdge = useSetAtom(selectedEdgeAtom);
   const addNode = useSetAtom(addNodeAtom);
+  const triggerAutoLayout = useSetAtom(autoLayoutAtom);
+  const triggerUndo = useSetAtom(undoAtom);
   const setHasUnsavedChanges = useSetAtom(hasUnsavedChangesAtom);
   const triggerAutosave = useSetAtom(autosaveAtom);
   const setActiveTab = useSetAtom(propertiesPanelActiveTabAtom);
@@ -114,6 +123,7 @@ export function WorkflowCanvas() {
   const justCreatedNodeFromConnection = useRef(false);
   const viewportInitialized = useRef(false);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
+  const [isAnimatingLayout, setIsAnimatingLayout] = useState(false);
   const [contextMenuState, setContextMenuState] =
     useState<ContextMenuState>(null);
 
@@ -124,6 +134,74 @@ export function WorkflowCanvas() {
   const closeContextMenu = useCallback(() => {
     setContextMenuState(null);
   }, []);
+
+  // Persist viewport per workflow in localStorage
+  const saveViewportTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useOnViewportChange({
+    onChange: useCallback(
+      (viewport: { x: number; y: number; zoom: number }) => {
+        if (!currentWorkflowId || !viewportInitialized.current) {
+          return;
+        }
+        if (saveViewportTimeout.current) {
+          clearTimeout(saveViewportTimeout.current);
+        }
+        saveViewportTimeout.current = setTimeout(() => {
+          localStorage.setItem(
+            `${VIEWPORT_STORAGE_PREFIX}${currentWorkflowId}`,
+            JSON.stringify(viewport)
+          );
+        }, 500);
+      },
+      [currentWorkflowId]
+    ),
+  });
+
+  // Sidebar-aware fit view: fit then shift viewport left to account for sidebar
+  const fitViewSidebarAware = useCallback(
+    (options?: { duration?: number }) => {
+      const duration = options?.duration ?? 300;
+      fitView({ ...FIT_VIEW_DEFAULTS, duration });
+
+      if (isSidebarCollapsed || !rightPanelWidth) {
+        return;
+      }
+
+      const panelPercent = Number.parseFloat(rightPanelWidth);
+      if (Number.isNaN(panelPercent) || panelPercent <= 0) {
+        return;
+      }
+
+      const shiftPx = (window.innerWidth * panelPercent) / 100 / 2;
+      const shiftDelay = duration > 0 ? duration + 50 : 0;
+      setTimeout(() => {
+        const vp = getViewport();
+        setViewport(
+          { ...vp, x: vp.x - shiftPx },
+          { duration: duration > 0 ? 200 : 0 }
+        );
+      }, shiftDelay);
+    },
+    [fitView, getViewport, setViewport, isSidebarCollapsed, rightPanelWidth]
+  );
+
+  const handleAutoLayout = useCallback(() => {
+    setIsAnimatingLayout(true);
+    triggerAutoLayout();
+    setTimeout(() => {
+      setIsAnimatingLayout(false);
+      fitViewSidebarAware({ duration: 300 });
+      toast("Layout applied", {
+        action: {
+          label: "Revert",
+          onClick: () => {
+            triggerUndo();
+          },
+        },
+        duration: 5000,
+      });
+    }, 300);
+  }, [triggerAutoLayout, triggerUndo, fitViewSidebarAware]);
 
   // Track which workflow we've fitted view for to prevent re-running
   const fittedViewForWorkflowRef = useRef<string | null | undefined>(undefined);
@@ -177,7 +255,19 @@ export function WorkflowCanvas() {
 
     // Use fitView after a brief delay to ensure React Flow and nodes are ready
     setTimeout(() => {
-      fitView({ maxZoom: 1, minZoom: 0.5, padding: 0.2, duration: 0 });
+      // Restore saved viewport if available
+      const savedKey = currentWorkflowId ? `${VIEWPORT_STORAGE_PREFIX}${currentWorkflowId}` : null;
+      const saved = savedKey ? localStorage.getItem(savedKey) : null;
+      if (saved) {
+        try {
+          const vp = JSON.parse(saved) as { x: number; y: number; zoom: number };
+          setViewport(vp, { duration: 0 });
+        } catch {
+          fitView(FIT_VIEW_DEFAULTS);
+        }
+      } else {
+        fitView(FIT_VIEW_DEFAULTS);
+      }
       fittedViewForWorkflowRef.current = currentWorkflowId;
       viewportInitialized.current = true;
       // Show canvas immediately so width animation can be seen
@@ -188,6 +278,7 @@ export function WorkflowCanvas() {
   }, [
     currentWorkflowId,
     fitView,
+    setViewport,
     isTransitioningFromHomepage,
     setIsTransitioningFromHomepage,
   ]);
@@ -202,7 +293,7 @@ export function WorkflowCanvas() {
       hadRealNodesRef.current = true;
       // Fit view to center the new node
       setTimeout(() => {
-        fitView({ maxZoom: 1, minZoom: 0.5, padding: 0.2, duration: 0 });
+        fitView(FIT_VIEW_DEFAULTS);
         viewportInitialized.current = true;
         setIsCanvasReady(true);
       }, 0);
@@ -218,7 +309,7 @@ export function WorkflowCanvas() {
       // Check for Cmd+/ (Mac) or Ctrl+/ (Windows/Linux)
       if ((event.metaKey || event.ctrlKey) && event.key === "/") {
         event.preventDefault();
-        fitView({ padding: 0.2, duration: 300 });
+        fitViewSidebarAware({ duration: 300 });
       }
     };
 
@@ -226,7 +317,7 @@ export function WorkflowCanvas() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [fitView]);
+  }, [fitViewSidebarAware]);
 
   const nodeTypes = useMemo(
     () => ({
@@ -628,7 +719,7 @@ export function WorkflowCanvas() {
     >
       {/* React Flow Canvas */}
       <Canvas
-        className="bg-background"
+        className={`bg-background${isAnimatingLayout ? " [&_.react-flow__node]:transition-[transform] [&_.react-flow__node]:duration-300 [&_.react-flow__node]:ease-in-out" : ""}`}
         connectionLineComponent={Connection}
         connectionMode={ConnectionMode.Strict}
         defaultEdgeOptions={{ type: "animated" }}
@@ -653,14 +744,21 @@ export function WorkflowCanvas() {
         onSelectionChange={isGenerating ? undefined : onSelectionChange}
       >
         <Panel
-          className="workflow-controls-panel border-none bg-transparent p-0"
-          position="bottom-left"
+          className="workflow-controls-panel flex items-end gap-2 border-none bg-transparent p-0"
+          position="bottom-right"
         >
-          <Controls />
+          {showMinimap && (
+            <div className="overflow-hidden rounded-md">
+              <MiniMap
+                bgColor="var(--sidebar)"
+                maskColor="rgba(255, 255, 255, 0.1)"
+                nodeStrokeColor="var(--border)"
+                className="!relative !m-0"
+              />
+            </div>
+          )}
+          <Controls onFitView={() => fitViewSidebarAware({ duration: 300 })} onAutoLayout={handleAutoLayout} />
         </Panel>
-        {showMinimap && (
-          <MiniMap bgColor="var(--sidebar)" nodeStrokeColor="var(--border)" />
-        )}
       </Canvas>
 
       {/* AI Prompt */}
