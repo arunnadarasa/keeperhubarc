@@ -17,6 +17,8 @@ import {
   autosaveAtom,
   edgesAtom,
   hasUnsavedChangesAtom,
+  isPanelAnimatingAtom,
+  isSidebarCollapsedAtom,
   nodesAtom,
   propertiesPanelActiveTabAtom,
   type WorkflowEdge,
@@ -56,6 +58,8 @@ export function AddStepButton({
   const setEdges = useSetAtom(edgesAtom);
   const setNodes = useSetAtom(nodesAtom);
   const setActiveTab = useSetAtom(propertiesPanelActiveTabAtom);
+  const setIsPanelAnimating = useSetAtom(isPanelAnimatingAtom);
+  const setSidebarCollapsed = useSetAtom(isSidebarCollapsedAtom);
   const setHasUnsavedChanges = useSetAtom(hasUnsavedChangesAtom);
   const triggerAutosave = useSetAtom(autosaveAtom);
 
@@ -141,6 +145,9 @@ export function AddStepButton({
 
       addNode(newNode);
       setActiveTab("properties");
+      setIsPanelAnimating(true);
+      setSidebarCollapsed(false);
+      setTimeout(() => setIsPanelAnimating(false), 350);
 
       setTimeout(() => {
         setNodes((currentNodes) =>
@@ -180,6 +187,8 @@ export function AddStepButton({
       setEdges,
       setNodes,
       setActiveTab,
+      setIsPanelAnimating,
+      setSidebarCollapsed,
       setHasUnsavedChanges,
       triggerAutosave,
     ]

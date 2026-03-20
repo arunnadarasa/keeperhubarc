@@ -122,6 +122,8 @@ export function WorkflowCanvas() {
   const connectingNodeId = useRef<string | null>(null);
   const justCreatedNodeFromConnection = useRef(false);
   const viewportInitialized = useRef(false);
+  // Guard: suppress sidebar auto-open during workflow switch
+  const isLoadingWorkflow = useRef(false);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
   const [isAnimatingLayout, setIsAnimatingLayout] = useState(false);
   const [contextMenuState, setContextMenuState] =
@@ -134,6 +136,15 @@ export function WorkflowCanvas() {
   const closeContextMenu = useCallback(() => {
     setContextMenuState(null);
   }, []);
+
+  // Suppress sidebar auto-open briefly after workflow switch
+  useEffect(() => {
+    isLoadingWorkflow.current = true;
+    const timer = setTimeout(() => {
+      isLoadingWorkflow.current = false;
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [currentWorkflowId]);
 
   // Persist viewport per workflow in localStorage
   const saveViewportTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -497,7 +508,8 @@ export function WorkflowCanvas() {
   const onNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
       setSelectedNode(node.id);
-      if (isSidebarCollapsed) {
+      // Don't auto-open sidebar during workflow switch
+      if (isSidebarCollapsed && !isLoadingWorkflow.current) {
         setIsPanelAnimating(true);
         setIsSidebarCollapsed(false);
         setTimeout(() => setIsPanelAnimating(false), 350);
