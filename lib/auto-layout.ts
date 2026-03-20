@@ -212,11 +212,41 @@ function spreadNodes(
 }
 
 /**
+ * Check if a node has branch handles (true/false/done/loop) on its edges.
+ * Used to determine phantom centering behavior.
+ */
+function hasBranchHandles(
+  nodeId: string,
+  outEdges: Map<string, Edge[]>
+): boolean {
+  for (const edge of outEdges.get(nodeId) ?? []) {
+    const h = edge.sourceHandle;
+    if (h === "true" || h === "false" || h === "done" || h === "loop") {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Compute immediate spread for a child: 1 for linear, full spread for branching.
+ */
+function childPlacementSpread(
+  childId: string,
+  outEdges: Map<string, Edge[]>,
+  spreadMap: Map<string, number>
+): number {
+  const edgeCount = (outEdges.get(childId) ?? []).length;
+  return edgeCount > 1 ? (spreadMap.get(childId) ?? 1) : 1;
+}
+
+/**
  * Place children of a single parent node.
- * - 1 total child: linear, shares parent Y
- * - 2+ total children: centered around parent Y using ALL children's spreads
- *   (true above, false below). Already-placed children act as phantom spacers
- *   so the centering accounts for them, but only unplaced children get positioned.
+ * - 1 effective child: linear, shares parent Y
+ * - 2+ effective children: centered around parent Y.
+ *   For branch nodes (true/false handles): ALL children used for centering
+ *   (phantoms for already-placed) so true goes above, false below.
+ *   For normal nodes: only unplaced children centered around parent.
  */
 function placeChildrenOf(parentId: string, ctx: PlacementCtx): void {
   const parentPos = ctx.positions.get(parentId);
@@ -231,8 +261,13 @@ function placeChildrenOf(parentId: string, ctx: PlacementCtx): void {
     return;
   }
 
-  // Truly single output: linear, share parent Y
-  if (allChildren.length <= 1) {
+  // Branch nodes (true/false handles): use ALL children for centering (phantoms)
+  // Normal nodes: only center unplaced children
+  const isBranch = hasBranchHandles(parentId, ctx.outEdges);
+  const childrenToCenter = isBranch ? allChildren : unplaced;
+
+  // Single effective child: linear, share parent Y
+  if (childrenToCenter.length <= 1) {
     const child = unplaced[0];
     const col = ctx.columns.get(child) ?? 0;
     ctx.positions.set(child, {
@@ -243,22 +278,20 @@ function placeChildrenOf(parentId: string, ctx: PlacementCtx): void {
     return;
   }
 
-  // 2+ children: compute centered positions for ALL children,
-  // but only place the unplaced ones.
-  // Linear children (0-1 outgoing edges) get spread=1 for even spacing.
-  // Only children that themselves branch get their full subtree spread.
+  // 2+ children: centered around parent Y.
+  // Linear children get spread=1 for even spacing.
+  // Branching children get their full subtree spread.
   const spreads: number[] = [];
   let totalSpread = 0;
-  for (const id of allChildren) {
-    const childEdgeCount = (ctx.outEdges.get(id) ?? []).length;
-    const s = childEdgeCount > 1 ? (ctx.spreadMap.get(id) ?? 1) : 1;
+  for (const id of childrenToCenter) {
+    const s = childPlacementSpread(id, ctx.outEdges, ctx.spreadMap);
     spreads.push(s);
     totalSpread += s;
   }
 
   let y = parentPos.y - ((totalSpread - 1) * STEP_Y) / 2;
-  for (let i = 0; i < allChildren.length; i++) {
-    const child = allChildren[i];
+  for (let i = 0; i < childrenToCenter.length; i++) {
+    const child = childrenToCenter[i];
     const s = spreads[i];
     const centerY = y + ((s - 1) * STEP_Y) / 2;
     if (!ctx.placed.has(child)) {
