@@ -545,10 +545,11 @@ export const workflowApi = {
     }),
 
   // Delete a workflow
-  delete: (id: string) =>
-    apiCall<{ success: boolean }>(`/api/workflows/${id}`, {
-      method: "DELETE",
-    }),
+  delete: (id: string, options?: { force?: boolean }) =>
+    apiCall<{ success: boolean }>(
+      `/api/workflows/${id}${options?.force ? "?force=true" : ""}`,
+      { method: "DELETE" }
+    ),
 
   // Duplicate a workflow
   duplicate: (id: string) =>

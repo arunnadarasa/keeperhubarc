@@ -379,22 +379,53 @@ export async function DELETE(
     }
 
     // Check for existing executions before deleting
+    const { searchParams } = new URL(request.url);
+    const force = searchParams.get("force") === "true";
+
     const hasExecutions = await db.query.workflowExecutions.findFirst({
       where: eq(workflowExecutions.workflowId, workflowId),
       columns: { id: true },
     });
 
-    if (hasExecutions) {
+    if (hasExecutions && !force) {
       return NextResponse.json(
         {
           error:
             "Workflow has execution history. Delete executions first before deleting the workflow.",
+          hasExecutions: true,
         },
         { status: 409 }
       );
     }
 
-    await db.delete(workflows).where(eq(workflows.id, workflowId));
+    // If force delete, cascade delete logs, executions, and workflow in a transaction
+    if (hasExecutions && force) {
+      const { workflowExecutionLogs } = await import("@/lib/db/schema");
+      const { inArray } = await import("drizzle-orm");
+
+      await db.transaction(async (tx) => {
+        const executions = await tx.query.workflowExecutions.findMany({
+          where: eq(workflowExecutions.workflowId, workflowId),
+          columns: { id: true },
+        });
+
+        const executionIds = executions.map((e) => e.id);
+
+        if (executionIds.length > 0) {
+          await tx
+            .delete(workflowExecutionLogs)
+            .where(inArray(workflowExecutionLogs.executionId, executionIds));
+
+          await tx
+            .delete(workflowExecutions)
+            .where(eq(workflowExecutions.workflowId, workflowId));
+        }
+
+        await tx.delete(workflows).where(eq(workflows.id, workflowId));
+      });
+    } else {
+      await db.delete(workflows).where(eq(workflows.id, workflowId));
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
