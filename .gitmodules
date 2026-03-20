@@ -1,4 +1,0 @@
-[submodule "keeperhub-scheduler"]
-	path = keeperhub-scheduler
-	url = https://github.com/KeeperHub/keeperhub-scheduler.git
-	branch = staging

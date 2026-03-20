@@ -16,6 +16,7 @@ variable "NEXT_PUBLIC_BILLING_ENABLED" { default = "" }
 variable "ENVIRONMENT_TAG" { default = "" }
 variable "EVENTS_ECR_TRACKER_REPO" { default = "" }
 variable "EVENTS_ECR_WORKER_REPO" { default = "" }
+variable "SCHEDULER_ECR_REPO" { default = "" }
 
 group "default" {
   targets = ["app", "migrator"]
@@ -25,8 +26,12 @@ group "events" {
   targets = ["sc-event-tracker", "sc-event-worker"]
 }
 
+group "scheduler" {
+  targets = ["schedule-dispatcher", "schedule-executor", "block-dispatcher"]
+}
+
 group "all" {
-  targets = ["app", "migrator", "sc-event-tracker", "sc-event-worker"]
+  targets = ["app", "migrator", "sc-event-tracker", "sc-event-worker", "schedule-dispatcher", "schedule-executor", "block-dispatcher"]
 }
 
 target "app" {
@@ -87,4 +92,55 @@ target "sc-event-worker" {
   cache-from = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:cache"]
   cache-to   = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:cache,mode=max"]
   attest     = []
+}
+
+target "schedule-dispatcher" {
+  context    = "./keeperhub-scheduler"
+  dockerfile = "Dockerfile"
+  target     = "dispatcher"
+  tags = compact([
+    "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:dispatcher-${IMAGE_TAG}",
+    "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:dispatcher-latest",
+    ENVIRONMENT_TAG != "" ? "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:dispatcher-${ENVIRONMENT_TAG}" : "",
+  ])
+  cache-from = [
+    "type=registry,ref=${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:cache-deps",
+    "type=registry,ref=${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:cache-dispatcher",
+  ]
+  cache-to = ["type=registry,ref=${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:cache-dispatcher,mode=max"]
+  attest   = []
+}
+
+target "schedule-executor" {
+  context    = "./keeperhub-scheduler"
+  dockerfile = "Dockerfile"
+  target     = "executor"
+  tags = compact([
+    "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:executor-${IMAGE_TAG}",
+    "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:executor-latest",
+    ENVIRONMENT_TAG != "" ? "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:executor-${ENVIRONMENT_TAG}" : "",
+  ])
+  cache-from = [
+    "type=registry,ref=${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:cache-deps",
+    "type=registry,ref=${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:cache-executor",
+  ]
+  cache-to = ["type=registry,ref=${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:cache-executor,mode=max"]
+  attest   = []
+}
+
+target "block-dispatcher" {
+  context    = "./keeperhub-scheduler"
+  dockerfile = "Dockerfile"
+  target     = "block-dispatcher"
+  tags = compact([
+    "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:block-dispatcher-${IMAGE_TAG}",
+    "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:block-dispatcher-latest",
+    ENVIRONMENT_TAG != "" ? "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:block-dispatcher-${ENVIRONMENT_TAG}" : "",
+  ])
+  cache-from = [
+    "type=registry,ref=${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:cache-deps",
+    "type=registry,ref=${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:cache-block-dispatcher",
+  ]
+  cache-to = ["type=registry,ref=${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:cache-block-dispatcher,mode=max"]
+  attest   = []
 }
