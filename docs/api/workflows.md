@@ -128,6 +128,12 @@ The `tagId` field assigns the workflow to an organization tag for categorization
 DELETE /api/workflows/{workflowId}
 ```
 
+Returns `409 Conflict` if the workflow has execution history. Use the `force` query parameter to cascade delete all runs and logs:
+
+```http
+DELETE /api/workflows/{workflowId}?force=true
+```
+
 ## Execute Workflow
 
 ```http

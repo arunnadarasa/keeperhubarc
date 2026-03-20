@@ -23,7 +23,7 @@ import { CodeEditor } from "@/components/ui/code-editor";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { api } from "@/lib/api-client";
+import { api, ApiError } from "@/lib/api-client";
 import { integrationsAtom } from "@/lib/integrations-store";
 import type { IntegrationType } from "@/lib/types/integration";
 import { generateWorkflowCode } from "@/lib/workflow-codegen";
@@ -350,11 +350,17 @@ export function ConfigurationOverlay({ overlayId }: ConfigurationOverlayProps) {
   };
 
   // Handle delete workflow
-  const handleDeleteWorkflow = () => {
+  const handleDeleteWorkflow = (force?: boolean) => {
+    const title = force ? "Delete Workflow and All Runs" : "Delete Workflow";
+    const message = force
+      ? `Are you sure you want to delete "${currentWorkflowName}" and all its execution history? This cannot be undone.`
+      : `Are you sure you want to delete "${currentWorkflowName}"? This will permanently delete the workflow. This cannot be undone.`;
+    const confirmLabel = force ? "Delete Everything" : "Delete Workflow";
+
     push(ConfirmOverlay, {
-      title: "Delete Workflow",
-      message: `Are you sure you want to delete "${currentWorkflowName}"? This will permanently delete the workflow. This cannot be undone.`,
-      confirmLabel: "Delete Workflow",
+      title,
+      message,
+      confirmLabel,
       confirmVariant: "destructive" as const,
       destructive: true,
       onConfirm: async () => {
@@ -362,12 +368,19 @@ export function ConfigurationOverlay({ overlayId }: ConfigurationOverlayProps) {
           return;
         }
         try {
-          await api.workflow.delete(currentWorkflowId);
+          await api.workflow.delete(currentWorkflowId, { force });
           closeAll();
           toast.success("Workflow deleted successfully");
           window.location.href = "/";
         } catch (error) {
-          console.error("Failed to delete workflow:", error);
+          if (
+            error instanceof ApiError &&
+            error.status === 409 &&
+            !force
+          ) {
+            handleDeleteWorkflow(true);
+            return;
+          }
           toast.error("Failed to delete workflow. Please try again.");
         }
       },
