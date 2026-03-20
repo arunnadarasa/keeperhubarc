@@ -39,7 +39,7 @@ export const SUPPORTED_CHAIN_IDS = {
   // EVM Mainnets
   MAINNET: 1,
   BASE: 8453,
-  TEMPO_MAINNET: 42_420,
+  TEMPO_MAINNET: 4217,
   // EVM Testnets
   SEPOLIA: 11_155_111,
   BASE_SEPOLIA: 84_532,

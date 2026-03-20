@@ -44,8 +44,9 @@ type WalletOverlayProps = {
   overlayId: string;
 };
 
-// TEMPO testnet uses stablecoins for gas, so we display stablecoins only (no native token)
-const TEMPO_CHAIN_ID = 42_429;
+// TEMPO uses stablecoins for gas, so we display stablecoins only (no native token)
+const TEMPO_CHAIN_IDS = new Set([42_429, 4217]);
+const isTempoChain = (chainId: number): boolean => TEMPO_CHAIN_IDS.has(chainId);
 const MAINNET_CHAIN_ID = 1;
 
 // ============================================================================
@@ -235,7 +236,7 @@ function ChainBalanceItem({
     (t) => t.chainId === balance.chainId
   );
 
-  const isTempo = balance.chainId === TEMPO_CHAIN_ID;
+  const isTempo = isTempoChain(balance.chainId);
   const isMainnet = balance.chainId === MAINNET_CHAIN_ID;
 
   // For TEMPO chains, just show their own tokens
@@ -1115,7 +1116,7 @@ export function WalletOverlay({ overlayId }: WalletOverlayProps) {
     // Add native balances (skip TEMPO - it uses stablecoins, not native tokens)
     for (const balance of balances) {
       // Skip TEMPO native balance - it uses stablecoins only
-      if (balance.chainId === TEMPO_CHAIN_ID) {
+      if (isTempoChain(balance.chainId)) {
         continue;
       }
       const chain = chains.find((c) => c.chainId === balance.chainId);

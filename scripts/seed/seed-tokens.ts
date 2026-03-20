@@ -159,31 +159,24 @@ const TOKEN_CONFIGS: TokenConfig[] = [
   // ==========================================================================
   {
     chainId: 4217,
-    tokenAddress: "0x20c0000000000000000000000000000000000000", // pathUSD
-    logoUrl: null,
+    tokenAddress: "0x20c000000000000000000000b9537d11c60e8b50", // USDC.e (Bridged USDC via Stargate)
+    logoUrl: LOGOS.USDC,
     isStablecoin: true,
     sortOrder: 1,
   },
   {
     chainId: 4217,
-    tokenAddress: "0x20c0000000000000000000000000000000000001", // AlphaUSD
-    logoUrl: null,
+    tokenAddress: "0x20c00000000000000000000014f22ca97301eb73", // USDT0
+    logoUrl: LOGOS.USDT,
     isStablecoin: true,
     sortOrder: 2,
   },
   {
     chainId: 4217,
-    tokenAddress: "0x20c0000000000000000000000000000000000002", // BetaUSD
+    tokenAddress: "0x20c0000000000000000000003554d28269e0f3c2", // frxUSD (Frax USD)
     logoUrl: null,
     isStablecoin: true,
     sortOrder: 3,
-  },
-  {
-    chainId: 4217,
-    tokenAddress: "0x20c0000000000000000000000000000000000003", // ThetaUSD
-    logoUrl: null,
-    isStablecoin: true,
-    sortOrder: 4,
   },
 ];
 

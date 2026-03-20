@@ -159,20 +159,20 @@ const DEFAULT_CHAINS: NewChain[] = [
     isEnabled: getChainConfigValue("tempo-testnet", "isEnabled", true),
   },
   {
-    chainId: getChainConfigValue("tempo-mainnet", "chainId", 42_420),
+    chainId: getChainConfigValue("tempo-mainnet", "chainId", 4217),
     name: "Tempo",
     symbol: getChainConfigValue("tempo-mainnet", "symbol", "TEMPO"),
     chainType: "evm",
-    defaultPrimaryRpc: getRpcUrlByChainId(42_420, "primary"),
-    defaultFallbackRpc: getRpcUrlByChainId(42_420, "fallback"),
+    defaultPrimaryRpc: getRpcUrlByChainId(4217, "primary"),
+    defaultFallbackRpc: getRpcUrlByChainId(4217, "fallback"),
     defaultPrimaryWss: getWssUrl({
       rpcConfig,
-      jsonKey: CHAIN_CONFIG[42_420].jsonKey,
+      jsonKey: CHAIN_CONFIG[4217].jsonKey,
       type: "primary",
     }),
     defaultFallbackWss: getWssUrl({
       rpcConfig,
-      jsonKey: CHAIN_CONFIG[42_420].jsonKey,
+      jsonKey: CHAIN_CONFIG[4217].jsonKey,
       type: "fallback",
     }),
     isTestnet: getChainConfigValue("tempo-mainnet", "isTestnet", false),
@@ -278,11 +278,11 @@ const EXPLORER_CONFIG_TEMPLATES: Record<
     explorerContractPath: "/address/{address}?tab=contract",
   },
   // Tempo Mainnet - Blockscout
-  42420: {
+  4217: {
     chainType: "evm",
-    explorerUrl: "https://explorer.tempo.xyz",
+    explorerUrl: "https://explore.mainnet.tempo.xyz",
     explorerApiType: "blockscout",
-    explorerApiUrl: "https://explorer.tempo.xyz/api",
+    explorerApiUrl: "https://explore.mainnet.tempo.xyz/api",
     explorerTxPath: "/tx/{hash}",
     explorerAddressPath: "/address/{address}",
     explorerContractPath: "/address/{address}?tab=contract",
@@ -362,7 +362,7 @@ async function seedChains() {
     Base: 8453,
     "Base Sepolia": 84_532,
     "Tempo Testnet": 42_429,
-    Tempo: 42_420,
+    Tempo: 4217,
     Solana: 101,
     "Solana Devnet": 103,
   };

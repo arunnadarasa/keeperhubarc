@@ -82,7 +82,13 @@ export const CHAIN_CONFIG: Record<number, ChainConfigEntry> = {
     fallbackEnvKey: "CHAIN_TEMPO_TESTNET_FALLBACK_RPC",
     publicDefault: PUBLIC_RPCS.TEMPO_TESTNET,
   },
-  // Tempo Mainnet
+  // Tempo Mainnet (4217 is the canonical chain ID; 42420 kept for backwards compatibility)
+  4217: {
+    jsonKey: "tempo-mainnet",
+    envKey: "CHAIN_TEMPO_MAINNET_PRIMARY_RPC",
+    fallbackEnvKey: "CHAIN_TEMPO_MAINNET_FALLBACK_RPC",
+    publicDefault: PUBLIC_RPCS.TEMPO_MAINNET,
+  },
   42420: {
     jsonKey: "tempo-mainnet",
     envKey: "CHAIN_TEMPO_MAINNET_PRIMARY_RPC",
