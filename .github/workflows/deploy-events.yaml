@@ -84,6 +84,7 @@ jobs:
           EVENTS_ECR_TRACKER_REPO: ${{ env.TRACKER_ECR_NAME }}
           EVENTS_ECR_WORKER_REPO: ${{ env.WORKER_ECR_NAME }}
           IMAGE_TAG: ${{ steps.vars.outputs.sha_short }}
+          ENVIRONMENT_TAG: ${{ env.ENVIRONMENT_TAG }}
         with:
           files: docker-bake.hcl
           targets: events

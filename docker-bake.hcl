@@ -66,10 +66,11 @@ target "migrator" {
 target "sc-event-tracker" {
   context    = "./keeperhub-events"
   dockerfile = "sc-event-tracker/Dockerfile"
-  tags = [
+  tags = compact([
     "${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:app-${IMAGE_TAG}",
     "${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:app-latest",
-  ]
+    ENVIRONMENT_TAG != "" ? "${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:${ENVIRONMENT_TAG}" : "",
+  ])
   cache-from = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:cache"]
   cache-to   = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:cache,mode=max"]
   attest     = []
@@ -78,10 +79,11 @@ target "sc-event-tracker" {
 target "sc-event-worker" {
   context    = "./keeperhub-events"
   dockerfile = "sc-event-worker/Dockerfile"
-  tags = [
+  tags = compact([
     "${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:app-${IMAGE_TAG}",
     "${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:app-latest",
-  ]
+    ENVIRONMENT_TAG != "" ? "${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:${ENVIRONMENT_TAG}" : "",
+  ])
   cache-from = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:cache"]
   cache-to   = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:cache,mode=max"]
   attest     = []
