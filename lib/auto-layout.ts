@@ -5,12 +5,10 @@ const NODE_HEIGHT = 192;
 const H_GAP = 60;
 const V_GAP = 40;
 
-type GraphData = {
-  outEdges: Map<string, Edge[]>;
-  inDegree: Map<string, number>;
-};
-
-function buildGraph(realNodes: Node[], forwardEdges: Edge[]): GraphData {
+function buildGraph(
+  realNodes: Node[],
+  forwardEdges: Edge[]
+): { outEdges: Map<string, Edge[]>; inDegree: Map<string, number> } {
   const outEdges = new Map<string, Edge[]>();
   const inDegree = new Map<string, number>();
 
@@ -49,8 +47,6 @@ function findRoots(realNodes: Node[], inDegree: Map<string, number>): string[] {
 
 /**
  * Assign columns using longest-path from roots (topological order).
- * This correctly handles convergence: a node with multiple parents
- * gets placed at max(parent columns) + 1.
  */
 function assignColumns(
   roots: string[],
@@ -95,10 +91,7 @@ function assignColumns(
 }
 
 /**
- * Sort outgoing edges of each node so that:
- * - "true"/"loop" targets come first (top)
- * - normal targets in the middle
- * - "false"/"done" targets last (bottom)
+ * Sort outgoing edges: true/loop first, normal middle, false/done last.
  */
 function sortedChildren(
   nodeId: string,
@@ -108,8 +101,15 @@ function sortedChildren(
   const top: string[] = [];
   const normal: string[] = [];
   const bottom: string[] = [];
+  const seen = new Set<string>();
 
   for (const edge of edges) {
+    // Skip duplicate edges (same source->target)
+    if (seen.has(edge.target)) {
+      continue;
+    }
+    seen.add(edge.target);
+
     const handle = edge.sourceHandle;
     if (handle === "true" || handle === "loop") {
       top.push(edge.target);
@@ -123,142 +123,200 @@ function sortedChildren(
   return [...top, ...normal, ...bottom];
 }
 
+const STEP_Y = NODE_HEIGHT + V_GAP;
+
 /**
- * Compute the "owned subtree size" for each node.
- * A node's owned size is how many vertical rows it and its
- * exclusive descendants need. Shared nodes (convergence points)
- * are only counted once -- by the first DFS path that reaches them.
+ * Compute how many vertical rows a node's subtree needs.
+ * - Leaf: 1
+ * - Linear (1 child): propagates child's spread (so downstream branches
+ *   are accounted for at all ancestor levels, preventing overlap)
+ * - Branching (N children): sum of owned children's spreads
+ *   (convergence children that were already visited contribute 0)
+ * - Already-visited (convergence): 0 (don't double-count)
  */
-function computeOwnedSize(
+function computeSpread(
   nodeId: string,
   outEdges: Map<string, Edge[]>,
-  claimed: Set<string>,
-  cache: Map<string, number>
+  visited: Set<string>,
+  spreadMap: Map<string, number>
 ): number {
-  if (cache.has(nodeId)) {
-    return cache.get(nodeId) ?? 1;
-  }
-  if (claimed.has(nodeId)) {
+  if (visited.has(nodeId)) {
     return 0;
   }
-  claimed.add(nodeId);
+  visited.add(nodeId);
 
   const children = sortedChildren(nodeId, outEdges);
+
   if (children.length === 0) {
-    cache.set(nodeId, 1);
+    spreadMap.set(nodeId, 1);
     return 1;
   }
 
-  // Any node with multiple children fans out vertically (sum sizes).
-  // Single-child nodes are linear (inherit the child's size).
-  let size = 0;
-  if (children.length > 1) {
-    for (const child of children) {
-      size += computeOwnedSize(child, outEdges, claimed, cache);
+  if (children.length === 1) {
+    const childSpread = computeSpread(
+      children[0],
+      outEdges,
+      visited,
+      spreadMap
+    );
+    const spread = Math.max(1, childSpread);
+    spreadMap.set(nodeId, spread);
+    return spread;
+  }
+
+  // Branching: sum only owned children (convergence children contribute 0)
+  let total = 0;
+  for (const child of children) {
+    total += computeSpread(child, outEdges, visited, spreadMap);
+  }
+  const spread = Math.max(total, 1);
+  spreadMap.set(nodeId, spread);
+  return spread;
+}
+
+type PlacementCtx = {
+  positions: Map<string, { x: number; y: number }>;
+  placed: Set<string>;
+  columns: Map<string, number>;
+  outEdges: Map<string, Edge[]>;
+  spreadMap: Map<string, number>;
+};
+
+/**
+ * Place a list of nodes vertically, centered around centerY,
+ * using each node's subtree spread to allocate space.
+ */
+function spreadNodes(
+  nodeIds: string[],
+  centerY: number,
+  ctx: PlacementCtx
+): void {
+  const spreads: number[] = [];
+  let totalSpread = 0;
+  for (const id of nodeIds) {
+    const s = ctx.spreadMap.get(id) ?? 1;
+    spreads.push(s);
+    totalSpread += s;
+  }
+
+  let y = centerY - ((totalSpread - 1) * STEP_Y) / 2;
+  for (let i = 0; i < nodeIds.length; i++) {
+    const id = nodeIds[i];
+    const s = spreads[i];
+    const nodeCenterY = y + ((s - 1) * STEP_Y) / 2;
+    const col = ctx.columns.get(id) ?? 0;
+    ctx.positions.set(id, { x: col * (NODE_WIDTH + H_GAP), y: nodeCenterY });
+    ctx.placed.add(id);
+    y += s * STEP_Y;
+  }
+}
+
+/**
+ * Place children of a single parent node.
+ * - 1 total child: linear, shares parent Y
+ * - 2+ total children: centered around parent Y using ALL children's spreads
+ *   (true above, false below). Already-placed children act as phantom spacers
+ *   so the centering accounts for them, but only unplaced children get positioned.
+ */
+function placeChildrenOf(parentId: string, ctx: PlacementCtx): void {
+  const parentPos = ctx.positions.get(parentId);
+  if (!parentPos) {
+    return;
+  }
+
+  const allChildren = sortedChildren(parentId, ctx.outEdges);
+  const unplaced = allChildren.filter((c) => !ctx.placed.has(c));
+
+  if (unplaced.length === 0) {
+    return;
+  }
+
+  // Truly single output: linear, share parent Y
+  if (allChildren.length <= 1) {
+    const child = unplaced[0];
+    const col = ctx.columns.get(child) ?? 0;
+    ctx.positions.set(child, {
+      x: col * (NODE_WIDTH + H_GAP),
+      y: parentPos.y,
+    });
+    ctx.placed.add(child);
+    return;
+  }
+
+  // 2+ children: compute centered positions for ALL children,
+  // but only place the unplaced ones
+  const spreads: number[] = [];
+  let totalSpread = 0;
+  for (const id of allChildren) {
+    const s = ctx.spreadMap.get(id) ?? 1;
+    spreads.push(s);
+    totalSpread += s;
+  }
+
+  let y = parentPos.y - ((totalSpread - 1) * STEP_Y) / 2;
+  for (let i = 0; i < allChildren.length; i++) {
+    const child = allChildren[i];
+    const s = spreads[i];
+    const centerY = y + ((s - 1) * STEP_Y) / 2;
+    if (!ctx.placed.has(child)) {
+      const col = ctx.columns.get(child) ?? 0;
+      ctx.positions.set(child, {
+        x: col * (NODE_WIDTH + H_GAP),
+        y: centerY,
+      });
+      ctx.placed.add(child);
     }
-  } else {
-    for (const child of children) {
-      const cs = computeOwnedSize(child, outEdges, claimed, cache);
-      if (cs > size) {
-        size = cs;
+    y += s * STEP_Y;
+  }
+}
+
+/**
+ * Place nodes level by level (column by column), left to right.
+ * Each parent spreads its children vertically based on their subtree spread.
+ */
+function placeLevelByLevel(
+  roots: string[],
+  columns: Map<string, number>,
+  outEdges: Map<string, Edge[]>,
+  spreadMap: Map<string, number>
+): Map<string, { x: number; y: number }> {
+  const ctx: PlacementCtx = {
+    positions: new Map(),
+    placed: new Set(),
+    columns,
+    outEdges,
+    spreadMap,
+  };
+
+  let maxCol = 0;
+  for (const col of columns.values()) {
+    if (col > maxCol) {
+      maxCol = col;
+    }
+  }
+
+  // Place roots centered around y=0
+  spreadNodes(roots, 0, ctx);
+
+  // Process columns left to right
+  for (let col = 0; col <= maxCol; col++) {
+    for (const [nodeId, nodeCol] of columns) {
+      if (nodeCol === col && ctx.placed.has(nodeId)) {
+        placeChildrenOf(nodeId, ctx);
       }
     }
   }
 
-  const result = Math.max(size, 1);
-  cache.set(nodeId, result);
-  return result;
-}
-
-type LayoutState = {
-  positions: Map<string, { x: number; y: number }>;
-  columns: Map<string, number>;
-  outEdges: Map<string, Edge[]>;
-  placed: Set<string>;
-  ownedSizes: Map<string, number>;
-};
-
-/** Place a node at the given vertical band and recurse into children. */
-function placeNode(
-  nodeId: string,
-  bandTop: number,
-  bandHeight: number,
-  state: LayoutState
-): void {
-  if (state.placed.has(nodeId)) {
-    return;
-  }
-  state.placed.add(nodeId);
-
-  const col = state.columns.get(nodeId) ?? 0;
-  const x = col * (NODE_WIDTH + H_GAP);
-  const centerY = bandTop + bandHeight / 2 - NODE_HEIGHT / 2;
-  state.positions.set(nodeId, { x, y: centerY });
-
-  const children = sortedChildren(nodeId, state.outEdges);
-  if (children.length === 0) {
-    return;
-  }
-
-  if (children.length > 1) {
-    placeBranchChildren(children, bandTop, bandHeight, state, centerY);
-  } else {
-    placeLinearChildren(children, bandTop, bandHeight, state);
-  }
-}
-
-/** Place children of a branching node using fixed spacing based on owned sizes */
-function placeBranchChildren(
-  children: string[],
-  _bandTop: number,
-  _bandHeight: number,
-  state: LayoutState,
-  parentY: number
-): void {
-  const step = NODE_HEIGHT + V_GAP;
-
-  // Compute total slots needed
-  let totalSlots = 0;
-  const sizes: Array<{ id: string; slots: number }> = [];
-  for (const child of children) {
-    const slots = state.ownedSizes.get(child) ?? 1;
-    sizes.push({ id: child, slots });
-    totalSlots += slots;
-  }
-
-  if (totalSlots === 0) {
-    return;
-  }
-
-  // Center the children block around the parent's Y
-  const totalHeight = totalSlots * step;
-  let currentTop = parentY + NODE_HEIGHT / 2 - totalHeight / 2;
-
-  for (const entry of sizes) {
-    const childBandHeight = entry.slots * step;
-    placeNode(entry.id, currentTop, childBandHeight, state);
-    currentTop += childBandHeight;
-  }
-}
-
-/** Place children of a linear node -- they all share the same band */
-function placeLinearChildren(
-  children: string[],
-  bandTop: number,
-  bandHeight: number,
-  state: LayoutState
-): void {
-  for (const child of children) {
-    placeNode(child, bandTop, bandHeight, state);
-  }
+  return ctx.positions;
 }
 
 /**
  * Compute a clean left-to-right DAG layout for workflow nodes.
  *
  * - Columns via longest-path topological sort (handles convergence)
- * - Vertical bands via DFS with owned-subtree sizing
- * - Branching nodes (Condition, ForEach) fan out: true/loop on top, false/done on bottom
+ * - Rows via level-by-level forward sweep with subtree-spread sizing
+ * - Edge ordering: true/loop on top, false/done on bottom
+ * - Covered children (reachable from a sibling) are placed by the sibling
  */
 export function computeAutoLayout(
   nodes: Node[],
@@ -278,151 +336,45 @@ export function computeAutoLayout(
   const roots = findRoots(realNodes, graph.inDegree);
   const columns = assignColumns(roots, graph.outEdges, graph.inDegree);
 
-  // Compute owned subtree sizes for vertical spacing
-  const ownedSizes = new Map<string, number>();
-  const claimed = new Set<string>();
+  // Phase 1: Compute subtree spreads (bottom-up)
+  const spreadVisited = new Set<string>();
+  const spreadMap = new Map<string, number>();
   for (const root of roots) {
-    computeOwnedSize(root, graph.outEdges, claimed, ownedSizes);
+    computeSpread(root, graph.outEdges, spreadVisited, spreadMap);
   }
-
-  const step = NODE_HEIGHT + V_GAP;
-
-  const state: LayoutState = {
-    positions: new Map(),
-    columns,
-    outEdges: graph.outEdges,
-    placed: new Set(),
-    ownedSizes,
-  };
-
-  // Place each root using fixed spacing
-  let currentTop = 0;
-  for (const root of roots) {
-    const rootSize = ownedSizes.get(root) ?? 1;
-    const bandHeight = rootSize * step;
-    placeNode(root, currentTop, bandHeight, state);
-    currentTop += bandHeight;
-  }
-
-  // Place any unplaced nodes (cycles or truly disconnected)
-  let unplacedY = currentTop;
+  // Ensure disconnected nodes have spread computed
   for (const node of realNodes) {
-    if (!state.placed.has(node.id)) {
+    if (!spreadMap.has(node.id)) {
+      computeSpread(node.id, graph.outEdges, spreadVisited, spreadMap);
+    }
+  }
+
+  // Phase 2: Place nodes level by level
+  const positions = placeLevelByLevel(
+    roots,
+    columns,
+    graph.outEdges,
+    spreadMap
+  );
+
+  // Place any unplaced nodes (disconnected)
+  let maxY = 0;
+  for (const pos of positions.values()) {
+    if (pos.y > maxY) {
+      maxY = pos.y;
+    }
+  }
+  let nextUnplacedY = maxY + STEP_Y;
+  for (const node of realNodes) {
+    if (!positions.has(node.id)) {
       const col = columns.get(node.id) ?? 0;
-      state.positions.set(node.id, {
+      positions.set(node.id, {
         x: col * (NODE_WIDTH + H_GAP),
-        y: unplacedY,
+        y: nextUnplacedY,
       });
-      unplacedY += NODE_HEIGHT + V_GAP;
+      nextUnplacedY += STEP_Y;
     }
   }
 
-  // Post-process: center convergence nodes between their placed parents
-  centerConvergenceNodes(state.positions, forwardEdges, graph.inDegree);
-
-  return state.positions;
-}
-
-/**
- * For nodes with multiple parents, reposition them to the vertical
- * center of their parents. This keeps convergence points aligned
- * with the visual midpoint of the branches feeding into them.
- * Also shifts all downstream nodes by the same delta.
- */
-type AdjacencyLists = {
-  parents: Map<string, string[]>;
-  children: Map<string, string[]>;
-};
-
-function buildAdjacencyLists(forwardEdges: Edge[]): AdjacencyLists {
-  const parents = new Map<string, string[]>();
-  const children = new Map<string, string[]>();
-
-  for (const edge of forwardEdges) {
-    const p = parents.get(edge.target);
-    if (p) {
-      p.push(edge.source);
-    } else {
-      parents.set(edge.target, [edge.source]);
-    }
-    const c = children.get(edge.source);
-    if (c) {
-      c.push(edge.target);
-    } else {
-      children.set(edge.source, [edge.target]);
-    }
-  }
-
-  return { parents, children };
-}
-
-function computeParentCenterY(
-  nodeParents: string[],
-  positions: Map<string, { x: number; y: number }>
-): number | undefined {
-  let sumY = 0;
-  let count = 0;
-  for (const parentId of nodeParents) {
-    const parentPos = positions.get(parentId);
-    if (parentPos) {
-      sumY += parentPos.y;
-      count++;
-    }
-  }
-  return count > 0 ? sumY / count : undefined;
-}
-
-function centerConvergenceNodes(
-  positions: Map<string, { x: number; y: number }>,
-  forwardEdges: Edge[],
-  inDegree: Map<string, number>
-): void {
-  const { parents, children } = buildAdjacencyLists(forwardEdges);
-
-  for (const [nodeId, degree] of inDegree) {
-    if (degree <= 1) {
-      continue;
-    }
-
-    const nodeParents = parents.get(nodeId);
-    const pos = positions.get(nodeId);
-    if (!(nodeParents && pos)) {
-      continue;
-    }
-
-    const targetY = computeParentCenterY(nodeParents, positions);
-    if (targetY === undefined) {
-      continue;
-    }
-
-    const deltaY = targetY - pos.y;
-    if (Math.abs(deltaY) < 1) {
-      continue;
-    }
-
-    shiftSubtree(nodeId, deltaY, positions, children, new Set());
-  }
-}
-
-/** Shift a node and all its descendants by deltaY */
-function shiftSubtree(
-  nodeId: string,
-  deltaY: number,
-  positions: Map<string, { x: number; y: number }>,
-  children: Map<string, string[]>,
-  visited: Set<string>
-): void {
-  if (visited.has(nodeId)) {
-    return;
-  }
-  visited.add(nodeId);
-
-  const pos = positions.get(nodeId);
-  if (pos) {
-    positions.set(nodeId, { x: pos.x, y: pos.y + deltaY });
-  }
-
-  for (const child of children.get(nodeId) ?? []) {
-    shiftSubtree(child, deltaY, positions, children, visited);
-  }
+  return positions;
 }
