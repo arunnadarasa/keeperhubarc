@@ -1,7 +1,7 @@
 "use client";
 
 import { useReactFlow, useStore } from "@xyflow/react";
-import { ZoomIn, ZoomOut, Maximize2, MapPin, MapPinXInside } from "lucide-react";
+import { ZoomIn, ZoomOut, Maximize2, MapPin, MapPinXInside, AlignHorizontalDistributeCenter } from "lucide-react";
 import { useAtom } from "jotai";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -9,12 +9,13 @@ import { showMinimapAtom } from "@/lib/workflow-store";
 
 type ControlsProps = {
   onFitView?: () => void;
+  onAutoLayout?: () => void;
 };
 
 const zoomSelector = (state: { transform: [number, number, number] }): number =>
   Math.round(state.transform[2] * 100);
 
-export const Controls = ({ onFitView }: ControlsProps) => {
+export const Controls = ({ onFitView, onAutoLayout }: ControlsProps) => {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   const [showMinimap, setShowMinimap] = useAtom(showMinimapAtom);
   const zoomPercent = useStore(zoomSelector);
@@ -80,6 +81,17 @@ export const Controls = ({ onFitView }: ControlsProps) => {
       >
         <Maximize2 className="size-4" />
       </Button>
+      {onAutoLayout && (
+        <Button
+          className={buttonClass}
+          onClick={onAutoLayout}
+          size="icon"
+          title="Auto-layout"
+          variant="secondary"
+        >
+          <AlignHorizontalDistributeCenter className="size-4" />
+        </Button>
+      )}
       <Button
         className={buttonClass}
         onClick={handleToggleMinimap}

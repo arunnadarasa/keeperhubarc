@@ -1,6 +1,7 @@
 import type { Edge, EdgeChange, Node, NodeChange } from "@xyflow/react";
 import { applyEdgeChanges, applyNodeChanges } from "@xyflow/react";
 import { atom } from "jotai";
+import { computeAutoLayout } from "@/keeperhub/lib/auto-layout";
 import { buildExecutionLogsMap } from "@/lib/template-helpers";
 import { api } from "./api-client";
 
@@ -273,6 +274,32 @@ export const addNodeAtom = atom(null, (get, set, node: WorkflowNode) => {
   set(hasUnsavedChangesAtom, true);
 
   // Trigger immediate autosave
+  set(autosaveAtom, { immediate: true });
+});
+
+export const autoLayoutAtom = atom(null, (get, set) => {
+  const currentNodes = get(nodesAtom);
+  const currentEdges = get(edgesAtom);
+
+  // Save current state to history for undo support
+  const history = get(historyAtom);
+  set(historyAtom, [...history, { nodes: currentNodes, edges: currentEdges }]);
+  set(futureAtom, []);
+
+  const positions = computeAutoLayout(currentNodes, currentEdges);
+
+  // Only create new object references for nodes whose position actually changed.
+  // Preserving references prevents React Flow from re-triggering selection/layout handlers.
+  const updatedNodes = currentNodes.map((node) => {
+    const pos = positions.get(node.id);
+    if (pos && (node.position.x !== pos.x || node.position.y !== pos.y)) {
+      return { ...node, position: pos };
+    }
+    return node;
+  });
+
+  set(nodesAtom, updatedNodes);
+  set(hasUnsavedChangesAtom, true);
   set(autosaveAtom, { immediate: true });
 });
 
