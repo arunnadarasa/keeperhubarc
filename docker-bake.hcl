@@ -72,6 +72,7 @@ target "sc-event-tracker" {
   ]
   cache-from = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:cache"]
   cache-to   = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:cache,mode=max"]
+  attest     = []
 }
 
 target "sc-event-worker" {
@@ -83,4 +84,5 @@ target "sc-event-worker" {
   ]
   cache-from = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:cache"]
   cache-to   = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:cache,mode=max"]
+  attest     = []
 }
