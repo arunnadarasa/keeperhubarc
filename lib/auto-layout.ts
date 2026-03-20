@@ -201,36 +201,41 @@ function placeNode(
   }
 
   if (children.length > 1) {
-    placeBranchChildren(children, bandTop, bandHeight, state);
+    placeBranchChildren(children, bandTop, bandHeight, state, centerY);
   } else {
     placeLinearChildren(children, bandTop, bandHeight, state);
   }
 }
 
-/** Place children of a branching node, dividing vertical band by owned sizes */
+/** Place children of a branching node using fixed spacing based on owned sizes */
 function placeBranchChildren(
   children: string[],
-  bandTop: number,
-  bandHeight: number,
-  state: LayoutState
+  _bandTop: number,
+  _bandHeight: number,
+  state: LayoutState,
+  parentY: number
 ): void {
-  // Compute how much vertical space each child needs
-  let totalSize = 0;
-  const sizes: Array<{ id: string; size: number }> = [];
+  const step = NODE_HEIGHT + V_GAP;
+
+  // Compute total slots needed
+  let totalSlots = 0;
+  const sizes: Array<{ id: string; slots: number }> = [];
   for (const child of children) {
-    const size = state.ownedSizes.get(child) ?? 1;
-    sizes.push({ id: child, size });
-    totalSize += size;
+    const slots = state.ownedSizes.get(child) ?? 1;
+    sizes.push({ id: child, slots });
+    totalSlots += slots;
   }
 
-  if (totalSize === 0) {
+  if (totalSlots === 0) {
     return;
   }
 
-  // Divide the band proportionally
-  let currentTop = bandTop;
+  // Center the children block around the parent's Y
+  const totalHeight = totalSlots * step;
+  let currentTop = parentY + NODE_HEIGHT / 2 - totalHeight / 2;
+
   for (const entry of sizes) {
-    const childBandHeight = (entry.size / totalSize) * bandHeight;
+    const childBandHeight = entry.slots * step;
     placeNode(entry.id, currentTop, childBandHeight, state);
     currentTop += childBandHeight;
   }
@@ -280,12 +285,7 @@ export function computeAutoLayout(
     computeOwnedSize(root, graph.outEdges, claimed, ownedSizes);
   }
 
-  // Total vertical space needed
-  let totalRows = 0;
-  for (const root of roots) {
-    totalRows += ownedSizes.get(root) ?? 1;
-  }
-  const totalHeight = totalRows * (NODE_HEIGHT + V_GAP);
+  const step = NODE_HEIGHT + V_GAP;
 
   const state: LayoutState = {
     positions: new Map(),
@@ -295,11 +295,11 @@ export function computeAutoLayout(
     ownedSizes,
   };
 
-  // Place each root in its vertical band
+  // Place each root using fixed spacing
   let currentTop = 0;
   for (const root of roots) {
     const rootSize = ownedSizes.get(root) ?? 1;
-    const bandHeight = (rootSize / totalRows) * totalHeight;
+    const bandHeight = rootSize * step;
     placeNode(root, currentTop, bandHeight, state);
     currentTop += bandHeight;
   }
