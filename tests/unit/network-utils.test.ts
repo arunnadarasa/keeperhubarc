@@ -26,8 +26,8 @@ describe("getChainIdFromNetwork", () => {
 
     it("should return chain ID for tempo networks", () => {
       expect(getChainIdFromNetwork("tempo-testnet")).toBe(42_429);
-      expect(getChainIdFromNetwork("tempo")).toBe(42_420);
-      expect(getChainIdFromNetwork("tempo-mainnet")).toBe(42_420);
+      expect(getChainIdFromNetwork("tempo")).toBe(4217);
+      expect(getChainIdFromNetwork("tempo-mainnet")).toBe(4217);
     });
 
     it("should return chain ID for solana networks", () => {
@@ -92,7 +92,7 @@ describe("getNetworkName", () => {
     expect(getNetworkName(8453)).toBe("Base");
     expect(getNetworkName(84_532)).toBe("Base Sepolia");
     expect(getNetworkName(42_429)).toBe("Tempo Testnet");
-    expect(getNetworkName(42_420)).toBe("Tempo");
+    expect(getNetworkName(4217)).toBe("Tempo");
     expect(getNetworkName(101)).toBe("Solana");
     expect(getNetworkName(103)).toBe("Solana Devnet");
   });
@@ -111,7 +111,7 @@ describe("SUPPORTED_CHAIN_IDS", () => {
     expect(SUPPORTED_CHAIN_IDS.BASE).toBe(8453);
     expect(SUPPORTED_CHAIN_IDS.BASE_SEPOLIA).toBe(84_532);
     expect(SUPPORTED_CHAIN_IDS.TEMPO_TESTNET).toBe(42_429);
-    expect(SUPPORTED_CHAIN_IDS.TEMPO_MAINNET).toBe(42_420);
+    expect(SUPPORTED_CHAIN_IDS.TEMPO_MAINNET).toBe(4217);
   });
 
   it("should have correct values for Solana chains", () => {
