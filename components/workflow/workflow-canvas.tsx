@@ -23,8 +23,10 @@ import "@xyflow/react/dist/style.css";
 
 import { PlayCircle, Zap } from "lucide-react";
 import { nanoid } from "nanoid";
+import { toast } from "sonner";
 import {
   addNodeAtom,
+  autoLayoutAtom,
   autosaveAtom,
   currentWorkflowIdAtom,
   edgesAtom,
@@ -41,6 +43,7 @@ import {
   selectedEdgeAtom,
   selectedNodeAtom,
   showMinimapAtom,
+  undoAtom,
   type WorkflowNode,
   type WorkflowNodeType,
 } from "@/lib/workflow-store";
@@ -107,6 +110,8 @@ export function WorkflowCanvas() {
   const setSelectedNode = useSetAtom(selectedNodeAtom);
   const setSelectedEdge = useSetAtom(selectedEdgeAtom);
   const addNode = useSetAtom(addNodeAtom);
+  const triggerAutoLayout = useSetAtom(autoLayoutAtom);
+  const triggerUndo = useSetAtom(undoAtom);
   const setHasUnsavedChanges = useSetAtom(hasUnsavedChangesAtom);
   const triggerAutosave = useSetAtom(autosaveAtom);
   const setActiveTab = useSetAtom(propertiesPanelActiveTabAtom);
@@ -118,6 +123,7 @@ export function WorkflowCanvas() {
   const justCreatedNodeFromConnection = useRef(false);
   const viewportInitialized = useRef(false);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
+  const [isAnimatingLayout, setIsAnimatingLayout] = useState(false);
   const [contextMenuState, setContextMenuState] =
     useState<ContextMenuState>(null);
 
@@ -178,6 +184,24 @@ export function WorkflowCanvas() {
     },
     [fitView, getViewport, setViewport, isSidebarCollapsed, rightPanelWidth]
   );
+
+  const handleAutoLayout = useCallback(() => {
+    setIsAnimatingLayout(true);
+    triggerAutoLayout();
+    setTimeout(() => {
+      setIsAnimatingLayout(false);
+      fitViewSidebarAware({ duration: 300 });
+      toast("Layout applied", {
+        action: {
+          label: "Revert",
+          onClick: () => {
+            triggerUndo();
+          },
+        },
+        duration: 5000,
+      });
+    }, 300);
+  }, [triggerAutoLayout, triggerUndo, fitViewSidebarAware]);
 
   // Track which workflow we've fitted view for to prevent re-running
   const fittedViewForWorkflowRef = useRef<string | null | undefined>(undefined);
@@ -695,7 +719,7 @@ export function WorkflowCanvas() {
     >
       {/* React Flow Canvas */}
       <Canvas
-        className="bg-background"
+        className={`bg-background${isAnimatingLayout ? " [&_.react-flow__node]:transition-[transform] [&_.react-flow__node]:duration-300 [&_.react-flow__node]:ease-in-out" : ""}`}
         connectionLineComponent={Connection}
         connectionMode={ConnectionMode.Strict}
         defaultEdgeOptions={{ type: "animated" }}
@@ -733,7 +757,7 @@ export function WorkflowCanvas() {
               />
             </div>
           )}
-          <Controls onFitView={() => fitViewSidebarAware({ duration: 300 })} />
+          <Controls onFitView={() => fitViewSidebarAware({ duration: 300 })} onAutoLayout={handleAutoLayout} />
         </Panel>
       </Canvas>
 
