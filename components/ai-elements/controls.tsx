@@ -1,15 +1,23 @@
 "use client";
 
-import { useReactFlow } from "@xyflow/react";
+import { useReactFlow, useStore } from "@xyflow/react";
 import { ZoomIn, ZoomOut, Maximize2, MapPin, MapPinXInside } from "lucide-react";
 import { useAtom } from "jotai";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { showMinimapAtom } from "@/lib/workflow-store";
 
-export const Controls = () => {
+type ControlsProps = {
+  onFitView?: () => void;
+};
+
+const zoomSelector = (state: { transform: [number, number, number] }): number =>
+  Math.round(state.transform[2] * 100);
+
+export const Controls = ({ onFitView }: ControlsProps) => {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   const [showMinimap, setShowMinimap] = useAtom(showMinimapAtom);
+  const zoomPercent = useStore(zoomSelector);
 
   const handleZoomIn = () => {
     zoomIn();
@@ -20,17 +28,24 @@ export const Controls = () => {
   };
 
   const handleFitView = () => {
-    fitView({ padding: 0.2, duration: 300 });
+    if (onFitView) {
+      onFitView();
+    } else {
+      fitView({ padding: 0.2, duration: 300 });
+    }
   };
 
   const handleToggleMinimap = () => {
     setShowMinimap(!showMinimap);
   };
 
+  const buttonClass =
+    "border hover:bg-black/5 disabled:opacity-100 dark:hover:bg-white/5 disabled:[&>svg]:text-muted-foreground";
+
   return (
     <ButtonGroup orientation="vertical">
       <Button
-        className="border hover:bg-black/5 disabled:opacity-100 dark:hover:bg-white/5 disabled:[&>svg]:text-muted-foreground"
+        className={buttonClass}
         onClick={handleZoomIn}
         size="icon"
         title="Zoom in"
@@ -39,7 +54,16 @@ export const Controls = () => {
         <ZoomIn className="size-4" />
       </Button>
       <Button
-        className="border hover:bg-black/5 disabled:opacity-100 dark:hover:bg-white/5 disabled:[&>svg]:text-muted-foreground"
+        className={`${buttonClass} text-[10px] font-medium tabular-nums`}
+        onClick={handleFitView}
+        size="icon"
+        title="Fit view"
+        variant="secondary"
+      >
+        {zoomPercent}%
+      </Button>
+      <Button
+        className={buttonClass}
         onClick={handleZoomOut}
         size="icon"
         title="Zoom out"
@@ -48,7 +72,7 @@ export const Controls = () => {
         <ZoomOut className="size-4" />
       </Button>
       <Button
-        className="border hover:bg-black/5 disabled:opacity-100 dark:hover:bg-white/5 disabled:[&>svg]:text-muted-foreground"
+        className={buttonClass}
         onClick={handleFitView}
         size="icon"
         title="Fit view"
@@ -57,7 +81,7 @@ export const Controls = () => {
         <Maximize2 className="size-4" />
       </Button>
       <Button
-        className="border hover:bg-black/5 disabled:opacity-100 dark:hover:bg-white/5 disabled:[&>svg]:text-muted-foreground"
+        className={buttonClass}
         onClick={handleToggleMinimap}
         size="icon"
         title={showMinimap ? "Hide minimap" : "Show minimap"}
