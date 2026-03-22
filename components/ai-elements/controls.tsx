@@ -1,7 +1,12 @@
 "use client";
 
-import { useReactFlow, useStore } from "@xyflow/react";
-import { ZoomIn, ZoomOut, Maximize2, MapPin, MapPinXInside, AlignHorizontalDistributeCenter } from "lucide-react";
+import { useReactFlow } from "@xyflow/react";
+import {
+  Maximize2,
+  MapPin,
+  MapPinXInside,
+  AlignHorizontalDistributeCenter,
+} from "lucide-react";
 import { useAtom } from "jotai";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -12,21 +17,9 @@ type ControlsProps = {
   onAutoLayout?: () => void;
 };
 
-const zoomSelector = (state: { transform: [number, number, number] }): number =>
-  Math.round(state.transform[2] * 100);
-
 export const Controls = ({ onFitView, onAutoLayout }: ControlsProps) => {
-  const { zoomIn, zoomOut, fitView } = useReactFlow();
+  const { fitView } = useReactFlow();
   const [showMinimap, setShowMinimap] = useAtom(showMinimapAtom);
-  const zoomPercent = useStore(zoomSelector);
-
-  const handleZoomIn = () => {
-    zoomIn();
-  };
-
-  const handleZoomOut = () => {
-    zoomOut();
-  };
 
   const handleFitView = () => {
     if (onFitView) {
@@ -45,33 +38,6 @@ export const Controls = ({ onFitView, onAutoLayout }: ControlsProps) => {
 
   return (
     <ButtonGroup orientation="vertical">
-      <Button
-        className={buttonClass}
-        onClick={handleZoomIn}
-        size="icon"
-        title="Zoom in"
-        variant="secondary"
-      >
-        <ZoomIn className="size-4" />
-      </Button>
-      <Button
-        className={`${buttonClass} text-[10px] font-medium tabular-nums`}
-        onClick={handleFitView}
-        size="icon"
-        title="Fit view"
-        variant="secondary"
-      >
-        {zoomPercent}%
-      </Button>
-      <Button
-        className={buttonClass}
-        onClick={handleZoomOut}
-        size="icon"
-        title="Zoom out"
-        variant="secondary"
-      >
-        <ZoomOut className="size-4" />
-      </Button>
       <Button
         className={buttonClass}
         onClick={handleFitView}
