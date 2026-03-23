@@ -25,7 +25,7 @@ group "default" {
 }
 
 group "events" {
-  targets = ["sc-event-tracker", "sc-event-worker", "event-executor"]
+  targets = ["sc-event-tracker", "sc-event-worker"]
 }
 
 group "scheduler" {
@@ -33,7 +33,7 @@ group "scheduler" {
 }
 
 group "all" {
-  targets = ["app", "migrator", "sc-event-tracker", "sc-event-worker", "event-executor", "schedule-dispatcher", "schedule-executor", "block-dispatcher"]
+  targets = ["app", "migrator", "sc-event-tracker", "sc-event-worker", "schedule-dispatcher", "schedule-executor", "block-dispatcher", "executor"]
 }
 
 target "app" {
