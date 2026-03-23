@@ -40,6 +40,7 @@ services:
     environment:
       - SERVICES=sqs
       - DEBUG=0
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN:-}
     volumes:
       - test_localstack_data:/var/lib/localstack
     healthcheck:
