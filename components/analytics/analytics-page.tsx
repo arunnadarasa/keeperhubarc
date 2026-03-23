@@ -58,7 +58,7 @@ function AuthGate({ error }: { error: string }): ReactNode {
 }
 
 export function AnalyticsPage(): ReactNode {
-  const { data: session } = useSession();
+  const { data: session, isPending } = useSession();
   const { loading, error, refetch } = useAnalytics();
   const summary = useAtomValue(analyticsSummaryAtom);
   const projectId = useAtomValue(analyticsProjectIdAtom);
@@ -82,6 +82,10 @@ export function AnalyticsPage(): ReactNode {
       });
     }
   }, [session, error, refetch]);
+
+  if (isPending) {
+    return null;
+  }
 
   const isAnonymous = !session?.user || session.user.isAnonymous;
   if (isAnonymous || error === "AUTH_REQUIRED") {

@@ -17,8 +17,39 @@ type Bounds = {
   height: number;
 };
 
-const FIXED_NODE_SIZE = 18;
+const DEFAULT_NODE_SIZE = 18;
+const MIN_NODE_SIZE = 10;
+const NODE_GAP = 4;
 const PADDING = 20;
+
+function computeNodeSize(
+  nodeCount: number,
+  bounds: Bounds,
+  width: number,
+  height: number
+): number {
+  if (nodeCount <= 4) {
+    return DEFAULT_NODE_SIZE;
+  }
+
+  // Find minimum distance between any two nodes to avoid overlap
+  const availW = width - PADDING * 2;
+  const availH = height - PADDING * 2;
+  const scaleX = bounds.width > 0 ? availW / bounds.width : 1;
+  const scaleY = bounds.height > 0 ? availH / bounds.height : 1;
+  const scale = Math.min(scaleX, scaleY);
+
+  // Max node size that fits without overlapping nearest neighbors
+  // Use bounds span / node count as a rough density measure
+  const avgSpacingX =
+    bounds.width > 0 ? (bounds.width * scale) / Math.sqrt(nodeCount) : availW;
+  const avgSpacingY =
+    bounds.height > 0 ? (bounds.height * scale) / Math.sqrt(nodeCount) : availH;
+  const avgSpacing = Math.min(avgSpacingX, avgSpacingY);
+  const maxSize = Math.max(MIN_NODE_SIZE, avgSpacing - NODE_GAP);
+
+  return Math.min(DEFAULT_NODE_SIZE, Math.floor(maxSize));
+}
 
 function calculateBounds(nodes: WorkflowNode[]): Bounds {
   if (nodes.length === 0) {
@@ -55,12 +86,14 @@ function MiniNode({
   posScale,
   offsetX,
   offsetY,
+  nodeSize,
 }: {
   node: WorkflowNode;
   bounds: Bounds;
   posScale: number;
   offsetX: number;
   offsetY: number;
+  nodeSize: number;
 }) {
   const x = ((node.position?.x ?? 0) - bounds.minX) * posScale + offsetX;
   const y = ((node.position?.y ?? 0) - bounds.minY) * posScale + offsetY;
@@ -73,10 +106,10 @@ function MiniNode({
           ? "fill-[var(--color-text-accent)]/60"
           : "fill-[var(--color-hub-node-bg)]"
       }
-      height={FIXED_NODE_SIZE}
-      rx={FIXED_NODE_SIZE * 0.15}
-      ry={FIXED_NODE_SIZE * 0.15}
-      width={FIXED_NODE_SIZE}
+      height={nodeSize}
+      rx={nodeSize * 0.15}
+      ry={nodeSize * 0.15}
+      width={nodeSize}
       x={x}
       y={y}
     />
@@ -90,6 +123,7 @@ function MiniEdge({
   posScale,
   offsetX,
   offsetY,
+  nodeSize,
 }: {
   edge: WorkflowEdge;
   nodes: WorkflowNode[];
@@ -97,6 +131,7 @@ function MiniEdge({
   posScale: number;
   offsetX: number;
   offsetY: number;
+  nodeSize: number;
 }) {
   const sourceNode = nodes.find((n) => n.id === edge.source);
   const targetNode = nodes.find((n) => n.id === edge.target);
@@ -108,18 +143,18 @@ function MiniEdge({
   const sourceX =
     ((sourceNode.position?.x ?? 0) - bounds.minX) * posScale +
     offsetX +
-    FIXED_NODE_SIZE;
+    nodeSize;
   const sourceY =
     ((sourceNode.position?.y ?? 0) - bounds.minY) * posScale +
     offsetY +
-    FIXED_NODE_SIZE / 2;
+    nodeSize / 2;
 
   const targetX =
     ((targetNode.position?.x ?? 0) - bounds.minX) * posScale + offsetX;
   const targetY =
     ((targetNode.position?.y ?? 0) - bounds.minY) * posScale +
     offsetY +
-    FIXED_NODE_SIZE / 2;
+    nodeSize / 2;
 
   const midX = (sourceX + targetX) / 2;
 
@@ -152,26 +187,27 @@ export function WorkflowMiniMap({
       >
         <rect
           className="fill-slate-300"
-          height={FIXED_NODE_SIZE}
+          height={DEFAULT_NODE_SIZE}
           rx={6}
-          width={FIXED_NODE_SIZE * 2}
-          x={width / 2 - FIXED_NODE_SIZE}
-          y={height / 2 - FIXED_NODE_SIZE / 2}
+          width={DEFAULT_NODE_SIZE * 2}
+          x={width / 2 - DEFAULT_NODE_SIZE}
+          y={height / 2 - DEFAULT_NODE_SIZE / 2}
         />
       </svg>
     );
   }
 
   const bounds = calculateBounds(nodes);
+  const nodeSize = computeNodeSize(nodes.length, bounds, width, height);
 
-  const availW = width - PADDING * 2 - FIXED_NODE_SIZE;
-  const availH = height - PADDING * 2 - FIXED_NODE_SIZE;
+  const availW = width - PADDING * 2 - nodeSize;
+  const availH = height - PADDING * 2 - nodeSize;
   const posScaleX = bounds.width > 0 ? availW / bounds.width : 1;
   const posScaleY = bounds.height > 0 ? availH / bounds.height : 1;
   const posScale = Math.min(posScaleX, posScaleY);
 
-  const scaledContentW = bounds.width * posScale + FIXED_NODE_SIZE;
-  const scaledContentH = bounds.height * posScale + FIXED_NODE_SIZE;
+  const scaledContentW = bounds.width * posScale + nodeSize;
+  const scaledContentH = bounds.height * posScale + nodeSize;
   const offsetX = (width - scaledContentW) / 2;
   const offsetY = (height - scaledContentH) / 2;
 
@@ -190,6 +226,7 @@ export function WorkflowMiniMap({
           bounds={bounds}
           edge={edge}
           key={edge.id}
+          nodeSize={nodeSize}
           nodes={nodes}
           offsetX={offsetX}
           offsetY={offsetY}
@@ -203,6 +240,7 @@ export function WorkflowMiniMap({
             bounds={bounds}
             key={node.id}
             node={node}
+            nodeSize={nodeSize}
             offsetX={offsetX}
             offsetY={offsetY}
             posScale={posScale}
