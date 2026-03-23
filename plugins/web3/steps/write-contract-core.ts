@@ -270,7 +270,7 @@ export async function writeContractCore(
     }
 
     logUserError(
-      ErrorCategory.NETWORK_RPC,
+      ErrorCategory.TRANSACTION,
       "[Write Contract] Sponsorship skipped (credits exhausted, chain unsupported, or client creation failed), falling back to direct signing",
       undefined,
       {
@@ -281,7 +281,7 @@ export async function writeContractCore(
     );
   } catch (error) {
     logUserError(
-      ErrorCategory.NETWORK_RPC,
+      ErrorCategory.TRANSACTION,
       "[Write Contract] Sponsorship attempted but failed, falling back to direct signing",
       error,
       {
