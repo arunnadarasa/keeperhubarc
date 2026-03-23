@@ -72,6 +72,16 @@ vi.mock("@/lib/explorer", () => ({
   getAddressUrl: () => "https://etherscan.io/address/0xabc",
 }));
 
+// Mock chain adapter
+const mockExecuteContractCall = vi.fn();
+const mockGetTransactionUrl = vi.fn();
+vi.mock("@/lib/web3/chain-adapter", () => ({
+  getChainAdapter: () => ({
+    executeContractCall: (...args: unknown[]) => mockExecuteContractCall(...args),
+    getTransactionUrl: (...args: unknown[]) => mockGetTransactionUrl(...args),
+  }),
+}));
+
 // Mock organization context
 const mockResolveOrgContext = vi.fn();
 vi.mock("@/lib/web3/resolve-org-context", () => ({
@@ -236,6 +246,12 @@ function setupMocks(): void {
         gasPrice: BigInt(25_000_000_000),
       }),
   });
+  mockExecuteContractCall.mockResolvedValue({
+    hash: "0xtxhash",
+    gasUsed: BigInt(45_000),
+    effectiveGasPrice: BigInt(25_000_000_000),
+  });
+  mockGetTransactionUrl.mockResolvedValue("https://etherscan.io/tx/0xtxhash");
 }
 
 beforeEach(() => {
