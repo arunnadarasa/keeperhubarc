@@ -170,14 +170,14 @@ services:
       - minikube
 
   # ===========================================================================
-  # Schedule Dispatcher (keeperhub-scheduler submodule)
+  # Schedule Dispatcher
   # Runs every minute to check for due schedules and send messages to SQS
   # ===========================================================================
   dispatcher:
     build:
-      context: ./keeperhub-scheduler
+      context: .
       dockerfile: Dockerfile
-      target: dispatcher
+      target: schedule-dispatcher
     image: keeperhub-dispatcher:latest
     container_name: keeperhub-dispatcher
     restart: unless-stopped
@@ -203,24 +203,24 @@ services:
     command: |
       sh -c 'while true; do
         echo "[Dispatcher] Running at $$(date)"
-        tsx scripts/scheduler/schedule-dispatcher.ts
+        tsx schedule-dispatcher/index.ts
         echo "[Dispatcher] Sleeping 60s..."
         sleep 60
       done'
     profiles:
-      - dev # Only in dev profile (not minikube - uses K8s CronJob)
+      - dev
 
   # ===========================================================================
-  # Schedule Executor (Direct execution for dev profile)
-  # Polls SQS and executes workflows directly (no K8s Jobs)
-  # NOTE: In minikube profile, job-spawner runs in K8s instead
+  # Unified Executor
+  # Polls SQS for all trigger types and executes workflows
+  # (in-process for web2/read-only, K8s Jobs for web3 writes)
   # ===========================================================================
   executor:
     build:
       context: .
       dockerfile: Dockerfile
-      target: scheduler
-    image: keeperhub-scheduler:latest
+      target: executor
+    image: keeperhub-executor:latest
     container_name: keeperhub-executor
     restart: unless-stopped
     working_dir: /app
@@ -231,8 +231,8 @@ services:
       AWS_SECRET_ACCESS_KEY: test
       AWS_ENDPOINT_URL: http://localstack:4566
       SQS_QUEUE_URL: http://localstack:4566/000000000000/keeperhub-workflow-queue
-      KEEPERHUB_URL: http://app-dev:3000
-      KEEPERHUB_API_KEY: ${KEEPERHUB_API_KEY:-local-scheduler-key-for-dev}
+      INTEGRATION_ENCRYPTION_KEY: ${INTEGRATION_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+      HEALTH_PORT: "3080"
     depends_on:
       db:
         condition: service_healthy
@@ -240,13 +240,6 @@ services:
         condition: service_healthy
       app-dev:
         condition: service_started
-    command: >
-      sh -c 'while true; do
-        echo "[Dispatcher] Running at $$(date)";
-        tsx schedule-dispatcher/index.ts;
-        echo "[Dispatcher] Sleeping 60s...";
-        sleep 60;
-      done'
     profiles:
       - dev
       - minikube
