@@ -18,7 +18,7 @@ jobs:
       dockerfiles: ${{ steps.filter.outputs.dockerfiles }}
       plugins: ${{ steps.filter.outputs.plugins }}
     steps:
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
