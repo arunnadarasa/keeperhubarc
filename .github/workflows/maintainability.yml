@@ -47,8 +47,8 @@ jobs:
       - name: Validate docker-compose.yml
         run: docker compose -f docker-compose.yml config --quiet
 
-      - name: Validate docker-compose.test.yml
-        run: docker compose -f docker-compose.test.yml config --quiet
+      - name: Validate docker-compose.yml test profile
+        run: docker compose -f docker-compose.yml --profile test config --quiet
 
   makefile-dry-run:
     name: Makefile Dry Run
@@ -250,13 +250,13 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Compare env vars across compose files
+      - name: Compare env vars between dev and test profiles
         run: |
-          # Extract env var names from each compose file
-          grep -oP '[A-Z_][A-Z0-9_]*(?=[:=])' docker-compose.yml \
-            | sort -u > /tmp/compose-dev-vars
-          grep -oP '[A-Z_][A-Z0-9_]*(?=[:=])' docker-compose.test.yml \
-            | sort -u > /tmp/compose-test-vars
+          # Extract env var names from dev and test profile configs
+          docker compose --profile dev config 2>/dev/null \
+            | grep -oP '[A-Z_][A-Z0-9_]*(?=[:=])' | sort -u > /tmp/compose-dev-vars
+          docker compose --profile test config 2>/dev/null \
+            | grep -oP '[A-Z_][A-Z0-9_]*(?=[:=])' | sort -u > /tmp/compose-test-vars
 
           # Vars in dev but not test
           dev_only=$(comm -23 /tmp/compose-dev-vars /tmp/compose-test-vars)
@@ -265,14 +265,14 @@ jobs:
           significant=$(echo "$dev_only" | grep -E '(API_KEY|API_URL|SERVICE_|_URL|_HOST|_PORT|ENCRYPTION|SECRET|PASSWORD|TOKEN)' || true)
 
           if [ -n "$significant" ]; then
-            echo "Operationally significant env vars in docker-compose.yml but missing from docker-compose.test.yml:"
+            echo "Operationally significant env vars in dev profile but missing from test profile:"
             echo "$significant" | while read -r var; do
               echo "  - $var"
             done
             echo ""
-            echo "::warning::Test compose may be missing service configuration that dev compose has"
+            echo "::warning::Test profile may be missing service configuration that dev profile has"
           else
-            echo "No significant env var gaps between compose files."
+            echo "No significant env var gaps between profiles."
           fi
 
   plugin-integrity:
