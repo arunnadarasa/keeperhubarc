@@ -12,6 +12,7 @@ import {
   enforceExecutionLimit,
 } from "@/lib/billing/execution-guard";
 import { checkConcurrencyLimit } from "@/app/api/execute/_lib/concurrency-limit";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { recordWebhookMetrics } from "@/lib/metrics/instrumentation/api";
 import { db } from "@/lib/db";
 import { validateWorkflowIntegrations } from "@/lib/db/integrations";
@@ -112,11 +113,7 @@ async function executeWorkflowBackground(
       .set({ runId: run.runId })
       .where(eq(workflowExecutions.id, executionId));
   } catch (error) {
-    console.error("[Webhook] Error during execution:", error);
-    console.error(
-      "[Webhook] Error stack:",
-      error instanceof Error ? error.stack : "N/A"
-    );
+    logSystemError(ErrorCategory.WORKFLOW_ENGINE, "[Webhook] Error during execution", error, { endpoint: "/api/workflows/[workflowId]/webhook", operation: "executeWorkflow" });
 
     await db
       .update(workflowExecutions)
@@ -202,10 +199,7 @@ export async function POST(
       workflow.userId
     );
     if (!validation.valid) {
-      console.error(
-        "[Webhook] Invalid integration references:",
-        validation.invalidIds
-      );
+      logSystemError(ErrorCategory.WORKFLOW_ENGINE, "[Webhook] Invalid integration references", new Error(String(validation.invalidIds)), { endpoint: "/api/workflows/[workflowId]/webhook", operation: "validateIntegrations" });
       recordWebhookMetrics({
         workflowId,
         durationMs: timer(),
@@ -299,7 +293,7 @@ export async function POST(
       { headers: corsHeaders }
     );
   } catch (error) {
-    console.error("[Webhook] Failed to start workflow execution:", error);
+    logSystemError(ErrorCategory.WORKFLOW_ENGINE, "[Webhook] Failed to start workflow execution", error, { endpoint: "/api/workflows/[workflowId]/webhook", operation: "post" });
 
     const { workflowId } = await context.params;
     recordWebhookMetrics({

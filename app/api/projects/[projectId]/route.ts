@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 
 export async function PATCH(
@@ -67,7 +68,12 @@ export async function PATCH(
       updatedAt: updated.updatedAt.toISOString(),
     });
   } catch (error) {
-    console.error("[Projects] Failed to update project:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "[Projects] Failed to update project",
+      error,
+      { endpoint: "/api/projects/[projectId]", operation: "update" }
+    );
     return NextResponse.json(
       {
         error:
@@ -111,7 +117,12 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("[Projects] Failed to delete project:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "[Projects] Failed to delete project",
+      error,
+      { endpoint: "/api/projects/[projectId]", operation: "delete" }
+    );
     return NextResponse.json(
       {
         error:

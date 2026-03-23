@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { member, sessions } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { getActiveOrgId } from "@/lib/middleware/org-context";
 
 type LeaveRequestBody = {
@@ -160,7 +161,10 @@ export async function POST(
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (err) {
-    console.error("Leave organization failed:", err);
+    logSystemError(ErrorCategory.DATABASE, "Leave organization failed", err, {
+      endpoint: "/api/organizations/[organizationId]/leave",
+      operation: "leave",
+    });
     return NextResponse.json(
       { error: "Failed to leave organization" },
       { status: 500 }

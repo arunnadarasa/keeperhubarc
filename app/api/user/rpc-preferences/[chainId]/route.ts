@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { getChainByChainId } from "@/lib/rpc/chain-service";
 import {
   deleteUserRpcPreference,
@@ -76,7 +77,10 @@ export async function GET(
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("Failed to get RPC config:", error);
+    logSystemError(ErrorCategory.DATABASE, "Failed to get RPC config", error, {
+      endpoint: "/api/user/rpc-preferences/[chainId]",
+      operation: "get",
+    });
     return NextResponse.json(
       {
         error: "Failed to get RPC config",
@@ -160,7 +164,12 @@ export async function PUT(
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("Failed to set RPC preference:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "Failed to set RPC preference",
+      error,
+      { endpoint: "/api/user/rpc-preferences/[chainId]", operation: "set" }
+    );
     return NextResponse.json(
       {
         error: "Failed to set RPC preference",
@@ -206,7 +215,12 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Failed to delete RPC preference:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "Failed to delete RPC preference",
+      error,
+      { endpoint: "/api/user/rpc-preferences/[chainId]", operation: "delete" }
+    );
     return NextResponse.json(
       {
         error: "Failed to delete RPC preference",
