@@ -116,7 +116,7 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.skip.outputs.skip_build != 'true' && steps.check-image.outputs.exists != 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build and push all images to ECR
         if: steps.skip.outputs.skip_build != 'true' && steps.check-image.outputs.exists != 'true'
