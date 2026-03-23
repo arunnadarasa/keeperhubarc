@@ -159,7 +159,7 @@ Then create the ruleset with the following JSON body via `gh api repos/$ARGUMENT
     }
   ],
   "bypass_actors": [
-    { "actor_id": TEAM_ID, "actor_type": "Team", "bypass_mode": "always" }
+    { "actor_id": TEAM_ID, "actor_type": "Team", "bypass_mode": "pull_request" }
   ]
 }
 ```
