@@ -74,14 +74,14 @@ describe("Chainlink Protocol Definition", () => {
     }
   });
 
-  it("has 14 actions (8 named feeds + 6 custom feed)", () => {
-    expect(chainlinkDef.actions).toHaveLength(14);
+  it("has 22 actions (8 named feeds x 2 + 6 custom feed)", () => {
+    expect(chainlinkDef.actions).toHaveLength(22);
   });
 
-  it("has 14 read actions and 0 write actions", () => {
+  it("has 22 read actions and 0 write actions", () => {
     const readActions = chainlinkDef.actions.filter((a) => a.type === "read");
     const writeActions = chainlinkDef.actions.filter((a) => a.type === "write");
-    expect(readActions).toHaveLength(14);
+    expect(readActions).toHaveLength(22);
     expect(writeActions).toHaveLength(0);
   });
 
@@ -144,6 +144,25 @@ describe("Chainlink Protocol Definition", () => {
       const action = chainlinkDef.actions.find((a) => a.slug === slug);
       expect(action, `action "${slug}" should exist`).toBeDefined();
       expect(action?.outputs).toHaveLength(5);
+    }
+  });
+
+  it("each named feed has a decimals action with 1 output", () => {
+    const feedSlugs = [
+      "eth-usd-decimals",
+      "btc-usd-decimals",
+      "link-usd-decimals",
+      "usdc-usd-decimals",
+      "dai-usd-decimals",
+      "usdt-usd-decimals",
+      "link-eth-decimals",
+      "btc-eth-decimals",
+    ];
+    for (const slug of feedSlugs) {
+      const action = chainlinkDef.actions.find((a) => a.slug === slug);
+      expect(action, `action "${slug}" should exist`).toBeDefined();
+      expect(action?.outputs).toHaveLength(1);
+      expect(action?.function).toBe("decimals");
     }
   });
 

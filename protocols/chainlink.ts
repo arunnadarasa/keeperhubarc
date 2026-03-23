@@ -68,21 +68,39 @@ const LATEST_ROUND_OUTPUTS: ProtocolAction["outputs"] = [
   { name: "answeredInRound", type: "uint80", label: "Answered In Round" },
 ];
 
-function feedAction(
+function feedActions(
   feedSlug: string,
   feedLabel: string,
   contractKey: string
-): ProtocolAction {
-  return {
-    slug: `${feedSlug}-latest-round-data`,
-    label: `Get ${feedLabel} Latest Round Data`,
-    description: `Get the latest price, round ID, and timestamps from the Chainlink ${feedLabel} feed`,
-    type: "read",
-    contract: contractKey,
-    function: "latestRoundData",
-    inputs: [],
-    outputs: LATEST_ROUND_OUTPUTS,
-  };
+): ProtocolAction[] {
+  return [
+    {
+      slug: `${feedSlug}-latest-round-data`,
+      label: `Get ${feedLabel} Latest Round Data`,
+      description: `Get the latest price, round ID, and timestamps from the Chainlink ${feedLabel} feed`,
+      type: "read",
+      contract: contractKey,
+      function: "latestRoundData",
+      inputs: [],
+      outputs: LATEST_ROUND_OUTPUTS,
+    },
+    {
+      slug: `${feedSlug}-decimals`,
+      label: `Get ${feedLabel} Decimals`,
+      description: `Get the number of decimals used by the Chainlink ${feedLabel} feed`,
+      type: "read",
+      contract: contractKey,
+      function: "decimals",
+      inputs: [],
+      outputs: [
+        {
+          name: "decimals",
+          type: "uint8",
+          label: "Decimals",
+        },
+      ],
+    },
+  ];
 }
 
 export default defineProtocol({
@@ -192,14 +210,14 @@ export default defineProtocol({
 
   actions: [
     // Pre-populated feed actions -- one-click, no address needed
-    feedAction("eth-usd", "ETH/USD", "ethUsd"),
-    feedAction("btc-usd", "BTC/USD", "btcUsd"),
-    feedAction("link-usd", "LINK/USD", "linkUsd"),
-    feedAction("usdc-usd", "USDC/USD", "usdcUsd"),
-    feedAction("dai-usd", "DAI/USD", "daiUsd"),
-    feedAction("usdt-usd", "USDT/USD", "usdtUsd"),
-    feedAction("link-eth", "LINK/ETH", "linkEth"),
-    feedAction("btc-eth", "BTC/ETH", "btcEth"),
+    ...feedActions("eth-usd", "ETH/USD", "ethUsd"),
+    ...feedActions("btc-usd", "BTC/USD", "btcUsd"),
+    ...feedActions("link-usd", "LINK/USD", "linkUsd"),
+    ...feedActions("usdc-usd", "USDC/USD", "usdcUsd"),
+    ...feedActions("dai-usd", "DAI/USD", "daiUsd"),
+    ...feedActions("usdt-usd", "USDT/USD", "usdtUsd"),
+    ...feedActions("link-eth", "LINK/ETH", "linkEth"),
+    ...feedActions("btc-eth", "BTC/ETH", "btcEth"),
 
     // Custom feed actions -- user provides any AggregatorV3 address
     {
