@@ -25,12 +25,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     const result = await scanAndCreateDebt();
     return NextResponse.json(result);
   } catch (error) {
-    logSystemError(
-      ErrorCategory.EXTERNAL_SERVICE,
-      "[Billing] Debt scan error",
-      error,
-      { endpoint: "/api/billing/debt-scan", operation: "post" }
-    );
+    logSystemError(ErrorCategory.DATABASE, "[Billing] Debt scan error", error, {
+      endpoint: "/api/billing/debt-scan",
+      operation: "post",
+    });
     return NextResponse.json({ error: "Debt scan failed" }, { status: 500 });
   }
 }

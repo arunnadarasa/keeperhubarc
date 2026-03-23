@@ -130,8 +130,10 @@ export function logUserError(
   );
 
   // Report to Sentry as warning-level (user errors are tracked but don't alert)
-  if (error instanceof Error) {
-    captureException(error, {
+  if (error !== undefined) {
+    const sentryError =
+      error instanceof Error ? error : new Error(String(error));
+    captureException(sentryError, {
       level: "warning",
       tags: {
         error_category: category,

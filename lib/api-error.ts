@@ -1,4 +1,3 @@
-import { captureException } from "@sentry/nextjs";
 import { NextResponse } from "next/server";
 
 /**
@@ -22,14 +21,6 @@ export function apiError(
   const stack = error instanceof Error ? error.stack : undefined;
 
   console.error(`[API] ${context}:`, message, stack ?? "");
-
-  // Report to Sentry for alerting
-  const sentryError =
-    error instanceof Error ? error : new Error(`${context}: ${message}`);
-  captureException(sentryError, {
-    tags: { error_context: context },
-    extra: { status },
-  });
 
   return NextResponse.json(
     {

@@ -78,12 +78,10 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    logSystemError(
-      ErrorCategory.INFRASTRUCTURE,
-      "Validate token error",
-      error,
-      { endpoint: "/api/validate-token", operation: "get" }
-    );
+    logSystemError(ErrorCategory.NETWORK_RPC, "Validate token error", error, {
+      endpoint: "/api/validate-token",
+      operation: "get",
+    });
     return NextResponse.json(
       { valid: false, error: "Not a valid ERC20 token" },
       { status: 200 }
