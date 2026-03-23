@@ -411,7 +411,7 @@ export const auth = betterAuth({
 
           // Notify Discord for OAuth signups (already verified at creation)
           if (user.emailVerified && process.env.DISCORD_WEBHOOK_SIGNUPS) {
-            notifyDiscordSignup(user);
+            await notifyDiscordSignup(user);
           }
         },
       },
