@@ -18,6 +18,7 @@ variable "EVENTS_ECR_TRACKER_REPO" { default = "" }
 variable "EVENTS_ECR_WORKER_REPO" { default = "" }
 variable "EVENTS_ECR_EXECUTOR_REPO" { default = "" }
 variable "SCHEDULER_ECR_REPO" { default = "" }
+variable "EXECUTOR_ECR_REPO" { default = "" }
 
 group "default" {
   targets = ["app", "migrator"]
@@ -157,4 +158,18 @@ target "block-dispatcher" {
   ]
   cache-to = ["type=registry,ref=${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:cache-block-dispatcher,mode=max"]
   attest   = []
+}
+
+target "executor" {
+  context    = "."
+  dockerfile = "Dockerfile"
+  target     = "executor"
+  tags = compact([
+    "${ECR_REGISTRY}/${EXECUTOR_ECR_REPO}:app-${IMAGE_TAG}",
+    "${ECR_REGISTRY}/${EXECUTOR_ECR_REPO}:app-latest",
+    ENVIRONMENT_TAG != "" ? "${ECR_REGISTRY}/${EXECUTOR_ECR_REPO}:${ENVIRONMENT_TAG}" : "",
+  ])
+  cache-from = ["type=registry,ref=${ECR_REGISTRY}/${EXECUTOR_ECR_REPO}:cache"]
+  cache-to   = ["type=registry,ref=${ECR_REGISTRY}/${EXECUTOR_ECR_REPO}:cache,mode=max"]
+  attest     = []
 }
