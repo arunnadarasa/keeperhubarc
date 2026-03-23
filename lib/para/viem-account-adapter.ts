@@ -14,8 +14,8 @@ import {
   hashTypedData,
   serializeTransaction,
 } from "viem/utils";
-import { decryptUserShare } from "@/keeperhub/lib/encryption";
-import { getOrganizationWallet } from "@/keeperhub/lib/para/wallet-helpers";
+import { decryptUserShare } from "@/lib/encryption";
+import { getOrganizationWallet } from "@/lib/para/wallet-helpers";
 
 type ParaWalletRecord = {
   userId: string;

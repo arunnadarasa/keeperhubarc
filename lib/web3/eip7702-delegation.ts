@@ -2,9 +2,9 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import type { Address, Hex } from "viem";
 import { createPublicClient, http } from "viem";
-import { gasSponsorshipDelegations } from "@/keeperhub/db/schema-extensions";
-import { getSimpleAccount7702Address } from "@/keeperhub/lib/web3/pimlico-config";
+import { gasSponsorshipDelegations } from "@/db/schema-extensions";
 import { db } from "@/lib/db";
+import { getSimpleAccount7702Address } from "@/lib/web3/pimlico-config";
 
 /**
  * Check if an EOA already has EIP-7702 delegation active on a given chain.

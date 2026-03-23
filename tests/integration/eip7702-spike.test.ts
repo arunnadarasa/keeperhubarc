@@ -116,9 +116,9 @@ describe.skipIf(!HAS_PARA)("Scenario B: Para signer accepts type-4 RLP", () => {
       const { Environment, Para: ParaServer } = await import(
         "@getpara/server-sdk"
       );
-      const { decryptUserShare } = await import("@/keeperhub/lib/encryption");
+      const { decryptUserShare } = await import("@/lib/encryption");
       const { getOrganizationWallet } = await import(
-        "@/keeperhub/lib/para/wallet-helpers"
+        "@/lib/para/wallet-helpers"
       );
 
       const orgId = process.env.TEST_ORG_ID;
@@ -145,7 +145,8 @@ describe.skipIf(!HAS_PARA)("Scenario B: Para signer accepts type-4 RLP", () => {
       const provider = new ethers.JsonRpcProvider(
         "https://base-sepolia-rpc.publicnode.com"
       );
-      const paraSigner = new ParaEthersSigner(paraClient, provider);
+      // biome-ignore lint/suspicious/noExplicitAny: Para server-sdk type incompatibility with core-sdk ParaCore after SDK upgrade
+      const paraSigner = new ParaEthersSigner(paraClient as any, provider);
       const signerAddress = await paraSigner.getAddress();
 
       // Local key for authorization signing -- we're testing Para's ability
@@ -225,9 +226,9 @@ describe.skipIf(!HAS_ALL)(
         const { getPrivateKey } = await import(
           "@getpara/server-sdk/dist/esm/wallet/privateKey.js"
         );
-        const { decryptUserShare } = await import("@/keeperhub/lib/encryption");
+        const { decryptUserShare } = await import("@/lib/encryption");
         const { getOrganizationWallet } = await import(
-          "@/keeperhub/lib/para/wallet-helpers"
+          "@/lib/para/wallet-helpers"
         );
 
         const orgId = process.env.TEST_ORG_ID;
