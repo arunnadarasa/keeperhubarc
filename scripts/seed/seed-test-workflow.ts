@@ -11,8 +11,41 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { getDatabaseUrl } from "../../lib/db/connection-utils";
-import { member, users, workflows } from "../../lib/db/schema";
+import {
+  member,
+  publicTags,
+  users,
+  workflowPublicTags,
+  workflows,
+} from "../../lib/db/schema";
 import { generateId } from "../../lib/utils/id";
+
+const SEED_TAGS = [
+  { name: "Security", slug: "security" },
+  { name: "DeFi", slug: "defi" },
+  { name: "Monitoring", slug: "monitoring" },
+  { name: "Alerts", slug: "alerts" },
+  { name: "Treasury", slug: "treasury" },
+] as const;
+
+const WORKFLOW_TAGS: Record<string, string[]> = {
+  "Security: Transaction Risk Scanner": ["Security", "DeFi", "Monitoring"],
+  "Security: Unlimited Approval Detector": ["Security", "DeFi", "Alerts"],
+  "Security: Ownership Transfer Alert": [
+    "Security",
+    "Alerts",
+    "Monitoring",
+    "DeFi",
+  ],
+  "Security: Treasury Balance Monitor": [
+    "Monitoring",
+    "Treasury",
+    "Alerts",
+    "Security",
+    "DeFi",
+  ],
+  "Security: Low-Risk Baseline (ERC-20 Transfer)": ["Security", "DeFi"],
+};
 
 const connectionString = getDatabaseUrl();
 const client = postgres(connectionString, { max: 1 });
@@ -427,7 +460,31 @@ async function seed(): Promise<void> {
   const orgId = existingMember[0].organizationId;
   console.log(`  + Organization: ${orgId}\n`);
 
-  // 5. Workflows
+  // 5. Ensure public tags exist
+  const tagIdByName = new Map<string, string>();
+  for (const tag of SEED_TAGS) {
+    const existing = await db
+      .select({ id: publicTags.id })
+      .from(publicTags)
+      .where(eq(publicTags.slug, tag.slug))
+      .limit(1);
+
+    if (existing[0]) {
+      tagIdByName.set(tag.name, existing[0].id);
+      console.log(`  Tag exists: ${tag.name} (${existing[0].id})`);
+    } else {
+      const id = generateId();
+      await db.insert(publicTags).values({
+        id,
+        name: tag.name,
+        slug: tag.slug,
+      });
+      tagIdByName.set(tag.name, id);
+      console.log(`  + Tag: ${tag.name} (${id})`);
+    }
+  }
+
+  // 6. Workflows
   const workflowDefs = buildWorkflows();
   const createdIds: string[] = [];
 
@@ -443,19 +500,35 @@ async function seed(): Promise<void> {
         organizationId: orgId,
         nodes: def.nodes,
         edges: def.edges,
-        visibility: "private",
+        visibility: "public",
+        featured: true,
         enabled: true,
         createdAt: now,
         updatedAt: now,
       })
       .onConflictDoNothing();
     createdIds.push(id);
-    console.log(`  + ${def.name}`);
+
+    // Associate public tags
+    const tagNames = WORKFLOW_TAGS[def.name] ?? [];
+    for (const tagName of tagNames) {
+      const tagId = tagIdByName.get(tagName);
+      if (tagId) {
+        await db
+          .insert(workflowPublicTags)
+          .values({ workflowId: id, publicTagId: tagId })
+          .onConflictDoNothing();
+      }
+    }
+
+    console.log(
+      `  + ${def.name} (${tagNames.length} tags)`
+    );
     console.log(`    http://localhost:3000/workflows/${id}`);
   }
 
   console.log(
-    `\nDone! Created ${createdIds.length} security workflow templates.`
+    `\nDone! Created ${createdIds.length} security workflow templates with tags.`
   );
 
   await client.end();

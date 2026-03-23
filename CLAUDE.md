@@ -5,7 +5,7 @@
 - **No Emojis**: NEVER use emojis in any code, documentation, README files, PR descriptions, commit messages, or any other text output. This rule applies to ALL generated content without exception.
 - **No File Structure**: Do not include file/folder structure diagrams in README files
 - **No Random Documentation**: Do not create markdown documentation files unless explicitly requested by the user. This includes integration guides, feature documentation, or any other .md files
-- **`docs/` is public-facing**: The `docs/` directory is published to docs.keeperhub.com. Never put internal specs, notes, or working documents there. Internal documentation and specs go in `keeperhub/specs/`
+- **`docs/` is public-facing**: The `docs/` directory is published to docs.keeperhub.com. Never put internal specs, notes, or working documents there. Internal documentation and specs go in `specs/`
 - **No co-authored with Claude in PR descriptions and git commits**
 - **Do not git push or create Github PRs without user's confirmation**
 - **Do not leave code comments with summaries of user's prompt**
@@ -102,16 +102,16 @@ When you must use an ignore comment:
 
 ## Design System
 
-Before writing or modifying any UI code, read the relevant spec file in `keeperhub/specs/design-system/`. Use only tokens from `keeperhub/specs/design-system/tokens.css`. Run `node scripts/token-audit.js` before committing UI changes. Zero errors required.
+Before writing or modifying any UI code, read the relevant spec file in `specs/design-system/`. Use only tokens from `specs/design-system/tokens.css`. Run `node scripts/token-audit.js` before committing UI changes. Zero errors required.
 
 ### Key Rules
 
-1. **Read the spec first**: Check `keeperhub/specs/design-system/foundations/` for color, spacing, typography, radius, elevation, and motion tokens. Check `keeperhub/specs/design-system/components/` for component-specific specs.
+1. **Read the spec first**: Check `specs/design-system/foundations/` for color, spacing, typography, radius, elevation, and motion tokens. Check `specs/design-system/components/` for component-specific specs.
 2. **Use tokens, not raw values**: Never use hardcoded hex colors, rgb/rgba values, or arbitrary pixel values. Reference semantic tokens from `tokens.css`.
 3. **Tailwind classes over arbitrary values**: Use `bg-primary`, `text-muted-foreground`, `border-border` instead of `bg-[#xxx]`, `text-[#xxx]`.
 4. **Hub-specific dark surfaces**: Use `--color-hub-card`, `--color-hub-icon-bg`, etc. for protocol/hub pages.
 5. **Layout constants**: Use `--header-height`, `--flyout-width`, `--sidebar-strip-width` instead of `top-[60px]`, `w-[280px]`, `w-[32px]`.
-6. **Token reference**: See `keeperhub/specs/design-system/tokens/token-reference.md` for the complete token map with usage guidance.
+6. **Token reference**: See `specs/design-system/tokens/token-reference.md` for the complete token map with usage guidance.
 
 ### Audit Script
 

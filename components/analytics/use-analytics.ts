@@ -11,7 +11,6 @@ import type {
 import {
   analyticsErrorAtom,
   analyticsLastUpdatedAtom,
-  analyticsLiveAtom,
   analyticsLoadingAtom,
   analyticsNetworksAtom,
   analyticsProjectIdAtom,
@@ -87,7 +86,6 @@ export function useAnalytics(): UseAnalyticsReturn {
   const statusFilter = useAtomValue(analyticsStatusFilterAtom);
   const sourceFilter = useAtomValue(analyticsSourceFilterAtom);
   const projectId = useAtomValue(analyticsProjectIdAtom);
-  const [live, setLive] = useAtom(analyticsLiveAtom);
   const [loading, setLoading] = useAtom(analyticsLoadingAtom);
   const [error, setError] = useAtom(analyticsErrorAtom);
 
@@ -281,7 +279,6 @@ export function useAnalytics(): UseAnalyticsReturn {
 
     source.onerror = (): void => {
       cleanupSSE();
-      setLive(false);
       startPolling();
     };
 
@@ -292,7 +289,6 @@ export function useAnalytics(): UseAnalyticsReturn {
     cleanupSSE,
     setSummary,
     setLastUpdated,
-    setLive,
     startPolling,
     fetchData,
   ]);
@@ -321,20 +317,15 @@ export function useAnalytics(): UseAnalyticsReturn {
     });
   }, [activeOrgId, fetchData]);
 
-  // Manage SSE / polling based on live state
+  // SSE for real-time updates, falls back to polling on error
   useEffect(() => {
-    if (live) {
-      startSSE();
-    } else {
-      cleanupSSE();
-      startPolling();
-    }
+    startSSE();
 
     return (): void => {
       cleanupSSE();
       cleanupPolling();
     };
-  }, [live, startSSE, cleanupSSE, startPolling, cleanupPolling]);
+  }, [startSSE, cleanupSSE, cleanupPolling]);
 
   return { loading, error, refetch: fetchData };
 }
