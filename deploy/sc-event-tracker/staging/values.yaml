@@ -31,12 +31,12 @@ resources:
     memory: 512Mi
   requests:
     cpu: 50m
-    memory: 384Mi
+    memory: 128Mi
 
 env:
   NODE_ENV:
     type: kv
-    value: "production"
+    value: "staging"
   LOG_LEVEL:
     type: kv
     value: "info"
@@ -70,23 +70,33 @@ env:
     type: parameterStore
     name: etherscan-api-key
     parameter_name: /eks/techops-staging/keeperhub/etherscan-api-key
+  EXECUTION_MODE:
+    type: kv
+    value: "worker"
+  SQS_QUEUE_URL:
+    type: parameterStore
+    name: sqs-queue-url
+    parameter_name: /eks/techops-staging/keeperhub-events/sqs-queue-url
+  AWS_REGION:
+    type: kv
+    value: "us-east-1"
 
 externalSecrets:
   clusterSecretStoreName: techops-staging
 
 livenessProbe:
-  initialDelaySeconds: 10
+  initialDelaySeconds: 30
   periodSeconds: 30
   exec:
     command:
-      - node
-      - -e
-      - "process.exit(0)"
+      - /bin/sh
+      - -c
+      - "pgrep -f 'src/index.ts' || exit 1"
 readinessProbe:
   initialDelaySeconds: 10
-  periodSeconds: 30
+  periodSeconds: 10
   exec:
     command:
-      - node
-      - -e
-      - "process.exit(0)"
+      - /bin/sh
+      - -c
+      - "pgrep -f 'src/index.ts' || exit 1"

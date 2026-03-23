@@ -36,7 +36,7 @@ resources:
 env:
   NODE_ENV:
     type: kv
-    value: "production"
+    value: "staging"
   LOG_LEVEL:
     type: kv
     value: "info"
