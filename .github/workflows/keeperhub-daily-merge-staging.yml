@@ -107,7 +107,7 @@ jobs:
       - name: Notify Discord (Success)
         if: steps.merge_process.outputs.merge_status == 'success'
         env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_GITHUB }}
         run: |
           curl -H "Content-Type: application/json" \
           -d "{\"username\": \"KeeperHub Merge Bot\", \"content\": \"**Daily Merge Successful**\n\nBranch \`main\` has been merged into \`staging\`.\nLockfiles were automatically regenerated.\"}" \
@@ -116,7 +116,7 @@ jobs:
       - name: Notify Discord (No Changes)
         if: steps.merge_process.outputs.merge_status == 'no_changes'
         env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_GITHUB }}
         run: |
           curl -H "Content-Type: application/json" \
           -d "{\"username\": \"KeeperHub Merge Bot\", \"content\": \"**Daily Merge Check Complete**\n\nNo changes to merge - \`staging\` is already up to date with \`main\`.\"}" \
@@ -125,7 +125,7 @@ jobs:
       - name: Notify Discord (Conflict/Failure)
         if: steps.merge_process.outputs.merge_status == 'conflict' || failure()
         env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_GITHUB }}
         run: |
           curl -H "Content-Type: application/json" \
           -d "{\"username\": \"KeeperHub Merge Bot\", \"content\": \"**Daily Merge Failed**\n\nManual intervention required.\nThere are conflicts in files other than the lockfile.\n\nPlease merge \`main\` into \`staging\` manually.\"}" \
