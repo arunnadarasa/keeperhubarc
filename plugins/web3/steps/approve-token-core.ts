@@ -134,8 +134,9 @@ export async function approveTokenCore(
 
   // Resolve RPC config (with failover)
   let rpcUrl: string;
+  let rpcManager: Awaited<ReturnType<typeof getRpcProvider>>;
   try {
-    const rpcManager = await getRpcProvider({ chainId, userId });
+    rpcManager = await getRpcProvider({ chainId, userId });
     rpcUrl = await rpcManager.resolveActiveRpcUrl();
   } catch (error) {
     logUserError(
@@ -185,6 +186,7 @@ export async function approveTokenCore(
     chainId,
     rpcUrl,
     triggerType: _context.triggerType as TransactionContext["triggerType"],
+    rpcManager,
   };
 
   const adapter = getChainAdapter(chainId);
