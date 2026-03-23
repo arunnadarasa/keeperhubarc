@@ -291,7 +291,6 @@ jobs:
           envsubst < deploy/pr-environment/scheduler-dispatcher.template.yaml > ${{ github.workspace }}/scheduler-dispatcher-pr-${{ env.PR_NUMBER }}.yaml
           envsubst < deploy/pr-environment/scheduler-executor.template.yaml > ${{ github.workspace }}/scheduler-executor-pr-${{ env.PR_NUMBER }}.yaml
           envsubst < deploy/pr-environment/event-tracker.template.yaml > ${{ github.workspace }}/event-tracker-pr-${{ env.PR_NUMBER }}.yaml
-          envsubst < deploy/pr-environment/event-worker.template.yaml > ${{ github.workspace }}/event-worker-pr-${{ env.PR_NUMBER }}.yaml
 
       - name: Clean up stale Helm releases
         run: |
@@ -338,7 +337,6 @@ jobs:
           (
             helm upgrade --install events-worker-pr-${PR_NUMBER} \
               techops-services/common \
-              -f ${GITHUB_WORKSPACE}/event-worker-pr-${PR_NUMBER}.yaml \
               "${COMMON_ARGS[@]}"
           ) > "${LOGDIR}/events-worker.log" 2>&1 &
           PID3=$!

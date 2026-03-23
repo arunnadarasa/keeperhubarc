@@ -7,7 +7,6 @@ A comprehensive event tracking and processing system for the KeeperHub smart con
 This repository contains two main services:
 
 - **event-tracker**: Monitors blockchain events and synchronizes them with the system
-- **event-worker**: Processes synchronized event data and dispatch workflows executions
 
 The system is designed to run in multiple deployment modes: local development, Docker Compose (with hybrid Minikube support), and full Kubernetes production environments.
 
@@ -87,7 +86,6 @@ The system is designed to run in multiple deployment modes: local development, D
 | `docker-compose down`                     | Stop and remove all containers   |
 | `docker-compose logs -f`                  | Follow logs from all services    |
 | `docker-compose logs -f event-tracker` | Follow tracker logs              |
-| `docker-compose logs -f event-worker`  | Follow worker logs               |
 | `docker-compose restart`                  | Restart all services             |
 | `docker-compose build --no-cache`         | Rebuild images without cache     |
 
@@ -96,7 +94,6 @@ The system is designed to run in multiple deployment modes: local development, D
 | Service            | Port | Description                                         |
 | ------------------ | ---- | --------------------------------------------------- |
 | `redis`            | 6379 | Redis for synchronization between tracker instances |
-| `event-worker`  | 3010 | Fetches workflows and dispatches executions         |
 | `event-tracker` | -    | Monitors blockchain events                          |
 
 ### Environment Variables
@@ -113,14 +110,12 @@ keeperhub-events/
 │   ├── Dockerfile
 │   ├── package.json
 │   └── src/
-├── event-worker/            # Event worker service
 │   ├── Dockerfile
 │   ├── package.json
 │   └── src/
 ├── deploy/                     # Deployment configurations
 │   ├── local/                  # Local/Minikube deployment
 │   ├── event-tracker/       # Kubernetes values
-│   └── event-worker/        # Kubernetes values
 └── workflows/                  # GitHub Actions workflows
 ```
 

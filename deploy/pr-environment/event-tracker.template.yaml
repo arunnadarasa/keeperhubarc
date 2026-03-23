@@ -50,7 +50,6 @@ env:
   KEEPERHUB_API_URL:
     type: kv
     value: "http://keeperhub-pr-${PR_NUMBER}-common:3000"
-  WORKER_URL:
     type: kv
     value: "http://events-worker-pr-${PR_NUMBER}-common:3010"
   REDIS_HOST:

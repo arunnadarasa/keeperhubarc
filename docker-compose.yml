@@ -271,41 +271,6 @@ services:
       - minikube
 
   # ===========================================================================
-  # Event Worker (keeperhub-events submodule)
-  # Fetches workflows from KeeperHub API and dispatches executions
-  # ===========================================================================
-  event-worker:
-    build:
-      context: ./keeperhub-events
-      dockerfile: event-worker/Dockerfile
-    container_name: keeperhub-event-worker
-    hostname: event-worker
-    restart: unless-stopped
-    ports:
-      - "3010:3010"
-    environment:
-      WATCH_MODE: "true"
-      PORT: 3010
-      TIMEOUT_BETWEEN_SYNC: 30000
-      KEEPERHUB_API_URL: http://keeperhub:3000
-      KEEPERHUB_API_KEY: ${KEEPERHUB_API_KEY:-local-events-key-for-dev}
-      JWT_TOKEN_USERNAME: ${JWT_TOKEN_USERNAME:-}
-      JWT_TOKEN_PASSWORD: ${JWT_TOKEN_PASSWORD:-}
-      NODE_ENV: development
-    depends_on:
-      app-dev:
-        condition: service_started
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3010/data"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    profiles:
-      - dev
-      - minikube
-
-  # ===========================================================================
   # Event Tracker (keeperhub-events)
   # Monitors blockchain events and routes to SQS for unified executor
   # ===========================================================================
@@ -318,12 +283,11 @@ services:
     environment:
       WATCH_MODE: "true"
       KEEPERHUB_API_URL: http://keeperhub:3000
-      WORKER_URL: http://event-worker:3010
+      KEEPERHUB_API_KEY: ${KEEPERHUB_API_KEY:-local-events-key-for-dev}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       JWT_TOKEN_USERNAME: ${JWT_TOKEN_USERNAME:-}
       JWT_TOKEN_PASSWORD: ${JWT_TOKEN_PASSWORD:-}
-      KEEPERHUB_API_KEY: ${KEEPERHUB_API_KEY:-local-events-key-for-dev}
       ETHERSCAN_API_KEY: ${ETHERSCAN_API_KEY:-}
       SQS_QUEUE_URL: http://localstack:4566/000000000000/keeperhub-workflow-queue
       AWS_REGION: us-east-1
@@ -336,8 +300,8 @@ services:
         condition: service_started
       localstack:
         condition: service_healthy
-      event-worker:
-        condition: service_healthy
+      app-dev:
+        condition: service_started
     profiles:
       - dev
       - minikube

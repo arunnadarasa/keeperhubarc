@@ -5,7 +5,6 @@ import {
   JWT_TOKEN_USERNAME,
   KEEPERHUB_API_URL,
   SQS_QUEUE_URL,
-  WORKER_URL,
 } from "../../lib/config/environment";
 import { sqs } from "../../lib/sqs-client";
 import type { WorkflowEvent } from "../../lib/models/workflow-event";
@@ -80,20 +79,6 @@ export class AbstractChain {
       return true;
     } catch (error: any) {
       logger.error(`Error enqueuing workflow to SQS: ${error.message}`);
-      return false;
-    }
-  }
-
-  async getWorkflowByKeeper(keeperId: string): Promise<any> {
-    try {
-      const url = `${WORKER_URL}/workflow/${keeperId}`;
-
-      const { data } = await axios.get(url);
-      logger.log(`Workflow: ${JSON.stringify(data)}`);
-
-      return data;
-    } catch (error: any) {
-      logger.error(`Error notifying target ${keeperId}: ${error.message}`);
       return false;
     }
   }

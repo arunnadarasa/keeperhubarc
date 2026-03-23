@@ -15,7 +15,6 @@ variable "NEXT_PUBLIC_GOOGLE_CLIENT_ID" { default = "" }
 variable "NEXT_PUBLIC_BILLING_ENABLED" { default = "" }
 variable "ENVIRONMENT_TAG" { default = "" }
 variable "EVENTS_ECR_TRACKER_REPO" { default = "" }
-variable "EVENTS_ECR_WORKER_REPO" { default = "" }
 variable "SCHEDULER_ECR_REPO" { default = "" }
 variable "EXECUTOR_ECR_REPO" { default = "" }
 
@@ -24,7 +23,7 @@ group "default" {
 }
 
 group "events" {
-  targets = ["event-tracker", "event-worker"]
+  targets = ["event-tracker"]
 }
 
 group "scheduler" {
@@ -32,7 +31,7 @@ group "scheduler" {
 }
 
 group "all" {
-  targets = ["app", "migrator", "event-tracker", "event-worker", "schedule-dispatcher", "schedule-executor", "block-dispatcher", "executor"]
+  targets = ["app", "migrator", "event-tracker", "schedule-dispatcher", "schedule-executor", "block-dispatcher", "executor"]
 }
 
 target "app" {
@@ -79,19 +78,6 @@ target "event-tracker" {
   ])
   cache-from = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:cache"]
   cache-to   = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:cache,mode=max"]
-  attest     = []
-}
-
-target "event-worker" {
-  context    = "./keeperhub-events"
-  dockerfile = "event-worker/Dockerfile"
-  tags = compact([
-    "${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:app-${IMAGE_TAG}",
-    "${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:app-latest",
-    ENVIRONMENT_TAG != "" ? "${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:${ENVIRONMENT_TAG}" : "",
-  ])
-  cache-from = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:cache"]
-  cache-to   = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:cache,mode=max"]
   attest     = []
 }
 

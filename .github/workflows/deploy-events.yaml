@@ -1,6 +1,6 @@
-# Type: standalone | Builds and deploys events services (tracker, worker).
+# Type: standalone | Builds and deploys the event tracker.
 # Runs independently from ci-pipeline.yml because events has no shared code
-# with the main app, no e2e tests, and its own ECR repos.
+# with the main app, no e2e tests, and its own ECR repo.
 on:
   push:
     branches:
@@ -9,7 +9,6 @@ on:
     paths:
       - "keeperhub-events/**"
       - "deploy/event-tracker/**"
-      - "deploy/event-worker/**"
       - ".github/workflows/deploy-events.yaml"
   workflow_dispatch:
 
@@ -33,9 +32,7 @@ jobs:
       ENVIRONMENT_TAG: ${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
       NAMESPACE: keeperhub
       TRACKER_ECR_NAME: event-tracker-${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
-      WORKER_ECR_NAME: event-worker-${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
       TRACKER_HELM_FILE: deploy/event-tracker/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/values.yaml
-      WORKER_HELM_FILE: deploy/event-worker/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/values.yaml
 
     steps:
       - name: Checkout
@@ -71,29 +68,25 @@ jobs:
         run: |
           echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Check if events images already exist
+      - name: Check if tracker image already exists
         if: steps.skip.outputs.skip_build == 'true'
-        id: check-image
         run: |
           IMAGE_TAG="${{ steps.vars.outputs.sha_short }}"
-          for repo in "$TRACKER_ECR_NAME" "$WORKER_ECR_NAME"; do
-            if ! aws ecr describe-images \
-              --repository-name "$repo" \
-              --image-ids "imageTag=app-${IMAGE_TAG}" \
-              --region "${{ env.REGION }}" >/dev/null 2>&1; then
-              echo "::error::Cannot skip build: app-${IMAGE_TAG} not found in ${repo}. Remove [skip build] or push a build first."
-              exit 1
-            fi
-            echo "app-${IMAGE_TAG} exists in ${repo}"
-          done
+          if ! aws ecr describe-images \
+            --repository-name "$TRACKER_ECR_NAME" \
+            --image-ids "imageTag=app-${IMAGE_TAG}" \
+            --region "${{ env.REGION }}" >/dev/null 2>&1; then
+            echo "::error::Cannot skip build: app-${IMAGE_TAG} not found in ${TRACKER_ECR_NAME}. Remove [skip build] or push a build first."
+            exit 1
+          fi
+          echo "app-${IMAGE_TAG} exists in ${TRACKER_ECR_NAME}"
 
-      - name: Build and push events images
+      - name: Build and push event tracker image
         if: steps.skip.outputs.skip_build != 'true'
         uses: docker/bake-action@v6
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           EVENTS_ECR_TRACKER_REPO: ${{ env.TRACKER_ECR_NAME }}
-          EVENTS_ECR_WORKER_REPO: ${{ env.WORKER_ECR_NAME }}
           IMAGE_TAG: ${{ steps.vars.outputs.sha_short }}
           ENVIRONMENT_TAG: ${{ env.ENVIRONMENT_TAG }}
         with:
@@ -101,16 +94,14 @@ jobs:
           targets: events
           push: true
 
-      - name: Replace variables in Helm values files
+      - name: Replace variables in Helm values file
         if: steps.skip.outputs.skip_deploy != 'true'
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ steps.vars.outputs.sha_short }}
         run: |
-          for f in "$TRACKER_HELM_FILE" "$WORKER_HELM_FILE"; do
-            sed -i "s|\${ECR_REGISTRY}|${ECR_REGISTRY}|g" "$f"
-            sed -i "s|\${IMAGE_TAG}|${IMAGE_TAG}|g" "$f"
-          done
+          sed -i "s|\${ECR_REGISTRY}|${ECR_REGISTRY}|g" "$TRACKER_HELM_FILE"
+          sed -i "s|\${IMAGE_TAG}|${IMAGE_TAG}|g" "$TRACKER_HELM_FILE"
 
       - name: Configure kubectl
         if: steps.skip.outputs.skip_deploy != 'true'
@@ -121,20 +112,6 @@ jobs:
         if: steps.skip.outputs.skip_deploy != 'true'
         run: |
           kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
-
-      - name: Deploy event-worker
-        if: steps.skip.outputs.skip_deploy != 'true'
-        uses: bitovi/github-actions-deploy-eks-helm@v1.2.12
-        with:
-          cluster-name: ${{ env.CLUSTER_NAME }}
-          config-files: ${{ env.WORKER_HELM_FILE }}
-          chart-path: techops-services/common
-          namespace: ${{ env.NAMESPACE }}
-          timeout: 5m0s
-          name: keeperhub-events-worker
-          chart-repository: https://techops-services.github.io/helm-charts
-          version: 0.2.1
-          atomic: true
 
       - name: Deploy event-tracker
         if: steps.skip.outputs.skip_deploy != 'true'
@@ -149,4 +126,3 @@ jobs:
           chart-repository: https://techops-services.github.io/helm-charts
           version: 0.2.1
           atomic: true
-

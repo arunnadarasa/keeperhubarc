@@ -208,7 +208,6 @@ dev-up:
 	@echo "  - redis (caching + event sync)"
 	@echo "  - app-dev (KeeperHub)"
 	@echo "  - dispatcher (schedule polling)"
-	@echo "  - event-worker (blockchain event dispatch)"
 	@echo "  - event-tracker (blockchain event monitoring)"
 	@echo ""
 	@echo "Note: Scheduled workflow execution requires hybrid mode (make hybrid-deploy)"

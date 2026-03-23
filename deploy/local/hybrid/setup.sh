@@ -129,7 +129,6 @@ show_status() {
     echo "  - redis (caching + event sync)"
     echo "  - app-dev (KeeperHub Next.js)"
     echo "  - dispatcher (schedule polling)"
-    echo "  - event-worker (blockchain event dispatch)"
     echo "  - event-tracker (blockchain event monitoring)"
     echo ""
     echo "Services running in Minikube:"
