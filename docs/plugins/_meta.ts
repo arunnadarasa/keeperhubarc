@@ -7,6 +7,7 @@ export default {
   "aave-v3": "Aave V3",
   aerodrome: "Aerodrome",
   ajna: "Ajna",
+  chainlink: "Chainlink",
   compound: "Compound V3",
   cowswap: "CoW Swap",
   curve: "Curve",

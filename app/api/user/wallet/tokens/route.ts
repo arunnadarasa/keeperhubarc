@@ -6,6 +6,7 @@ import { apiError } from "@/lib/api-error";
 import ERC20_ABI from "@/lib/contracts/abis/erc20.json";
 import { db } from "@/lib/db";
 import { chains, organizationTokens, supportedTokens } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 import { organizationHasWallet } from "@/lib/para/wallet-helpers";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
@@ -167,7 +168,12 @@ export async function POST(request: Request) {
         }
       );
     } catch (error) {
-      console.error("[Tokens] Failed to fetch token metadata:", error);
+      logSystemError(
+        ErrorCategory.EXTERNAL_SERVICE,
+        "[Tokens] Failed to fetch token metadata",
+        error,
+        { endpoint: "/api/user/wallet/tokens", operation: "fetchTokenMetadata" }
+      );
       return NextResponse.json(
         { error: "Failed to fetch token metadata. Is this a valid ERC20?" },
         { status: 400 }

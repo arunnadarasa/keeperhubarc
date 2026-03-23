@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { workflows } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { getOrgContext } from "@/lib/middleware/org-context";
 
 export async function POST(
@@ -55,7 +56,7 @@ export async function POST(
 
     return NextResponse.json(updatedWorkflow);
   } catch (error) {
-    console.error("Failed to claim workflow:", error);
+    logSystemError(ErrorCategory.DATABASE, "Failed to claim workflow", error, { endpoint: "/api/workflows/[workflowId]/claim", operation: "post" });
     return NextResponse.json(
       { error: "Failed to claim workflow" },
       { status: 500 }

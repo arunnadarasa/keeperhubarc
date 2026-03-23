@@ -413,6 +413,12 @@ setup_localstack() {
     echo "==================================="
     echo ""
 
+    if [ -z "${LOCALSTACK_AUTH_TOKEN:-}" ]; then
+        echo "WARNING: LOCALSTACK_AUTH_TOKEN is not set. LocalStack may not work correctly."
+        echo "Set it in your .env file or export it: export LOCALSTACK_AUTH_TOKEN=your-token"
+        echo "Get a token from 1Password note called 'localstack.cloud'"
+    fi
+
     # Check if LocalStack is already running
     if kubectl get pods -n local -l app=localstack 2>/dev/null | grep -q "Running"; then
         echo "LocalStack is already running"
@@ -443,6 +449,8 @@ spec:
           ports:
             - containerPort: 4566
           env:
+            - name: LOCALSTACK_AUTH_TOKEN
+              value: "${LOCALSTACK_AUTH_TOKEN}"
             - name: SERVICES
               value: "sqs"
             - name: DEBUG

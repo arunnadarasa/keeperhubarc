@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { organizationApiKeys, users } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 import { getOrgContext } from "@/lib/middleware/org-context";
 
@@ -70,7 +71,12 @@ export async function GET(request: Request) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("[API Keys] Failed to list API keys:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "[API Keys] Failed to list API keys",
+      error,
+      { endpoint: "/api/keys", operation: "list" }
+    );
     return NextResponse.json(
       {
         error:
@@ -151,7 +157,12 @@ export async function POST(request: Request) {
       key, // Full key - only returned once!
     });
   } catch (error) {
-    console.error("[API Keys] Failed to create API key:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "[API Keys] Failed to create API key",
+      error,
+      { endpoint: "/api/keys", operation: "create" }
+    );
     return NextResponse.json(
       {
         error:

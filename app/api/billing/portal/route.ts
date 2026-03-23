@@ -3,6 +3,7 @@ import { isBillingEnabled } from "@/lib/billing/feature-flag";
 import { getOrgSubscription } from "@/lib/billing/plans-server";
 import { getBillingProvider } from "@/lib/billing/providers";
 import { requireOrgOwner } from "@/lib/billing/require-org-owner";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 export async function POST(_request: Request): Promise<NextResponse> {
   if (!isBillingEnabled()) {
@@ -39,8 +40,12 @@ export async function POST(_request: Request): Promise<NextResponse> {
 
     return NextResponse.json({ url });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("[Billing] Portal error:", message);
+    logSystemError(
+      ErrorCategory.EXTERNAL_SERVICE,
+      "[Billing] Portal error",
+      error,
+      { endpoint: "/api/billing/portal", operation: "post" }
+    );
     return NextResponse.json(
       { error: "Failed to create portal session" },
       { status: 500 }

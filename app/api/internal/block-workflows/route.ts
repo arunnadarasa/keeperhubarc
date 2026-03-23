@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { type Chain, chains, workflows } from "@/lib/db/schema";
 import { authenticateInternalService } from "@/lib/internal-service-auth";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import type { WorkflowNode } from "@/lib/workflow-store";
 
 export async function GET(request: Request): Promise<NextResponse> {
@@ -64,7 +65,12 @@ export async function GET(request: Request): Promise<NextResponse> {
       networks: networkMap,
     });
   } catch (error) {
-    console.error("Failed to get block trigger workflows:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "Failed to get block trigger workflows",
+      error,
+      { endpoint: "/api/internal/block-workflows", operation: "get" }
+    );
     return NextResponse.json(
       {
         error:

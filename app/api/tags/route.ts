@@ -2,6 +2,7 @@ import { and, count, eq, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { tags, workflows } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import {
   resolveCreatorContext,
   resolveOrganizationId,
@@ -46,7 +47,10 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("[Tags] Failed to list tags:", error);
+    logSystemError(ErrorCategory.DATABASE, "Failed to list tags", error, {
+      endpoint: "/api/tags",
+      operation: "get",
+    });
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Failed to list tags",
@@ -98,7 +102,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       { status: 201 }
     );
   } catch (error) {
-    console.error("[Tags] Failed to create tag:", error);
+    logSystemError(ErrorCategory.DATABASE, "Failed to create tag", error, {
+      endpoint: "/api/tags",
+      operation: "post",
+    });
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Failed to create tag",

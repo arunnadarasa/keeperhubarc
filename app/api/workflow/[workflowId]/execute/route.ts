@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { start } from "workflow/api";
 import { authenticateApiKey } from "@/lib/api-key-auth";
 import { enforceExecutionLimit } from "@/lib/billing/execution-guard";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { authenticateInternalService } from "@/lib/internal-service-auth";
 import { getMetricsCollector } from "@/lib/metrics";
 import { LabelKeys, MetricNames } from "@/lib/metrics/types";
@@ -53,11 +54,7 @@ async function executeWorkflowBackground(
       .set({ runId: run.runId })
       .where(eq(workflowExecutions.id, executionId));
   } catch (error) {
-    console.error("[Workflow Execute] Error during execution:", error);
-    console.error(
-      "[Workflow Execute] Error stack:",
-      error instanceof Error ? error.stack : "N/A"
-    );
+    logSystemError(ErrorCategory.WORKFLOW_ENGINE, "[Workflow Execute] Error during execution", error, { endpoint: "/api/workflow/[workflowId]/execute", operation: "executeWorkflow" });
 
     // Update execution record with error
     await db
@@ -181,10 +178,7 @@ export async function POST(
       workflow.organizationId
     );
     if (!validation.valid) {
-      console.error(
-        "[Workflow Execute] Invalid integration references:",
-        validation.invalidIds
-      );
+      logSystemError(ErrorCategory.WORKFLOW_ENGINE, "[Workflow Execute] Invalid integration references", new Error(String(validation.invalidIds)), { endpoint: "/api/workflow/[workflowId]/execute", operation: "validateIntegrations" });
       return NextResponse.json(
         { error: "Workflow contains invalid integration references" },
         { status: 403 }
@@ -275,7 +269,7 @@ export async function POST(
       status: "running",
     });
   } catch (error) {
-    console.error("Failed to start workflow execution:", error);
+    logSystemError(ErrorCategory.WORKFLOW_ENGINE, "Failed to start workflow execution", error, { endpoint: "/api/workflow/[workflowId]/execute", operation: "post" });
     return NextResponse.json(
       {
         error:

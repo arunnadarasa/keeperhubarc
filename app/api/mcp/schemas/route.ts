@@ -5,6 +5,7 @@ import { BUILTIN_NODE_ID, BUILTIN_NODE_LABEL } from "@/lib/builtin-variables";
 
 import { db } from "@/lib/db";
 import { chains, explorerConfigs } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import {
   type ActionConfigFieldBase,
   computeActionId,
@@ -466,7 +467,12 @@ export async function GET(request: Request) {
         explorerUrl: explorer?.explorerUrl ?? null,
       }));
     } catch (error) {
-      console.error("[MCP Schemas] Failed to fetch chains:", error);
+      logSystemError(
+        ErrorCategory.DATABASE,
+        "[MCP Schemas] Failed to fetch chains",
+        error,
+        { endpoint: "/api/mcp/schemas", operation: "get" }
+      );
       // Continue without chains rather than failing the whole request
     }
   }
