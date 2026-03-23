@@ -324,6 +324,38 @@ const plugins = [
     : []),
 ];
 
+async function notifyDiscordSignup(user: {
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+}): Promise<void> {
+  await fetch(process.env.DISCORD_WEBHOOK_SIGNUPS as string, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      username: "KeeperHub",
+      embeds: [
+        {
+          title: "New signup",
+          color: 5_763_719,
+          fields: [
+            { name: "Name", value: user.name ?? "N/A", inline: true },
+            { name: "Email", value: user.email ?? "N/A", inline: true },
+            {
+              name: "Method",
+              value: user.image ? "OAuth" : "Email",
+              inline: true,
+            },
+          ],
+          timestamp: new Date().toISOString(),
+        },
+      ],
+    }),
+  }).catch(() => {
+    // Intentionally swallowed -- webhook failure must not break signup
+  });
+}
+
 export const auth = betterAuth({
   baseURL: getBaseURL(),
   database: drizzleAdapter(db, {
@@ -376,6 +408,11 @@ export const auth = betterAuth({
           } catch (error) {
             console.error(error);
           }
+
+          // Notify Discord for OAuth signups (already verified at creation)
+          if (user.emailVerified && process.env.DISCORD_WEBHOOK_SIGNUPS) {
+            notifyDiscordSignup(user);
+          }
         },
       },
     },
@@ -427,6 +464,13 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,
+  },
+  emailVerification: {
+    afterEmailVerification: async (user) => {
+      if (process.env.DISCORD_WEBHOOK_SIGNUPS) {
+        await notifyDiscordSignup(user);
+      }
+    },
   },
   socialProviders: {
     github: {
