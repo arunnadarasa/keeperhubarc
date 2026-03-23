@@ -148,6 +148,40 @@ ENV NODE_ENV=production
 # Build with: docker build --target workflow-runner -t keeperhub-runner .
 CMD ["tsx", "scripts/runtime/workflow-runner.ts"]
 
+# Stage 2.9: Unified Executor (polls SQS, dispatches to K8s Jobs or in-process)
+FROM node:24-alpine AS executor
+WORKDIR /app
+RUN npm install -g pnpm@9 tsx@4
+COPY --from=deps /etc/ssl/certs/rds-combined-ca-bundle.pem /etc/ssl/certs/rds-combined-ca-bundle.pem
+
+# Full deps needed for in-process workflow execution + @kubernetes/client-node
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=source /app/keeperhub-executor ./keeperhub-executor
+COPY --from=source /app/scripts/runtime/workflow-runner.ts ./scripts/runtime/workflow-runner.ts
+COPY --from=source /app/lib ./lib
+COPY --from=source /app/db ./db
+COPY --from=source /app/plugins ./plugins
+COPY --from=source /app/protocols ./protocols
+COPY --from=source /app/package.json ./package.json
+COPY --from=source /app/tsconfig.json ./tsconfig.json
+
+# Copy auto-generated files from builder stage
+COPY --from=builder /app/lib/step-registry.ts ./lib/step-registry.ts
+COPY --from=builder /app/lib/codegen-registry.ts ./lib/codegen-registry.ts
+COPY --from=builder /app/lib/output-display-configs.ts ./lib/output-display-configs.ts
+COPY --from=builder /app/lib/types/integration.ts ./lib/types/integration.ts
+COPY --from=builder /app/plugins/index.ts ./plugins/index.ts
+COPY --from=builder /app/protocols/index.ts ./protocols/index.ts
+
+# Shim server-only (runs outside Next.js)
+SHELL ["/bin/ash", "-o", "pipefail", "-c"]
+RUN find /app/node_modules -path "*server-only*/index.js" | while read -r f; do echo 'module.exports = {};' > "$f"; done
+
+ENV NODE_ENV=production
+
+# Build with: docker build --target executor -t keeperhub-executor .
+CMD ["tsx", "keeperhub-executor/index.ts"]
+
 # Stage 3: Runner (main Next.js app)
 FROM node:24-alpine AS runner
 WORKDIR /app
