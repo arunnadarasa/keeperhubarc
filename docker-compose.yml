@@ -325,7 +325,6 @@ services:
       JWT_TOKEN_PASSWORD: ${JWT_TOKEN_PASSWORD:-}
       KEEPERHUB_API_KEY: ${KEEPERHUB_API_KEY:-local-events-key-for-dev}
       ETHERSCAN_API_KEY: ${ETHERSCAN_API_KEY:-}
-      EXECUTION_MODE: sqs
       SQS_QUEUE_URL: http://localstack:4566/000000000000/keeperhub-workflow-queue
       AWS_REGION: us-east-1
       AWS_ACCESS_KEY_ID: test

@@ -1,7 +1,6 @@
 import { SendMessageCommand } from "@aws-sdk/client-sqs";
 import axios from "axios";
 import {
-  EXECUTION_MODE,
   JWT_TOKEN_PASSWORD,
   JWT_TOKEN_USERNAME,
   KEEPERHUB_API_URL,
@@ -49,31 +48,7 @@ export class AbstractChain {
     throw new Error("Method not implemented");
   }
 
-  async executeWorkflow(workflowId: string, payload: any): Promise<any> {
-    if (EXECUTION_MODE === "sqs") {
-      return this.executeWorkflowViaSqs(workflowId, payload);
-    }
-    return this.executeWorkflowViaWorker(workflowId, payload);
-  }
-
-  private async executeWorkflowViaWorker(
-    workflowId: string,
-    payload: any,
-  ): Promise<any> {
-    try {
-      const url = `${WORKER_URL}/workflow/${workflowId}/execute`;
-      const { data } = await axios.post(url, payload);
-      return data;
-    } catch (error: any) {
-      logger.error(`Error executing workflow via worker: ${error.message}`);
-      return false;
-    }
-  }
-
-  private async executeWorkflowViaSqs(
-    workflowId: string,
-    payload: any,
-  ): Promise<boolean> {
+  async executeWorkflow(workflowId: string, payload: any): Promise<boolean> {
     try {
       const message = {
         workflowId,
