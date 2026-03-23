@@ -18,6 +18,7 @@ Plugins provide the actions available in your workflows. Each plugin adds one or
 | [Aave V3](/plugins/aave-v3) | Protocol | Supply, borrow, repay, collateral management, health factor monitoring | Wallet (for writes) |
 | [Aerodrome](/plugins/aerodrome) | Protocol | Pool reserves, swap quotes, ve(3,3) voting, gauge management, AERO token operations | Wallet (for writes) |
 | [Ajna](/plugins/ajna) | Protocol | Liquidation keeper operations, vault rebalancing, buffer management | Wallet (for writes) |
+| [Chainlink](/plugins/chainlink) | Protocol | Oracle price feeds -- latest prices, round data, decimals, feed metadata | None |
 | [Compound V3](/plugins/compound) | Protocol | Supply, withdraw, base/collateral/borrow balance monitoring | Wallet (for writes) |
 | [CoW Swap](/plugins/cowswap) | Protocol | Order pre-signing, fill monitoring, conditional orders, order cancellation | Wallet (for writes) |
 | [Curve](/plugins/curve) | Protocol | Pool swaps, LP management, virtual prices, CRV token operations | Wallet (for writes) |
