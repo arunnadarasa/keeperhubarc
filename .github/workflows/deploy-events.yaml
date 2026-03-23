@@ -1,4 +1,4 @@
-# Type: standalone | Builds and deploys events services (tracker + worker).
+# Type: standalone | Builds and deploys events services (tracker, worker, executor).
 # Runs independently from ci-pipeline.yml because events has no shared code
 # with the main app, no e2e tests, and its own ECR repos.
 on:
@@ -10,6 +10,7 @@ on:
       - "keeperhub-events/**"
       - "deploy/sc-event-tracker/**"
       - "deploy/sc-event-worker/**"
+      - "deploy/event-executor/**"
       - ".github/workflows/deploy-events.yaml"
   workflow_dispatch:
 
@@ -34,8 +35,10 @@ jobs:
       NAMESPACE: keeperhub
       TRACKER_ECR_NAME: sc-event-tracker-${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
       WORKER_ECR_NAME: sc-event-worker-${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
+      EXECUTOR_ECR_NAME: event-executor-${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
       TRACKER_HELM_FILE: deploy/sc-event-tracker/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/values.yaml
       WORKER_HELM_FILE: deploy/sc-event-worker/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/values.yaml
+      EXECUTOR_HELM_FILE: deploy/event-executor/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/values.yaml
 
     steps:
       - name: Checkout
@@ -76,7 +79,7 @@ jobs:
         id: check-image
         run: |
           IMAGE_TAG="${{ steps.vars.outputs.sha_short }}"
-          for repo in "$TRACKER_ECR_NAME" "$WORKER_ECR_NAME"; do
+          for repo in "$TRACKER_ECR_NAME" "$WORKER_ECR_NAME" "$EXECUTOR_ECR_NAME"; do
             if ! aws ecr describe-images \
               --repository-name "$repo" \
               --image-ids "imageTag=app-${IMAGE_TAG}" \
@@ -94,6 +97,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           EVENTS_ECR_TRACKER_REPO: ${{ env.TRACKER_ECR_NAME }}
           EVENTS_ECR_WORKER_REPO: ${{ env.WORKER_ECR_NAME }}
+          EVENTS_ECR_EXECUTOR_REPO: ${{ env.EXECUTOR_ECR_NAME }}
           IMAGE_TAG: ${{ steps.vars.outputs.sha_short }}
           ENVIRONMENT_TAG: ${{ env.ENVIRONMENT_TAG }}
         with:
@@ -107,7 +111,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ steps.vars.outputs.sha_short }}
         run: |
-          for f in "$TRACKER_HELM_FILE" "$WORKER_HELM_FILE"; do
+          for f in "$TRACKER_HELM_FILE" "$WORKER_HELM_FILE" "$EXECUTOR_HELM_FILE"; do
             sed -i "s|\${ECR_REGISTRY}|${ECR_REGISTRY}|g" "$f"
             sed -i "s|\${IMAGE_TAG}|${IMAGE_TAG}|g" "$f"
           done
@@ -146,6 +150,20 @@ jobs:
           namespace: ${{ env.NAMESPACE }}
           timeout: 5m0s
           name: keeperhub-events-tracker
+          chart-repository: https://techops-services.github.io/helm-charts
+          version: 0.2.1
+          atomic: true
+
+      - name: Deploy event-executor
+        if: steps.skip.outputs.skip_deploy != 'true'
+        uses: bitovi/github-actions-deploy-eks-helm@v1.2.12
+        with:
+          cluster-name: ${{ env.CLUSTER_NAME }}
+          config-files: ${{ env.EXECUTOR_HELM_FILE }}
+          chart-path: techops-services/common
+          namespace: ${{ env.NAMESPACE }}
+          timeout: 5m0s
+          name: keeperhub-event-executor
           chart-repository: https://techops-services.github.io/helm-charts
           version: 0.2.1
           atomic: true
