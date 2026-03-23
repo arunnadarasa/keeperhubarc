@@ -34,8 +34,8 @@ DATABASE_URL="postgresql://postgres:postgres@localhost:5432/workflow_builder" np
 # Start minikube
 minikube start
 
-# Deploy LocalStack
-kubectl apply -f k8s/localstack.yaml
+# Deploy LocalStack (requires LOCALSTACK_AUTH_TOKEN in environment)
+envsubst < k8s/localstack.yaml | kubectl apply -f -
 
 # Deploy the app
 kubectl apply -f k8s/keeperhub.yaml
@@ -57,22 +57,26 @@ pnpm test:e2e:schedule
 ## Test Scenarios
 
 ### 1. Schedule Creation Flow
+
 1. Create a workflow with Schedule trigger via UI
 2. Verify schedule record exists in database
 3. Verify nextRunAt is calculated correctly
 
 ### 2. Schedule Execution Flow
+
 1. Create a workflow with Schedule trigger set to run in 1 minute
 2. Wait for dispatcher to send message to SQS
 3. Wait for executor to process message
 4. Verify execution record created with status "running" then "completed"
 
 ### 3. Schedule Update Flow
+
 1. Modify workflow schedule (change cron expression)
 2. Verify schedule record updated
 3. Verify nextRunAt recalculated
 
 ### 4. Schedule Deletion Flow
+
 1. Change trigger type from Schedule to Manual/Webhook
 2. Verify schedule record deleted
 
