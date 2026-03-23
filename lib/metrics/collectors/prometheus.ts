@@ -233,7 +233,7 @@ const userInfo = getOrCreateGauge(
   dbRegistry,
   "keeperhub_user_info",
   "User info with email and name labels",
-  ["email", "name", "verified"]
+  ["email", "name", "verified", "created_at"]
 );
 
 // Organization metrics (DB-sourced)
@@ -856,6 +856,7 @@ export async function updateDbMetrics(): Promise<void> {
           email: user.email,
           name: user.name,
           verified: String(user.verified),
+          created_at: user.createdAt.toISOString(),
         },
         1
       );
