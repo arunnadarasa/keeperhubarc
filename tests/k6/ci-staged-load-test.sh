@@ -50,27 +50,32 @@ with open('$summary_file') as f:
 
 metrics = data.get('metrics', {})
 
-# HTTP request duration
-dur = metrics.get('http_req_duration', {}).get('values', {})
+# k6 --summary-export puts values directly on the metric object (no 'values' sub-key)
+dur = metrics.get('http_req_duration', {})
 p95 = dur.get('p(95)', 0)
 p99 = dur.get('p(99)', 0)
 avg = dur.get('avg', 0)
 med = dur.get('med', 0)
 
-# HTTP request failed rate
-failed = metrics.get('http_req_failed', {}).get('values', {})
-fail_rate = failed.get('rate', 0)
+# http_req_failed: 'value' is the failure rate (0.0 - 1.0)
+failed = metrics.get('http_req_failed', {})
+fail_rate = failed.get('value', 0)
 
 # Total requests
-reqs = metrics.get('http_reqs', {}).get('values', {})
+reqs = metrics.get('http_reqs', {})
 total_reqs = int(reqs.get('count', 0))
 rps = reqs.get('rate', 0)
 
-# Checks
-checks = metrics.get('checks', {}).get('values', {})
+# Checks: passes/fails are directly on the object
+checks = metrics.get('checks', {})
 check_passes = int(checks.get('passes', 0))
 check_fails = int(checks.get('fails', 0))
-check_rate = checks.get('rate', 1)
+
+# Also sum checks from root_group for more accurate counting
+rg = data.get('root_group', {}).get('checks', {})
+if rg and check_passes == 0:
+    check_passes = sum(c.get('passes', 0) for c in rg.values())
+    check_fails = sum(c.get('fails', 0) for c in rg.values())
 
 success_rate = (1 - fail_rate) * 100
 
