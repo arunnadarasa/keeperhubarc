@@ -56,7 +56,7 @@ const RPC_URLS = {
     fallback: getRpcUrl(
       "eth-mainnet",
       "CHAIN_ETH_MAINNET_FALLBACK_RPC",
-      PUBLIC_RPCS.ETH_MAINNET,
+      PUBLIC_RPCS.ETH_MAINNET_FALLBACK,
       "fallback"
     ),
   },
