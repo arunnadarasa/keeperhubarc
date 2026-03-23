@@ -19,14 +19,12 @@ import {
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
 import { getErrorMessage } from "@/lib/utils";
+import { getChainAdapter } from "@/lib/web3/chain-adapter";
 import { formatContractError } from "@/lib/web3/decode-revert-error";
 import { resolveGasLimitOverrides } from "@/lib/web3/gas-defaults";
-import { getGasStrategy } from "@/lib/web3/gas-strategy";
-import { getNonceManager } from "@/lib/web3/nonce-manager";
 import { resolveOrganizationContext } from "@/lib/web3/resolve-org-context";
 import {
   type TransactionContext,
-  submitAndConfirm,
   withNonceSession,
 } from "@/lib/web3/transaction-manager";
 
@@ -164,11 +162,10 @@ export async function transferFundsCore(
     rpcManager,
   };
 
-  // Execute transaction with nonce management and gas strategy
-  return withNonceSession(txContext, walletAddress, async (session) => {
-    const nonceManager = getNonceManager();
-    const gasStrategy = getGasStrategy();
+  const adapter = getChainAdapter(chainId);
 
+  // Execute transaction with nonce management
+  return withNonceSession(txContext, walletAddress, async (session) => {
     let signer: Awaited<ReturnType<typeof initializeParaSigner>>;
     try {
       signer = await initializeParaSigner(organizationId, rpcUrl);
@@ -179,62 +176,24 @@ export async function transferFundsCore(
       };
     }
 
-    // Get nonce from session
-    const nonce = nonceManager.getNextNonce(session);
-
-    // Send transaction with managed nonce and gas strategy
     try {
-      const provider = signer.provider;
-      if (!provider) {
-        throw new Error("Signer has no provider");
-      }
-
-      const baseTx = { to: recipientAddress, value: amountInWei };
-
-      // Simulate call first to get decodable revert data on failure
-      await provider.call({ ...baseTx, from: walletAddress });
-
-      // Estimate gas
-      const estimatedGas = await provider.estimateGas({
-        ...baseTx,
-        from: walletAddress,
+      const receipt = await adapter.sendTransaction(signer, {
+        to: recipientAddress,
+        value: amountInWei,
+      }, session, {
+        triggerType: txContext.triggerType ?? "manual",
+        gasOverrides: { multiplierOverride, gasLimitOverride },
+        workflowId,
       });
 
-      // Get gas configuration from strategy
-      const txGasConfig = await gasStrategy.getGasConfig(
-        provider,
-        txContext.triggerType ?? "manual",
-        estimatedGas,
-        chainId,
-        multiplierOverride,
-        gasLimitOverride
-      );
-
-      // Submit with RPC failover, then confirm and build explorer link
-      const result = await submitAndConfirm(
-        signer,
-        {
-          ...baseTx,
-          nonce,
-          gasLimit: txGasConfig.gasLimit,
-          maxFeePerGas: txGasConfig.maxFeePerGas,
-          maxPriorityFeePerGas: txGasConfig.maxPriorityFeePerGas,
-        },
-        {
-          rpcManager,
-          session,
-          nonce,
-          workflowId,
-          chainId,
-          maxFeePerGas: txGasConfig.maxFeePerGas,
-        }
-      );
+      const gasCostWei = (receipt.gasUsed * receipt.effectiveGasPrice).toString();
+      const transactionLink = await adapter.getTransactionUrl(receipt.hash);
 
       return {
         success: true,
-        transactionHash: result.txHash,
-        transactionLink: result.transactionLink,
-        gasUsed: result.gasCostWei,
+        transactionHash: receipt.hash,
+        transactionLink,
+        gasUsed: gasCostWei,
       };
     } catch (error) {
       logUserError(

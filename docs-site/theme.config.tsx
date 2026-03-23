@@ -22,10 +22,10 @@ const config = {
     </span>
   ),
   project: {
-    link: "https://github.com/techops-services/keeperhub",
+    link: "https://github.com/KeeperHub/keeperhub",
   },
   docsRepositoryBase:
-    "https://github.com/techops-services/keeperhub/edit/main/docs",
+    "https://github.com/KeeperHub/keeperhub/edit/main/docs",
   footer: {
     content: (
       <span style={{ color: "#7a9ca8", fontSize: "13px" }}>

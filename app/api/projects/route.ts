@@ -1,4 +1,4 @@
-import { count, eq } from "drizzle-orm";
+import { and, count, eq, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { projects, workflows } from "@/lib/db/schema";
@@ -31,7 +31,13 @@ export async function GET(request: Request) {
         workflowCount: count(workflows.id),
       })
       .from(projects)
-      .leftJoin(workflows, eq(workflows.projectId, projects.id))
+      .leftJoin(
+        workflows,
+        and(
+          eq(workflows.projectId, projects.id),
+          ne(workflows.name, "__current__")
+        )
+      )
       .where(eq(projects.organizationId, organizationId))
       .groupBy(projects.id)
       .orderBy(projects.name);

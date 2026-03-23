@@ -11,14 +11,13 @@ import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
 import { reshapeArgsForAbi } from "@/lib/abi-struct-args";
 import { db } from "@/lib/db";
-import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
-import { getAddressUrl } from "@/lib/explorer";
+import { workflowExecutions } from "@/lib/db/schema";
 import { ErrorCategory, logUserError } from "@/lib/logging";
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
-import type { RpcProviderManager } from "@/lib/rpc-provider";
 import { getErrorMessage } from "@/lib/utils";
 import { getAbiFunctionKey } from "@/lib/web3/abi-function-key";
+import { getChainAdapter } from "@/lib/web3/chain-adapter";
 import { formatContractError } from "@/lib/web3/decode-revert-error";
 
 export type ReadContractCoreInput = {
@@ -34,9 +33,6 @@ export type ReadContractResult =
   | { success: true; result: unknown; addressLink: string }
   | { success: false; error: string };
 
-/**
- * Get userId from executionId by querying the workflowExecutions table
- */
 async function getUserIdFromExecution(
   executionId: string | undefined
 ): Promise<string | undefined> {
@@ -62,19 +58,9 @@ async function getUserIdFromExecution(
 export async function readContractCore(
   input: ReadContractCoreInput
 ): Promise<ReadContractResult> {
-  console.log("[Read Contract] Starting step with input:", {
-    contractAddress: input.contractAddress,
-    network: input.network,
-    abiFunction: input.abiFunction,
-    hasFunctionArgs: !!input.functionArgs,
-    executionId: input._context?.executionId,
-  });
-
   const { contractAddress, network, abi, abiFunction, functionArgs, _context } =
     input;
 
-  // Get userId from execution context (for user RPC preferences)
-  // Direct execution: no userId, use chain default RPC
   const userId = _context?.organizationId
     ? undefined
     : await getUserIdFromExecution(_context?.executionId);
@@ -85,10 +71,7 @@ export async function readContractCore(
       ErrorCategory.VALIDATION,
       "[Read Contract] Invalid contract address:",
       contractAddress,
-      {
-        plugin_name: "web3",
-        action_name: "read-contract",
-      }
+      { plugin_name: "web3", action_name: "read-contract" }
     );
     return {
       success: false,
@@ -100,16 +83,12 @@ export async function readContractCore(
   let parsedAbi: unknown;
   try {
     parsedAbi = JSON.parse(abi);
-    console.log("[Read Contract] ABI parsed successfully");
   } catch (error) {
     logUserError(
       ErrorCategory.VALIDATION,
       "[Read Contract] Failed to parse ABI:",
       error,
-      {
-        plugin_name: "web3",
-        action_name: "read-contract",
-      }
+      { plugin_name: "web3", action_name: "read-contract" }
     );
     return {
       success: false,
@@ -117,21 +96,14 @@ export async function readContractCore(
     };
   }
 
-  // Validate ABI is an array
   if (!Array.isArray(parsedAbi)) {
     logUserError(
       ErrorCategory.VALIDATION,
       "[Read Contract] ABI is not an array",
       parsedAbi,
-      {
-        plugin_name: "web3",
-        action_name: "read-contract",
-      }
+      { plugin_name: "web3", action_name: "read-contract" }
     );
-    return {
-      success: false,
-      error: "ABI must be a JSON array",
-    };
+    return { success: false, error: "ABI must be a JSON array" };
   }
 
   // Find the selected function in the ABI to get output structure
@@ -145,10 +117,7 @@ export async function readContractCore(
       ErrorCategory.VALIDATION,
       "[Read Contract] Function not found in ABI:",
       abiFunction,
-      {
-        plugin_name: "web3",
-        action_name: "read-contract",
-      }
+      { plugin_name: "web3", action_name: "read-contract" }
     );
     return {
       success: false,
@@ -168,36 +137,26 @@ export async function readContractCore(
           ErrorCategory.VALIDATION,
           "[Read Contract] Function args is not an array",
           parsedArgs,
-          {
-            plugin_name: "web3",
-            action_name: "read-contract",
-          }
+          { plugin_name: "web3", action_name: "read-contract" }
         );
         return {
           success: false,
           error: "Function arguments must be a JSON array",
         };
       }
-      // Filter out empty strings at the end of the array (from UI padding)
       args = parsedArgs.filter((arg, index) => {
-        // Keep all non-empty values
         if (arg !== "") {
           return true;
         }
-        // Keep empty strings if they're not at the end
         return parsedArgs.slice(index + 1).some((a) => a !== "");
       });
       args = reshapeArgsForAbi(args, functionAbi);
-      console.log("[Read Contract] Function arguments parsed:", args);
     } catch (error) {
       logUserError(
         ErrorCategory.VALIDATION,
         "[Read Contract] Failed to parse function arguments:",
         error,
-        {
-          plugin_name: "web3",
-          action_name: "read-contract",
-        }
+        { plugin_name: "web3", action_name: "read-contract" }
       );
       return {
         success: false,
@@ -210,25 +169,18 @@ export async function readContractCore(
   let chainId: number;
   try {
     chainId = getChainIdFromNetwork(network);
-    console.log("[Read Contract] Resolved chain ID:", chainId);
   } catch (error) {
     logUserError(
       ErrorCategory.VALIDATION,
       "[Read Contract] Failed to resolve network:",
       error,
-      {
-        plugin_name: "web3",
-        action_name: "read-contract",
-      }
+      { plugin_name: "web3", action_name: "read-contract" }
     );
-    return {
-      success: false,
-      error: getErrorMessage(error),
-    };
+    return { success: false, error: getErrorMessage(error) };
   }
 
-  // Resolve RPC provider with failover support
-  let rpcManager: RpcProviderManager;
+  // Resolve RPC provider
+  let rpcManager: Awaited<ReturnType<typeof getRpcProvider>>;
   try {
     rpcManager = await getRpcProvider({ chainId, userId });
   } catch (error) {
@@ -242,47 +194,26 @@ export async function readContractCore(
         chain_id: String(chainId),
       }
     );
-    return {
-      success: false,
-      error: getErrorMessage(error),
-    };
+    return { success: false, error: getErrorMessage(error) };
   }
 
-  // Build interface from parsed ABI for error decoding in catch block
   const contractInterface = new ethers.Interface(
     parsedAbi as ethers.InterfaceAbi
   );
 
-  // Call the contract function
+  const adapter = getChainAdapter(chainId);
+  const isView =
+    functionAbi.stateMutability === "view" ||
+    functionAbi.stateMutability === "pure";
+
   try {
-    const isView =
-      functionAbi.stateMutability === "view" ||
-      functionAbi.stateMutability === "pure";
-
-    const result = await rpcManager.executeWithFailover(async (provider) => {
-      const contract = new ethers.Contract(
-        contractAddress,
-        parsedAbi,
-        provider
-      );
-
-      if (typeof contract[abiFunctionKey] !== "function") {
-        throw new Error(`Function '${abiFunction}' not found in contract ABI`);
-      }
-
-      console.log(
-        "[Read Contract] Calling function:",
-        abiFunctionKey,
-        "with args:",
-        args
-      );
-
-      return isView
-        ? await contract[abiFunctionKey](...args)
-        : await contract[abiFunctionKey].staticCall(...args);
+    const result = await adapter.readContract(rpcManager, {
+      contractAddress,
+      abi: parsedAbi as ethers.InterfaceAbi,
+      functionKey: abiFunctionKey,
+      args,
+      isView,
     });
-
-    console.log("[Read Contract] Function call successful, result:", result);
 
     // Convert BigInt values to strings for JSON serialization
     const serializedResult = JSON.parse(
@@ -294,19 +225,16 @@ export async function readContractCore(
     // Transform array results into named objects based on ABI outputs
     let structuredResult = serializedResult;
 
-    // Check if function has outputs defined in ABI
     const outputs = (
       functionAbi as { outputs?: Array<{ name?: string; type: string }> }
     ).outputs;
 
     if (outputs && outputs.length > 0) {
       if (outputs.length === 1) {
-        // Single output: return the value directly if unnamed, or as object if named
         const singleOutput = outputs[0];
         const outputName = singleOutput.name?.trim();
         const outputType = singleOutput.type ?? "";
         const isArrayType = outputType.endsWith("[]");
-        // When the ABI output is an array type (e.g. address[]), the result is the full array; do not take [0]
         const singleValue =
           Array.isArray(serializedResult) && !isArrayType
             ? serializedResult[0]
@@ -317,23 +245,15 @@ export async function readContractCore(
           structuredResult = singleValue;
         }
       } else if (Array.isArray(serializedResult)) {
-        // Multiple outputs: always map to object with field names (named or generated)
         structuredResult = {};
-        outputs.forEach((output, index) => {
+        for (const [index, output] of outputs.entries()) {
           const fieldName = output.name?.trim() || `unnamedOutput${index}`;
           structuredResult[fieldName] = serializedResult[index];
-        });
-        console.log("[Read Contract] Structured result:", structuredResult);
+        }
       }
     }
 
-    // Fetch explorer config for address link
-    const explorerConfig = await db.query.explorerConfigs.findFirst({
-      where: eq(explorerConfigs.chainId, chainId),
-    });
-    const addressLink = explorerConfig
-      ? getAddressUrl(explorerConfig, contractAddress)
-      : "";
+    const addressLink = await adapter.getAddressUrl(contractAddress);
 
     return {
       success: true,

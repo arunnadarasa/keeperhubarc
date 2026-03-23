@@ -7,7 +7,7 @@ const CHAIN_NAMES: Record<string, string> = {
   "11155111": "Sepolia",
   "84532": "Base Sepolia",
   "42429": "Tempo Testnet",
-  "42420": "Tempo",
+  "4217": "Tempo",
   "101": "Solana",
   "103": "Solana Devnet",
 };

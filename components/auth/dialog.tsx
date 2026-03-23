@@ -363,6 +363,9 @@ export const AuthDialog = ({ children }: AuthDialogProps) => {
   >(null);
 
   // Handle pending verification when component mounts/remounts
+  // Do NOT clear pendingVerify* here - they must survive remounts caused by
+  // session refetch on tab focus. They are cleared on successful verification
+  // (handleVerifyOtp) or when the user navigates away (Back to sign in).
   useEffect(() => {
     if (pendingVerifyEmail) {
       setOpen(true);
@@ -371,8 +374,6 @@ export const AuthDialog = ({ children }: AuthDialogProps) => {
       if (pendingVerifyPassword) {
         setVerifyPassword(pendingVerifyPassword);
       }
-      pendingVerifyEmail = null;
-      pendingVerifyPassword = null;
     }
   }, []);
 
@@ -419,6 +420,8 @@ export const AuthDialog = ({ children }: AuthDialogProps) => {
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
     if (!newOpen) {
+      pendingVerifyEmail = null;
+      pendingVerifyPassword = null;
       setTimeout(() => {
         setView("signin");
         resetForm();

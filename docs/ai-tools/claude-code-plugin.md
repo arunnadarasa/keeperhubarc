@@ -5,7 +5,7 @@ description: "Build and manage KeeperHub workflows directly from Claude Code wit
 
 # Claude Code Plugin
 
-[GitHub](https://github.com/techops-services/claude-plugins/tree/main/plugins/keeperhub)
+[GitHub](https://github.com/KeeperHub/claude-plugins/tree/main/plugins/keeperhub)
 
 The KeeperHub plugin for Claude Code lets you create workflows, browse templates, debug executions, and explore plugins without leaving your terminal.
 
@@ -13,7 +13,7 @@ The KeeperHub plugin for Claude Code lets you create workflows, browse templates
 
 ```bash
 # Add the marketplace
-/plugin marketplace add techops-services/claude-plugins
+/plugin marketplace add KeeperHub/claude-plugins
 
 # Install the plugin
 /plugin install keeperhub@techops-plugins

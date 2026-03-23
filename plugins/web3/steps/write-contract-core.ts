@@ -21,14 +21,12 @@ import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
 import { getErrorMessage } from "@/lib/utils";
 import { getAbiFunctionKey } from "@/lib/web3/abi-function-key";
+import { getChainAdapter } from "@/lib/web3/chain-adapter";
 import { formatContractError } from "@/lib/web3/decode-revert-error";
 import { resolveGasLimitOverrides } from "@/lib/web3/gas-defaults";
-import { getGasStrategy } from "@/lib/web3/gas-strategy";
-import { getNonceManager } from "@/lib/web3/nonce-manager";
 import { resolveOrganizationContext } from "@/lib/web3/resolve-org-context";
 import {
   type TransactionContext,
-  submitContractCallAndConfirm,
   withNonceSession,
 } from "@/lib/web3/transaction-manager";
 
@@ -192,7 +190,6 @@ export async function writeContractCore(
   try {
     walletAddress = await getOrganizationWalletAddress(organizationId);
   } catch (error) {
-    console.error("[Write Contract] Failed to get wallet address:", error);
     return {
       success: false,
       error: `Failed to get wallet address: ${getErrorMessage(error)}`,
@@ -238,11 +235,10 @@ export async function writeContractCore(
     rpcManager,
   };
 
-  // Execute transaction with nonce management and gas strategy
-  return withNonceSession(txContext, walletAddress, async (session) => {
-    const nonceManager = getNonceManager();
-    const gasStrategy = getGasStrategy();
+  const adapter = getChainAdapter(chainId);
 
+  // Execute transaction with nonce management
+  return withNonceSession(txContext, walletAddress, async (session) => {
     // Initialize Para signer
     let signer: Awaited<ReturnType<typeof initializeParaSigner>>;
     try {
@@ -254,86 +250,35 @@ export async function writeContractCore(
       };
     }
 
-    // Create contract instance with signer
-    let contract: ethers.Contract;
+    // Create a contract interface for error formatting on failure
+    let contractInterface: ethers.Interface | undefined;
     try {
-      contract = new ethers.Contract(contractAddress, parsedAbi, signer);
-    } catch (error) {
-      return {
-        success: false,
-        error: `Failed to create contract instance: ${getErrorMessage(error)}`,
-      };
+      contractInterface = new ethers.Interface(parsedAbi as ethers.InterfaceAbi);
+    } catch {
+      // Non-critical -- error formatting will fall back to generic messages
     }
 
-    // Call the contract function
     try {
-      // Check if function exists
-      if (typeof contract[abiFunctionKey] !== "function") {
-        return {
-          success: false,
-          error: `Function '${abiFunction}' not found in contract ABI`,
-        };
-      }
-
-      // Build value override for payable functions (e.g. WETH deposit)
-      const valueOverride = parsedEthValue ? { value: parsedEthValue } : {};
-
-      // Simulate call first to get decodable revert data on failure
-      // (eth_call returns revert data reliably, eth_estimateGas often does not)
-      await contract[abiFunctionKey].staticCall(...args, valueOverride);
-
-      // Get nonce from session
-      const nonce = nonceManager.getNextNonce(session);
-
-      // Estimate gas for the contract call
-      const estimatedGas = await contract[abiFunctionKey].estimateGas(
-        ...args,
-        valueOverride
-      );
-
-      // Get gas configuration from strategy
-      const provider = signer.provider;
-      if (!provider) {
-        throw new Error("Signer has no provider");
-      }
-
-      const txGasConfig = await gasStrategy.getGasConfig(
-        provider,
-        txContext.triggerType ?? "manual",
-        estimatedGas,
-        chainId,
-        multiplierOverride,
-        gasLimitOverride
-      );
-
-      // Submit with RPC failover, then confirm and build explorer link
-      const result = await submitContractCallAndConfirm(
-        contract,
-        abiFunctionKey,
+      const receipt = await adapter.executeContractCall(signer, {
+        contractAddress,
+        abi: parsedAbi as ethers.InterfaceAbi,
+        functionKey: abiFunctionKey,
         args,
-        {
-          nonce,
-          gasLimit: txGasConfig.gasLimit,
-          maxFeePerGas: txGasConfig.maxFeePerGas,
-          maxPriorityFeePerGas: txGasConfig.maxPriorityFeePerGas,
-          ...valueOverride,
-        },
-        signer,
-        {
-          rpcManager,
-          session,
-          nonce,
-          workflowId,
-          chainId,
-          maxFeePerGas: txGasConfig.maxFeePerGas,
-        }
-      );
+        value: parsedEthValue,
+      }, session, {
+        triggerType: txContext.triggerType ?? "manual",
+        gasOverrides: { multiplierOverride, gasLimitOverride },
+        workflowId,
+      });
+
+      const gasCostWei = (receipt.gasUsed * receipt.effectiveGasPrice).toString();
+      const transactionLink = await adapter.getTransactionUrl(receipt.hash);
 
       return {
         success: true,
-        transactionHash: result.txHash,
-        transactionLink: result.transactionLink,
-        gasUsed: result.gasCostWei,
+        transactionHash: receipt.hash,
+        transactionLink,
+        gasUsed: gasCostWei,
         result: undefined,
       };
     } catch (error) {
@@ -349,7 +294,7 @@ export async function writeContractCore(
       );
       return {
         success: false,
-        error: formatContractError(error, contract.interface),
+        error: formatContractError(error, contractInterface),
       };
     }
   });

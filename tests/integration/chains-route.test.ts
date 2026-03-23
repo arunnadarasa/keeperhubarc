@@ -100,8 +100,8 @@ const mockChains = {
   },
   tempoDisabled: {
     chain: {
-      id: "chain_42420",
-      chainId: 42_420,
+      id: "chain_4217",
+      chainId: 4217,
       name: "Tempo",
       symbol: "USD",
       chainType: "evm",
@@ -185,7 +185,7 @@ describe("/api/chains route", () => {
 
       // Verify disabled chain is included
       const tempoChain = data.find(
-        (c: { chainId: number }) => c.chainId === 42_420
+        (c: { chainId: number }) => c.chainId === 4217
       );
       expect(tempoChain).toBeDefined();
       expect(tempoChain.isEnabled).toBe(false);
