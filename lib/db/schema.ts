@@ -220,6 +220,7 @@ export const workflows = pgTable("workflows", {
     .default("private")
     .$type<WorkflowVisibility>(),
   enabled: boolean("enabled").default(false).notNull(), // keeperhub custom field //
+  sourceWorkflowId: text("source_workflow_id"), // tracks which public template was duplicated
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -351,6 +352,7 @@ export {
   type WorkflowPublicTag,
   walletLocks,
   workflowPublicTags,
+  workflowRatings,
 } from "@/db/schema-extensions";
 
 // Better Auth: Device Authorization table (for CLI device flow)

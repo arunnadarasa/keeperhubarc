@@ -514,3 +514,35 @@ export const billingEvents = pgTable("billing_events", {
 // Type exports for Billing Events table
 export type BillingEvent = typeof billingEvents.$inferSelect;
 export type NewBillingEvent = typeof billingEvents.$inferInsert;
+
+/**
+ * Workflow Ratings table
+ *
+ * Stores user ratings (1-5, half-star increments) on public hub workflows.
+ * Each user can rate a workflow once (enforced by unique constraint).
+ * Used for average rating display and popularity sorting.
+ */
+export const workflowRatings = pgTable(
+  "workflow_ratings",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => generateId()),
+    workflowId: text("workflow_id")
+      .notNull()
+      .references(() => workflows.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    rating: integer("rating").notNull(), // Stored as 2-20 (multiply by 2 to avoid decimals: 1.0=2, 1.5=3, 5.0=10)
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    unique("uq_workflow_ratings_workflow_user").on(
+      table.workflowId,
+      table.userId
+    ),
+    index("idx_workflow_ratings_workflow").on(table.workflowId),
+  ]
+);

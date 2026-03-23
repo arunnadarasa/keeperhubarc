@@ -44,6 +44,16 @@ export type SavedWorkflow = WorkflowData & {
   featuredProtocol?: string | null;
   featuredProtocolOrder?: number;
   publicTags?: PublicTag[];
+  averageRating?: number;
+  ratingCount?: number;
+  userRating?: number | null;
+  canRate?: boolean;
+};
+
+export type RatingResponse = {
+  rating?: number;
+  averageRating: number;
+  ratingCount: number;
 };
 
 // API error class
@@ -526,6 +536,19 @@ export const workflowApi = {
     apiCall<SavedWorkflow[]>(
       `/api/workflows/public?featuredProtocol=${encodeURIComponent(slug)}`
     ),
+
+  // Rate a workflow (1-5, half-star increments)
+  rateWorkflow: (id: string, rating: number) =>
+    apiCall<RatingResponse>(`/api/workflows/${id}/rate`, {
+      method: "POST",
+      body: JSON.stringify({ rating }),
+    }),
+
+  // Remove user's rating from a workflow
+  removeRating: (id: string) =>
+    apiCall<RatingResponse>(`/api/workflows/${id}/rate`, {
+      method: "DELETE",
+    }),
 
   // Get a specific workflow
   getById: (id: string) => apiCall<SavedWorkflow>(`/api/workflows/${id}`),
