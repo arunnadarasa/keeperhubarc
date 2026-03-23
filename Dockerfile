@@ -76,8 +76,8 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm@9
 
-# Use main project package.json (scheduler/package.json was removed)
-COPY package.json pnpm-lock.yaml ./
+# Use scheduler's own package.json for its specific dependencies
+COPY keeperhub-scheduler/package.json keeperhub-scheduler/pnpm-lock.yaml ./
 
 # Install only production dependencies with cache mount
 RUN --mount=type=cache,id=pnpm-scheduler,target=/root/.local/share/pnpm/store \

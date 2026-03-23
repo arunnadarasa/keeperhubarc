@@ -306,8 +306,8 @@ services:
       - minikube
 
   # ===========================================================================
-  # Event Tracker (keeperhub-events submodule)
-  # Monitors blockchain events and synchronizes with the system
+  # Event Tracker (keeperhub-events)
+  # Monitors blockchain events and routes to SQS for unified executor
   # ===========================================================================
   event-tracker:
     build:
@@ -325,12 +325,52 @@ services:
       JWT_TOKEN_PASSWORD: ${JWT_TOKEN_PASSWORD:-}
       KEEPERHUB_API_KEY: ${KEEPERHUB_API_KEY:-local-events-key-for-dev}
       ETHERSCAN_API_KEY: ${ETHERSCAN_API_KEY:-}
+      EXECUTION_MODE: sqs
+      SQS_QUEUE_URL: http://localstack:4566/000000000000/keeperhub-workflow-queue
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_ENDPOINT_URL: http://localstack:4566
       NODE_ENV: development
     depends_on:
       redis:
         condition: service_started
+      localstack:
+        condition: service_healthy
       event-worker:
         condition: service_healthy
+    profiles:
+      - dev
+      - minikube
+
+  # ===========================================================================
+  # Block Dispatcher (keeperhub-scheduler)
+  # Monitors blockchain blocks and routes matching workflows to SQS
+  # ===========================================================================
+  block-dispatcher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: block-dispatcher
+    image: keeperhub-block-dispatcher:latest
+    container_name: keeperhub-block-dispatcher
+    restart: unless-stopped
+    working_dir: /app
+    environment:
+      KEEPERHUB_API_URL: http://app-dev:3000
+      KEEPERHUB_API_KEY: ${KEEPERHUB_API_KEY:-local-scheduler-key-for-dev}
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_ENDPOINT_URL: http://localstack:4566
+      SQS_QUEUE_URL: http://localstack:4566/000000000000/keeperhub-workflow-queue
+      RECONCILE_INTERVAL_MS: "30000"
+      HEALTH_PORT: "3000"
+    depends_on:
+      localstack:
+        condition: service_healthy
+      app-dev:
+        condition: service_started
     profiles:
       - dev
       - minikube
