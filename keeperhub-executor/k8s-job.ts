@@ -7,7 +7,7 @@ const batchApi = kc.makeApiClient(BatchV1Api);
 
 /**
  * Create a K8s Job to execute a workflow in an isolated container.
- * The Job runs scripts/runtime/workflow-runner.ts via the runner image.
+ * The Job runs keeperhub-executor/workflow-runner.ts via the runner image.
  */
 export async function createWorkflowJob(params: {
   workflowId: string;

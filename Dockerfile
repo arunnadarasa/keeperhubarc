@@ -103,11 +103,9 @@ ENV NODE_ENV=production
 
 # This stage is used for:
 # - Schedule dispatcher (CronJob): sends messages to SQS
-# - Job spawner (Deployment): polls SQS, creates K8s Jobs
 #
 # Build with: docker build --target scheduler -t keeperhub-scheduler .
 # Run dispatcher: docker run keeperhub-scheduler tsx scripts/scheduler/schedule-dispatcher.ts
-# Run job spawner: docker run keeperhub-scheduler tsx scripts/scheduler/job-spawner.ts
 
 # Stage 2.8: Workflow Runner stage (for executing workflows in K8s Jobs)
 FROM node:24-alpine AS workflow-runner
@@ -117,7 +115,7 @@ COPY --from=deps /etc/ssl/certs/rds-combined-ca-bundle.pem /etc/ssl/certs/rds-co
 
 # Copy dependencies and workflow execution files
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=source /app/scripts/runtime/workflow-runner.ts ./scripts/runtime/workflow-runner.ts
+COPY --from=source /app/keeperhub-executor/workflow-runner.ts ./keeperhub-executor/workflow-runner.ts
 COPY --from=source /app/lib ./lib
 COPY --from=source /app/db ./db
 COPY --from=source /app/plugins ./plugins
@@ -142,11 +140,11 @@ RUN find /app/node_modules -path "*server-only*/index.js" | while read -r f; do 
 ENV NODE_ENV=production
 
 # This stage runs inside K8s Jobs to execute individual workflows
-# Environment variables are passed by the job-spawner:
+# Environment variables are passed by the executor:
 #   WORKFLOW_ID, EXECUTION_ID, SCHEDULE_ID, WORKFLOW_INPUT, DATABASE_URL
 #
 # Build with: docker build --target workflow-runner -t keeperhub-runner .
-CMD ["tsx", "scripts/runtime/workflow-runner.ts"]
+CMD ["tsx", "keeperhub-executor/workflow-runner.ts"]
 
 # Stage 2.9: Unified Executor (polls SQS, dispatches to K8s Jobs or in-process)
 FROM node:24-alpine AS executor
@@ -157,7 +155,6 @@ COPY --from=deps /etc/ssl/certs/rds-combined-ca-bundle.pem /etc/ssl/certs/rds-co
 # Full deps needed for in-process workflow execution + @kubernetes/client-node
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=source /app/keeperhub-executor ./keeperhub-executor
-COPY --from=source /app/scripts/runtime/workflow-runner.ts ./scripts/runtime/workflow-runner.ts
 COPY --from=source /app/lib ./lib
 COPY --from=source /app/db ./db
 COPY --from=source /app/plugins ./plugins
