@@ -16,7 +16,6 @@ FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY event-worker/package.json ./event-worker/
 COPY event-tracker/package.json ./event-tracker/
-COPY event-executor/package.json ./event-executor/
 
 RUN --mount=type=cache,id=pnpm-events,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile && \
@@ -30,7 +29,6 @@ FROM base AS build
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY event-worker/package.json event-worker/tsconfig.json ./event-worker/
 COPY event-tracker/package.json ./event-tracker/
-COPY event-executor/package.json ./event-executor/
 COPY event-worker/src/ ./event-worker/src/
 
 RUN --mount=type=cache,id=pnpm-events,target=/root/.local/share/pnpm/store \

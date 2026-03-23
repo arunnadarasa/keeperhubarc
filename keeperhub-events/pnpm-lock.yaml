@@ -21,19 +21,6 @@ importers:
         specifier: ^5.8.3
         version: 5.9.3
 
-  event-executor:
-    dependencies:
-      '@aws-sdk/client-sqs':
-        specifier: ^3.1005.0
-        version: 3.1005.0
-      express:
-        specifier: ^4.21.2
-        version: 4.22.1
-    devDependencies:
-      '@types/express':
-        specifier: ^5.0.0
-        version: 5.0.6
-
   event-tracker:
     dependencies:
       '@aws-sdk/client-sqs':

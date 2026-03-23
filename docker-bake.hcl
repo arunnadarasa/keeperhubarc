@@ -16,7 +16,6 @@ variable "NEXT_PUBLIC_BILLING_ENABLED" { default = "" }
 variable "ENVIRONMENT_TAG" { default = "" }
 variable "EVENTS_ECR_TRACKER_REPO" { default = "" }
 variable "EVENTS_ECR_WORKER_REPO" { default = "" }
-variable "EVENTS_ECR_EXECUTOR_REPO" { default = "" }
 variable "SCHEDULER_ECR_REPO" { default = "" }
 variable "EXECUTOR_ECR_REPO" { default = "" }
 
@@ -93,19 +92,6 @@ target "event-worker" {
   ])
   cache-from = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:cache"]
   cache-to   = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:cache,mode=max"]
-  attest     = []
-}
-
-target "event-executor" {
-  context    = "./keeperhub-events"
-  dockerfile = "event-executor/Dockerfile"
-  tags = compact([
-    "${ECR_REGISTRY}/${EVENTS_ECR_EXECUTOR_REPO}:app-${IMAGE_TAG}",
-    "${ECR_REGISTRY}/${EVENTS_ECR_EXECUTOR_REPO}:app-latest",
-    ENVIRONMENT_TAG != "" ? "${ECR_REGISTRY}/${EVENTS_ECR_EXECUTOR_REPO}:${ENVIRONMENT_TAG}" : "",
-  ])
-  cache-from = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_EXECUTOR_REPO}:cache"]
-  cache-to   = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_EXECUTOR_REPO}:cache,mode=max"]
   attest     = []
 }
 
