@@ -84,28 +84,50 @@ COPY package.json pnpm-lock.yaml ./
 RUN --mount=type=cache,id=pnpm-scheduler,target=/root/.local/share/pnpm/store \
     pnpm install --prod --frozen-lockfile
 
-# Stage 2.7b: Scheduler stage (for schedule dispatcher and job spawner)
-FROM node:24-alpine AS scheduler
+# Stage 2.7b: Scheduler base (shared deps for all scheduler services)
+FROM node:24-alpine AS scheduler-base
+RUN addgroup -g 1001 -S scheduler && \
+    adduser -S scheduler -u 1001
 WORKDIR /app
 RUN npm install -g tsx@4
 COPY --from=deps /etc/ssl/certs/rds-combined-ca-bundle.pem /etc/ssl/certs/rds-combined-ca-bundle.pem
-
-# Copy ONLY scheduler dependencies (not full node_modules - saves ~1.7GB)
 COPY --from=scheduler-deps /app/node_modules ./node_modules
-COPY --from=source /app/scripts ./scripts
-COPY --from=source /app/lib ./lib
-COPY --from=source /app/db ./db
-COPY --from=source /app/plugins ./plugins
-COPY --from=source /app/package.json ./package.json
-COPY --from=source /app/tsconfig.json ./tsconfig.json
-
 ENV NODE_ENV=production
 
-# This stage is used for:
-# - Schedule dispatcher (CronJob): sends messages to SQS
-#
-# Build with: docker build --target scheduler -t keeperhub-scheduler .
-# Run dispatcher: docker run keeperhub-scheduler tsx scripts/scheduler/schedule-dispatcher.ts
+# Stage 2.7c: Schedule Dispatcher
+FROM scheduler-base AS schedule-dispatcher
+COPY --from=source /app/keeperhub-scheduler/schedule-dispatcher/ ./schedule-dispatcher/
+COPY --from=source /app/keeperhub-scheduler/lib/ ./lib/
+COPY --from=source /app/keeperhub-scheduler/package.json ./keeperhub-scheduler/package.json
+COPY --from=source /app/keeperhub-scheduler/tsconfig.json ./keeperhub-scheduler/tsconfig.json
+COPY --from=source /app/keeperhub-scheduler/package.json ./package.json
+COPY --from=source /app/keeperhub-scheduler/tsconfig.json ./tsconfig.json
+RUN chown -R scheduler:scheduler /app
+USER scheduler
+EXPOSE 3000
+CMD ["tsx", "schedule-dispatcher/index.ts"]
+
+# Stage 2.7d: Schedule Executor (legacy, replaced by unified executor)
+FROM scheduler-base AS schedule-executor
+COPY --from=source /app/keeperhub-scheduler/schedule-executor/ ./schedule-executor/
+COPY --from=source /app/keeperhub-scheduler/lib/ ./lib/
+COPY --from=source /app/keeperhub-scheduler/package.json ./package.json
+COPY --from=source /app/keeperhub-scheduler/tsconfig.json ./tsconfig.json
+RUN chown -R scheduler:scheduler /app
+USER scheduler
+EXPOSE 3000
+CMD ["tsx", "schedule-executor/index.ts"]
+
+# Stage 2.7e: Block Dispatcher
+FROM scheduler-base AS block-dispatcher
+COPY --from=source /app/keeperhub-scheduler/block-dispatcher/ ./block-dispatcher/
+COPY --from=source /app/keeperhub-scheduler/lib/ ./lib/
+COPY --from=source /app/keeperhub-scheduler/package.json ./package.json
+COPY --from=source /app/keeperhub-scheduler/tsconfig.json ./tsconfig.json
+RUN chown -R scheduler:scheduler /app
+USER scheduler
+EXPOSE 3000
+CMD ["tsx", "block-dispatcher/index.ts"]
 
 # Stage 2.8: Workflow Runner stage (for executing workflows in K8s Jobs)
 FROM node:24-alpine AS workflow-runner

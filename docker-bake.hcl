@@ -110,9 +110,9 @@ target "event-executor" {
 }
 
 target "schedule-dispatcher" {
-  context    = "./keeperhub-scheduler"
+  context    = "."
   dockerfile = "Dockerfile"
-  target     = "dispatcher"
+  target     = "schedule-dispatcher"
   tags = compact([
     "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:dispatcher-${IMAGE_TAG}",
     "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:dispatcher-latest",
@@ -127,9 +127,9 @@ target "schedule-dispatcher" {
 }
 
 target "schedule-executor" {
-  context    = "./keeperhub-scheduler"
+  context    = "."
   dockerfile = "Dockerfile"
-  target     = "executor"
+  target     = "schedule-executor"
   tags = compact([
     "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:executor-${IMAGE_TAG}",
     "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:executor-latest",
@@ -144,7 +144,7 @@ target "schedule-executor" {
 }
 
 target "block-dispatcher" {
-  context    = "./keeperhub-scheduler"
+  context    = "."
   dockerfile = "Dockerfile"
   target     = "block-dispatcher"
   tags = compact([
