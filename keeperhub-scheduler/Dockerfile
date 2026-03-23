@@ -1,5 +1,5 @@
 # Stage 1: Dependencies
-FROM node:25-alpine AS deps
+FROM node:22-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 RUN npm install -g pnpm
@@ -8,7 +8,7 @@ RUN --mount=type=cache,id=pnpm-scheduler,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 
 # Stage 2: Dispatcher
-FROM node:25-alpine AS dispatcher
+FROM node:22-alpine AS dispatcher
 WORKDIR /app
 RUN npm install -g tsx
 COPY --from=deps /app/node_modules ./node_modules
@@ -20,7 +20,7 @@ EXPOSE 3000
 CMD ["tsx", "schedule-dispatcher/index.ts"]
 
 # Stage 3: Executor
-FROM node:25-alpine AS executor
+FROM node:22-alpine AS executor
 WORKDIR /app
 RUN npm install -g tsx
 COPY --from=deps /app/node_modules ./node_modules
@@ -32,7 +32,7 @@ EXPOSE 3000
 CMD ["tsx", "schedule-executor/index.ts"]
 
 # Stage 4: Block Dispatcher
-FROM node:25-alpine AS block-dispatcher
+FROM node:22-alpine AS block-dispatcher
 WORKDIR /app
 RUN npm install -g tsx
 COPY --from=deps /app/node_modules ./node_modules
