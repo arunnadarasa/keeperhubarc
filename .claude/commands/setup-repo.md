@@ -153,7 +153,7 @@ Then create the ruleset with the following JSON body via `gh api repos/$ARGUMENT
         "required_status_checks": [
           { "context": "lint-typecheck" },
           { "context": "build-test" },
-          { "context": "pr-title-check" }
+          { "context": "check-title" }
         ]
       }
     }
