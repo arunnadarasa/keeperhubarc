@@ -417,7 +417,7 @@ describe("RPC Config Resolution", () => {
       const jsonString = JSON.stringify({
         "eth-mainnet": {
           primaryRpcUrl: "https://chain.techops.services/eth-mainnet",
-          fallbackRpcUrl: "https://chain.techops.services/eth-mainnet",
+          fallbackRpcUrl: "https://1rpc.io/eth",
         },
         "solana-mainnet": {
           primaryRpcUrl: "https://solana-mainnet.g.alchemy.com/v2/key123",
