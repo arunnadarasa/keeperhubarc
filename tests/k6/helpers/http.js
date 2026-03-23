@@ -12,6 +12,8 @@ export function getBaseUrl() {
 export function getCommonHeaders() {
   const headers = {
     "Content-Type": "application/json",
+    Origin: BASE_URL,
+    Referer: `${BASE_URL}/`,
   };
 
   if (TEST_API_KEY) {
