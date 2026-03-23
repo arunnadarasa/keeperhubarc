@@ -597,29 +597,12 @@ jobs:
 
             const bodyStr = body.join('\n');
 
-            // Upsert comment
-            const { data: comments } = await github.rest.issues.listComments({
+            await github.rest.issues.createComment({
               issue_number: prNumber,
               owner: context.repo.owner,
               repo: context.repo.repo,
+              body: bodyStr,
             });
-            const existing = comments.find(c => c.body?.includes(marker));
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                comment_id: existing.id,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: bodyStr,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                issue_number: prNumber,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: bodyStr,
-              });
-            }
 
       - name: Upload k6 results
         if: always()
