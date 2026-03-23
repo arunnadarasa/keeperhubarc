@@ -42,6 +42,7 @@ import { CONFIG } from "./config";
 import { determineExecutionMode } from "./execution-mode";
 import { executeInProcess } from "./in-process";
 import { createWorkflowJob } from "./k8s-job";
+import { toJsonSafe } from "./lib/serialize";
 import type { ExecutorMessage, ScheduleMessage } from "./types";
 
 // Database
@@ -210,7 +211,7 @@ async function processExecutorMessage(message: ExecutorMessage): Promise<void> {
     workflowId,
     userId,
     status: "pending",
-    input,
+    input: toJsonSafe(input) as Record<string, unknown>,
   });
 
   console.log(`[Executor] Created execution record: ${executionId}`);

@@ -37,6 +37,7 @@ import { executeWorkflow } from "../lib/workflow-executor.workflow";
 import { calculateTotalSteps } from "../lib/workflow-progress";
 import { SHUTDOWN_TIMEOUT_MS } from "../lib/workflow-runner/constants";
 import type { WorkflowEdge, WorkflowNode } from "../lib/workflow-store";
+import { toJsonSafe } from "./lib/serialize";
 
 // Validate required environment variables
 function validateEnv(): {
@@ -178,7 +179,7 @@ async function updateExecutionStatus(
   }
 
   if (result?.output !== undefined) {
-    updateData.output = result.output;
+    updateData.output = toJsonSafe(result.output);
   }
 
   if (result?.error) {

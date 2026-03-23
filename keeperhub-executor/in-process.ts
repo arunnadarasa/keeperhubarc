@@ -11,6 +11,7 @@ import {
 import { executeWorkflow } from "../lib/workflow-executor.workflow";
 import { calculateTotalSteps } from "../lib/workflow-progress";
 import type { WorkflowEdge, WorkflowNode } from "../lib/workflow-store";
+import { toJsonSafe } from "./lib/serialize";
 
 type DbSchema = {
   workflows: typeof workflows;
@@ -33,7 +34,7 @@ async function updateExecutionStatus(
     updateData.completedAt = new Date();
   }
   if (result?.output !== undefined) {
-    updateData.output = result.output;
+    updateData.output = toJsonSafe(result.output);
   }
   if (result?.error) {
     updateData.error = result.error;
