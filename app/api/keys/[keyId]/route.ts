@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { organizationApiKeys } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 
 // DELETE - Revoke an API key
@@ -42,7 +43,12 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("[API Keys] Failed to revoke API key:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "[API Keys] Failed to revoke API key",
+      error,
+      { endpoint: "/api/keys/[keyId]", operation: "revoke" }
+    );
     return NextResponse.json(
       {
         error:

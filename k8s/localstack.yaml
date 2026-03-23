@@ -26,6 +26,8 @@ spec:
           ports:
             - containerPort: 4566
           env:
+            - name: LOCALSTACK_AUTH_TOKEN
+              value: "${LOCALSTACK_AUTH_TOKEN}"
             - name: SERVICES
               value: "sqs"
             - name: DEBUG

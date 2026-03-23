@@ -12,6 +12,7 @@ import { db } from "@/lib/db";
 import { createIntegration } from "@/lib/db/integrations";
 import { integrations, paraWallets } from "@/lib/db/schema";
 import { encryptUserShare } from "@/lib/encryption";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 import { getActiveOrgId } from "@/lib/middleware/org-context";
 import {
@@ -120,7 +121,12 @@ async function checkExistingWallet(organizationId: string) {
 // Helper: Create wallet via Para SDK
 async function createParaWallet(email: string) {
   if (!PARA_API_KEY) {
-    console.error("[Para] PARA_API_KEY not configured");
+    logSystemError(
+      ErrorCategory.INFRASTRUCTURE,
+      "[Para] PARA_API_KEY not configured",
+      new Error("PARA_API_KEY not configured"),
+      { endpoint: "/api/user/wallet", operation: "post" }
+    );
     throw new Error("Para API key not configured");
   }
 
@@ -154,7 +160,12 @@ async function createParaWallet(email: string) {
 
 // Helper: Get user-friendly error response for wallet creation failures
 function getErrorResponse(error: unknown) {
-  console.error("[Para] Wallet creation failed:", error);
+  logSystemError(
+    ErrorCategory.EXTERNAL_SERVICE,
+    "[Para] Wallet creation failed",
+    error,
+    { endpoint: "/api/user/wallet", operation: "createParaWallet" }
+  );
 
   let errorMessage = "Failed to create wallet";
   let statusCode = 500;
@@ -424,7 +435,12 @@ export async function PATCH(request: Request) {
       },
     });
   } catch (error) {
-    console.error("[Para] Failed to update wallet email:", error);
+    logSystemError(
+      ErrorCategory.EXTERNAL_SERVICE,
+      "[Para] Failed to update wallet email",
+      error,
+      { endpoint: "/api/user/wallet", operation: "patch" }
+    );
     return apiError(error, "Failed to update wallet email");
   }
 }

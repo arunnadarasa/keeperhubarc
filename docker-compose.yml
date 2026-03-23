@@ -95,6 +95,7 @@ services:
       - SQS_ENDPOINT_STRATEGY=path
       # Use host.minikube.internal so queue URLs work from both host and Minikube
       - LOCALSTACK_HOST=host.minikube.internal:4566
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN:-}
     volumes:
       - ./deploy/local/hybrid/init-localstack.sh:/etc/localstack/init/ready.d/init-aws.sh:ro
       - keeperhub_localstack_data:/var/lib/localstack

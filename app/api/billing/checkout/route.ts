@@ -14,6 +14,7 @@ import { getBillingProvider } from "@/lib/billing/providers";
 import { requireOrgOwner } from "@/lib/billing/require-org-owner";
 import { db } from "@/lib/db";
 import { organizationSubscriptions } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 type CheckoutRequestBody = {
   plan?: string;
@@ -217,8 +218,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("[Billing] Checkout error:", message);
+    logSystemError(
+      ErrorCategory.EXTERNAL_SERVICE,
+      "[Billing] Checkout error",
+      error,
+      { endpoint: "/api/billing/checkout", operation: "post" }
+    );
     return NextResponse.json(
       { error: "Failed to create checkout session" },
       { status: 500 }

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { workflowExecutionLogs, workflowExecutions } from "@/lib/db/schema";
 import { authenticateInternalService } from "@/lib/internal-service-auth";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 const DEFAULT_THRESHOLD_MINUTES = 30;
 
@@ -74,7 +75,12 @@ export async function GET(request: Request): Promise<NextResponse> {
       reapedIds,
     });
   } catch (error) {
-    console.error("[Reaper] Failed to reap stale executions:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "Failed to reap stale executions",
+      error,
+      { endpoint: "/api/internal/reaper", operation: "get" }
+    );
     return NextResponse.json(
       {
         error:

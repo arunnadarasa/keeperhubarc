@@ -125,7 +125,7 @@ export function FeedbackOverlay({ overlayId }: FeedbackOverlayProps) {
           </p>
           <a
             className="text-primary text-sm underline"
-            href="https://github.com/techops-services/keeperhub/issues?q=is%3Aopen+is%3Aissue+label%3Auser-feedback"
+            href="https://github.com/KeeperHub/keeperhub/issues?q=is%3Aopen+is%3Aissue+label%3Auser-feedback"
             rel="noopener noreferrer"
             target="_blank"
           >

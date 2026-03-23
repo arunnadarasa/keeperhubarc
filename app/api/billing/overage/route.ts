@@ -8,6 +8,7 @@ import {
   overageBillingRecords,
 } from "@/lib/db/schema";
 import { authenticateInternalService } from "@/lib/internal-service-auth";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 type SingleOrgBody = {
   scan?: never;
@@ -102,10 +103,11 @@ async function safeBillOrg(
     );
     return { organizationId, result };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(
-      `[Billing] ${errorLabel} for org ${organizationId}:`,
-      message
+    logSystemError(
+      ErrorCategory.EXTERNAL_SERVICE,
+      `[Billing] ${errorLabel} for org ${organizationId}`,
+      error,
+      { endpoint: "/api/billing/overage", operation: "billOrg" }
     );
     return {
       organizationId,

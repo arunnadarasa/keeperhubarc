@@ -23,6 +23,105 @@ export default defineProtocol({
         // Arbitrum One (USDC market)
         "42161": "0x9c4ec768c28520B50860ea7a15bd7213a9fF58bf",
       },
+      // Inline ABI -- Comet is a proxy; block explorer auto-fetch fails on Base/Arbitrum
+      abi: JSON.stringify([
+        {
+          type: "function",
+          name: "supply",
+          stateMutability: "nonpayable",
+          inputs: [
+            { name: "asset", type: "address" },
+            { name: "amount", type: "uint256" },
+          ],
+          outputs: [],
+        },
+        {
+          type: "function",
+          name: "withdraw",
+          stateMutability: "nonpayable",
+          inputs: [
+            { name: "asset", type: "address" },
+            { name: "amount", type: "uint256" },
+          ],
+          outputs: [],
+        },
+        {
+          type: "function",
+          name: "balanceOf",
+          stateMutability: "view",
+          inputs: [{ name: "account", type: "address" }],
+          outputs: [{ name: "", type: "uint256" }],
+        },
+        {
+          type: "function",
+          name: "userCollateral",
+          stateMutability: "view",
+          inputs: [
+            { name: "account", type: "address" },
+            { name: "asset", type: "address" },
+          ],
+          outputs: [
+            { name: "balance", type: "uint128" },
+            { name: "_reserved", type: "uint128" },
+          ],
+        },
+        {
+          type: "function",
+          name: "borrowBalanceOf",
+          stateMutability: "view",
+          inputs: [{ name: "account", type: "address" }],
+          outputs: [{ name: "", type: "uint256" }],
+        },
+        {
+          type: "function",
+          name: "getUtilization",
+          stateMutability: "view",
+          inputs: [],
+          outputs: [{ name: "", type: "uint256" }],
+        },
+        {
+          type: "function",
+          name: "getSupplyRate",
+          stateMutability: "view",
+          inputs: [{ name: "utilization", type: "uint256" }],
+          outputs: [{ name: "", type: "uint64" }],
+        },
+        {
+          type: "function",
+          name: "getBorrowRate",
+          stateMutability: "view",
+          inputs: [{ name: "utilization", type: "uint256" }],
+          outputs: [{ name: "", type: "uint64" }],
+        },
+        {
+          type: "function",
+          name: "totalSupply",
+          stateMutability: "view",
+          inputs: [],
+          outputs: [{ name: "", type: "uint256" }],
+        },
+        {
+          type: "function",
+          name: "totalBorrow",
+          stateMutability: "view",
+          inputs: [],
+          outputs: [{ name: "", type: "uint256" }],
+        },
+        {
+          type: "function",
+          name: "isLiquidatable",
+          stateMutability: "view",
+          inputs: [{ name: "account", type: "address" }],
+          outputs: [{ name: "", type: "bool" }],
+        },
+        {
+          type: "function",
+          name: "numAssets",
+          stateMutability: "view",
+          inputs: [],
+          outputs: [{ name: "", type: "uint8" }],
+        },
+      ]),
     },
   },
 

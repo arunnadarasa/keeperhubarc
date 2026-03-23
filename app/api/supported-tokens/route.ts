@@ -2,13 +2,14 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { chains, explorerConfigs, supportedTokens } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 
 // Mainnet chain ID - used as the "master list" of supported tokens
 const MAINNET_CHAIN_ID = 1;
 
-// TEMPO testnet chain IDs - excluded from master list logic (have their own tokens)
-const TEMPO_CHAIN_IDS = [42_429];
+// TEMPO chain IDs - excluded from master list logic (have their own tokens)
+const TEMPO_CHAIN_IDS = [42_429, 4217];
 
 /**
  * Build explorer URL for a token address
@@ -192,7 +193,10 @@ export async function GET(request: Request) {
       tokens,
     });
   } catch (error) {
-    console.error("[SupportedTokens] Error:", error);
+    logSystemError(ErrorCategory.DATABASE, "[SupportedTokens] Error", error, {
+      endpoint: "/api/supported-tokens",
+      operation: "list",
+    });
     return NextResponse.json(
       { error: "Failed to fetch supported tokens" },
       { status: 500 }

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { member, organization } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 type UpdateOrganizationNameRequest = {
   name?: string;
@@ -75,7 +76,12 @@ export async function PATCH(
 
     return NextResponse.json({ organization: updated }, { status: 200 });
   } catch (error) {
-    console.error("Failed to update organization:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "Failed to update organization",
+      error,
+      { endpoint: "/api/organizations/[organizationId]", operation: "update" }
+    );
     return NextResponse.json(
       { error: "Failed to update organization" },
       { status: 500 }

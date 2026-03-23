@@ -351,9 +351,15 @@ export function SqlTemplateEditor({
       // Initial decoration pass
       updateDecorations();
 
-      // Update decorations on every content change
+      let decorationRaf: number | undefined;
       editor.onDidChangeModelContent(() => {
-        updateDecorations();
+        if (decorationRaf !== undefined) {
+          cancelAnimationFrame(decorationRaf);
+        }
+        decorationRaf = requestAnimationFrame(() => {
+          decorationRaf = undefined;
+          updateDecorations();
+        });
       });
 
       // Register completion provider for @ trigger
@@ -436,6 +442,8 @@ export function SqlTemplateEditor({
             scrollBeyondLastLine: false,
             fontSize: 12,
             readOnly: disabled,
+            wordBasedSuggestions: "off",
+            quickSuggestions: false,
             wordWrap: "off",
           }}
           value={displayValue}

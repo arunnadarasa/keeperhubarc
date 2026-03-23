@@ -1,7 +1,8 @@
-import { count, eq } from "drizzle-orm";
+import { and, count, eq, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { projects, workflows } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import {
   resolveCreatorContext,
   resolveOrganizationId,
@@ -31,7 +32,13 @@ export async function GET(request: Request) {
         workflowCount: count(workflows.id),
       })
       .from(projects)
-      .leftJoin(workflows, eq(workflows.projectId, projects.id))
+      .leftJoin(
+        workflows,
+        and(
+          eq(workflows.projectId, projects.id),
+          ne(workflows.name, "__current__")
+        )
+      )
       .where(eq(projects.organizationId, organizationId))
       .groupBy(projects.id)
       .orderBy(projects.name);
@@ -44,7 +51,12 @@ export async function GET(request: Request) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("[Projects] Failed to list projects:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "[Projects] Failed to list projects",
+      error,
+      { endpoint: "/api/projects", operation: "list" }
+    );
     return NextResponse.json(
       {
         error:
@@ -102,7 +114,12 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("[Projects] Failed to create project:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "[Projects] Failed to create project",
+      error,
+      { endpoint: "/api/projects", operation: "create" }
+    );
     return NextResponse.json(
       {
         error:

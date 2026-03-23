@@ -21,6 +21,7 @@
  * logSystemError(ErrorCategory.INFRASTRUCTURE, "[Para] API key missing:", error, { component: "para-service" });
  */
 
+import { captureException } from "@sentry/nextjs";
 import { getMetricsCollector } from "@/lib/metrics";
 import { LabelKeys, MetricNames } from "@/lib/metrics/types";
 
@@ -113,7 +114,8 @@ export function logUserError(
   const context = extractContext(message);
 
   // Log as warning (user errors don't wake up DevOps)
-  console.warn(message, error ?? "");
+  const orgTag = labels?.org_name ? ` [org:${labels.org_name}]` : "";
+  console.warn(`${message}${orgTag}`, error ?? "");
 
   // Emit metric
   metrics.recordError(
@@ -126,6 +128,21 @@ export function logUserError(
       [LabelKeys.IS_USER_ERROR]: "true",
     }
   );
+
+  // Report to Sentry as warning-level (user errors are tracked but don't alert)
+  if (error !== undefined) {
+    const sentryError =
+      error instanceof Error ? error : new Error(String(error));
+    captureException(sentryError, {
+      level: "warning",
+      tags: {
+        error_category: category,
+        error_context: context,
+        is_user_error: "true",
+      },
+      extra: labels,
+    });
+  }
 }
 
 /**
@@ -155,7 +172,8 @@ export function logSystemError(
   const context = extractContext(message);
 
   // Log as error (system failures are critical)
-  console.error(message, error);
+  const orgTag = labels?.org_name ? ` [org:${labels.org_name}]` : "";
+  console.error(`${message}${orgTag}`, error);
 
   // Emit metric
   metrics.recordError(
@@ -168,4 +186,14 @@ export function logSystemError(
       [LabelKeys.IS_USER_ERROR]: "false",
     }
   );
+
+  // Report to Sentry for alerting
+  const sentryError = error instanceof Error ? error : new Error(String(error));
+  captureException(sentryError, {
+    tags: {
+      error_category: category,
+      error_context: context,
+    },
+    extra: labels,
+  });
 }

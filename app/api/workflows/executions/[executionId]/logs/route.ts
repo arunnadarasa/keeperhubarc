@@ -2,6 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDualAuthContext } from "@/lib/middleware/auth-helpers";
 import { db } from "@/lib/db";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { workflowExecutionLogs, workflowExecutions } from "@/lib/db/schema";
 import { redactSensitiveData } from "@/lib/utils/redact";
 
@@ -73,7 +74,10 @@ export async function GET(
       logs: redactedLogs,
     });
   } catch (error) {
-    console.error("Failed to get execution logs:", error);
+    logSystemError(ErrorCategory.DATABASE, "Failed to get execution logs", error, {
+      endpoint: "/api/workflows/executions/logs",
+      operation: "get",
+    });
     return NextResponse.json(
       {
         error:

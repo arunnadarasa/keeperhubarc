@@ -1,7 +1,8 @@
-import { count, eq } from "drizzle-orm";
+import { and, count, eq, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { tags, workflows } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import {
   resolveCreatorContext,
   resolveOrganizationId,
@@ -30,7 +31,10 @@ export async function GET(request: Request): Promise<NextResponse> {
         workflowCount: count(workflows.id),
       })
       .from(tags)
-      .leftJoin(workflows, eq(workflows.tagId, tags.id))
+      .leftJoin(
+        workflows,
+        and(eq(workflows.tagId, tags.id), ne(workflows.name, "__current__"))
+      )
       .where(eq(tags.organizationId, organizationId))
       .groupBy(tags.id)
       .orderBy(tags.name);
@@ -43,7 +47,10 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("[Tags] Failed to list tags:", error);
+    logSystemError(ErrorCategory.DATABASE, "Failed to list tags", error, {
+      endpoint: "/api/tags",
+      operation: "get",
+    });
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Failed to list tags",
@@ -95,7 +102,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       { status: 201 }
     );
   } catch (error) {
-    console.error("[Tags] Failed to create tag:", error);
+    logSystemError(ErrorCategory.DATABASE, "Failed to create tag", error, {
+      endpoint: "/api/tags",
+      operation: "post",
+    });
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Failed to create tag",

@@ -4,19 +4,14 @@ import { and, eq } from "drizzle-orm";
 import { ethers } from "ethers";
 import ERC20_ABI from "@/lib/contracts/abis/erc20.json";
 import { db } from "@/lib/db";
-import {
-  explorerConfigs,
-  supportedTokens,
-  workflowExecutions,
-} from "@/lib/db/schema";
-import { getAddressUrl } from "@/lib/explorer";
+import { supportedTokens, workflowExecutions } from "@/lib/db/schema";
 import { ErrorCategory, logUserError } from "@/lib/logging";
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
-import type { RpcProviderManager } from "@/lib/rpc-provider";
 import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 import { getErrorMessage } from "@/lib/utils";
 import type { CustomToken, TokenFieldValue } from "@/lib/wallet/types";
+import { getChainAdapter } from "@/lib/web3/chain-adapter";
 
 /**
  * Get userId from executionId by querying the workflowExecutions table
@@ -405,7 +400,7 @@ async function stepHandler(
   }
 
   // Resolve RPC provider with failover support
-  let rpcManager: RpcProviderManager;
+  let rpcManager: Awaited<ReturnType<typeof getRpcProvider>>;
   try {
     rpcManager = await getRpcProvider({ chainId, userId });
   } catch (error) {
@@ -425,25 +420,16 @@ async function stepHandler(
     };
   }
 
+  const adapter = getChainAdapter(chainId);
+
   // Check balance for the token
   try {
-    const balance = await rpcManager.executeWithFailover(async (provider) =>
-      fetchTokenBalance(provider, address, tokenAddress)
+    const balance = await adapter.executeWithFailover(
+      rpcManager,
+      async (provider) => fetchTokenBalance(provider, address, tokenAddress)
     );
 
-    console.log("[Check Token Balance] Token balance retrieved successfully:", {
-      address,
-      symbol: balance.symbol,
-      balance: balance.balance,
-    });
-
-    // Fetch explorer config for address link
-    const explorerConfig = await db.query.explorerConfigs.findFirst({
-      where: eq(explorerConfigs.chainId, chainId),
-    });
-    const addressLink = explorerConfig
-      ? getAddressUrl(explorerConfig, address)
-      : "";
+    const addressLink = await adapter.getAddressUrl(address);
 
     return {
       success: true,

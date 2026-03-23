@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { chains, explorerConfigs } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 export type ChainResponse = {
   id: string;
@@ -64,7 +65,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("Failed to get chains:", error);
+    logSystemError(ErrorCategory.DATABASE, "Failed to get chains", error, {
+      endpoint: "/api/chains",
+      operation: "get",
+    });
     return NextResponse.json(
       {
         error: "Failed to get chains",

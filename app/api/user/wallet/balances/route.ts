@@ -5,6 +5,7 @@ import { apiError } from "@/lib/api-error";
 import ERC20_ABI from "@/lib/contracts/abis/erc20.json";
 import { db } from "@/lib/db";
 import { chains, organizationTokens } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 import { getOrganizationWallet } from "@/lib/para/wallet-helpers";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
@@ -123,9 +124,14 @@ export async function GET(request: Request) {
                 logoUrl: token.logoUrl || undefined,
               });
             } catch (tokenError) {
-              console.error(
-                `[Balances] Failed to fetch balance for token ${token.symbol}:`,
-                tokenError
+              logSystemError(
+                ErrorCategory.EXTERNAL_SERVICE,
+                `[Balances] Failed to fetch balance for token ${token.symbol}`,
+                tokenError,
+                {
+                  endpoint: "/api/user/wallet/balances",
+                  operation: "fetchTokenBalance",
+                }
               );
               tokenBalances.push({
                 address: token.tokenAddress,
@@ -149,9 +155,14 @@ export async function GET(request: Request) {
             tokens: tokenBalances,
           };
         } catch (error) {
-          console.error(
-            `[Balances] Failed to fetch balance for chain ${chain.name}:`,
-            error
+          logSystemError(
+            ErrorCategory.EXTERNAL_SERVICE,
+            `[Balances] Failed to fetch balance for chain ${chain.name}`,
+            error,
+            {
+              endpoint: "/api/user/wallet/balances",
+              operation: "fetchChainBalance",
+            }
           );
           return {
             chainId: chain.chainId,

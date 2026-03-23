@@ -26,7 +26,8 @@
  * These are used as last resort when no config is provided
  */
 export const PUBLIC_RPCS = {
-  ETH_MAINNET: "https://eth.llamarpc.com",
+  ETH_MAINNET: "https://chain.techops.services/eth-mainnet",
+  ETH_MAINNET_FALLBACK: "https://1rpc.io/eth",
   SEPOLIA: "https://ethereum-sepolia-rpc.publicnode.com",
   BASE_MAINNET: "https://mainnet.base.org",
   BASE_SEPOLIA: "https://sepolia.base.org",
@@ -44,6 +45,7 @@ export type ChainConfigEntry = {
   envKey: string;
   fallbackEnvKey: string;
   publicDefault: string;
+  publicFallback?: string;
 };
 
 export const CHAIN_CONFIG: Record<number, ChainConfigEntry> = {
@@ -53,6 +55,7 @@ export const CHAIN_CONFIG: Record<number, ChainConfigEntry> = {
     envKey: "CHAIN_ETH_MAINNET_PRIMARY_RPC",
     fallbackEnvKey: "CHAIN_ETH_MAINNET_FALLBACK_RPC",
     publicDefault: PUBLIC_RPCS.ETH_MAINNET,
+    publicFallback: PUBLIC_RPCS.ETH_MAINNET_FALLBACK,
   },
   // Sepolia Testnet
   11155111: {
@@ -82,7 +85,13 @@ export const CHAIN_CONFIG: Record<number, ChainConfigEntry> = {
     fallbackEnvKey: "CHAIN_TEMPO_TESTNET_FALLBACK_RPC",
     publicDefault: PUBLIC_RPCS.TEMPO_TESTNET,
   },
-  // Tempo Mainnet
+  // Tempo Mainnet (4217 is the canonical chain ID; 42420 kept for backwards compatibility)
+  4217: {
+    jsonKey: "tempo-mainnet",
+    envKey: "CHAIN_TEMPO_MAINNET_PRIMARY_RPC",
+    fallbackEnvKey: "CHAIN_TEMPO_MAINNET_FALLBACK_RPC",
+    publicDefault: PUBLIC_RPCS.TEMPO_MAINNET,
+  },
   42420: {
     jsonKey: "tempo-mainnet",
     envKey: "CHAIN_TEMPO_MAINNET_PRIMARY_RPC",
@@ -151,12 +160,16 @@ export function getRpcUrlByChainId(
 
   const rpcConfig = getRpcConfigSingleton();
   const envKey = type === "primary" ? config.envKey : config.fallbackEnvKey;
+  const publicDefault =
+    type === "fallback" && config.publicFallback
+      ? config.publicFallback
+      : config.publicDefault;
 
   return getRpcUrl({
     rpcConfig,
     jsonKey: config.jsonKey,
     envValue: process.env[envKey],
-    publicDefault: config.publicDefault,
+    publicDefault,
     type,
   });
 }

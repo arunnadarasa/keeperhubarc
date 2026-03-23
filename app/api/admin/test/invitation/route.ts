@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { authenticateAdmin, validateTestEmail } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
 import { invitation } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 export async function GET(request: Request): Promise<NextResponse> {
   const auth = authenticateAdmin(request);
@@ -44,7 +45,12 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     return NextResponse.json({ invitationId: result[0].id });
   } catch (error) {
-    console.error("Admin invitation lookup failed:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "Admin invitation lookup failed",
+      error,
+      { endpoint: "/api/admin/test/invitation", operation: "get" }
+    );
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

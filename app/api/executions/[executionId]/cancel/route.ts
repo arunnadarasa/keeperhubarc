@@ -6,6 +6,7 @@ import {
   workflowExecutions,
   workflows,
 } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { getOrgContext } from "@/lib/middleware/org-context";
 
 export async function POST(
@@ -101,7 +102,12 @@ export async function POST(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Failed to cancel execution:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "Failed to cancel execution",
+      error,
+      { endpoint: "/api/executions/[executionId]/cancel", operation: "post" }
+    );
     return NextResponse.json(
       { error: "Failed to cancel execution" },
       { status: 500 }

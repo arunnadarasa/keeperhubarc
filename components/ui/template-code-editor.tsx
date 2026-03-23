@@ -341,8 +341,15 @@ export function TemplateCodeEditor({
 
       updateDecorations();
 
+      let decorationRaf: number | undefined;
       editor.onDidChangeModelContent(() => {
-        updateDecorations();
+        if (decorationRaf !== undefined) {
+          cancelAnimationFrame(decorationRaf);
+        }
+        decorationRaf = requestAnimationFrame(() => {
+          decorationRaf = undefined;
+          updateDecorations();
+        });
       });
 
       const disposable = monaco.languages.registerCompletionItemProvider(
@@ -421,6 +428,8 @@ export function TemplateCodeEditor({
             tabSize: 2,
             wordWrap: "on",
             readOnly: disabled,
+            wordBasedSuggestions: "off",
+            quickSuggestions: false,
             padding: { top: 8, bottom: 8 },
             renderLineHighlight: "gutter",
             overviewRulerLanes: 0,

@@ -63,12 +63,24 @@ vi.mock("@/lib/rpc/network-utils", () => ({
 
 vi.mock("@/lib/rpc/provider-factory", () => ({
   getRpcProvider: (...args: unknown[]) => mockGetRpcProvider(...args),
+  isSolanaChain: () => false,
 }));
 
 // Mock explorer
 vi.mock("@/lib/explorer", () => ({
   getTransactionUrl: () => "https://etherscan.io/tx/0xabc",
   getAddressUrl: () => "https://etherscan.io/address/0xabc",
+}));
+
+// Mock chain adapter
+const mockExecuteContractCall = vi.fn();
+const mockGetTransactionUrl = vi.fn();
+vi.mock("@/lib/web3/chain-adapter", () => ({
+  getChainAdapter: () => ({
+    executeContractCall: (...args: unknown[]) =>
+      mockExecuteContractCall(...args),
+    getTransactionUrl: (...args: unknown[]) => mockGetTransactionUrl(...args),
+  }),
 }));
 
 // Mock organization context
@@ -119,6 +131,33 @@ vi.mock("@/lib/web3/transaction-manager", () => ({
     _wallet: unknown,
     fn: (session: unknown) => unknown
   ) => fn({ id: "mock-session" }),
+  submitContractCallAndConfirm: async (
+    contract: Record<
+      string,
+      (...a: unknown[]) => Promise<{
+        hash: string;
+        wait: () => Promise<{
+          hash: string;
+          gasUsed: bigint;
+          gasPrice: bigint;
+        }>;
+      }>
+    >,
+    method: string,
+    args: unknown[],
+    overrides: Record<string, unknown>,
+    _signer: unknown,
+    _options: unknown
+  ) => {
+    const tx = await contract[method](...args, overrides);
+    const receipt = await tx.wait();
+    return {
+      txHash: receipt.hash,
+      receipt,
+      gasCostWei: (receipt.gasUsed * receipt.gasPrice).toString(),
+      transactionLink: `https://etherscan.io/tx/${receipt.hash}`,
+    };
+  },
 }));
 
 // Mock ethers
@@ -208,6 +247,12 @@ function setupMocks(): void {
         gasPrice: BigInt(25_000_000_000),
       }),
   });
+  mockExecuteContractCall.mockResolvedValue({
+    hash: "0xtxhash",
+    gasUsed: BigInt(45_000),
+    effectiveGasPrice: BigInt(25_000_000_000),
+  });
+  mockGetTransactionUrl.mockResolvedValue("https://etherscan.io/tx/0xtxhash");
 }
 
 beforeEach(() => {
@@ -266,7 +311,7 @@ describe("approve-token - successful approval", () => {
       expect(result.approvedAmount).toBe("100");
       expect(result.spender).toBe(VALID_SPENDER);
       expect(result.symbol).toBe("DAI");
-      expect(result.transactionLink).toBe("https://etherscan.io/tx/0xabc");
+      expect(result.transactionLink).toBe("https://etherscan.io/tx/0xtxhash");
     }
   });
 
@@ -325,7 +370,7 @@ describe("approve-token - error handling", () => {
 
   it("fails when transaction reverts", async () => {
     setupMocks();
-    mockApprove.mockRejectedValueOnce(
+    mockExecuteContractCall.mockRejectedValueOnce(
       new Error("execution reverted: ERC20: approve from zero address")
     );
     const result = await approveTokenCore(makeInput({}));

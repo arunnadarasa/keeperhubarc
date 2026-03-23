@@ -34,6 +34,13 @@ import {
   collectSkippedTargets,
   type ConditionDecision,
 } from "@/lib/skipped-branch-utils";
+import {
+  buildEdgesBySource,
+  buildEdgesByTarget,
+  getReadyDownstreamIds,
+  propagateConvergenceSkips,
+  signalConvergenceArrival,
+} from "@/lib/convergence-barrier";
 import { resolveConditionExpression } from "@/lib/condition-resolver";
 import {
   applyBigIntConversion,
@@ -102,6 +109,8 @@ export type WorkflowExecutionInput = {
   triggerInput?: Record<string, unknown>;
   executionId?: string;
   workflowId?: string; // Used by steps to fetch credentials
+  organizationId?: string;
+  organizationName?: string; // Used for log filtering by org name
 };
 
 /**
@@ -1010,28 +1019,42 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
 
   console.log("[Workflow Executor] Starting workflow execution");
 
-  const { nodes, edges, triggerInput = {}, executionId, workflowId } = input;
+  const {
+    nodes,
+    edges,
+    triggerInput = {},
+    executionId,
+    workflowId,
+    organizationId,
+    organizationName,
+  } = input;
 
   console.log("[Workflow Executor] Input:", {
     nodeCount: nodes.length,
     edgeCount: edges.length,
     hasExecutionId: !!executionId,
     workflowId: workflowId || "none",
+    organizationId: organizationId || "none",
   });
+
+  // Common labels for error logging — includes org name for log filtering
+  const baseLogLabels: Record<string, string> = {
+    ...(workflowId ? { workflow_id: workflowId } : {}),
+    ...(executionId ? { execution_id: executionId } : {}),
+    ...(organizationName ? { org_name: organizationName } : {}),
+  };
 
   const outputs: NodeOutputs = {};
   const results: Record<string, ExecutionResult> = {};
 
   // Build node and edge maps
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-  const edgesBySource = new Map<string, string[]>();
+  const edgesBySource = buildEdgesBySource(edges);
   const edgesBySourceHandle = buildEdgesBySourceHandle(edges);
   const conditionDecisions = new Map<string, ConditionDecision>();
-  for (const edge of edges) {
-    const targets = edgesBySource.get(edge.source) || [];
-    targets.push(edge.target);
-    edgesBySource.set(edge.source, targets);
-  }
+
+  const edgesByTarget = buildEdgesByTarget(edges);
+  const convergenceArrivals = new Map<string, Set<string>>();
 
   // Find trigger nodes
   const nodesWithIncoming = new Set(edges.map((e) => e.target));
@@ -1231,6 +1254,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
         nodeType: actionType,
         iterationIndex: iterationMeta?.iterationIndex,
         forEachNodeId: iterationMeta?.forEachNodeId,
+        organizationId,
       };
 
       const stepResult = await executeActionStep({
@@ -1538,6 +1562,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             nodeName: collectLabel,
             nodeType: "Collect",
             forEachNodeId,
+            organizationId,
           } satisfies StepContext,
         });
       }
@@ -1579,6 +1604,32 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
     }
   }
 
+  /**
+   * Execute downstream nodes with convergence barrier support.
+   * For convergence nodes (multiple incoming edges), waits until all
+   * upstream branches have signaled arrival before executing.
+   */
+  async function executeReadyDownstream(
+    fromNodeId: string,
+    nextNodeIds: string[],
+    visited: Set<string>
+  ): Promise<void> {
+    const readyIds = getReadyDownstreamIds(
+      fromNodeId,
+      nextNodeIds,
+      edgesByTarget,
+      convergenceArrivals,
+      visited
+    );
+
+    if (readyIds.length > 0) {
+      const settled = await Promise.allSettled(
+        readyIds.map((id) => executeNode(id, visited))
+      );
+      processSettledResults(settled, readyIds);
+    }
+  }
+
   // Helper to execute a single node
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Node execution requires type checking and error handling
   async function executeNode(nodeId: string, visited: Set<string> = new Set()) {
@@ -1607,11 +1658,8 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
         data: null,
       };
 
-      const nextNodes = edgesBySource.get(nodeId) || [];
-      const settled = await Promise.allSettled(
-        nextNodes.map((nextNodeId) => executeNode(nextNodeId, visited))
-      );
-      processSettledResults(settled, nextNodes);
+      const nextNodes = edgesBySource.get(nodeId) ?? [];
+      await executeReadyDownstream(nodeId, nextNodes, visited);
       return;
     }
 
@@ -1656,10 +1704,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
               ErrorCategory.VALIDATION,
               "[Workflow Executor] Failed to parse webhook mock request:",
               error,
-              {
-                ...(workflowId ? { workflow_id: workflowId } : {}),
-                ...(executionId ? { execution_id: executionId } : {}),
-              }
+              baseLogLabels
             );
           }
         } else if (triggerInput && Object.keys(triggerInput).length > 0) {
@@ -1710,6 +1755,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           nodeId: node.id,
           nodeName: getNodeName(node),
           nodeType: node.data.type,
+          organizationId,
         };
 
         // Execute trigger step (handles logging internally)
@@ -1753,6 +1799,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           nodeName: getNodeName(node),
           nodeType: actionType,
           triggerType: workflowTriggerType,
+          organizationId,
         };
 
         // Execute the action step with stepHandler (logging is handled inside)
@@ -1841,10 +1888,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             currentEdgesBySource: edgesBySource,
             continueAfterCollect: async (collectId) => {
               const nextNodes = edgesBySource.get(collectId) ?? [];
-              const settled = await Promise.allSettled(
-                nextNodes.map((nextNodeId) => executeNode(nextNodeId, visited))
-              );
-              processSettledResults(settled, nextNodes);
+              await executeReadyDownstream(collectId, nextNodes, visited);
             },
           });
 
@@ -1876,22 +1920,31 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
                 edgesBySourceHandle
               ),
             });
-            const handleSettled = await Promise.allSettled(
-              handleTargets.map((nextNodeId) =>
-                executeNode(nextNodeId, visited)
-              )
-            );
-            processSettledResults(handleSettled, handleTargets);
+            await executeReadyDownstream(nodeId, handleTargets, visited);
+
+            // Propagate skip signals for the not-taken branch so convergence
+            // nodes downstream receive arrival signals from skipped sources
+            const skippedTargets = handleMap.get(notTakenHandle) ?? [];
+            if (skippedTargets.length > 0) {
+              const unblockedIds = propagateConvergenceSkips(
+                skippedTargets,
+                edgesBySource,
+                edgesByTarget,
+                convergenceArrivals,
+                visited
+              );
+              if (unblockedIds.length > 0) {
+                const settled = await Promise.allSettled(
+                  unblockedIds.map((id) => executeNode(id, visited))
+                );
+                processSettledResults(settled, unblockedIds);
+              }
+            }
           } else {
             // Legacy fallback: no sourceHandle on edges, use old gate behavior
             if (conditionResult === true) {
               const nextNodes = edgesBySource.get(nodeId) ?? [];
-              const legacySettled = await Promise.allSettled(
-                nextNodes.map((nextNodeId) =>
-                  executeNode(nextNodeId, visited)
-                )
-              );
-              processSettledResults(legacySettled, nextNodes);
+              await executeReadyDownstream(nodeId, nextNodes, visited);
             }
           }
         } else {
@@ -1902,10 +1955,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
             nextNodes.length,
             "next nodes in parallel"
           );
-          const nextSettled = await Promise.allSettled(
-            nextNodes.map((nextNodeId) => executeNode(nextNodeId, visited))
-          );
-          processSettledResults(nextSettled, nextNodes);
+          await executeReadyDownstream(nodeId, nextNodes, visited);
         }
       }
     } catch (error) {
@@ -1914,8 +1964,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
         "[Workflow Executor] Error executing node:",
         error,
         {
-          ...(workflowId ? { workflow_id: workflowId } : {}),
-          ...(executionId ? { execution_id: executionId } : {}),
+          ...baseLogLabels,
           node_id: nodeId,
         }
       );
@@ -1925,8 +1974,32 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
         error: errorMessage,
       };
       results[nodeId] = errorResult;
-      // Note: stepHandler already logged the error for action steps
-      // Trigger steps don't throw, so this catch is mainly for unexpected errors
+
+      // Store null output so downstream templates resolve to null rather than
+      // being undefined (same pattern as disabled nodes).
+      const sanitizedNodeId = nodeId.replace(/[^a-zA-Z0-9]/g, "_");
+      outputs[sanitizedNodeId] = {
+        label: getNodeName(node),
+        data: null,
+      };
+
+      // Signal arrival at downstream convergence nodes to prevent deadlocks.
+      // If this failure was the last arrival, execute the convergence node
+      // with partial data rather than hanging forever.
+      const nextNodes = edgesBySource.get(nodeId) ?? [];
+      const unblockedIds = signalConvergenceArrival(
+        nodeId,
+        nextNodes,
+        edgesByTarget,
+        convergenceArrivals,
+        visited
+      );
+      if (unblockedIds.length > 0) {
+        const settled = await Promise.allSettled(
+          unblockedIds.map((id) => executeNode(id, visited))
+        );
+        processSettledResults(settled, unblockedIds);
+      }
     }
   }
 
@@ -2010,10 +2083,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           ErrorCategory.WORKFLOW_ENGINE,
           "[Workflow Executor] Failed to update execution record:",
           completeError,
-          {
-            ...(workflowId ? { workflow_id: workflowId } : {}),
-            ...(executionId ? { execution_id: executionId } : {}),
-          }
+          baseLogLabels
         );
       }
     }
@@ -2028,10 +2098,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
       ErrorCategory.WORKFLOW_ENGINE,
       "[Workflow Executor] Fatal error during workflow execution:",
       error,
-      {
-        ...(workflowId ? { workflow_id: workflowId } : {}),
-        ...(executionId ? { execution_id: executionId } : {}),
-      }
+      baseLogLabels
     );
 
     const errorMessage = await getErrorMessageAsync(error);
@@ -2063,10 +2130,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
           ErrorCategory.INFRASTRUCTURE,
           "[Workflow Executor] Failed to log error:",
           logError,
-          {
-            ...(workflowId ? { workflow_id: workflowId } : {}),
-            ...(executionId ? { execution_id: executionId } : {}),
-          }
+          baseLogLabels
         );
       }
     }

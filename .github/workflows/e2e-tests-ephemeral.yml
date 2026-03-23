@@ -5,45 +5,45 @@ on:
   workflow_call:
     inputs:
       caller_event:
-        description: 'Event name from the calling workflow (push, pull_request)'
+        description: "Event name from the calling workflow (push, pull_request)"
         type: string
         required: false
-        default: ''
+        default: ""
       caller_action:
-        description: 'Event action from the calling workflow (labeled, synchronize)'
+        description: "Event action from the calling workflow (labeled, synchronize)"
         type: string
         required: false
-        default: ''
+        default: ""
       has_e2e_label:
-        description: 'Whether the PR has the run-e2e-tests-ephemeral label'
+        description: "Whether the PR has the run-e2e-tests-ephemeral label"
         type: boolean
         required: false
         default: false
       label_name:
-        description: 'Name of the label that was just added (for labeled events)'
+        description: "Name of the label that was just added (for labeled events)"
         type: string
         required: false
-        default: ''
+        default: ""
       image_tag:
-        description: 'ECR image tag (short SHA). When provided, runs app from Docker instead of bare-metal build.'
+        description: "ECR image tag (short SHA). When provided, runs app from Docker instead of bare-metal build."
         type: string
         required: false
-        default: ''
+        default: ""
       ecr_registry:
-        description: 'ECR registry URL'
+        description: "ECR registry URL"
         type: string
         required: false
-        default: ''
+        default: ""
       ecr_repo:
-        description: 'ECR repository name'
+        description: "ECR repository name"
         type: string
         required: false
-        default: ''
+        default: ""
       ecr_region:
-        description: 'AWS region for ECR'
+        description: "AWS region for ECR"
         type: string
         required: false
-        default: ''
+        default: ""
   workflow_dispatch: {}
 
 jobs:
@@ -113,6 +113,7 @@ jobs:
           SERVICES: sqs
           DEBUG: 0
           EAGER_SERVICE_LOADING: 1
+          LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
         options: >-
           --health-cmd "curl -sf http://localhost:4566/_localstack/health || exit 1"
           --health-interval 10s
@@ -179,6 +180,7 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
           TEST_PARA_USER_SHARE: ${{ secrets.TEST_PARA_USER_SHARE }}
           WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
+          CHAIN_RPC_CONFIG: ${{ secrets.CHAIN_RPC_CONFIG }}
 
       - name: Start application
         uses: ./.github/actions/start-app
@@ -207,6 +209,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: test
           AWS_REGION: us-east-1
           TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
+          CHAIN_RPC_CONFIG: ${{ secrets.CHAIN_RPC_CONFIG }}
 
       - name: Dump app container logs
         if: failure() && inputs.image_tag != ''
@@ -272,6 +275,7 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
           TEST_PARA_USER_SHARE: ${{ secrets.TEST_PARA_USER_SHARE }}
           WALLET_ENCRYPTION_KEY: ${{ secrets.TEST_WALLET_ENCRYPTION_KEY }}
+          CHAIN_RPC_CONFIG: ${{ secrets.CHAIN_RPC_CONFIG }}
 
       - name: Start application
         uses: ./.github/actions/start-app

@@ -66,6 +66,7 @@ vi.mock("@/lib/rpc/provider-factory", () => ({
       }
     ),
   }),
+  isSolanaChain: () => false,
 }));
 
 // Mock database

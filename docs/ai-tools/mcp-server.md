@@ -5,7 +5,7 @@ description: "Model Context Protocol server for AI agents to build and manage Ke
 
 # MCP Server
 
-[GitHub](https://github.com/techops-services/keeperhub-mcp)
+[GitHub](https://github.com/KeeperHub/keeperhub-mcp)
 
 The KeeperHub MCP server exposes 19 tools over the Model Context Protocol, enabling AI agents to create, execute, and monitor blockchain automation workflows.
 
@@ -89,7 +89,7 @@ If you installed the [Claude Code Plugin](/ai-tools/claude-code-plugin), the MCP
 | `get_workflow` | Get full workflow configuration by ID including nodes and edges. |
 | `create_workflow` | Create a workflow with explicit nodes and edges. Call `list_action_schemas` first to get valid action types. |
 | `update_workflow` | Update a workflow's name, description, nodes, or edges. |
-| `delete_workflow` | Permanently delete a workflow and stop all its executions. |
+| `delete_workflow` | Permanently delete a workflow and stop all its executions. Use `force: true` to delete workflows with execution history (cascades to all runs and logs). |
 
 ### Execution
 
