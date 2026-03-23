@@ -77,7 +77,8 @@ const mockExecuteContractCall = vi.fn();
 const mockGetTransactionUrl = vi.fn();
 vi.mock("@/lib/web3/chain-adapter", () => ({
   getChainAdapter: () => ({
-    executeContractCall: (...args: unknown[]) => mockExecuteContractCall(...args),
+    executeContractCall: (...args: unknown[]) =>
+      mockExecuteContractCall(...args),
     getTransactionUrl: (...args: unknown[]) => mockGetTransactionUrl(...args),
   }),
 }));
@@ -369,7 +370,7 @@ describe("approve-token - error handling", () => {
 
   it("fails when transaction reverts", async () => {
     setupMocks();
-    mockApprove.mockRejectedValueOnce(
+    mockExecuteContractCall.mockRejectedValueOnce(
       new Error("execution reverted: ERC20: approve from zero address")
     );
     const result = await approveTokenCore(makeInput({}));
