@@ -256,7 +256,7 @@ jobs:
         if: steps.discover_prs.outputs.has_prs == 'true'
         continue-on-error: true
         env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_RELEASES }}
         run: |
           NEW_TAG="${{ steps.version.outputs.new_tag }}"
           RELEASE_URL="${{ steps.create_release.outputs.release_url }}"
@@ -309,7 +309,7 @@ jobs:
         if: failure() && steps.discover_prs.outputs.has_prs == 'true'
         continue-on-error: true
         env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_RELEASES }}
         run: |
           curl -s -H "Content-Type: application/json" \
             -d "{\"username\": \"KeeperHub Release Bot\", \"content\": \"Release workflow failed. Please check the GitHub Actions logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
