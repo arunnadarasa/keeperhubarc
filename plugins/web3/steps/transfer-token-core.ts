@@ -241,8 +241,9 @@ export async function transferTokenCore(
 
   // Resolve RPC config (with failover)
   let rpcUrl: string;
+  let rpcManager: Awaited<ReturnType<typeof getRpcProvider>>;
   try {
-    const rpcManager = await getRpcProvider({ chainId, userId });
+    rpcManager = await getRpcProvider({ chainId, userId });
     rpcUrl = await rpcManager.resolveActiveRpcUrl();
   } catch (error) {
     logUserError(
@@ -292,6 +293,7 @@ export async function transferTokenCore(
     chainId,
     rpcUrl,
     triggerType: _context.triggerType as TransactionContext["triggerType"],
+    rpcManager,
   };
 
   const adapter = getChainAdapter(chainId);
