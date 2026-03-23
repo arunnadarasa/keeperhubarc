@@ -1,6 +1,5 @@
 export const CONFIG = {
-  databaseUrl:
-    process.env.DATABASE_URL || "postgres://localhost:5432/workflow",
+  databaseUrl: process.env.DATABASE_URL || "postgres://localhost:5432/workflow",
 
   awsRegion: process.env.AWS_REGION || "us-east-1",
   awsEndpoint: process.env.AWS_ENDPOINT_URL,

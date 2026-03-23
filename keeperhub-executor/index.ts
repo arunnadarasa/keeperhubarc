@@ -21,6 +21,7 @@
  *   JOB_ACTIVE_DEADLINE - Max Job execution time in seconds (default: 300)
  */
 
+import { createServer } from "node:http";
 import {
   DeleteMessageCommand,
   type Message,
@@ -29,7 +30,6 @@ import {
 } from "@aws-sdk/client-sqs";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
-import express from "express";
 import postgres from "postgres";
 import {
   workflowExecutions,
@@ -88,84 +88,50 @@ function buildInput(message: ExecutorMessage): Record<string, unknown> {
         triggerType: "event",
         ...message.triggerData,
       };
+    default: {
+      const _exhaustive: never = message;
+      throw new Error(
+        `Unknown trigger type: ${(_exhaustive as ExecutorMessage).triggerType}`
+      );
+    }
   }
 }
 
-async function processExecutorMessage(
-  message: ExecutorMessage
-): Promise<void> {
-  const { workflowId, triggerType } = message;
-
-  console.log(
-    `[Executor] Processing ${triggerType} trigger for workflow ${workflowId}`
-  );
-
-  // Fetch and validate workflow
-  const workflow = await db.query.workflows.findFirst({
-    where: eq(workflows.id, workflowId),
+async function validateSchedule(scheduleId: string): Promise<boolean> {
+  const schedule = await db.query.workflowSchedules.findFirst({
+    where: eq(workflowSchedules.id, scheduleId),
   });
 
-  if (!workflow) {
-    console.error(`[Executor] Workflow not found: ${workflowId}`);
-    return;
+  if (!schedule) {
+    console.error(`[Executor] Schedule not found: ${scheduleId}`);
+    return false;
   }
 
-  if (!workflow.enabled) {
-    console.log(`[Executor] Workflow disabled, skipping: ${workflowId}`);
-    return;
+  if (!schedule.enabled) {
+    console.log(`[Executor] Schedule disabled, skipping: ${scheduleId}`);
+    return false;
   }
 
-  // Schedule-specific validation
-  if (triggerType === "schedule") {
-    const scheduleMsg = message as ScheduleMessage;
-    const schedule = await db.query.workflowSchedules.findFirst({
-      where: eq(workflowSchedules.id, scheduleMsg.scheduleId),
-    });
+  return true;
+}
 
-    if (!schedule) {
-      console.error(
-        `[Executor] Schedule not found: ${scheduleMsg.scheduleId}`
-      );
-      return;
-    }
+function getScheduleId(message: ExecutorMessage): string | undefined {
+  return message.triggerType === "schedule" ? message.scheduleId : undefined;
+}
 
-    if (!schedule.enabled) {
-      console.log(
-        `[Executor] Schedule disabled, skipping: ${scheduleMsg.scheduleId}`
-      );
-      return;
-    }
-  }
-
-  // Create execution record
-  const executionId = generateId();
-  const input = buildInput(message);
-  const userId =
-    "userId" in message ? message.userId : workflow.userId;
-
-  await db.insert(workflowExecutions).values({
-    id: executionId,
-    workflowId,
-    userId,
-    status: "pending",
-    input,
-  });
-
-  console.log(`[Executor] Created execution record: ${executionId}`);
-
-  // Determine execution mode
-  const nodes = workflow.nodes as WorkflowNode[];
-  const mode = determineExecutionMode(nodes);
-
-  console.log(`[Executor] Execution mode: ${mode}`);
+async function dispatchExecution(params: {
+  mode: string;
+  workflowId: string;
+  executionId: string;
+  input: Record<string, unknown>;
+  triggerType: string;
+  scheduleId?: string;
+}): Promise<void> {
+  const { mode, workflowId, executionId, input, triggerType, scheduleId } =
+    params;
 
   if (mode === "k8s-job") {
     try {
-      const scheduleId =
-        triggerType === "schedule"
-          ? (message as ScheduleMessage).scheduleId
-          : undefined;
-
       const job = await createWorkflowJob({
         workflowId,
         executionId,
@@ -195,11 +161,6 @@ async function processExecutorMessage(
       throw error;
     }
   } else {
-    const scheduleId =
-      triggerType === "schedule"
-        ? (message as ScheduleMessage).scheduleId
-        : undefined;
-
     await executeInProcess({
       workflowId,
       executionId,
@@ -208,6 +169,64 @@ async function processExecutorMessage(
       db,
     });
   }
+}
+
+async function processExecutorMessage(message: ExecutorMessage): Promise<void> {
+  const { workflowId, triggerType } = message;
+
+  console.log(
+    `[Executor] Processing ${triggerType} trigger for workflow ${workflowId}`
+  );
+
+  const workflow = await db.query.workflows.findFirst({
+    where: eq(workflows.id, workflowId),
+  });
+
+  if (!workflow) {
+    console.error(`[Executor] Workflow not found: ${workflowId}`);
+    return;
+  }
+
+  if (!workflow.enabled) {
+    console.log(`[Executor] Workflow disabled, skipping: ${workflowId}`);
+    return;
+  }
+
+  if (triggerType === "schedule") {
+    const valid = await validateSchedule(
+      (message as ScheduleMessage).scheduleId
+    );
+    if (!valid) {
+      return;
+    }
+  }
+
+  const executionId = generateId();
+  const input = buildInput(message);
+  const userId = "userId" in message ? message.userId : workflow.userId;
+
+  await db.insert(workflowExecutions).values({
+    id: executionId,
+    workflowId,
+    userId,
+    status: "pending",
+    input,
+  });
+
+  console.log(`[Executor] Created execution record: ${executionId}`);
+
+  const nodes = workflow.nodes as WorkflowNode[];
+  const mode = determineExecutionMode(nodes);
+  console.log(`[Executor] Execution mode: ${mode}`);
+
+  await dispatchExecution({
+    mode,
+    workflowId,
+    executionId,
+    input,
+    triggerType,
+    scheduleId: getScheduleId(message),
+  });
 }
 
 async function processMessage(message: Message): Promise<void> {
@@ -220,10 +239,7 @@ async function processMessage(message: Message): Promise<void> {
   try {
     body = JSON.parse(message.Body);
   } catch {
-    console.error(
-      "[Executor] Malformed message body, deleting:",
-      message.Body
-    );
+    console.error("[Executor] Malformed message body, deleting:", message.Body);
     await sqs.send(
       new DeleteMessageCommand({
         QueueUrl: CONFIG.sqsQueueUrl,
@@ -243,9 +259,7 @@ async function processMessage(message: Message): Promise<void> {
       })
     );
 
-    console.log(
-      `[Executor] Message deleted for workflow ${body.workflowId}`
-    );
+    console.log(`[Executor] Message deleted for workflow ${body.workflowId}`);
   } catch (error) {
     console.error(
       `[Executor] Failed to process workflow ${body.workflowId}:`,
@@ -261,17 +275,23 @@ async function listen(): Promise<void> {
   console.log(`[Executor] K8s namespace: ${CONFIG.namespace}`);
 
   // Health check server
-  const healthApp = express();
-
-  healthApp.get("/health", (_req, res) => {
-    res.status(200).json({
-      status: "ok",
-      service: "keeperhub-executor",
-      timestamp: new Date().toISOString(),
-    });
+  const healthServer = createServer((req, res) => {
+    if (req.url === "/health" && req.method === "GET") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          status: "ok",
+          service: "keeperhub-executor",
+          timestamp: new Date().toISOString(),
+        })
+      );
+    } else {
+      res.writeHead(404);
+      res.end();
+    }
   });
 
-  const healthServer = healthApp.listen(CONFIG.healthPort, () => {
+  healthServer.listen(CONFIG.healthPort, () => {
     console.log(
       `[Executor] Health check server listening on port ${CONFIG.healthPort}`
     );
@@ -312,10 +332,7 @@ async function listen(): Promise<void> {
 
         for (const [idx, result] of results.entries()) {
           if (result.status === "rejected") {
-            console.error(
-              `[Executor] Message ${idx} failed:`,
-              result.reason
-            );
+            console.error(`[Executor] Message ${idx} failed:`, result.reason);
           }
         }
       }

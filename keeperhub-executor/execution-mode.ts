@@ -1,5 +1,5 @@
-import { findActionById } from "../plugins/registry";
 import type { WorkflowNode } from "../lib/workflow-store";
+import { findActionById } from "../plugins/registry";
 import type { ExecutionMode } from "./types";
 
 /**
@@ -12,9 +12,7 @@ import type { ExecutionMode } from "./types";
  *
  * Read-only and web2 workflows run in-process to avoid K8s Job overhead.
  */
-export function determineExecutionMode(
-  nodes: WorkflowNode[]
-): ExecutionMode {
+export function determineExecutionMode(nodes: WorkflowNode[]): ExecutionMode {
   for (const node of nodes) {
     if (node.data.type !== "action") {
       continue;
