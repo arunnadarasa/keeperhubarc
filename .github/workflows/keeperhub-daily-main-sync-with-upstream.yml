@@ -65,7 +65,7 @@ jobs:
       - name: Notify Discord (Success)
         if: steps.check_updates.outputs.has_changes == 'true'
         env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_GITHUB }}
           LOGS: ${{ env.COMMIT_LOG }}
         run: |
           # Send JSON payload to Discord
@@ -76,7 +76,7 @@ jobs:
       - name: Notify Discord (No Changes)
         if: steps.check_updates.outputs.has_changes == 'false'
         env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_GITHUB }}
         run: |
           curl -H "Content-Type: application/json" \
           -d "{\"username\": \"KeeperHub Sync\", \"content\": \"**Daily Sync Report**\n\nNo new updates from upstream today.\"}" \
@@ -85,7 +85,7 @@ jobs:
       - name: Notify Discord (Failure)
         if: failure()
         env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_GITHUB }}
         run: |
           curl -H "Content-Type: application/json" \
           -d "{\"username\": \"KeeperHub Sync\", \"content\": \"**Daily Sync Failed**\n\nPlease check the GitHub Actions logs.\"}" \

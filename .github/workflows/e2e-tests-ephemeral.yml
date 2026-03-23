@@ -106,7 +106,7 @@ jobs:
           --health-retries 5
 
       localstack:
-        image: localstack/localstack:latest
+        image: localstack/localstack:4.14.0
         ports:
           - 4566:4566
         env:

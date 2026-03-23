@@ -163,10 +163,11 @@ export async function writeContractCore(
   // Get chain ID and resolve RPC config (with user preferences + failover)
   let chainId: number;
   let rpcUrl: string;
+  let rpcManager: Awaited<ReturnType<typeof getRpcProvider>>;
   try {
     chainId = getChainIdFromNetwork(network);
 
-    const rpcManager = await getRpcProvider({ chainId, userId });
+    rpcManager = await getRpcProvider({ chainId, userId });
     rpcUrl = await rpcManager.resolveActiveRpcUrl();
   } catch (error) {
     logUserError(
@@ -231,6 +232,7 @@ export async function writeContractCore(
     chainId,
     rpcUrl,
     triggerType: _context?.triggerType as TransactionContext["triggerType"],
+    rpcManager,
   };
 
   const adapter = getChainAdapter(chainId);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useAtom, useAtomValue } from "jotai";
-import { Radio, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +12,6 @@ import {
 import type { TimeRange } from "@/lib/analytics/types";
 import {
   analyticsLastUpdatedAtom,
-  analyticsLiveAtom,
   analyticsRangeAtom,
 } from "@/lib/atoms/analytics";
 import { cn } from "@/lib/utils";
@@ -51,7 +50,6 @@ export function AnalyticsHeader({
   onRefetch,
 }: AnalyticsHeaderProps): React.ReactNode {
   const [range, setRange] = useAtom(analyticsRangeAtom);
-  const [live, setLive] = useAtom(analyticsLiveAtom);
   const lastUpdated = useAtomValue(analyticsLastUpdatedAtom);
   const [timeAgo, setTimeAgo] = useState<string>("");
   const [refreshing, setRefreshing] = useState(false);
@@ -92,10 +90,6 @@ export function AnalyticsHeader({
     [setRange]
   );
 
-  const handleToggleLive = useCallback((): void => {
-    setLive((prev) => !prev);
-  }, [setLive]);
-
   const rangeButtons = useMemo(
     () =>
       RANGE_OPTIONS.map((option) => (
@@ -115,33 +109,6 @@ export function AnalyticsHeader({
     <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Analytics</h1>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              className={cn(
-                "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                live
-                  ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                  : "bg-muted text-muted-foreground"
-              )}
-              onClick={handleToggleLive}
-              type="button"
-            >
-              <span
-                className={cn(
-                  "inline-block size-2 rounded-full",
-                  live ? "animate-pulse bg-green-500" : "bg-muted-foreground/50"
-                )}
-              />
-              <Radio className="size-3" />
-              {live ? "Live" : "Paused"}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>
-            {live ? "Receiving live updates" : "Live updates paused"}
-          </TooltipContent>
-        </Tooltip>
       </div>
 
       <div className="flex items-center gap-3">
