@@ -8,8 +8,8 @@ on:
       - prod
     paths:
       - "keeperhub-events/**"
-      - "deploy/sc-event-tracker/**"
-      - "deploy/sc-event-worker/**"
+      - "deploy/event-tracker/**"
+      - "deploy/event-worker/**"
       - ".github/workflows/deploy-events.yaml"
   workflow_dispatch:
 
@@ -32,10 +32,10 @@ jobs:
       CLUSTER_NAME: ${{ vars.TO_CLUSTER_NAME }}
       ENVIRONMENT_TAG: ${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
       NAMESPACE: keeperhub
-      TRACKER_ECR_NAME: sc-event-tracker-${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
-      WORKER_ECR_NAME: sc-event-worker-${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
-      TRACKER_HELM_FILE: deploy/sc-event-tracker/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/values.yaml
-      WORKER_HELM_FILE: deploy/sc-event-worker/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/values.yaml
+      TRACKER_ECR_NAME: event-tracker-${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
+      WORKER_ECR_NAME: event-worker-${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
+      TRACKER_HELM_FILE: deploy/event-tracker/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/values.yaml
+      WORKER_HELM_FILE: deploy/event-worker/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/values.yaml
 
     steps:
       - name: Checkout
@@ -122,7 +122,7 @@ jobs:
         run: |
           kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Deploy sc-event-worker
+      - name: Deploy event-worker
         if: steps.skip.outputs.skip_deploy != 'true'
         uses: bitovi/github-actions-deploy-eks-helm@v1.2.12
         with:
@@ -136,7 +136,7 @@ jobs:
           version: 0.2.1
           atomic: true
 
-      - name: Deploy sc-event-tracker
+      - name: Deploy event-tracker
         if: steps.skip.outputs.skip_deploy != 'true'
         uses: bitovi/github-actions-deploy-eks-helm@v1.2.12
         with:

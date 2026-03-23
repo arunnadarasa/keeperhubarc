@@ -1,4 +1,4 @@
-# Multi-stage Dockerfile for the event tracker service
+# Multi-stage Dockerfile for the event worker service
 # Build context: repo root (for pnpm workspace lockfile access)
 
 # ==============================================================================
@@ -14,13 +14,13 @@ WORKDIR /app
 FROM base AS deps
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY sc-event-tracker/package.json ./sc-event-tracker/
-COPY sc-event-worker/package.json ./sc-event-worker/
+COPY event-worker/package.json ./event-worker/
+COPY event-tracker/package.json ./event-tracker/
 COPY event-executor/package.json ./event-executor/
 
 RUN --mount=type=cache,id=pnpm-events,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile && \
-    pnpm deploy --legacy --filter @techops/events-tracker --prod /app/deploy
+    pnpm deploy --legacy --filter @techops/events-worker --prod /app/deploy
 
 # ==============================================================================
 # Build stage - install all dependencies for type checking
@@ -28,16 +28,15 @@ RUN --mount=type=cache,id=pnpm-events,target=/root/.local/share/pnpm/store \
 FROM base AS build
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
-COPY sc-event-tracker/package.json sc-event-tracker/tsconfig.json ./sc-event-tracker/
-COPY sc-event-worker/package.json ./sc-event-worker/
+COPY event-worker/package.json event-worker/tsconfig.json ./event-worker/
+COPY event-tracker/package.json ./event-tracker/
 COPY event-executor/package.json ./event-executor/
-COPY sc-event-tracker/src/ ./sc-event-tracker/src/
-COPY sc-event-tracker/lib/ ./sc-event-tracker/lib/
+COPY event-worker/src/ ./event-worker/src/
 
 RUN --mount=type=cache,id=pnpm-events,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --filter @techops/events-tracker
+    pnpm install --frozen-lockfile --filter @techops/events-worker
 
-RUN pnpm --filter @techops/events-tracker typecheck
+RUN pnpm --filter @techops/events-worker typecheck
 
 # ==============================================================================
 # Runtime stage - minimal production image
@@ -53,15 +52,16 @@ RUN addgroup -g 1001 -S events && \
 WORKDIR /app
 
 COPY --from=deps /app/deploy/node_modules ./node_modules
-COPY --from=build /app/sc-event-tracker/src ./src
-COPY --from=build /app/sc-event-tracker/lib ./lib
-COPY --from=build /app/sc-event-tracker/package.json ./package.json
-COPY --from=build /app/sc-event-tracker/tsconfig.json ./tsconfig.json
+COPY --from=build /app/event-worker/src ./src
+COPY --from=build /app/event-worker/package.json ./package.json
+COPY --from=build /app/event-worker/tsconfig.json ./tsconfig.json
 COPY --from=build /app/tsconfig.base.json ./tsconfig.base.json
 
 RUN chown -R events:events /app
 
 USER events
 
+EXPOSE 3010
+
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["tsx", "src/index.ts"]
+CMD ["tsx", "src/worker.ts"]

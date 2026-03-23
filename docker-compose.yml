@@ -274,12 +274,12 @@ services:
   # Event Worker (keeperhub-events submodule)
   # Fetches workflows from KeeperHub API and dispatches executions
   # ===========================================================================
-  sc-event-worker:
+  event-worker:
     build:
       context: ./keeperhub-events
-      dockerfile: sc-event-worker/Dockerfile
+      dockerfile: event-worker/Dockerfile
     container_name: keeperhub-event-worker
-    hostname: sc-event-worker
+    hostname: event-worker
     restart: unless-stopped
     ports:
       - "3010:3010"
@@ -309,16 +309,16 @@ services:
   # Event Tracker (keeperhub-events submodule)
   # Monitors blockchain events and synchronizes with the system
   # ===========================================================================
-  sc-event-tracker:
+  event-tracker:
     build:
       context: ./keeperhub-events
-      dockerfile: sc-event-tracker/Dockerfile
+      dockerfile: event-tracker/Dockerfile
     container_name: keeperhub-event-tracker
     restart: unless-stopped
     environment:
       WATCH_MODE: "true"
       KEEPERHUB_API_URL: http://keeperhub:3000
-      WORKER_URL: http://sc-event-worker:3010
+      WORKER_URL: http://event-worker:3010
       REDIS_HOST: redis
       REDIS_PORT: 6379
       JWT_TOKEN_USERNAME: ${JWT_TOKEN_USERNAME:-}
@@ -329,7 +329,7 @@ services:
     depends_on:
       redis:
         condition: service_started
-      sc-event-worker:
+      event-worker:
         condition: service_healthy
     profiles:
       - dev

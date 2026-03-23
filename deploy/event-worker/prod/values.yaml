@@ -2,7 +2,7 @@ replicaCount: 1
 
 service:
   enabled: true
-  name: sc-event-worker-prod
+  name: event-worker-prod
   port: 3010
   type: ClusterIP
   containerPort: 3010
@@ -13,7 +13,7 @@ ingress:
   enabled: false
 
 image:
-  repository: ${ECR_REGISTRY}/sc-event-worker-prod
+  repository: ${ECR_REGISTRY}/event-worker-prod
   tag: app-${IMAGE_TAG}
   pullPolicy: Always
 

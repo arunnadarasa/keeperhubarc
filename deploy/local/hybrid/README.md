@@ -200,19 +200,20 @@ awslocal sqs get-queue-attributes --queue-url http://host.minikube.internal:4566
 
 ## Comparison: dev vs minikube Profile
 
-| Component         | `dev` Profile         | `minikube` Profile    |
-| ----------------- | --------------------- | --------------------- |
-| db                | Docker Compose        | Docker Compose        |
-| localstack        | Docker Compose        | Docker Compose        |
-| redis             | Docker Compose        | Docker Compose        |
-| app-dev           | Docker Compose        | Docker Compose        |
-| dispatcher        | Docker Compose (loop) | Docker Compose (loop) |
-| sc-event-worker   | Docker Compose        | Docker Compose        |
-| sc-event-tracker  | Docker Compose        | Docker Compose        |
-| schedule-executor | -                     | Minikube Deployment   |
+| Component | `dev` Profile | `minikube` Profile |
+|-----------|--------------|-------------------|
+| db | Docker Compose | Docker Compose |
+| localstack | Docker Compose | Docker Compose |
+| redis | Docker Compose | Docker Compose |
+| app-dev | Docker Compose | Docker Compose |
+| dispatcher | Docker Compose (loop) | Docker Compose (loop) |
+| block-dispatcher | Docker Compose | Docker Compose |
+| event-tracker | Docker Compose | Docker Compose |
+| executor | Docker Compose | Minikube Deployment |
 
-In both profiles, the dispatcher runs in Docker Compose as a cron loop.
-In `minikube` profile, the executor runs in Minikube and executes workflows via the KeeperHub API.
+In both profiles, dispatchers run in Docker Compose and send triggers to SQS.
+In `dev` profile, the executor runs in Docker Compose (in-process execution).
+In `minikube` profile, the executor runs in Minikube with K8s Job isolation.
 
 ## Testing
 

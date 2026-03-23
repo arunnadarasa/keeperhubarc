@@ -25,7 +25,7 @@ group "default" {
 }
 
 group "events" {
-  targets = ["sc-event-tracker", "sc-event-worker"]
+  targets = ["event-tracker", "event-worker"]
 }
 
 group "scheduler" {
@@ -33,7 +33,7 @@ group "scheduler" {
 }
 
 group "all" {
-  targets = ["app", "migrator", "sc-event-tracker", "sc-event-worker", "schedule-dispatcher", "schedule-executor", "block-dispatcher", "executor"]
+  targets = ["app", "migrator", "event-tracker", "event-worker", "schedule-dispatcher", "schedule-executor", "block-dispatcher", "executor"]
 }
 
 target "app" {
@@ -70,9 +70,9 @@ target "migrator" {
   cache-to = ["type=registry,ref=${ECR_REGISTRY}/${ECR_REPO}:cache-migrator,mode=max"]
 }
 
-target "sc-event-tracker" {
+target "event-tracker" {
   context    = "./keeperhub-events"
-  dockerfile = "sc-event-tracker/Dockerfile"
+  dockerfile = "event-tracker/Dockerfile"
   tags = compact([
     "${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:app-${IMAGE_TAG}",
     "${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:app-latest",
@@ -83,9 +83,9 @@ target "sc-event-tracker" {
   attest     = []
 }
 
-target "sc-event-worker" {
+target "event-worker" {
   context    = "./keeperhub-events"
-  dockerfile = "sc-event-worker/Dockerfile"
+  dockerfile = "event-worker/Dockerfile"
   tags = compact([
     "${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:app-${IMAGE_TAG}",
     "${ECR_REGISTRY}/${EVENTS_ECR_WORKER_REPO}:app-latest",

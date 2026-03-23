@@ -6,7 +6,7 @@ replicaCount: 1
 
 service:
   enabled: true
-  name: sc-event-tracker-pr-${PR_NUMBER}
+  name: event-tracker-pr-${PR_NUMBER}
   port: 3000
   type: ClusterIP
   containerPort: 3000
@@ -17,7 +17,7 @@ ingress:
   enabled: false
 
 image:
-  repository: ${ECR_REGISTRY}/sc-event-tracker-staging
+  repository: ${ECR_REGISTRY}/event-tracker-staging
   tag: app-latest
   pullPolicy: Always
 

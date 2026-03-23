@@ -34,7 +34,7 @@ importers:
         specifier: ^5.0.0
         version: 5.0.6
 
-  sc-event-tracker:
+  event-tracker:
     dependencies:
       '@aws-sdk/client-sqs':
         specifier: ^3.1005.0
@@ -65,7 +65,7 @@ importers:
         specifier: ^10.0.0
         version: 10.0.0
 
-  sc-event-worker:
+  event-worker:
     dependencies:
       axios:
         specifier: ^1.11.0

@@ -6,8 +6,8 @@ A comprehensive event tracking and processing system for the KeeperHub smart con
 
 This repository contains two main services:
 
-- **sc-event-tracker**: Monitors blockchain events and synchronizes them with the system
-- **sc-event-worker**: Processes synchronized event data and dispatch workflows executions
+- **event-tracker**: Monitors blockchain events and synchronizes them with the system
+- **event-worker**: Processes synchronized event data and dispatch workflows executions
 
 The system is designed to run in multiple deployment modes: local development, Docker Compose (with hybrid Minikube support), and full Kubernetes production environments.
 
@@ -86,8 +86,8 @@ The system is designed to run in multiple deployment modes: local development, D
 | `docker-compose up -d`                    | Start all services in background |
 | `docker-compose down`                     | Stop and remove all containers   |
 | `docker-compose logs -f`                  | Follow logs from all services    |
-| `docker-compose logs -f sc-event-tracker` | Follow tracker logs              |
-| `docker-compose logs -f sc-event-worker`  | Follow worker logs               |
+| `docker-compose logs -f event-tracker` | Follow tracker logs              |
+| `docker-compose logs -f event-worker`  | Follow worker logs               |
 | `docker-compose restart`                  | Restart all services             |
 | `docker-compose build --no-cache`         | Rebuild images without cache     |
 
@@ -96,8 +96,8 @@ The system is designed to run in multiple deployment modes: local development, D
 | Service            | Port | Description                                         |
 | ------------------ | ---- | --------------------------------------------------- |
 | `redis`            | 6379 | Redis for synchronization between tracker instances |
-| `sc-event-worker`  | 3010 | Fetches workflows and dispatches executions         |
-| `sc-event-tracker` | -    | Monitors blockchain events                          |
+| `event-worker`  | 3010 | Fetches workflows and dispatches executions         |
+| `event-tracker` | -    | Monitors blockchain events                          |
 
 ### Environment Variables
 
@@ -109,18 +109,18 @@ See [`.env.docker`](.env.docker) for a complete list of configurable environment
 keeperhub-events/
 ├── docker-compose.yml          # Docker Compose configuration
 ├── .env.docker                 # Environment variables template
-├── sc-event-tracker/           # Event tracker service
+├── event-tracker/           # Event tracker service
 │   ├── Dockerfile
 │   ├── package.json
 │   └── src/
-├── sc-event-worker/            # Event worker service
+├── event-worker/            # Event worker service
 │   ├── Dockerfile
 │   ├── package.json
 │   └── src/
 ├── deploy/                     # Deployment configurations
 │   ├── local/                  # Local/Minikube deployment
-│   ├── sc-event-tracker/       # Kubernetes values
-│   └── sc-event-worker/        # Kubernetes values
+│   ├── event-tracker/       # Kubernetes values
+│   └── event-worker/        # Kubernetes values
 └── workflows/                  # GitHub Actions workflows
 ```
 
