@@ -629,8 +629,9 @@ export async function getNetworkBreakdown(
 }
 
 /**
- * Fetch unified runs with cursor-based pagination.
- * Runs fetch + count in parallel to avoid sequential blocking.
+ * Fetch unified runs with page-based or cursor-based pagination.
+ * Merges workflow and direct runs, sorts by time, then applies
+ * offset for the requested page. Runs fetch + count in parallel.
  */
 export async function getUnifiedRuns(
   organizationId: string,
@@ -666,7 +667,12 @@ export async function getUnifiedRuns(
   const rangeEnd = customEnd ? new Date(customEnd) : new Date();
   const pageLimit = Math.min(limit, 100);
   const skipDirect = Boolean(projectId) || source === "direct";
-  const offset = cursor ? undefined : (page - 1) * pageLimit;
+  const offset = cursor ? 0 : (page - 1) * pageLimit;
+
+  // Fetch enough rows from each source to fill the requested page after merging.
+  // We need offset + pageLimit + 1 rows from each source to correctly paginate
+  // the merged, sorted result set.
+  const fetchLimit = cursor ? pageLimit + 1 : offset + pageLimit + 1;
 
   // Fire run fetches and count queries in parallel
   const [workflowRuns, directRuns, total] = await Promise.all([
@@ -678,9 +684,8 @@ export async function getUnifiedRuns(
           rangeEnd,
           status,
           cursor,
-          pageLimit + 1,
-          projectId,
-          offset
+          fetchLimit,
+          projectId
         ),
     skipDirect || source === "workflow"
       ? ([] as UnifiedRun[])
@@ -690,8 +695,7 @@ export async function getUnifiedRuns(
           rangeEnd,
           status,
           cursor,
-          pageLimit + 1,
-          offset
+          fetchLimit
         ),
     getUnifiedRunsTotal(
       organizationId,
@@ -703,12 +707,15 @@ export async function getUnifiedRuns(
     ),
   ]);
 
+  // Merge both sources, sort by time, then apply offset for the requested page
   const allRuns = [...workflowRuns, ...directRuns].sort(
     (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
   );
 
-  const hasMore = allRuns.length > pageLimit;
-  const pagedRuns = allRuns.slice(0, pageLimit);
+  const sliceStart = cursor ? 0 : offset;
+  const sliced = allRuns.slice(sliceStart, sliceStart + pageLimit + 1);
+  const hasMore = sliced.length > pageLimit;
+  const pagedRuns = sliced.slice(0, pageLimit);
   const nextCursor = hasMore ? (pagedRuns.at(-1)?.startedAt ?? null) : null;
 
   return { runs: pagedRuns, nextCursor, total, page, pageSize: pageLimit };
@@ -721,8 +728,7 @@ async function fetchWorkflowRuns(
   status: NormalizedStatus | undefined,
   cursor: string | undefined,
   limit: number,
-  projectId?: string,
-  offset?: number
+  projectId?: string
 ): Promise<UnifiedRun[]> {
   // Scope to org's workflows via subquery so leftJoin still enforces org isolation
   const orgWorkflowIds = db
@@ -814,8 +820,7 @@ async function fetchWorkflowRuns(
     .leftJoin(logSummary, eq(workflowExecutions.id, logSummary.executionId))
     .where(and(...conditions))
     .orderBy(desc(workflowExecutions.startedAt))
-    .limit(limit)
-    .offset(offset ?? 0);
+    .limit(limit);
 
   return result.map((row) => ({
     id: row.id,
@@ -842,8 +847,7 @@ async function fetchDirectRuns(
   rangeEnd: Date,
   status: NormalizedStatus | undefined,
   cursor: string | undefined,
-  limit: number,
-  offset?: number
+  limit: number
 ): Promise<UnifiedRun[]> {
   const conditions = [
     eq(directExecutions.organizationId, organizationId),
@@ -879,8 +883,7 @@ async function fetchDirectRuns(
     .from(directExecutions)
     .where(and(...conditions))
     .orderBy(desc(directExecutions.createdAt))
-    .limit(limit)
-    .offset(offset ?? 0);
+    .limit(limit);
 
   return result.map((row) => ({
     id: row.id,

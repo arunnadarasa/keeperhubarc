@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -473,15 +473,18 @@ export function RunsTable(): ReactNode {
     [range, statusFilter, sourceFilter, setRunsData, router]
   );
 
-  // Load initial page from URL ?page= param after data arrives
+  // Restore page from URL ?page= param once after initial data load
   const urlPage = Number(searchParams.get("page")) || 1;
+  const hasRestoredPage = useRef(false);
   useEffect(() => {
-    if (urlPage > 1 && runsData && currentPage !== urlPage) {
-      handlePageChange(urlPage).catch(() => {
-        /* errors handled in handler */
-      });
+    if (hasRestoredPage.current || !runsData || urlPage <= 1) {
+      return;
     }
-  }, [urlPage, runsData, currentPage, handlePageChange]);
+    hasRestoredPage.current = true;
+    handlePageChange(urlPage).catch(() => {
+      /* errors handled in handler */
+    });
+  }, [urlPage, runsData, handlePageChange]);
 
   const allRuns = runsData?.runs ?? [];
 
