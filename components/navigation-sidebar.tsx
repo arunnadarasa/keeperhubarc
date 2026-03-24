@@ -7,6 +7,7 @@ import {
   ChevronRight,
   CreditCard,
   Globe,
+  Info,
   List,
   Loader2,
   Plus,
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { DiscordIcon } from "@/components/icons/discord-icon";
 import {
   Tooltip,
   TooltipContent,
@@ -825,6 +827,44 @@ export function NavigationSidebar(): React.ReactNode {
             />
           ))}
         </nav>
+
+        <div
+          className={cn(
+            "flex gap-1 border-t px-2.5 py-3",
+            showLabels ? "flex-row" : "flex-col items-center"
+          )}
+        >
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <a
+                className="flex size-8 items-center justify-center rounded-md text-foreground transition-colors hover:text-muted-foreground"
+                href="https://discord.gg/keeperhub"
+                rel="noopener"
+                target="_blank"
+              >
+                <DiscordIcon className="size-4" />
+              </a>
+            </TooltipTrigger>
+            <TooltipContent side={showLabels ? "bottom" : "right"}>
+              Discord community
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <a
+                className="flex size-8 items-center justify-center rounded-md text-foreground transition-colors hover:text-muted-foreground"
+                href="https://docs.keeperhub.com"
+                rel="noopener"
+                target="_blank"
+              >
+                <Info className="size-4" />
+              </a>
+            </TooltipTrigger>
+            <TooltipContent side={showLabels ? "bottom" : "right"}>
+              Documentation
+            </TooltipContent>
+          </Tooltip>
+        </div>
 
         {/* Resize handle */}
         {/* biome-ignore lint/a11y/useSemanticElements: custom resize handle */}
