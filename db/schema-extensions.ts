@@ -81,6 +81,25 @@ export type ParaWallet = OrganizationWallet;
 export type NewParaWallet = NewOrganizationWallet;
 
 /**
+ * Key Export Verification Codes table
+ *
+ * Single-use OTP codes for private key export.
+ * Admin must verify via email before viewing a private key.
+ * Codes expire after 5 minutes and are deleted after use.
+ */
+export const keyExportCodes = pgTable("key_export_codes", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => generateId()),
+  organizationId: text("organization_id")
+    .notNull()
+    .references(() => organization.id, { onDelete: "cascade" }),
+  codeHash: text("code_hash").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+/**
  * Organization API Keys table
  *
  * Stores API keys for organization-level authentication.

@@ -923,22 +923,56 @@ function AddTurnkeyWalletSection({
   );
 }
 
+type ExportStep = "idle" | "requesting" | "otp" | "verifying" | "done";
+
 function ExportPrivateKeyButton(): React.ReactElement {
-  const [exporting, setExporting] = useState(false);
+  const [step, setStep] = useState<ExportStep>("idle");
+  const [otpCode, setOtpCode] = useState("");
   const [privateKey, setPrivateKey] = useState<string | null>(null);
   const [revealed, setRevealed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleExport = async (): Promise<void> => {
-    setExporting(true);
+  const handleRequestOtp = async (): Promise<void> => {
+    setStep("requesting");
+    setError(null);
     try {
-      const response = await fetch("/api/user/wallet/export-key", {
+      const res = await fetch("/api/user/wallet/export-key/request", {
         method: "POST",
       });
-      const data: { privateKey?: string; error?: string } =
-        await response.json();
+      const data: { error?: string } = await res.json();
 
-      if (!response.ok) {
-        throw new Error(data.error ?? "Failed to export private key");
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to send verification code");
+      }
+
+      toast.success("Verification code sent to your email");
+      setStep("otp");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to send code"
+      );
+      setStep("idle");
+    }
+  };
+
+  const handleVerify = async (): Promise<void> => {
+    if (otpCode.length !== 6) {
+      setError("Enter the 6-digit code from your email");
+      return;
+    }
+
+    setStep("verifying");
+    setError(null);
+    try {
+      const res = await fetch("/api/user/wallet/export-key/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: otpCode }),
+      });
+      const data: { privateKey?: string; error?: string } = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error ?? "Verification failed");
       }
 
       if (!data.privateKey) {
@@ -947,12 +981,12 @@ function ExportPrivateKeyButton(): React.ReactElement {
 
       setPrivateKey(data.privateKey);
       setRevealed(false);
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to export private key"
+      setStep("done");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Verification failed"
       );
-    } finally {
-      setExporting(false);
+      setStep("otp");
     }
   };
 
@@ -967,8 +1001,12 @@ function ExportPrivateKeyButton(): React.ReactElement {
   const handleDismiss = (): void => {
     setPrivateKey(null);
     setRevealed(false);
+    setStep("idle");
+    setOtpCode("");
+    setError(null);
   };
 
+  // Key revealed
   if (privateKey) {
     return (
       <div className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
@@ -1000,9 +1038,7 @@ function ExportPrivateKeyButton(): React.ReactElement {
           </div>
         </div>
         <code className="block break-all font-mono text-xs">
-          {revealed
-            ? privateKey
-            : privateKey.replace(/./g, "\u2022")}
+          {revealed ? privateKey : privateKey.replace(/./g, "\u2022")}
         </code>
         <Button
           className="w-full"
@@ -1016,18 +1052,63 @@ function ExportPrivateKeyButton(): React.ReactElement {
     );
   }
 
+  // OTP input
+  if (step === "otp" || step === "verifying") {
+    return (
+      <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+        <div className="text-muted-foreground text-xs">
+          Enter the verification code sent to your email
+        </div>
+        <Input
+          className="font-mono text-center text-sm tracking-widest"
+          maxLength={6}
+          onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+          placeholder="000000"
+          value={otpCode}
+        />
+        {error && <p className="text-destructive text-xs">{error}</p>}
+        <div className="flex gap-2">
+          <Button
+            disabled={step === "verifying"}
+            onClick={handleDismiss}
+            size="sm"
+            variant="outline"
+          >
+            Cancel
+          </Button>
+          <Button
+            className="flex-1"
+            disabled={step === "verifying" || otpCode.length !== 6}
+            onClick={handleVerify}
+            size="sm"
+          >
+            {step === "verifying" ? (
+              <>
+                <Spinner className="mr-2 h-3 w-3" />
+                Verifying...
+              </>
+            ) : (
+              "Verify & Export"
+            )}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Initial button
   return (
     <Button
       className="w-full"
-      disabled={exporting}
-      onClick={handleExport}
+      disabled={step === "requesting"}
+      onClick={handleRequestOtp}
       size="sm"
       variant="outline"
     >
-      {exporting ? (
+      {step === "requesting" ? (
         <>
           <Spinner className="mr-2 h-3 w-3" />
-          Exporting...
+          Sending code...
         </>
       ) : (
         <>
