@@ -348,7 +348,7 @@ function Pagination({
         <ChevronLeft className="size-3.5" />
         Prev
       </Button>
-      <span className="font-medium text-muted-foreground text-xs tabular-nums">
+      <span className="min-w-16 text-center font-medium text-muted-foreground text-xs tabular-nums">
         {page} of {totalPages}
       </span>
       <Button
