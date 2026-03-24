@@ -6,9 +6,9 @@ import {
   Check,
   Copy,
   Download,
-  Globe,
   Loader2,
   Lock,
+  Share2,
   Play,
   Plus,
   Redo2,
@@ -1054,7 +1054,7 @@ function useWorkflowActions(state: ReturnType<typeof useWorkflowState>) {
       return;
     }
 
-    // Show Go Live overlay when making public
+    // Show Share overlay when making public
     if (newVisibility === "public") {
       openOverlay(GoLiveOverlay, {
         workflowId: currentWorkflowId,
@@ -1101,7 +1101,7 @@ function useWorkflowActions(state: ReturnType<typeof useWorkflowState>) {
         if (name !== workflowName) {
           state.setCurrentWorkflowName(name);
         }
-        toast.success("Public settings updated");
+        toast.success("Share settings updated");
       },
     });
   };
@@ -1519,14 +1519,18 @@ function VisibilityButton({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          className="border hover:bg-black/5 dark:hover:bg-white/5"
+          className={
+            isPublic
+              ? "border border-keeperhub-green/20 text-keeperhub-green hover:bg-keeperhub-green/10"
+              : "border hover:bg-black/5 dark:hover:bg-white/5"
+          }
           disabled={!state.currentWorkflowId || state.isGenerating}
           size="icon"
-          title={isPublic ? "Public workflow" : "Private workflow"}
+          title={isPublic ? "Shared workflow" : "Private workflow"}
           variant="secondary"
         >
           {isPublic ? (
-            <Globe className="size-4" />
+            <Share2 className="size-4" />
           ) : (
             <Lock className="size-4" />
           )}
@@ -1547,15 +1551,15 @@ function VisibilityButton({
             onClick={() => actions.handleEditPublicSettings()}
           >
             <Settings2 className="size-4" />
-            Public Settings
+            Share Settings
           </DropdownMenuItem>
         ) : (
           <DropdownMenuItem
             className="flex items-center gap-2"
             onClick={() => actions.handleToggleVisibility("public")}
           >
-            <Globe className="size-4" />
-            Public
+            <Share2 className="size-4" />
+            Share
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

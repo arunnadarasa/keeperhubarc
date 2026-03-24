@@ -174,7 +174,7 @@ export function PublicTagSelector({
 
       {orgSuggestions.length > 0 && (
         <div>
-          <p className="mb-2 font-medium text-muted-foreground text-xs uppercase tracking-wider">
+          <p className="mb-2 text-muted-foreground text-sm">
             From your organization
           </p>
           <div className="flex flex-wrap gap-1.5">
