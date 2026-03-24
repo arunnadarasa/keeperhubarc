@@ -1,35 +1,49 @@
 #!/usr/bin/env bash
-# Runs k6 load test at increasing VU tiers, collecting per-tier results.
-# Outputs a JSON file with per-tier summaries for CI consumption.
+# Ramps k6 load test from 1 VU, increasing by STEP every STEP_DURATION,
+# until success rate drops below THRESHOLD or MAX_VUS is reached.
 #
-# Usage: ./ci-staged-load-test.sh [base_url]
-# Env: BASE_URL, TEST_API_KEY, CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET
+# Usage: ./ramp-until-breach.sh <base_url> [threshold%] [step_size] [step_duration] [max_vus]
+# Env: TEST_API_KEY, CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BASE_URL="${1:-${BASE_URL:-http://localhost:3000}}"
+BASE_URL="${1:?Usage: $0 <base_url> [threshold%] [step_size] [step_duration] [max_vus]}"
+THRESHOLD="${2:-99}"
+STEP="${3:-5}"
+STEP_DURATION="${4:-30s}"
+MAX_VUS="${5:-500}"
 RESULTS_DIR="${RESULTS_DIR:-/tmp/k6-results}"
-TIERS=(1 10 25 50 100)
 
 mkdir -p "$RESULTS_DIR"
-
-# JSON array accumulator
 echo '[]' > "$RESULTS_DIR/all-tiers.json"
 
-overall_exit=0
+current_vus=1
+step_number=0
+breached=false
 
-for vus in "${TIERS[@]}"; do
+echo "========================================="
+echo "k6 Ramp-Until-Breach Load Test"
+echo "  Target:    $BASE_URL"
+echo "  Threshold: ${THRESHOLD}% success rate"
+echo "  Step size: +${STEP} VUs"
+echo "  Duration:  ${STEP_DURATION} per step"
+echo "  Max VUs:   ${MAX_VUS}"
+echo "========================================="
+echo ""
+
+while [ "$current_vus" -le "$MAX_VUS" ]; do
+  step_number=$((step_number + 1))
   echo "========================================="
-  echo "Running load test tier: ${vus} VUs"
+  echo "Step ${step_number}: ${current_vus} VUs (threshold: ${THRESHOLD}%)"
   echo "========================================="
 
-  summary_file="$RESULTS_DIR/tier-${vus}.json"
-  output_file="$RESULTS_DIR/tier-${vus}-output.txt"
+  summary_file="$RESULTS_DIR/step-${step_number}-vus-${current_vus}.json"
+  output_file="$RESULTS_DIR/step-${step_number}-vus-${current_vus}-output.txt"
 
   tier_exit=0
   k6 run "$SCRIPT_DIR/load-test.js" \
-    --vus "$vus" \
-    --iterations "$((vus * 1))" \
+    --vus "$current_vus" \
+    --duration "$STEP_DURATION" \
     --summary-export "$summary_file" \
     -e BASE_URL="$BASE_URL" \
     -e TEST_API_KEY="${TEST_API_KEY:-}" \
@@ -39,9 +53,8 @@ for vus in "${TIERS[@]}"; do
     --no-usage-report \
     2>&1 | tee "$output_file" || tier_exit=$?
 
-  # Extract key metrics from the summary JSON, with fallbacks if file is missing
+  # Parse metrics from k6 summary export
   if [ -f "$summary_file" ]; then
-    # Parse metrics from k6 summary export
     tier_json=$(python3 -c "
 import json, sys, re
 
@@ -50,28 +63,23 @@ with open('$summary_file') as f:
 
 metrics = data.get('metrics', {})
 
-# k6 --summary-export puts values directly on the metric object (no 'values' sub-key)
 dur = metrics.get('http_req_duration', {})
 p95 = dur.get('p(95)', 0)
 p99 = dur.get('p(99)', 0)
 avg = dur.get('avg', 0)
 med = dur.get('med', 0)
 
-# http_req_failed: 'value' is the failure rate (0.0 - 1.0)
 failed = metrics.get('http_req_failed', {})
 fail_rate = failed.get('value', 0)
 
-# Total requests
 reqs = metrics.get('http_reqs', {})
 total_reqs = int(reqs.get('count', 0))
 rps = reqs.get('rate', 0)
 
-# Checks: passes/fails are directly on the object
 checks = metrics.get('checks', {})
 check_passes = int(checks.get('passes', 0))
 check_fails = int(checks.get('fails', 0))
 
-# Also sum checks from root_group for more accurate counting
 rg = data.get('root_group', {}).get('checks', {})
 if rg and check_passes == 0:
     check_passes = sum(c.get('passes', 0) for c in rg.values())
@@ -79,12 +87,10 @@ if rg and check_passes == 0:
 
 success_rate = (1 - fail_rate) * 100
 
-# Parse issues from output
 issues = []
 with open('$output_file') as f:
     output = f.read()
 
-# Look for common error patterns
 error_patterns = [
     (r'status (\d{3})', 'HTTP errors'),
     (r'connection refused', 'Connection refused'),
@@ -108,7 +114,6 @@ for line in output.split('\n'):
 for code, count in sorted(status_codes.items()):
     issues.append(f'HTTP {code} ({count}x)')
 
-# Check for failed k6 checks in output
 failed_checks = re.findall(r'(.+?)\.+:\s+\d+\.\d+%\s+.*\u2717\s+(\d+)', output)
 for check_name, fail_count in failed_checks:
     check_name = check_name.strip()
@@ -116,7 +121,8 @@ for check_name, fail_count in failed_checks:
         issues.append(f'{check_name} failed ({fail_count}x)')
 
 result = {
-    'vus': $vus,
+    'step': $step_number,
+    'vus': $current_vus,
     'exit_code': $tier_exit,
     'total_requests': total_reqs,
     'rps': round(rps, 1),
@@ -133,31 +139,48 @@ result = {
 print(json.dumps(result))
 ")
   else
-    tier_json="{\"vus\":$vus,\"exit_code\":$tier_exit,\"total_requests\":0,\"rps\":0,\"success_rate\":0,\"p95_ms\":0,\"p99_ms\":0,\"avg_ms\":0,\"median_ms\":0,\"checks_passed\":0,\"checks_failed\":0,\"issues\":[\"k6 failed to produce summary\"]}"
+    tier_json="{\"step\":$step_number,\"vus\":$current_vus,\"exit_code\":$tier_exit,\"total_requests\":0,\"rps\":0,\"success_rate\":0,\"p95_ms\":0,\"p99_ms\":0,\"avg_ms\":0,\"median_ms\":0,\"checks_passed\":0,\"checks_failed\":0,\"issues\":[\"k6 failed to produce summary\"]}"
   fi
 
-  # Append tier result to the accumulated JSON array
+  # Append to results array
   python3 -c "
 import json
 with open('$RESULTS_DIR/all-tiers.json') as f:
     arr = json.load(f)
-arr.append(json.loads('$tier_json'))
+arr.append(json.loads('''$tier_json'''))
 with open('$RESULTS_DIR/all-tiers.json', 'w') as f:
     json.dump(arr, f, indent=2)
 "
 
-  echo "Tier $vus result: $tier_json"
+  # Extract success rate and check threshold
+  success_rate=$(python3 -c "import json; print(json.loads('''$tier_json''')['success_rate'])")
+  echo ""
+  echo "Step ${step_number} result: ${current_vus} VUs | success: ${success_rate}% | threshold: ${THRESHOLD}%"
   echo ""
 
-  if [ "$tier_exit" -ne 0 ]; then
-    overall_exit=1
+  # Check if we breached the threshold
+  breached_check=$(python3 -c "print('yes' if $success_rate < $THRESHOLD else 'no')")
+  if [ "$breached_check" = "yes" ]; then
+    echo "========================================="
+    echo "THRESHOLD BREACHED at ${current_vus} VUs"
+    echo "  Success rate: ${success_rate}% < ${THRESHOLD}%"
+    echo "========================================="
+    breached=true
+    break
   fi
+
+  # Increment VUs
+  current_vus=$((current_vus + STEP))
 done
 
+echo ""
 echo "========================================="
-echo "All tiers complete. Results: $RESULTS_DIR/all-tiers.json"
+if [ "$breached" = "true" ]; then
+  echo "Test stopped: threshold breached at step ${step_number} (${current_vus} VUs)"
+else
+  echo "Test completed: all steps passed up to ${MAX_VUS} VUs"
+fi
+echo "Results: $RESULTS_DIR/all-tiers.json"
 echo "========================================="
 
 cat "$RESULTS_DIR/all-tiers.json"
-
-exit $overall_exit

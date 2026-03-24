@@ -12,7 +12,6 @@ jobs:
     outputs:
       should-deploy: ${{ steps.check.outputs.should-deploy }}
       should-test: ${{ steps.check.outputs.should-test }}
-      should-load-test: ${{ steps.check.outputs.should-load-test }}
     steps:
       - name: Checkout code (for change detection)
         if: github.event.action == 'synchronize'
@@ -25,11 +24,9 @@ jobs:
         run: |
           echo "should-deploy=false" >> $GITHUB_OUTPUT
           echo "should-test=false" >> $GITHUB_OUTPUT
-          echo "should-load-test=false" >> $GITHUB_OUTPUT
 
           HAS_DEPLOY_LABEL="${{ contains(github.event.pull_request.labels.*.name, 'deploy-pr-environment') }}"
           HAS_TEST_LABEL="${{ contains(github.event.pull_request.labels.*.name, 'run-e2e-tests-pr-deploy') }}"
-          HAS_LOAD_TEST_LABEL="${{ contains(github.event.pull_request.labels.*.name, 'run-load-test') }}"
           ACTION="${{ github.event.action }}"
           ADDED_LABEL="${{ github.event.label.name }}"
 
@@ -39,13 +36,8 @@ jobs:
               if [[ "$HAS_TEST_LABEL" == "true" ]]; then
                 echo "should-test=true" >> $GITHUB_OUTPUT
               fi
-              if [[ "$HAS_LOAD_TEST_LABEL" == "true" ]]; then
-                echo "should-load-test=true" >> $GITHUB_OUTPUT
-              fi
             elif [[ "$ADDED_LABEL" == "run-e2e-tests-pr-deploy" ]]; then
               echo "should-test=true" >> $GITHUB_OUTPUT
-            elif [[ "$ADDED_LABEL" == "run-load-test" ]]; then
-              echo "should-load-test=true" >> $GITHUB_OUTPUT
             fi
           elif [[ "$ACTION" == "synchronize" || "$ACTION" == "opened" || "$ACTION" == "reopened" ]]; then
             NEEDS_DEPLOY=true
@@ -68,10 +60,6 @@ jobs:
             # Run tests if both labels present (even without deploy)
             if [[ "$HAS_DEPLOY_LABEL" == "true" && "$HAS_TEST_LABEL" == "true" ]]; then
               echo "should-test=true" >> $GITHUB_OUTPUT
-            fi
-            # Run load test on push if label present and deploy happening
-            if [[ "$HAS_DEPLOY_LABEL" == "true" && "$HAS_LOAD_TEST_LABEL" == "true" && "$NEEDS_DEPLOY" == "true" ]]; then
-              echo "should-load-test=true" >> $GITHUB_OUTPUT
             fi
           fi
 
@@ -439,178 +427,6 @@ jobs:
               repo: context.repo.repo,
               body: comment
             });
-
-  # k6 load test against deployed PR environment
-  # Runs staged VU tiers: 1 -> 10 -> 25 -> 50 -> 100
-  # Triggered by the `run-load-test` label (optional, requires deploy-pr-environment label too)
-  k6-load-test:
-    needs: [check-labels, deploy]
-    if: >-
-      always() &&
-      needs.check-labels.outputs.should-load-test == 'true' &&
-      needs.deploy.result == 'success'
-    runs-on: ubuntu-latest
-    environment: staging
-    env:
-      PR_NUMBER: ${{ github.event.pull_request.number }}
-      NAMESPACE: pr-${{ github.event.pull_request.number }}
-      REGION: us-east-1
-      CLUSTER_NAME: ${{ vars.TO_CLUSTER_NAME }}
-      BASE_URL: https://app-pr-${{ github.event.pull_request.number }}.keeperhub.com
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Install k6
-        run: |
-          K6_VERSION="v0.56.0"
-          curl -fsSL "https://github.com/grafana/k6/releases/download/${K6_VERSION}/k6-${K6_VERSION}-linux-amd64.tar.gz" -o /tmp/k6.tar.gz
-          tar -xzf /tmp/k6.tar.gz -C /tmp
-          sudo mv /tmp/k6-${K6_VERSION}-linux-amd64/k6 /usr/local/bin/k6
-          k6 version
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v5
-        with:
-          aws-access-key-id: ${{ secrets.TO_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.TO_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.REGION }}
-
-      - name: Configure kubectl
-        run: |
-          aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.REGION }}
-
-      - name: Fetch TEST_API_KEY from deployed environment
-        run: |
-          SECRET_NAME="test-api-key"
-          TEST_API_KEY=$(kubectl get secret "$SECRET_NAME" \
-            -n ${{ env.NAMESPACE }} -o jsonpath='{.data.value}' 2>/dev/null | base64 -d) || true
-          if [ -z "$TEST_API_KEY" ]; then
-            POD=$(kubectl get pods -n ${{ env.NAMESPACE }} \
-              -l app.kubernetes.io/instance=keeperhub-pr-${{ env.PR_NUMBER }} \
-              -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || \
-              kubectl get pods -n ${{ env.NAMESPACE }} -o jsonpath='{.items[0].metadata.name}')
-            TEST_API_KEY=$(kubectl exec -n ${{ env.NAMESPACE }} "$POD" -- printenv TEST_API_KEY)
-          fi
-          echo "::add-mask::$TEST_API_KEY"
-          echo "TEST_API_KEY=$TEST_API_KEY" >> $GITHUB_ENV
-
-      - name: Wait for PR environment to be ready
-        run: |
-          echo "Waiting for ${{ env.BASE_URL }}/api/health to return 200..."
-          CURL_ARGS=(-s -o /dev/null -w "%{http_code}")
-          if [[ -n "$CF_ACCESS_CLIENT_ID" && -n "$CF_ACCESS_CLIENT_SECRET" ]]; then
-            CURL_ARGS+=(-H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
-          fi
-          for i in {1..30}; do
-            STATUS=$(curl "${CURL_ARGS[@]}" "${{ env.BASE_URL }}/api/health" || echo "000")
-            if [[ "$STATUS" == "200" ]]; then
-              echo "PR environment is ready!"
-              exit 0
-            fi
-            echo "Attempt $i/30: got HTTP $STATUS, waiting 10s..."
-            sleep 10
-          done
-          echo "PR environment did not become ready in time"
-          exit 1
-        env:
-          CF_ACCESS_CLIENT_ID: ${{ secrets.TO_CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.TO_CF_ACCESS_CLIENT_SECRET }}
-
-      - name: Run staged k6 load test
-        id: load-test
-        run: |
-          chmod +x tests/k6/ci-staged-load-test.sh
-          tests/k6/ci-staged-load-test.sh "${{ env.BASE_URL }}" || true
-          echo "results_path=/tmp/k6-results/all-tiers.json" >> $GITHUB_OUTPUT
-        env:
-          TEST_API_KEY: ${{ env.TEST_API_KEY }}
-          CF_ACCESS_CLIENT_ID: ${{ secrets.TO_CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.TO_CF_ACCESS_CLIENT_SECRET }}
-
-      - name: Post load test results as PR comment
-        if: always()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const prNumber = context.payload.pull_request.number;
-            const marker = '<!-- k6-load-test-result -->';
-            const baseUrl = `https://app-pr-${prNumber}.keeperhub.com`;
-            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-
-            let tiers = [];
-            const resultsPath = '/tmp/k6-results/all-tiers.json';
-            try {
-              tiers = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
-            } catch (e) {
-              console.log(`Could not read results: ${e.message}`);
-            }
-
-            // Build the table
-            let table = '| VUs | Success Rate | Requests | RPS | p95 (ms) | p99 (ms) | Avg (ms) | Checks | Status |\n';
-            table += '|-----|-------------|----------|-----|----------|----------|----------|--------|--------|\n';
-
-            let issuesSummary = '';
-            let hasFailures = false;
-
-            for (const t of tiers) {
-              const statusIcon = t.success_rate >= 95 ? ':white_check_mark:' : t.success_rate >= 80 ? ':warning:' : ':x:';
-              if (t.success_rate < 95) hasFailures = true;
-
-              table += `| ${t.vus} | ${t.success_rate}% | ${t.total_requests} | ${t.rps} | ${t.p95_ms} | ${t.p99_ms} | ${t.avg_ms} | ${t.checks_passed}/${t.checks_passed + t.checks_failed} | ${statusIcon} |\n`;
-
-              // Collect issues per tier
-              const issues = (t.issues || []).filter(i => i !== 'None');
-              if (issues.length > 0) {
-                issuesSummary += `\n**${t.vus} VUs:** ${issues.join(', ')}`;
-              }
-            }
-
-            const overallStatus = hasFailures ? ':warning: Some tiers had degraded success rates' : ':white_check_mark: All tiers passed';
-
-            let body = [
-              marker,
-              `## k6 Load Test Results`,
-              '',
-              `**Environment:** [${baseUrl}](${baseUrl})`,
-              `**Commit:** \`${context.sha.substring(0, 7)}\``,
-              `**Workflow Run:** [View Details](${runUrl})`,
-              '',
-              `### ${overallStatus}`,
-              '',
-              table,
-            ];
-
-            if (issuesSummary) {
-              body.push('### Issues by Tier');
-              body.push(issuesSummary);
-              body.push('');
-            }
-
-            if (tiers.length === 0) {
-              body.push(':x: **No results collected** -- check the [workflow logs](' + runUrl + ') for errors.');
-            }
-
-            const bodyStr = body.join('\n');
-
-            await github.rest.issues.createComment({
-              issue_number: prNumber,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: bodyStr,
-            });
-
-      - name: Upload k6 results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: k6-load-test-results-pr-${{ env.PR_NUMBER }}
-          path: /tmp/k6-results/
-          retention-days: 14
 
   # Remote E2E tests against deployed PR environment
   # Runs when: test label just added (deploy skipped), or deploy just completed with test label present

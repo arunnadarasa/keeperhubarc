@@ -73,3 +73,13 @@ export function adminGet(path, params = {}) {
   };
   return http.get(url, mergedParams);
 }
+
+export function adminPost(path, body, params = {}) {
+  const url = `${BASE_URL}${path}`;
+  const payload = typeof body === "string" ? body : JSON.stringify(body);
+  const mergedParams = {
+    ...params,
+    headers: { ...getAdminHeaders(), ...(params.headers || {}) },
+  };
+  return http.post(url, payload, mergedParams);
+}

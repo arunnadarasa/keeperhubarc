@@ -1,0 +1,221 @@
+name: k6 Load Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+          - custom
+        default: staging
+      custom_url:
+        description: 'Custom endpoint URL (only when environment=custom)'
+        required: false
+        type: string
+        default: ''
+      threshold:
+        description: 'Success rate threshold (%) — stops when rate drops below'
+        required: false
+        type: string
+        default: '99'
+      step_size:
+        description: 'VU increment per step'
+        required: false
+        type: string
+        default: '5'
+      step_duration:
+        description: 'Duration per step (e.g. 30s, 1m)'
+        required: false
+        type: string
+        default: '30s'
+      max_vus:
+        description: 'Maximum VUs safety cap'
+        required: false
+        type: string
+        default: '500'
+
+concurrency:
+  group: load-test-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment == 'production' && 'prod' || 'staging' }}
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install k6
+        run: |
+          K6_VERSION="v0.56.0"
+          curl -fsSL "https://github.com/grafana/k6/releases/download/${K6_VERSION}/k6-${K6_VERSION}-linux-amd64.tar.gz" -o /tmp/k6.tar.gz
+          tar -xzf /tmp/k6.tar.gz -C /tmp
+          sudo mv /tmp/k6-${K6_VERSION}-linux-amd64/k6 /usr/local/bin/k6
+          k6 version
+
+      - name: Resolve target URL
+        id: target
+        run: |
+          if [[ "${{ inputs.environment }}" == "custom" ]]; then
+            BASE_URL="${{ inputs.custom_url }}"
+            if [[ -z "$BASE_URL" ]]; then
+              echo "::error::custom_url is required when environment=custom"
+              exit 1
+            fi
+          else
+            BASE_URL="${{ vars.TO_HEALTH_URL }}"
+          fi
+          echo "BASE_URL=$BASE_URL" >> $GITHUB_ENV
+          echo "base_url=$BASE_URL" >> $GITHUB_OUTPUT
+          echo "Target: $BASE_URL"
+
+      - name: Wait for target to be healthy
+        run: |
+          echo "Waiting for ${BASE_URL}/api/health to return 200..."
+          CURL_ARGS=(-s -o /dev/null -w "%{http_code}")
+          if [[ -n "${CF_ACCESS_CLIENT_ID:-}" && -n "${CF_ACCESS_CLIENT_SECRET:-}" ]]; then
+            CURL_ARGS+=(-H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
+          fi
+          for i in {1..30}; do
+            STATUS=$(curl "${CURL_ARGS[@]}" "${BASE_URL}/api/health" || echo "000")
+            if [[ "$STATUS" == "200" ]]; then
+              echo "Target is healthy!"
+              exit 0
+            fi
+            echo "Attempt $i/30: HTTP $STATUS, waiting 10s..."
+            sleep 10
+          done
+          echo "::error::Target did not become healthy in time"
+          exit 1
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.TO_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.TO_CF_ACCESS_CLIENT_SECRET }}
+
+      - name: Run ramp-until-breach load test
+        id: load-test
+        run: |
+          chmod +x tests/k6/ramp-until-breach.sh
+          tests/k6/ramp-until-breach.sh \
+            "${{ env.BASE_URL }}" \
+            "${{ inputs.threshold }}" \
+            "${{ inputs.step_size }}" \
+            "${{ inputs.step_duration }}" \
+            "${{ inputs.max_vus }}" || true
+        env:
+          TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.TO_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.TO_CF_ACCESS_CLIENT_SECRET }}
+
+      - name: Cleanup test users
+        if: always()
+        run: |
+          echo "Cleaning up k6 test users from ${BASE_URL}..."
+          CURL_ARGS=(-s -X POST -H "Content-Type: application/json" -H "Authorization: Bearer ${TEST_API_KEY}")
+          if [[ -n "${CF_ACCESS_CLIENT_ID:-}" && -n "${CF_ACCESS_CLIENT_SECRET:-}" ]]; then
+            CURL_ARGS+=(-H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
+          fi
+          CURL_ARGS+=(-H "Origin: ${BASE_URL}" -H "Referer: ${BASE_URL}/")
+
+          RESPONSE=$(curl "${CURL_ARGS[@]}" "${BASE_URL}/api/admin/test/cleanup" || echo '{"error":"cleanup request failed"}')
+          echo "Cleanup response: $RESPONSE"
+
+          # Extract user count for summary
+          DELETED_USERS=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('deleted',{}).get('users',0))" 2>/dev/null || echo "unknown")
+          echo "DELETED_USERS=$DELETED_USERS" >> $GITHUB_ENV
+        env:
+          TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.TO_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.TO_CF_ACCESS_CLIENT_SECRET }}
+
+      - name: Generate summary
+        if: always()
+        run: |
+          RESULTS_FILE="/tmp/k6-results/all-tiers.json"
+
+          python3 -c "
+          import json, os
+
+          results_file = '$RESULTS_FILE'
+          summary_file = os.environ.get('GITHUB_STEP_SUMMARY', '/dev/stdout')
+          threshold = ${{ inputs.threshold }}
+          env_name = '${{ inputs.environment }}'
+          base_url = '${{ env.BASE_URL }}'
+          deleted_users = os.environ.get('DELETED_USERS', 'unknown')
+          run_url = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+
+          tiers = []
+          try:
+              with open(results_file) as f:
+                  tiers = json.load(f)
+          except:
+              pass
+
+          lines = []
+          lines.append('## k6 Load Test Results')
+          lines.append('')
+          lines.append(f'**Target:** [{base_url}]({base_url})')
+          lines.append(f'**Environment:** {env_name}')
+          lines.append(f'**Threshold:** {threshold}% success rate')
+          lines.append(f'**Step:** +${{ inputs.step_size }} VUs every ${{ inputs.step_duration }}')
+          lines.append(f'**Max VUs:** ${{ inputs.max_vus }}')
+          lines.append('')
+
+          if not tiers:
+              lines.append(':x: **No results collected** -- check the [workflow logs]({}) for errors.'.format(run_url))
+          else:
+              # Find breach point
+              breach_tier = None
+              for t in tiers:
+                  if t['success_rate'] < threshold:
+                      breach_tier = t
+                      break
+
+              if breach_tier:
+                  lines.append(f':warning: **Threshold breached at {breach_tier[\"vus\"]} VUs** (success rate {breach_tier[\"success_rate\"]}% < {threshold}%)')
+              else:
+                  last = tiers[-1]
+                  lines.append(f':white_check_mark: **All steps passed** up to {last[\"vus\"]} VUs at {last[\"success_rate\"]}% success rate')
+
+              lines.append('')
+              lines.append('| Step | VUs | Success Rate | Requests | RPS | p95 (ms) | Avg (ms) | Checks | Status |')
+              lines.append('|------|-----|-------------|----------|-----|----------|----------|--------|--------|')
+
+              for t in tiers:
+                  icon = ':white_check_mark:' if t['success_rate'] >= threshold else ':warning:' if t['success_rate'] >= 80 else ':x:'
+                  checks = f\"{t['checks_passed']}/{t['checks_passed'] + t['checks_failed']}\"
+                  lines.append(f\"| {t.get('step', '-')} | {t['vus']} | {t['success_rate']}% | {t['total_requests']} | {t['rps']} | {t['p95_ms']} | {t['avg_ms']} | {checks} | {icon} |\")
+
+              # Issues summary
+              has_issues = False
+              for t in tiers:
+                  issues = [i for i in (t.get('issues', []) or []) if i != 'None']
+                  if issues:
+                      if not has_issues:
+                          lines.append('')
+                          lines.append('### Issues by Step')
+                          has_issues = True
+                      lines.append(f'**{t[\"vus\"]} VUs:** {', '.join(issues)}')
+
+          lines.append('')
+          lines.append(f'### Cleanup')
+          lines.append(f'Deleted **{deleted_users}** test users from the database.')
+          lines.append('')
+
+          with open(summary_file, 'w') as f:
+              f.write('\n'.join(lines))
+          " >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload k6 results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-load-test-${{ inputs.environment }}-${{ github.run_number }}
+          path: /tmp/k6-results/
+          retention-days: 30
