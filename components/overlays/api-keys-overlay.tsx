@@ -316,13 +316,13 @@ export function ApiKeysOverlay({ overlayId }: ApiKeysOverlayProps) {
 
   // Organisation keys
   const orgKeys = useApiKeys(
-    "/api/keeperhub/keys",
-    (id) => `/api/keeperhub/keys/${id}`
+    "/api/keys",
+    (id) => `/api/keys/${id}`
   );
 
   const currentKeys = activeTab === "webhook" ? webhookKeys : orgKeys;
   const createEndpoint =
-    activeTab === "webhook" ? "/api/api-keys" : "/api/keeperhub/keys";
+    activeTab === "webhook" ? "/api/api-keys" : "/api/keys";
 
   return (
     <Overlay
