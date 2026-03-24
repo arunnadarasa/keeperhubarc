@@ -1496,7 +1496,7 @@ function VisibilityButton({
         <Button
           className={
             isPublic
-              ? "border border-keeperhub-green/40 bg-keeperhub-green/10 text-keeperhub-green hover:bg-keeperhub-green/20"
+              ? "border border-keeperhub-green/20 text-keeperhub-green hover:bg-keeperhub-green/10"
               : "border hover:bg-black/5 dark:hover:bg-white/5"
           }
           disabled={!state.currentWorkflowId || state.isGenerating}

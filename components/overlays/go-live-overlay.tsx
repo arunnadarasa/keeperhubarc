@@ -34,6 +34,7 @@ export function GoLiveOverlay({
   const [name, setName] = useState(currentName);
   const [selectedTags, setSelectedTags] = useState<PublicTag[]>(initialTags);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const title = isEditing ? "Share Settings" : "Share";
   const submitLabel = isEditing ? "Save Changes" : "Share";
@@ -80,9 +81,20 @@ export function GoLiveOverlay({
   return (
     <Overlay
       actions={[
+        {
+          label: copied ? "Copied" : "Copy link",
+          variant: "ghost" as const,
+          onClick: () => {
+            navigator.clipboard.writeText(window.location.href);
+            setCopied(true);
+            toast.success("Link copied to clipboard");
+            setTimeout(() => setCopied(false), 2000);
+          },
+        },
         { label: "Cancel", variant: "outline", onClick: closeAll },
         {
           label: submitLabel,
+          variant: "outline" as const,
           onClick: handleSubmit,
           disabled: !name.trim(),
         },
@@ -130,6 +142,7 @@ export function GoLiveOverlay({
             </p>
           </div>
         )}
+
       </div>
     </Overlay>
   );
