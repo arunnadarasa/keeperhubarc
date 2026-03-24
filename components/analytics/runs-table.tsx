@@ -12,6 +12,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type {
   NormalizedStatus,
@@ -336,28 +337,30 @@ function Pagination({
   }
 
   return (
-    <nav aria-label="Pagination" className="flex items-center gap-1.5">
-      <button
-        className="flex items-center gap-0.5 rounded px-1.5 py-1 text-muted-foreground text-xs transition-colors hover:text-foreground disabled:opacity-40 disabled:pointer-events-none"
+    <nav aria-label="Pagination" className="flex items-center gap-1">
+      <Button
+        className="h-7 gap-1 px-2 text-xs"
         disabled={page <= 1 || loading}
         onClick={() => onPageChange(page - 1)}
-        type="button"
+        size="sm"
+        variant="ghost"
       >
-        <ChevronLeft className="size-3" />
+        <ChevronLeft className="size-3.5" />
         Prev
-      </button>
-      <span className="text-muted-foreground text-xs tabular-nums">
+      </Button>
+      <span className="font-medium text-muted-foreground text-xs tabular-nums">
         {page} of {totalPages}
       </span>
-      <button
-        className="flex items-center gap-0.5 rounded px-1.5 py-1 text-muted-foreground text-xs transition-colors hover:text-foreground disabled:opacity-40 disabled:pointer-events-none"
+      <Button
+        className="h-7 gap-1 px-2 text-xs"
         disabled={page >= totalPages || loading}
         onClick={() => onPageChange(page + 1)}
-        type="button"
+        size="sm"
+        variant="ghost"
       >
         Next
-        <ChevronRight className="size-3" />
-      </button>
+        <ChevronRight className="size-3.5" />
+      </Button>
     </nav>
   );
 }
