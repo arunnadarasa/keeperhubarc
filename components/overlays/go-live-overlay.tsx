@@ -133,14 +133,19 @@ export function GoLiveOverlay({
         </div>
 
         {!isEditing && (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Share2 className="size-4 shrink-0" />
-            <p className="text-sm">
-              Shared workflows are visible on the Hub. Others can view the
-              structure and duplicate it. Your credentials and logs remain
-              private.
+          <>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Share2 className="size-4 shrink-0" />
+              <p className="text-sm">
+                Shared workflows are visible on the Hub. Others can view the
+                structure and duplicate it. Your credentials and logs remain
+                private.
+              </p>
+            </div>
+            <p className="text-muted-foreground/60 text-xs">
+              Link will be accessible to others once shared
             </p>
-          </div>
+          </>
         )}
 
       </div>
