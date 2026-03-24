@@ -22,7 +22,6 @@
  *   SCHEDULE_ID - ID of the schedule (for scheduled executions)
  */
 
-import { CronExpressionParser } from "cron-parser";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
@@ -37,7 +36,11 @@ import { executeWorkflow } from "../lib/workflow-executor.workflow";
 import { calculateTotalSteps } from "../lib/workflow-progress";
 import { SHUTDOWN_TIMEOUT_MS } from "../lib/workflow-runner/constants";
 import type { WorkflowEdge, WorkflowNode } from "../lib/workflow-store";
-import { toJsonSafe } from "./lib/serialize";
+import {
+  initializeExecutionProgress,
+  updateExecutionStatus,
+  updateScheduleStatus,
+} from "./lib/db-helpers";
 
 // Validate required environment variables
 function validateEnv(): {
@@ -88,12 +91,10 @@ if (!connectionString) {
   throw new Error("DATABASE_URL environment variable is required");
 }
 const queryClient = postgres(connectionString, {
-  connect_timeout: 10, // 10s connection timeout
-  idle_timeout: 30, // Close idle connections after 30s
-  max_lifetime: 60 * 5, // Max connection lifetime 5 minutes
-  connection: {
-    statement_timeout: 30_000, // 30s query timeout
-  },
+  connect_timeout: 10,
+  idle_timeout: 30,
+  max_lifetime: 60 * 5,
+  connection: { statement_timeout: 30_000 },
 });
 const db = drizzle(queryClient, {
   schema: { workflows, workflowExecutions, workflowSchedules },
@@ -104,10 +105,6 @@ let isShuttingDown = false;
 let currentExecutionId: string | null = null;
 let currentScheduleId: string | null = null;
 
-/**
- * Handle graceful shutdown on SIGTERM/SIGINT
- * Updates execution status and closes database connection before exit
- */
 async function handleGracefulShutdown(signal: string): Promise<void> {
   if (isShuttingDown) {
     console.log(`[Runner] Already shutting down, ignoring ${signal}`);
@@ -123,18 +120,17 @@ async function handleGracefulShutdown(signal: string): Promise<void> {
   }, SHUTDOWN_TIMEOUT_MS);
 
   try {
-    // Update execution status if we have an active execution
     if (currentExecutionId) {
       console.log(
         `[Runner] Updating execution ${currentExecutionId} status to error`
       );
-      await updateExecutionStatus(currentExecutionId, "error", {
+      await updateExecutionStatus(db, currentExecutionId, "error", {
         error: `Workflow terminated by ${signal} signal`,
       });
 
-      // Update schedule status if this was a scheduled execution
       if (currentScheduleId) {
         await updateScheduleStatus(
+          db,
           currentScheduleId,
           "error",
           `Workflow terminated by ${signal} signal`
@@ -142,7 +138,6 @@ async function handleGracefulShutdown(signal: string): Promise<void> {
       }
     }
 
-    // Close database connection
     await queryClient.end();
     console.log("[Runner] Database connection closed");
   } catch (error) {
@@ -154,131 +149,14 @@ async function handleGracefulShutdown(signal: string): Promise<void> {
   }
 }
 
-// Register signal handlers for graceful shutdown
 process.on("SIGTERM", () => handleGracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => handleGracefulShutdown("SIGINT"));
 
-/**
- * Update execution status in database
- */
-async function updateExecutionStatus(
-  executionId: string,
-  status: "running" | "success" | "error" | "cancelled",
-  result?: {
-    output?: unknown;
-    error?: string;
-  }
-): Promise<void> {
-  const updateData: Record<string, unknown> = {
-    status,
-    updatedAt: new Date(),
-  };
-
-  if (status === "success" || status === "error") {
-    updateData.completedAt = new Date();
-  }
-
-  if (result?.output !== undefined) {
-    updateData.output = toJsonSafe(result.output);
-  }
-
-  if (result?.error) {
-    updateData.error = result.error;
-  }
-
-  await db
-    .update(workflowExecutions)
-    .set(updateData)
-    .where(eq(workflowExecutions.id, executionId));
-}
-
-/**
- * Compute next run time for a cron expression
- */
-function computeNextRunTime(
-  cronExpression: string,
-  timezone: string
-): Date | null {
-  try {
-    const interval = CronExpressionParser.parse(cronExpression, {
-      currentDate: new Date(),
-      tz: timezone,
-    });
-    return interval.next().toDate();
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Initialize progress tracking for an execution
- */
-async function initializeExecutionProgress(
-  executionId: string,
-  totalSteps: number
-): Promise<void> {
-  await db
-    .update(workflowExecutions)
-    .set({
-      totalSteps: totalSteps.toString(),
-      completedSteps: "0",
-      executionTrace: [],
-      currentNodeId: null,
-      currentNodeName: null,
-      lastSuccessfulNodeId: null,
-      lastSuccessfulNodeName: null,
-    })
-    .where(eq(workflowExecutions.id, executionId));
-}
-
-/**
- * Update schedule status after execution
- */
-async function updateScheduleStatus(
-  scheduleId: string,
-  status: "success" | "error",
-  error?: string
-): Promise<void> {
-  const schedule = await db.query.workflowSchedules.findFirst({
-    where: eq(workflowSchedules.id, scheduleId),
-  });
-
-  if (!schedule) {
-    return;
-  }
-
-  const nextRunAt = computeNextRunTime(
-    schedule.cronExpression,
-    schedule.timezone
-  );
-
-  const runCount =
-    status === "success"
-      ? String(Number(schedule.runCount || "0") + 1)
-      : schedule.runCount;
-
-  await db
-    .update(workflowSchedules)
-    .set({
-      lastRunAt: new Date(),
-      lastStatus: status,
-      lastError: status === "error" ? error : null,
-      nextRunAt,
-      runCount,
-      updatedAt: new Date(),
-    })
-    .where(eq(workflowSchedules.id, scheduleId));
-}
-
-/**
- * Main execution function
- */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Main runner orchestrates multiple phases of workflow execution
 async function main(): Promise<void> {
   const startTime = Date.now();
   const { workflowId, executionId, input, scheduleId } = validateEnv();
 
-  // Track execution IDs for graceful shutdown handler
   currentExecutionId = executionId;
   currentScheduleId = scheduleId ?? null;
 
@@ -288,16 +166,13 @@ async function main(): Promise<void> {
   console.log(`[Runner] Schedule ID: ${scheduleId || "none"}`);
 
   try {
-    // Check if we're already shutting down
     if (isShuttingDown) {
       console.log("[Runner] Shutdown in progress, aborting execution");
       return;
     }
 
-    // Update execution status to running
-    await updateExecutionStatus(executionId, "running");
+    await updateExecutionStatus(db, executionId, "running");
 
-    // Fetch workflow from database
     const workflow = await db.query.workflows.findFirst({
       where: eq(workflows.id, workflowId),
     });
@@ -306,19 +181,16 @@ async function main(): Promise<void> {
       throw new Error(`Workflow not found: ${workflowId}`);
     }
 
-    // Verify workflow is enabled (defense in depth - also checked by executor)
-    // Only skip if explicitly disabled (enabled === false), not if null/undefined
     if (workflow.enabled === false) {
       console.log(
         `[Runner] Workflow disabled, skipping execution: ${workflowId}`
       );
-      await updateExecutionStatus(executionId, "cancelled");
+      await updateExecutionStatus(db, executionId, "cancelled");
       return;
     }
 
     console.log(`[Runner] Loaded workflow: ${workflow.name || workflowId}`);
 
-    // Resolve organization name for log filtering
     let organizationName: string | undefined;
     if (workflow.organizationId) {
       const [org] = await db
@@ -329,7 +201,6 @@ async function main(): Promise<void> {
       organizationName = org?.name;
     }
 
-    // Validate integration ownership
     const nodes = workflow.nodes as WorkflowNode[];
     const edges = workflow.edges as WorkflowEdge[];
     const validation = await validateWorkflowIntegrations(
@@ -343,18 +214,15 @@ async function main(): Promise<void> {
       );
     }
 
-    // Initialize progress tracking
     const totalSteps = calculateTotalSteps(nodes, edges);
     console.log(`[Runner] Total steps: ${totalSteps}`);
-    await initializeExecutionProgress(executionId, totalSteps);
+    await initializeExecutionProgress(db, executionId, totalSteps);
 
-    // Check if shutdown was requested before starting long-running execution
     if (isShuttingDown) {
       console.log("[Runner] Shutdown requested, aborting before execution");
       return;
     }
 
-    // Execute the workflow
     console.log("[Runner] Executing workflow...");
     const result = await executeWorkflow({
       nodes,
@@ -370,18 +238,15 @@ async function main(): Promise<void> {
     console.log(`[Runner] Workflow completed in ${duration}ms`);
     console.log(`[Runner] Success: ${result.success}`);
 
-    // Update execution status
     if (result.success) {
-      await updateExecutionStatus(executionId, "success", {
+      await updateExecutionStatus(db, executionId, "success", {
         output: result.outputs,
       });
 
-      // Update schedule status if this was a scheduled execution
       if (scheduleId) {
-        await updateScheduleStatus(scheduleId, "success");
+        await updateScheduleStatus(db, scheduleId, "success");
       }
 
-      // Clear execution ID so signal handler doesn't update completed execution
       currentExecutionId = null;
       console.log("[Runner] Execution completed successfully");
     } else {
@@ -390,20 +255,16 @@ async function main(): Promise<void> {
         Object.values(result.results || {}).find((r) => !r.success)?.error ||
         "Unknown error";
 
-      await updateExecutionStatus(executionId, "error", {
+      await updateExecutionStatus(db, executionId, "error", {
         error: errorMessage,
         output: result.outputs,
       });
 
-      // Update schedule status if this was a scheduled execution
       if (scheduleId) {
-        await updateScheduleStatus(scheduleId, "error", errorMessage);
+        await updateScheduleStatus(db, scheduleId, "error", errorMessage);
       }
 
-      // Clear execution ID so signal handler doesn't update already-handled execution
       currentExecutionId = null;
-      // Workflow failure is a business logic outcome, not a system error
-      // Exit 0 because we successfully executed and recorded the result
       console.error("[Runner] Workflow execution failed:", errorMessage);
     }
   } catch (error) {
@@ -413,34 +274,27 @@ async function main(): Promise<void> {
 
     console.error(`[Runner] Fatal error after ${duration}ms:`, errorMessage);
 
-    // Update execution status with error
-    // Only exit 1 if we fail to record the error (system failure)
     let dbUpdateSucceeded = false;
     try {
-      await updateExecutionStatus(executionId, "error", {
+      await updateExecutionStatus(db, executionId, "error", {
         error: errorMessage,
       });
 
-      // Update schedule status if this was a scheduled execution
       if (scheduleId) {
-        await updateScheduleStatus(scheduleId, "error", errorMessage);
+        await updateScheduleStatus(db, scheduleId, "error", errorMessage);
       }
       dbUpdateSucceeded = true;
     } catch (updateError) {
       console.error("[Runner] Failed to update execution status:", updateError);
-      // System error: couldn't record the failure to database
       process.exitCode = 1;
     }
 
-    // Clear execution ID so signal handler doesn't update already-handled execution
     currentExecutionId = null;
 
     if (dbUpdateSucceeded) {
-      // We recorded the error successfully - this is a normal completion
       console.log("[Runner] Error recorded to database, exiting normally");
     }
   } finally {
-    // Clean up database connection (skip if shutdown handler already closed it)
     if (!isShuttingDown) {
       await queryClient.end();
       console.log("[Runner] Database connection closed");
@@ -448,16 +302,11 @@ async function main(): Promise<void> {
   }
 }
 
-// Run main function
-// Exit codes:
-//   0 = Container completed successfully (workflow ran and result recorded, even if workflow failed)
-//   1 = System/runtime error (DB unreachable, signal termination, unhandled exception)
 main()
   .then(() => {
     process.exit(process.exitCode ?? 0);
   })
   .catch((error) => {
-    // Unhandled exception is a system error
     console.error("[Runner] Unhandled error:", error);
     process.exit(1);
   });

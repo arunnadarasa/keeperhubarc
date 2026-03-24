@@ -1,121 +1,16 @@
-import { CronExpressionParser } from "cron-parser";
 import { eq } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { validateWorkflowIntegrations } from "../lib/db/integrations";
-import {
-  organization,
-  workflowExecutions,
-  workflowSchedules,
-  workflows,
-} from "../lib/db/schema";
+import { organization, workflows } from "../lib/db/schema";
 import { executeWorkflow } from "../lib/workflow-executor.workflow";
 import { calculateTotalSteps } from "../lib/workflow-progress";
 import type { WorkflowEdge, WorkflowNode } from "../lib/workflow-store";
-import { toJsonSafe } from "./lib/serialize";
-
-type DbSchema = {
-  workflows: typeof workflows;
-  workflowExecutions: typeof workflowExecutions;
-  workflowSchedules: typeof workflowSchedules;
-};
-
-async function updateExecutionStatus(
-  db: PostgresJsDatabase<DbSchema>,
-  executionId: string,
-  status: "running" | "success" | "error" | "cancelled",
-  result?: { output?: unknown; error?: string }
-): Promise<void> {
-  const updateData: Record<string, unknown> = {
-    status,
-    updatedAt: new Date(),
-  };
-
-  if (status === "success" || status === "error") {
-    updateData.completedAt = new Date();
-  }
-  if (result?.output !== undefined) {
-    updateData.output = toJsonSafe(result.output);
-  }
-  if (result?.error) {
-    updateData.error = result.error;
-  }
-
-  await db
-    .update(workflowExecutions)
-    .set(updateData)
-    .where(eq(workflowExecutions.id, executionId));
-}
-
-async function initializeExecutionProgress(
-  db: PostgresJsDatabase<DbSchema>,
-  executionId: string,
-  totalSteps: number
-): Promise<void> {
-  await db
-    .update(workflowExecutions)
-    .set({
-      totalSteps: totalSteps.toString(),
-      completedSteps: "0",
-      executionTrace: [],
-      currentNodeId: null,
-      currentNodeName: null,
-      lastSuccessfulNodeId: null,
-      lastSuccessfulNodeName: null,
-    })
-    .where(eq(workflowExecutions.id, executionId));
-}
-
-function computeNextRunTime(
-  cronExpression: string,
-  timezone: string
-): Date | null {
-  try {
-    const interval = CronExpressionParser.parse(cronExpression, {
-      currentDate: new Date(),
-      tz: timezone,
-    });
-    return interval.next().toDate();
-  } catch {
-    return null;
-  }
-}
-
-async function updateScheduleStatus(
-  db: PostgresJsDatabase<DbSchema>,
-  scheduleId: string,
-  status: "success" | "error",
-  error?: string
-): Promise<void> {
-  const schedule = await db.query.workflowSchedules.findFirst({
-    where: eq(workflowSchedules.id, scheduleId),
-  });
-
-  if (!schedule) {
-    return;
-  }
-
-  const nextRunAt = computeNextRunTime(
-    schedule.cronExpression,
-    schedule.timezone
-  );
-
-  const runCount =
-    status === "success"
-      ? String(Number(schedule.runCount || "0") + 1)
-      : schedule.runCount;
-
-  await db
-    .update(workflowSchedules)
-    .set({
-      lastRunAt: new Date(),
-      lastStatus: status,
-      lastError: status === "error" ? error : null,
-      nextRunAt,
-      runCount,
-      updatedAt: new Date(),
-    })
-    .where(eq(workflowSchedules.id, scheduleId));
-}
+import type { DbSchema } from "./lib/db-helpers";
+import {
+  initializeExecutionProgress,
+  updateExecutionStatus,
+  updateScheduleStatus,
+} from "./lib/db-helpers";
 
 /**
  * Execute a workflow in-process (no K8s Job).
