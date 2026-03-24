@@ -1,4 +1,4 @@
-import { inArray, like, sql } from "drizzle-orm";
+import { inArray, like } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { authenticateAdmin } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
@@ -31,7 +31,9 @@ async function findTestData() {
     .from(users)
     .where(like(users.email, K6_EMAIL_PATTERN));
 
-  if (testUsers.length === 0) return null;
+  if (testUsers.length === 0) {
+    return null;
+  }
 
   const userIds = testUsers.map((u) => u.id);
   const emails = testUsers.map((u) => u.email).filter(Boolean) as string[];
@@ -91,8 +93,8 @@ async function deleteTestData(data: {
       .where(
         like(
           verifications.identifier,
-          "email-verification-otp-k6-%@techops.services",
-        ),
+          "email-verification-otp-k6-%@techops.services"
+        )
       );
     await tx.delete(sessions).where(inArray(sessions.userId, userIds));
     await tx.delete(accounts).where(inArray(accounts.userId, userIds));
@@ -111,7 +113,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!auth.authenticated) {
     return NextResponse.json(
       { error: auth.error ?? "Unauthorized" },
-      { status: 401 },
+      { status: 401 }
     );
   }
 
@@ -156,7 +158,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     console.error("Admin cleanup failed:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
