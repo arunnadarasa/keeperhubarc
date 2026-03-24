@@ -126,6 +126,13 @@ class BlockMonitorService {
       } else if (existing.hasConfigChanged(chain)) {
         await existing.stop();
         await this.startNewMonitor(chainId, chain, workflows);
+      } else if (!existing.isAlive()) {
+        console.warn(
+          `[BlockMonitorService] Monitor for ${chain.name} (${chainId}) is dead, restarting`
+        );
+        await existing.stop();
+        this.monitors.delete(chainId);
+        await this.startNewMonitor(chainId, chain, workflows);
       } else {
         existing.updateWorkflows(workflows);
       }

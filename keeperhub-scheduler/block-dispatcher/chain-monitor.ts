@@ -99,6 +99,10 @@ export class ChainMonitor {
     return this.chainId;
   }
 
+  isAlive(): boolean {
+    return this.isRunning;
+  }
+
   // ---------------------------------------------------------------------------
   // Provider lifecycle
   // ---------------------------------------------------------------------------
