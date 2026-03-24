@@ -5,6 +5,7 @@ on:
     types: [opened, edited, synchronize]
     branches:
       - staging
+      - prod
 
 jobs:
   check-title:
