@@ -41,6 +41,8 @@ import type {
   TokenBalance,
   TokenData,
   WalletData,
+  WalletInfo,
+  WalletProvider,
 } from "@/lib/wallet/types";
 import { useWalletBalances } from "@/lib/wallet/use-wallet-balances";
 import { type WithdrawableAsset, WithdrawModal } from "./withdraw-modal";
@@ -857,7 +859,7 @@ function AddTurnkeyWalletSection({
         variant="outline"
       >
         <ShieldCheck className="mr-2 h-3 w-3" />
-        Add Turnkey Wallet (with key export)
+        Add Turnkey Wallet
       </Button>
     );
   }
@@ -1179,6 +1181,7 @@ export function WalletOverlay({ overlayId }: WalletOverlayProps) {
 
   const [walletLoading, setWalletLoading] = useState(true);
   const [walletData, setWalletData] = useState<WalletData | null>(null);
+  const [activeProvider, setActiveProvider] = useState<WalletProvider>("para");
   const [chains, setChains] = useState<ChainData[]>([]);
   const [tokens, setTokens] = useState<TokenData[]>([]);
   const [supportedTokens, setSupportedTokens] = useState<SupportedToken[]>([]);
@@ -1505,42 +1508,77 @@ export function WalletOverlay({ overlayId }: WalletOverlayProps) {
         </div>
       )}
 
-      {!walletLoading && walletData?.hasWallet && (
-        <div className="space-y-4">
-          {walletData.email && walletData.walletAddress && (
-            <AccountDetailsSection
-              canExportKey={!!walletData.canExportKey}
-              email={walletData.email}
+      {!walletLoading && walletData?.hasWallet && (() => {
+        const wallets = walletData.wallets ?? [];
+        const hasMultiple = wallets.length > 1;
+        const activeWallet = hasMultiple
+          ? wallets.find((w) => w.provider === activeProvider) ?? wallets[0]
+          : wallets[0] ?? walletData;
+        const missingProviders: WalletProvider[] = [];
+        const existingProviders = new Set(wallets.map((w) => w.provider));
+        if (!existingProviders.has("turnkey")) {
+          missingProviders.push("turnkey");
+        }
+        if (!existingProviders.has("para")) {
+          missingProviders.push("para");
+        }
+
+        return (
+          <div className="space-y-4">
+            {hasMultiple && (
+              <div className="flex gap-1 rounded-lg border border-border/30 p-0.5">
+                {wallets.map((w) => (
+                  <button
+                    className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      activeProvider === w.provider
+                        ? "bg-muted text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    key={w.provider}
+                    onClick={() => setActiveProvider(w.provider as WalletProvider)}
+                    type="button"
+                  >
+                    {w.provider === "para" ? "Para" : "Turnkey"}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {activeWallet?.email && activeWallet?.walletAddress && (
+              <AccountDetailsSection
+                canExportKey={!!activeWallet.canExportKey}
+                email={activeWallet.email}
+                isAdmin={isAdmin}
+                onEmailUpdated={loadWallet}
+                walletAddress={activeWallet.walletAddress}
+              />
+            )}
+
+            <BalanceListSection
+              balances={balances}
+              chains={chains}
               isAdmin={isAdmin}
-              onEmailUpdated={loadWallet}
-              walletAddress={walletData.walletAddress}
+              onAddToken={handleAddToken}
+              onRefresh={handleRefresh}
+              onRemoveToken={handleRemoveToken}
+              onWithdraw={handleWithdraw}
+              refreshing={refreshing}
+              setShowAddToken={setShowAddToken}
+              showAddToken={showAddToken}
+              supportedTokenBalances={supportedTokenBalances}
+              tokenBalances={tokenBalances}
             />
-          )}
 
-          <BalanceListSection
-            balances={balances}
-            chains={chains}
-            isAdmin={isAdmin}
-            onAddToken={handleAddToken}
-            onRefresh={handleRefresh}
-            onRemoveToken={handleRemoveToken}
-            onWithdraw={handleWithdraw}
-            refreshing={refreshing}
-            setShowAddToken={setShowAddToken}
-            showAddToken={showAddToken}
-            supportedTokenBalances={supportedTokenBalances}
-            tokenBalances={tokenBalances}
-          />
-
-          {isAdmin && walletData.provider === "para" && (
-            <AddTurnkeyWalletSection
-              initialEmail={session?.user?.email ?? ""}
-              onCreateWallet={handleCreateWallet}
-              onWalletCreated={loadWallet}
-            />
-          )}
-        </div>
-      )}
+            {isAdmin && missingProviders.length > 0 && (
+              <AddTurnkeyWalletSection
+                initialEmail={session?.user?.email ?? ""}
+                onCreateWallet={handleCreateWallet}
+                onWalletCreated={loadWallet}
+              />
+            )}
+          </div>
+        );
+      })()}
 
       {!(walletLoading || walletData?.hasWallet) && (
         <NoWalletSection

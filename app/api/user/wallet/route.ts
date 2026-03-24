@@ -15,10 +15,6 @@ import { encryptUserShare } from "@/lib/encryption";
 import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 import { getActiveOrgId } from "@/lib/middleware/org-context";
-import {
-  getOrganizationWallet,
-  organizationHasWallet,
-} from "@/lib/para/wallet-helpers";
 import { createTurnkeyWallet } from "@/lib/turnkey/turnkey-client";
 import type { WalletProvider } from "@/lib/wallet/types";
 
@@ -286,26 +282,36 @@ export async function GET(request: Request) {
     }
     const { organizationId: activeOrgId } = authCtx;
 
-    const hasWallet = await organizationHasWallet(activeOrgId);
+    const allWallets = await db
+      .select()
+      .from(organizationWallets)
+      .where(eq(organizationWallets.organizationId, activeOrgId));
 
-    if (!hasWallet) {
+    if (allWallets.length === 0) {
       return NextResponse.json({
         hasWallet: false,
+        wallets: [],
         message: "No wallet found for this organization",
       });
     }
 
-    const wallet = await getOrganizationWallet(activeOrgId);
+    const wallets = allWallets.map((w) => ({
+      provider: w.provider,
+      canExportKey: w.provider === "turnkey",
+      walletAddress: w.walletAddress,
+      walletId: w.paraWalletId ?? w.turnkeyWalletId,
+      email: w.email,
+      createdAt: w.createdAt,
+      organizationId: w.organizationId,
+    }));
+
+    // Primary wallet (first one) for backward compatibility
+    const primary = wallets[0];
 
     return NextResponse.json({
       hasWallet: true,
-      provider: wallet.provider,
-      canExportKey: wallet.provider === "turnkey",
-      walletAddress: wallet.walletAddress,
-      walletId: wallet.paraWalletId ?? wallet.turnkeyWalletId,
-      email: wallet.email,
-      createdAt: wallet.createdAt,
-      organizationId: wallet.organizationId,
+      ...primary,
+      wallets,
     });
   } catch (error) {
     return apiError(error, "Failed to get wallet");
