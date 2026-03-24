@@ -84,8 +84,6 @@ get_selector() {
     event-tracker)
       echo "app.kubernetes.io/instance=events-tracker-pr-${PR_NUMBER}"
       ;;
-      echo "app.kubernetes.io/instance=events-worker-pr-${PR_NUMBER}"
-      ;;
     localstack)
       echo "app=localstack,pr=pr-${PR_NUMBER}"
       ;;
