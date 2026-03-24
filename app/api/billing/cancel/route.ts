@@ -6,6 +6,7 @@ import { getBillingProvider } from "@/lib/billing/providers";
 import { requireOrgOwner } from "@/lib/billing/require-org-owner";
 import { db } from "@/lib/db";
 import { organizationSubscriptions } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 export async function POST(): Promise<NextResponse> {
   if (!isBillingEnabled()) {
@@ -46,8 +47,12 @@ export async function POST(): Promise<NextResponse> {
       periodEnd: periodEnd?.toISOString() ?? null,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("[Billing] Cancel error:", message);
+    logSystemError(
+      ErrorCategory.EXTERNAL_SERVICE,
+      "[Billing] Cancel error",
+      error,
+      { endpoint: "/api/billing/cancel", operation: "post" }
+    );
     return NextResponse.json(
       { error: "Failed to cancel subscription" },
       { status: 500 }

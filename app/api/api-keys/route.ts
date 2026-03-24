@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { apiKeys } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 // Generate a secure API key
 function generateApiKey(): { key: string; hash: string; prefix: string } {
@@ -39,7 +40,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json(keys);
   } catch (error) {
-    console.error("Failed to list API keys:", error);
+    logSystemError(ErrorCategory.DATABASE, "Failed to list API keys", error, {
+      endpoint: "/api/api-keys",
+      operation: "get",
+    });
     return NextResponse.json(
       {
         error:
@@ -101,7 +105,10 @@ export async function POST(request: Request) {
       key, // Full key - only returned once!
     });
   } catch (error) {
-    console.error("Failed to create API key:", error);
+    logSystemError(ErrorCategory.DATABASE, "Failed to create API key", error, {
+      endpoint: "/api/api-keys",
+      operation: "post",
+    });
     return NextResponse.json(
       {
         error:

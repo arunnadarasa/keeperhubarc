@@ -1,5 +1,5 @@
 # LocalStack for SQS in PR environment
-# Variables to be replaced: ${PR_NUMBER}
+# Variables to be replaced: ${PR_NUMBER}, ${LOCALSTACK_AUTH_TOKEN}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -42,6 +42,8 @@ spec:
             - containerPort: 4566
               name: edge
           env:
+            - name: LOCALSTACK_AUTH_TOKEN
+              value: "${LOCALSTACK_AUTH_TOKEN}"
             - name: SERVICES
               value: "sqs"
             - name: DEBUG
@@ -110,4 +112,3 @@ spec:
       targetPort: 4566
       name: edge
   type: ClusterIP
-

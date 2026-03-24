@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Globe } from "lucide-react";
+import { AlertTriangle, Share2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Overlay } from "@/components/overlays/overlay";
@@ -34,10 +34,11 @@ export function GoLiveOverlay({
   const [name, setName] = useState(currentName);
   const [selectedTags, setSelectedTags] = useState<PublicTag[]>(initialTags);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  const title = isEditing ? "Public Settings" : "Go Live";
-  const submitLabel = isEditing ? "Save Changes" : "Go Live";
-  const submittingTitle = isEditing ? "Saving..." : "Going Live...";
+  const title = isEditing ? "Share Settings" : "Share";
+  const submitLabel = isEditing ? "Save Changes" : "Share";
+  const submittingTitle = isEditing ? "Saving..." : "Sharing...";
 
   const handleSubmit = async (): Promise<void> => {
     const trimmedName = name.trim();
@@ -80,9 +81,20 @@ export function GoLiveOverlay({
   return (
     <Overlay
       actions={[
+        {
+          label: copied ? "Copied" : "Copy link",
+          variant: "ghost" as const,
+          onClick: () => {
+            navigator.clipboard.writeText(window.location.href);
+            setCopied(true);
+            toast.success("Link copied to clipboard");
+            setTimeout(() => setCopied(false), 2000);
+          },
+        },
         { label: "Cancel", variant: "outline", onClick: closeAll },
         {
           label: submitLabel,
+          variant: "outline" as const,
           onClick: handleSubmit,
           disabled: !name.trim(),
         },
@@ -121,15 +133,27 @@ export function GoLiveOverlay({
         </div>
 
         {!isEditing && (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Globe className="size-4 shrink-0" />
-            <p className="text-sm">
-              Public workflows are visible on the Hub. Others can view the
-              structure and duplicate it. Your credentials and logs remain
-              private.
-            </p>
+          <div className="flex items-start gap-2.5 rounded-md border border-border/40 bg-muted/30 px-3 py-2.5">
+            <Share2 className="mt-[3px] size-4 shrink-0 text-muted-foreground" />
+            <div className="space-y-1 text-muted-foreground text-sm">
+              <p>
+                Shared workflows are visible on the{" "}
+                <a
+                  className="underline underline-offset-2 hover:text-foreground"
+                  href="/hub"
+                  rel="noopener"
+                  target="_blank"
+                >
+                  Hub
+                </a>
+                . Others can view the structure and duplicate it. Your
+                credentials and logs remain private.
+              </p>
+              <p>Workflow link will be accessible to others once shared.</p>
+            </div>
           </div>
         )}
+
       </div>
     </Overlay>
   );

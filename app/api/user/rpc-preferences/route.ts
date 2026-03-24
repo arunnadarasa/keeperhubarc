@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import {
   getUserRpcPreferences,
   resolveAllRpcConfigs,
@@ -70,7 +71,12 @@ export async function GET(request: Request) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("Failed to get user RPC preferences:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "Failed to get user RPC preferences",
+      error,
+      { endpoint: "/api/user/rpc-preferences", operation: "get" }
+    );
     return NextResponse.json(
       {
         error: "Failed to get RPC preferences",

@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { normalizeAddressForStorage } from "@/lib/address-utils";
 import { db } from "@/lib/db";
 import { addressBookEntry } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 
 // Helper: Get existing entry and validate it belongs to organization
@@ -130,7 +131,12 @@ export async function PATCH(
 
     return NextResponse.json(updatedEntry);
   } catch (error) {
-    console.error("[Address Book] Failed to update entry:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "[Address Book] Failed to update entry",
+      error,
+      { endpoint: "/api/address-book/[entryId]", operation: "update" }
+    );
     return NextResponse.json(
       {
         error:
@@ -183,7 +189,12 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("[Address Book] Failed to delete entry:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "[Address Book] Failed to delete entry",
+      error,
+      { endpoint: "/api/address-book/[entryId]", operation: "delete" }
+    );
     return NextResponse.json(
       {
         error:

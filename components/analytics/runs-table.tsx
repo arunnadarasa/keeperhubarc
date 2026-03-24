@@ -1,10 +1,17 @@
 "use client";
 
 import { useAtom, useAtomValue } from "jotai";
-import { ChevronDown, ChevronRight, ExternalLink, Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Loader2,
+} from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -243,7 +250,7 @@ function ExpandableRunRow({ run }: ExpandableRunRowProps): ReactNode {
         )}
         onClick={() => {
           handleToggleExpand().catch(() => {
-            /* errors handled in handler */
+            /* noop - errors handled with toast in handlePageChange */
           });
         }}
       >
@@ -315,20 +322,60 @@ function TableSkeleton(): ReactNode {
   );
 }
 
+function Pagination({
+  page,
+  totalPages,
+  onPageChange,
+  loading,
+}: {
+  page: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  loading: boolean;
+}): ReactNode {
+  if (totalPages <= 1) {
+    return null;
+  }
+
+  return (
+    <nav aria-label="Pagination" className="flex items-center gap-1">
+      <Button
+        className="h-7 gap-1 px-2 text-xs"
+        disabled={page <= 1 || loading}
+        onClick={() => onPageChange(page - 1)}
+        size="sm"
+        variant="ghost"
+      >
+        <ChevronLeft className="size-3.5" />
+        Prev
+      </Button>
+      <span className="min-w-16 text-center font-medium text-muted-foreground text-xs tabular-nums">
+        {page} of {totalPages}
+      </span>
+      <Button
+        className="h-7 gap-1 px-2 text-xs"
+        disabled={page >= totalPages || loading}
+        onClick={() => onPageChange(page + 1)}
+        size="sm"
+        variant="ghost"
+      >
+        Next
+        <ChevronRight className="size-3.5" />
+      </Button>
+    </nav>
+  );
+}
+
 function RunsTableContent({
   loading,
   isEmpty,
   runs,
-  nextCursor,
-  loadingMore,
-  handleLoadMore,
+  pageLoading,
 }: {
   loading: boolean;
   isEmpty: boolean;
   runs: UnifiedRun[];
-  nextCursor: string | null;
-  loadingMore: boolean;
-  handleLoadMore: () => Promise<void>;
+  pageLoading: boolean;
 }): ReactNode {
   if (loading && isEmpty) {
     return <TableSkeleton />;
@@ -343,49 +390,27 @@ function RunsTableContent({
   }
 
   return (
-    <>
-      <div className="overflow-x-auto">
-        <table className="min-w-[700px] w-full text-left">
-          <thead>
-            <tr className="border-b text-xs text-muted-foreground">
-              <th className="w-8 pb-2 pl-3" />
-              <th className="pb-2 pr-3 font-medium">Name</th>
-              <th className="pb-2 pr-3 font-medium">Status</th>
-              <th className="pb-2 pr-3 font-medium">Source</th>
-              <th className="pb-2 pr-3 font-medium">Duration</th>
-              <th className="pb-2 pr-3 font-medium">Network</th>
-              <th className="pb-2 pr-3 font-medium">Gas</th>
-              <th className="pb-2 pr-3 text-right font-medium">Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {runs.map((run) => (
-              <ExpandableRunRow key={run.id} run={run} />
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {nextCursor ? (
-        <div className="mt-4 flex justify-center">
-          <Button
-            disabled={loadingMore}
-            onClick={() => {
-              handleLoadMore().catch(() => {
-                /* errors handled in handler */
-              });
-            }}
-            size="sm"
-            variant="outline"
-          >
-            {loadingMore ? (
-              <Loader2 className="mr-1.5 size-4 animate-spin" />
-            ) : null}
-            Load more
-          </Button>
-        </div>
-      ) : null}
-    </>
+    <div className={cn("overflow-x-auto", pageLoading && "opacity-50")}>
+      <table className="min-w-[700px] w-full text-left">
+        <thead>
+          <tr className="border-b text-xs text-muted-foreground">
+            <th className="w-8 pb-2 pl-3" />
+            <th className="pb-2 pr-3 font-medium">Name</th>
+            <th className="pb-2 pr-3 font-medium">Status</th>
+            <th className="pb-2 pr-3 font-medium">Source</th>
+            <th className="pb-2 pr-3 font-medium">Duration</th>
+            <th className="pb-2 pr-3 font-medium">Network</th>
+            <th className="pb-2 pr-3 font-medium">Gas</th>
+            <th className="pb-2 pr-3 text-right font-medium">Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {runs.map((run) => (
+            <ExpandableRunRow key={run.id} run={run} />
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -396,43 +421,75 @@ export function RunsTable(): ReactNode {
   const statusFilter = useAtomValue(analyticsStatusFilterAtom);
   const sourceFilter = useAtomValue(analyticsSourceFilterAtom);
   const search = useAtomValue(analyticsSearchAtom);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [pageLoading, setPageLoading] = useState(false);
 
-  const handleLoadMore = useCallback(async (): Promise<void> => {
-    if (!runsData?.nextCursor) {
+  const currentPage = runsData?.page ?? 1;
+  const pageSize = runsData?.pageSize ?? 50;
+  const totalPages = runsData ? Math.ceil(runsData.total / pageSize) : 1;
+
+  const handlePageChange = useCallback(
+    async (newPage: number): Promise<void> => {
+      setPageLoading(true);
+
+      // Update URL without full navigation
+      const url = new URL(window.location.href);
+      if (newPage > 1) {
+        url.searchParams.set("page", String(newPage));
+      } else {
+        url.searchParams.delete("page");
+      }
+      router.replace(url.pathname + url.search, { scroll: false });
+
+      try {
+        const params = new URLSearchParams({
+          range,
+          page: String(newPage),
+        });
+        if (statusFilter) {
+          params.set("status", statusFilter);
+        }
+        if (sourceFilter) {
+          params.set("source", sourceFilter);
+        }
+
+        const response = await fetch(
+          `/api/analytics/runs?${params.toString()}`
+        );
+        if (response.ok) {
+          const data = (await response.json()) as {
+            runs: UnifiedRun[];
+            nextCursor: string | null;
+            total: number;
+            page: number;
+            pageSize: number;
+          };
+          setRunsData(data);
+        } else {
+          toast.error("Failed to load runs");
+        }
+      } catch {
+        toast.error("Failed to load runs");
+      } finally {
+        setPageLoading(false);
+      }
+    },
+    [range, statusFilter, sourceFilter, setRunsData, router]
+  );
+
+  // Restore page from URL ?page= param once after initial data load
+  const urlPage = Number(searchParams.get("page")) || 1;
+  const hasRestoredPage = useRef(false);
+  useEffect(() => {
+    if (hasRestoredPage.current || !runsData || urlPage <= 1) {
       return;
     }
-
-    setLoadingMore(true);
-    try {
-      const params = new URLSearchParams({
-        range,
-        cursor: runsData.nextCursor,
-      });
-      if (statusFilter) {
-        params.set("status", statusFilter);
-      }
-      if (sourceFilter) {
-        params.set("source", sourceFilter);
-      }
-
-      const response = await fetch(`/api/analytics/runs?${params.toString()}`);
-      if (response.ok) {
-        const newData = (await response.json()) as {
-          runs: UnifiedRun[];
-          nextCursor: string | null;
-          total: number;
-        };
-        setRunsData({
-          runs: [...(runsData?.runs ?? []), ...newData.runs],
-          nextCursor: newData.nextCursor,
-          total: newData.total,
-        });
-      }
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [runsData, range, statusFilter, sourceFilter, setRunsData]);
+    hasRestoredPage.current = true;
+    handlePageChange(urlPage).catch(() => {
+      /* noop - errors handled with toast in handlePageChange */
+    });
+  }, [urlPage, runsData, handlePageChange]);
 
   const allRuns = runsData?.runs ?? [];
 
@@ -466,20 +523,23 @@ export function RunsTable(): ReactNode {
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>Workflow Runs</span>
-            {runsData ? (
-              <span className="text-sm font-normal text-muted-foreground">
-                {runsData.total.toLocaleString()} total
-              </span>
-            ) : null}
+            <Pagination
+              loading={pageLoading}
+              onPageChange={(p) => {
+                handlePageChange(p).catch(() => {
+                  /* noop - errors handled with toast in handlePageChange */
+                });
+              }}
+              page={currentPage}
+              totalPages={totalPages}
+            />
           </CardTitle>
         </CardHeader>
         <CardContent>
           <RunsTableContent
-            handleLoadMore={handleLoadMore}
             isEmpty={isEmpty}
             loading={loading}
-            loadingMore={loadingMore}
-            nextCursor={runsData?.nextCursor ?? null}
+            pageLoading={pageLoading}
             runs={runs}
           />
         </CardContent>

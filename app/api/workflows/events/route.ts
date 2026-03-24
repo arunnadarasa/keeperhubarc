@@ -157,7 +157,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("Failed to get event workflows:", error);
+    logSystemError(ErrorCategory.DATABASE, "Failed to get event workflows", error, { endpoint: "/api/workflows/events", operation: "get" });
     return NextResponse.json(
       {
         error:

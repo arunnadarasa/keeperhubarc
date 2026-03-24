@@ -11,6 +11,7 @@ import {
 import { getOrgSubscription, resolvePriceId } from "@/lib/billing/plans-server";
 import { db } from "@/lib/db";
 import { overageBillingRecords } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { getActiveOrgId } from "@/lib/middleware/org-context";
 
 export async function GET(): Promise<NextResponse> {
@@ -104,8 +105,12 @@ export async function GET(): Promise<NextResponse> {
       limits,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("[Billing] Subscription query error:", message);
+    logSystemError(
+      ErrorCategory.EXTERNAL_SERVICE,
+      "[Billing] Subscription query error",
+      error,
+      { endpoint: "/api/billing/subscription", operation: "get" }
+    );
     return NextResponse.json(
       { error: "Failed to fetch subscription" },
       { status: 500 }

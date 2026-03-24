@@ -3,6 +3,7 @@ import { isBillingEnabled } from "@/lib/billing/feature-flag";
 import { getOrgSubscription } from "@/lib/billing/plans-server";
 import { getBillingProvider } from "@/lib/billing/providers";
 import { requireOrgOwner } from "@/lib/billing/require-org-owner";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 export async function GET(request: Request): Promise<NextResponse> {
   if (!isBillingEnabled()) {
@@ -35,8 +36,12 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     return NextResponse.json(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("[Billing] Invoices error:", message);
+    logSystemError(
+      ErrorCategory.EXTERNAL_SERVICE,
+      "[Billing] Invoices error",
+      error,
+      { endpoint: "/api/billing/invoices", operation: "get" }
+    );
     return NextResponse.json(
       { error: "Failed to fetch invoices" },
       { status: 500 }

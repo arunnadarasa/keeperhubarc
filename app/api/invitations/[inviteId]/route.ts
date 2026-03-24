@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { invitation, organization, users } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 type RouteParams = {
   params: Promise<{ inviteId: string }>;
@@ -118,7 +119,12 @@ export async function GET(_request: Request, { params }: RouteParams) {
       },
     });
   } catch (error) {
-    console.error("[Invitation] Failed to fetch invitation:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "[Invitation] Failed to fetch invitation",
+      error,
+      { endpoint: "/api/invitations/[inviteId]", operation: "fetch" }
+    );
     return NextResponse.json(
       { error: "Failed to fetch invitation" },
       { status: 500 }

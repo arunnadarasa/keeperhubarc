@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { chains, explorerConfigs, supportedTokens } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 
 // Mainnet chain ID - used as the "master list" of supported tokens
@@ -192,7 +193,10 @@ export async function GET(request: Request) {
       tokens,
     });
   } catch (error) {
-    console.error("[SupportedTokens] Error:", error);
+    logSystemError(ErrorCategory.DATABASE, "[SupportedTokens] Error", error, {
+      endpoint: "/api/supported-tokens",
+      operation: "list",
+    });
     return NextResponse.json(
       { error: "Failed to fetch supported tokens" },
       { status: 500 }

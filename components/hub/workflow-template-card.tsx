@@ -53,7 +53,7 @@ export function WorkflowTemplateCard({
           )}
         </div>
 
-        <div className="pointer-events-none my-auto shrink opacity-30">
+        <div className="pointer-events-none my-auto shrink opacity-30 transition-opacity duration-200 group-hover:opacity-50">
           <WorkflowMiniMap
             edges={workflow.edges}
             height={160}
@@ -92,7 +92,7 @@ export function WorkflowTemplateCard({
         )}
       </div>
 
-      <div className="pointer-events-none absolute inset-0 flex items-end bg-gradient-to-t from-[var(--color-hub-card)] via-[var(--color-hub-card)] via-60% to-transparent opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100 motion-reduce:transition-none">
+      <div className="pointer-events-none absolute inset-0 flex items-end bg-gradient-to-t from-[var(--color-hub-card)] via-[var(--color-hub-card)]/80 via-30% to-transparent opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100 motion-reduce:transition-none">
         <div className="flex w-full gap-2 p-4 pt-12">
           <button
             className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[var(--color-text-accent)] font-medium text-[#0a0f14] text-xs transition-colors hover:bg-[var(--color-text-accent)]/90 disabled:opacity-50"

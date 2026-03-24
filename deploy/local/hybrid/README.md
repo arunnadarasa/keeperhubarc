@@ -4,11 +4,11 @@ Run most services in Docker Compose with only the schedule executor in Minikube.
 
 ## Why Hybrid Mode?
 
-| Mode | Memory | Workflow Execution | Best For |
-|------|--------|-------------------|----------|
-| Docker Compose (`dev` profile) | ~2-3GB | Direct (no isolation) | UI/API development |
-| Full Minikube | ~8GB | K8s Jobs | Production-like testing |
-| **Hybrid (`minikube` profile)** | ~4-5GB | K8s Jobs | Workflow testing during dev |
+| Mode                            | Memory | Workflow Execution    | Best For                    |
+| ------------------------------- | ------ | --------------------- | --------------------------- |
+| Docker Compose (`dev` profile)  | ~2-3GB | Direct (no isolation) | UI/API development          |
+| Full Minikube                   | ~8GB   | K8s Jobs              | Production-like testing     |
+| **Hybrid (`minikube` profile)** | ~4-5GB | K8s Jobs              | Workflow testing during dev |
 
 ## Architecture
 
@@ -40,14 +40,26 @@ echo "127.0.0.1 host.minikube.internal" | sudo tee -a /etc/hosts
 
 This allows both the host and Minikube pods to resolve the same SQS queue URLs.
 
+### LocalStack Auth Token
+
+LocalStack requires an auth token. Add it to your `.env` file or export it:
+
+```bash
+export LOCALSTACK_AUTH_TOKEN="your-token-here"
+```
+
+Get a token from 1Password note called "localstack.cloud".
+
 ## Quick Start
 
 **Option 1: One-command setup**
+
 ```bash
 make hybrid-setup
 ```
 
 **Option 2: Step-by-step**
+
 ```bash
 # 1. Start Docker Compose services
 docker compose --profile minikube up -d
@@ -179,25 +191,25 @@ awslocal sqs get-queue-attributes --queue-url http://host.minikube.internal:4566
 
 ## Files
 
-| File | Purpose |
-|------|---------|
-| `setup.sh` | Full setup script (prerequisites, hosts, compose, minikube, scheduler) |
-| `deploy.sh` | Deployment helper script for scheduler components |
-| `init-localstack.sh` | LocalStack initialization (creates SQS queue) |
-| `README.md` | This file |
+| File                 | Purpose                                                                |
+| -------------------- | ---------------------------------------------------------------------- |
+| `setup.sh`           | Full setup script (prerequisites, hosts, compose, minikube, scheduler) |
+| `deploy.sh`          | Deployment helper script for scheduler components                      |
+| `init-localstack.sh` | LocalStack initialization (creates SQS queue)                          |
+| `README.md`          | This file                                                              |
 
 ## Comparison: dev vs minikube Profile
 
-| Component | `dev` Profile | `minikube` Profile |
-|-----------|--------------|-------------------|
-| db | Docker Compose | Docker Compose |
-| localstack | Docker Compose | Docker Compose |
-| redis | Docker Compose | Docker Compose |
-| app-dev | Docker Compose | Docker Compose |
-| dispatcher | Docker Compose (loop) | Docker Compose (loop) |
-| sc-event-worker | Docker Compose | Docker Compose |
-| sc-event-tracker | Docker Compose | Docker Compose |
-| schedule-executor | - | Minikube Deployment |
+| Component         | `dev` Profile         | `minikube` Profile    |
+| ----------------- | --------------------- | --------------------- |
+| db                | Docker Compose        | Docker Compose        |
+| localstack        | Docker Compose        | Docker Compose        |
+| redis             | Docker Compose        | Docker Compose        |
+| app-dev           | Docker Compose        | Docker Compose        |
+| dispatcher        | Docker Compose (loop) | Docker Compose (loop) |
+| sc-event-worker   | Docker Compose        | Docker Compose        |
+| sc-event-tracker  | Docker Compose        | Docker Compose        |
+| schedule-executor | -                     | Minikube Deployment   |
 
 In both profiles, the dispatcher runs in Docker Compose as a cron loop.
 In `minikube` profile, the executor runs in Minikube and executes workflows via the KeeperHub API.

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { workflows } from "@/lib/db/schema";
 import { authenticateInternalService } from "@/lib/internal-service-auth";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 type FeaturedFields = {
   featured?: boolean;
@@ -78,7 +79,10 @@ export async function POST(request: Request) {
       workflow: updated,
     });
   } catch (error) {
-    console.error("[Hub Featured] Error:", error);
+    logSystemError(ErrorCategory.DATABASE, "[Hub Featured] Error", error, {
+      endpoint: "/api/hub/featured",
+      operation: "update",
+    });
     return NextResponse.json(
       { error: "Failed to update featured workflow" },
       { status: 500 }

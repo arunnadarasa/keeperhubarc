@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { publicTags, workflowPublicTags } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 function slugify(name: string): string {
   return name
@@ -37,7 +38,12 @@ export async function GET(): Promise<NextResponse> {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("[PublicTags] Failed to list public tags:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "[PublicTags] Failed to list public tags",
+      error,
+      { endpoint: "/api/public-tags", operation: "list" }
+    );
     return NextResponse.json(
       {
         error:
@@ -99,7 +105,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       { status: 201 }
     );
   } catch (error) {
-    console.error("[PublicTags] Failed to create public tag:", error);
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "[PublicTags] Failed to create public tag",
+      error,
+      { endpoint: "/api/public-tags", operation: "create" }
+    );
     return NextResponse.json(
       {
         error:

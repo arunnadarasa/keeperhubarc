@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { isBillingEnabled } from "@/lib/billing/feature-flag";
 import { getUpgradeSuggestion } from "@/lib/billing/tier-suggestions";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { getActiveOrgId } from "@/lib/middleware/org-context";
 
 export async function GET(): Promise<NextResponse> {
@@ -30,8 +31,12 @@ export async function GET(): Promise<NextResponse> {
     const suggestion = await getUpgradeSuggestion(activeOrgId);
     return NextResponse.json(suggestion);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("[Billing] Usage suggestion error:", message);
+    logSystemError(
+      ErrorCategory.EXTERNAL_SERVICE,
+      "[Billing] Usage suggestion error",
+      error,
+      { endpoint: "/api/billing/usage-suggestion", operation: "get" }
+    );
     return NextResponse.json(
       { error: "Failed to fetch usage suggestion" },
       { status: 500 }

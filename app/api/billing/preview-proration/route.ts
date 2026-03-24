@@ -5,6 +5,7 @@ import type { PlanName, TierKey } from "@/lib/billing/plans";
 import { getOrgSubscription, getPriceId } from "@/lib/billing/plans-server";
 import { getBillingProvider } from "@/lib/billing/providers";
 import { requireOrgOwner } from "@/lib/billing/require-org-owner";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 type PreviewRequestBody = {
   plan?: string;
@@ -70,8 +71,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       lineItems: preview.lineItems,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("[Billing] Preview proration error:", message);
+    logSystemError(
+      ErrorCategory.EXTERNAL_SERVICE,
+      "[Billing] Preview proration error",
+      error,
+      { endpoint: "/api/billing/preview-proration", operation: "post" }
+    );
     return NextResponse.json(
       { error: "Failed to preview proration" },
       { status: 500 }

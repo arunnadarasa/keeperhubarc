@@ -5,6 +5,7 @@ import { streamText } from "ai";
 import { NextResponse } from "next/server";
 import { authenticateApiKey } from "@/lib/api-key-auth";
 import { auth } from "@/lib/auth";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { createTimer, getMetricsCollector } from "@/lib/metrics";
 import { MetricNames } from "@/lib/metrics/types";
 import { generateAIActionPrompts } from "@/plugins/registry";
@@ -455,7 +456,12 @@ Example: If user says "connect node A to node B", output:
       },
     });
   } catch (error) {
-    console.error("Failed to generate workflow:", error);
+    logSystemError(
+      ErrorCategory.INFRASTRUCTURE,
+      "Failed to generate workflow",
+      error,
+      { endpoint: "/api/ai/generate", operation: "generateWorkflow" }
+    );
     metrics.recordLatency(MetricNames.AI_GENERATION_DURATION, timer(), {
       status: "failure",
     });
