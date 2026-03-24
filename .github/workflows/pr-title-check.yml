@@ -16,7 +16,7 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           # Allowed prefixes (must match release.yml classification)
-          PATTERN="^(feat|fix|bug|hotfix|breaking|chore|docs|refactor|test|ci|build|perf|style)(\([^)]*\))?[!]?:[[:space:]].+"
+          PATTERN="^(feat|fix|bug|hotfix|breaking|chore|docs|refactor|test|ci|build|perf|style|release)(\([^)]*\))?[!]?:[[:space:]].+"
 
           if printf '%s' "$PR_TITLE" | grep -qiE "$PATTERN"; then
             echo "PR title is valid: $PR_TITLE"
@@ -44,6 +44,7 @@ jobs:
             echo "    perf:      Performance"
             echo "    style:     Code style"
             echo "    breaking:  Breaking change"
+            echo "    release:   Production release"
             echo ""
             echo "  Examples:"
             echo "    feat: KEEP-1234 Add user authentication"
