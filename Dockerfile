@@ -125,7 +125,7 @@ COPY --from=deps /etc/ssl/certs/rds-combined-ca-bundle.pem /etc/ssl/certs/rds-co
 
 # Copy dependencies and workflow execution files
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=source /app/keeperhub-executor/workflow-runner.ts ./keeperhub-executor/workflow-runner.ts
+COPY --from=source /app/keeperhub-executor ./keeperhub-executor
 COPY --from=source /app/lib ./lib
 COPY --from=source /app/plugins ./plugins
 COPY --from=source /app/protocols ./protocols
