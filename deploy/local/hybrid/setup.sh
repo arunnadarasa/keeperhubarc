@@ -132,7 +132,6 @@ show_status() {
     echo "  - event-tracker (blockchain event monitoring)"
     echo ""
     echo "Services running in Minikube:"
-    echo "  - schedule-executor (polls SQS, executes via API)"
     echo ""
     echo "Access points:"
     echo "  App:  http://localhost:3000"

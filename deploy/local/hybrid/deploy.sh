@@ -81,7 +81,6 @@ build_and_load_images() {
     # Use minikube's Docker daemon to build directly (faster than build + load)
     eval "$(minikube docker-env)"
 
-    # Build executor image from submodule (schedule-executor: polls SQS, calls API)
     log_info "Building keeperhub-executor:latest in minikube..."
     docker build --target executor -t keeperhub-executor:latest ./keeperhub-scheduler
 
@@ -156,7 +155,6 @@ metadata:
   name: job-spawner
   namespace: local
 ---
-# Role for schedule-executor service account
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -222,7 +220,6 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                - "pgrep -f 'schedule-executor' || exit 1"
             initialDelaySeconds: 30
             periodSeconds: 30
             failureThreshold: 3

@@ -53,7 +53,7 @@ Monitors blockchain blocks via WebSocket and enqueues block-triggered workflows.
 
 ### Workflow Executor
 
-**Location:** `schedule-executor/`
+**Location:** `/`
 
 Polls SQS for workflow triggers and executes them.
 

@@ -106,18 +106,7 @@ USER scheduler
 EXPOSE 3000
 CMD ["tsx", "schedule-dispatcher/index.ts"]
 
-# Stage 2.7d: Schedule Executor (legacy, replaced by unified executor)
-FROM scheduler-base AS schedule-executor
-COPY --from=source /app/keeperhub-scheduler/schedule-executor/ ./schedule-executor/
-COPY --from=source /app/keeperhub-scheduler/lib/ ./lib/
-COPY --from=source /app/keeperhub-scheduler/package.json ./package.json
-COPY --from=source /app/keeperhub-scheduler/tsconfig.json ./tsconfig.json
-RUN chown -R scheduler:scheduler /app
-USER scheduler
-EXPOSE 3000
-CMD ["tsx", "schedule-executor/index.ts"]
-
-# Stage 2.7e: Block Dispatcher
+# Stage 2.7d: Block Dispatcher
 FROM scheduler-base AS block-dispatcher
 COPY --from=source /app/keeperhub-scheduler/block-dispatcher/ ./block-dispatcher/
 COPY --from=source /app/keeperhub-scheduler/lib/ ./lib/

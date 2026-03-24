@@ -26,7 +26,7 @@ Run most services in Docker Compose with only the schedule executor in Minikube.
 ┌─────────────────────────────────────────────────────────────┐
 │                    Minikube (minimal)                        │
 ├─────────────────────────────────────────────────────────────┤
-│  schedule-executor (Deployment) - polls SQS, calls API      │
+│   (Deployment) - polls SQS, calls API      │
 └─────────────────────────────────────────────────────────────┘
 ```
 

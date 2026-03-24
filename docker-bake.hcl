@@ -27,11 +27,11 @@ group "events" {
 }
 
 group "scheduler" {
-  targets = ["schedule-dispatcher", "schedule-executor", "block-dispatcher"]
+  targets = ["schedule-dispatcher", "block-dispatcher"]
 }
 
 group "all" {
-  targets = ["app", "migrator", "event-tracker", "schedule-dispatcher", "schedule-executor", "block-dispatcher", "executor"]
+  targets = ["app", "migrator", "event-tracker", "schedule-dispatcher", "block-dispatcher", "executor"]
 }
 
 target "app" {
@@ -95,23 +95,6 @@ target "schedule-dispatcher" {
     "type=registry,ref=${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:cache-dispatcher",
   ]
   cache-to = ["type=registry,ref=${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:cache-dispatcher,mode=max"]
-  attest   = []
-}
-
-target "schedule-executor" {
-  context    = "."
-  dockerfile = "Dockerfile"
-  target     = "schedule-executor"
-  tags = compact([
-    "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:executor-${IMAGE_TAG}",
-    "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:executor-latest",
-    ENVIRONMENT_TAG != "" ? "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:executor-${ENVIRONMENT_TAG}" : "",
-  ])
-  cache-from = [
-    "type=registry,ref=${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:cache-deps",
-    "type=registry,ref=${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:cache-executor",
-  ]
-  cache-to = ["type=registry,ref=${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:cache-executor,mode=max"]
   attest   = []
 }
 

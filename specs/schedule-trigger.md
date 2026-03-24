@@ -65,7 +65,7 @@ All services in Minikube - suitable for production-like testing (~8GB RAM).
    - Sends messages to SQS queue for each triggered schedule
    - Updates `next_run_at` and `last_run_at` timestamps
 
-2. **Schedule Executor** (`scripts/scheduler/schedule-executor.ts`) - Dev Mode Only
+2. **Schedule Executor** (`scripts/scheduler/.ts`) - Dev Mode Only
    - Runs as a Docker container in dev profile
    - Polls SQS queue for workflow trigger messages
    - Calls KeeperHub API to execute workflows directly
@@ -275,7 +275,7 @@ DATABASE_URL: "postgresql://local:local@postgresql:5432/keeperhub"
 - **Concurrency Policy**: Forbid (prevents overlapping runs)
 - **Image**: `keeperhub-scheduler:latest`
 
-### Deployment (`schedule-executor`)
+### Deployment (``)
 
 - **Replicas**: 1
 - **Image**: `keeperhub-scheduler:latest`
@@ -302,7 +302,7 @@ This stage includes:
 
 ```bash
 pnpm test -- --run tests/unit/schedule-dispatcher.test.ts
-pnpm test -- --run tests/unit/schedule-executor.test.ts
+pnpm test -- --run tests/unit/.test.ts
 ```
 
 ### Integration Tests
@@ -373,10 +373,10 @@ kubectl logs -n local -l app=schedule-dispatcher --tail=100
 
 ```bash
 # Check executor pod
-kubectl get pods -n local -l app=schedule-executor
+kubectl get pods -n local -l app=
 
 # Check logs
-kubectl logs -n local -l app=schedule-executor -f
+kubectl logs -n local -l app= -f
 
 # Verify SQS queue has messages
 kubectl exec -n local deploy/localstack -- awslocal sqs get-queue-attributes \
@@ -454,7 +454,7 @@ For production, use the full K8s mode or hybrid mode with:
 |------|---------|
 | **Scripts** ||
 | `scripts/scheduler/schedule-dispatcher.ts` | Dispatcher script (queries DB, sends to SQS) |
-| `scripts/scheduler/schedule-executor.ts` | Executor script - dev mode (polls SQS, calls API) |
+| `scripts/scheduler/.ts` | Executor script - dev mode (polls SQS, calls API) |
 | `scripts/scheduler/job-spawner.ts` | Job spawner - hybrid/k8s mode (polls SQS, creates K8s Jobs) |
 | `scripts/runtime/workflow-runner.ts` | Workflow runner - runs inside K8s Jobs |
 | **Services** ||

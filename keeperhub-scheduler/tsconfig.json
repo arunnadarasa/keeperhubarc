@@ -14,6 +14,6 @@
     "declarationMap": true,
     "sourceMap": true
   },
-  "include": ["schedule-dispatcher/**/*.ts", "schedule-executor/**/*.ts", "block-dispatcher/**/*.ts", "lib/**/*.ts"],
+  "include": ["schedule-dispatcher/**/*.ts", "block-dispatcher/**/*.ts", "lib/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

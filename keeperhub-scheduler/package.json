@@ -2,11 +2,10 @@
   "name": "keeperhub-scheduler",
   "version": "1.0.0",
   "private": true,
-  "description": "KeeperHub scheduler components - schedule dispatcher, block dispatcher, and executor",
+  "description": "KeeperHub scheduler components - schedule dispatcher and block dispatcher",
   "type": "module",
   "scripts": {
     "dispatcher": "tsx schedule-dispatcher/index.ts",
-    "executor": "tsx schedule-executor/index.ts",
     "block-dispatcher": "tsx block-dispatcher/index.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc"
