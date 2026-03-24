@@ -1,10 +1,13 @@
+import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { toChecksumAddress } from "@/lib/address-utils";
 import { apiError } from "@/lib/api-error";
 import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { organizationWallets } from "@/lib/db/schema";
 import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { getActiveOrgId } from "@/lib/middleware/org-context";
-import { getOrganizationWallet } from "@/lib/para/wallet-helpers";
 import { exportTurnkeyPrivateKey } from "@/lib/turnkey/turnkey-client";
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -43,17 +46,25 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    const wallet = await getOrganizationWallet(activeOrgId);
+    const wallets = await db
+      .select()
+      .from(organizationWallets)
+      .where(
+        and(
+          eq(organizationWallets.organizationId, activeOrgId),
+          eq(organizationWallets.provider, "turnkey")
+        )
+      )
+      .limit(1);
 
-    if (wallet.provider !== "turnkey") {
+    if (wallets.length === 0) {
       return NextResponse.json(
-        {
-          error:
-            "Private key export is only available for Turnkey wallets. Para wallets use MPC signing and do not support server-side key export.",
-        },
-        { status: 400 }
+        { error: "No Turnkey wallet found for this organization" },
+        { status: 404 }
       );
     }
+
+    const wallet = wallets[0];
 
     if (!wallet.turnkeySubOrgId) {
       return NextResponse.json(
@@ -64,7 +75,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const privateKey = await exportTurnkeyPrivateKey(
       wallet.turnkeySubOrgId,
-      wallet.walletAddress
+      toChecksumAddress(wallet.walletAddress)
     );
 
     return NextResponse.json({ privateKey });

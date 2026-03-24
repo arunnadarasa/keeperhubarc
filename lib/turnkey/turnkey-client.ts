@@ -49,15 +49,23 @@ export async function createTurnkeyWallet(
   const client = turnkey.apiClient();
 
   try {
+    const apiPublicKey = process.env.TURNKEY_API_PUBLIC_KEY ?? "";
+
     const subOrg = await client.createSubOrganization({
       organizationId: process.env.TURNKEY_ORGANIZATION_ID ?? "",
       subOrganizationName: `keeperhub-${organizationName}`,
       rootQuorumThreshold: 1,
       rootUsers: [
         {
-          userName: email,
+          userName: "keeperhub-admin",
           userEmail: email,
-          apiKeys: [],
+          apiKeys: [
+            {
+              apiKeyName: "keeperhub-server",
+              publicKey: apiPublicKey,
+              curveType: "API_KEY_CURVE_P256" as const,
+            },
+          ],
           authenticators: [],
           oauthProviders: [],
         },

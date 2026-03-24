@@ -153,12 +153,12 @@ async function createParaWallet(email: string) {
 }
 
 // Helper: Get user-friendly error response for wallet creation failures
-function getErrorResponse(error: unknown) {
+function getErrorResponse(error: unknown): NextResponse {
   logSystemError(
     ErrorCategory.EXTERNAL_SERVICE,
-    "[Para] Wallet creation failed",
+    "[Wallet] Creation failed",
     error,
-    { endpoint: "/api/user/wallet", operation: "createParaWallet" }
+    { endpoint: "/api/user/wallet", operation: "post" }
   );
 
   let errorMessage = "Failed to create wallet";

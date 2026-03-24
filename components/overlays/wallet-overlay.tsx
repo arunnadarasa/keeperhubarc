@@ -816,10 +816,12 @@ function NoWalletSection({
 // Component for account details section (email + wallet address)
 function AddTurnkeyWalletSection({
   initialEmail,
+  existingEmail,
   onCreateWallet,
   onWalletCreated,
 }: {
   initialEmail: string;
+  existingEmail?: string;
   onCreateWallet: (
     email: string,
     provider: WalletProviderOption
@@ -882,6 +884,15 @@ function AddTurnkeyWalletSection({
           type="email"
           value={email}
         />
+        {existingEmail && existingEmail !== email && (
+          <button
+            className="text-primary text-xs hover:underline"
+            onClick={() => setEmail(existingEmail)}
+            type="button"
+          >
+            Use same email as Para wallet ({existingEmail})
+          </button>
+        )}
       </div>
       <div className="flex gap-2">
         <Button
@@ -1571,6 +1582,7 @@ export function WalletOverlay({ overlayId }: WalletOverlayProps) {
 
             {isAdmin && missingProviders.length > 0 && (
               <AddTurnkeyWalletSection
+                existingEmail={activeWallet?.email}
                 initialEmail={session?.user?.email ?? ""}
                 onCreateWallet={handleCreateWallet}
                 onWalletCreated={loadWallet}
