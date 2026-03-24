@@ -327,17 +327,13 @@ function getPageNumbers(
   if (total <= 7) {
     return Array.from({ length: total }, (_, i) => i + 1);
   }
-  // Always show first 5 or current neighborhood, ellipsis, last 2
-  const visible = new Set<number>();
-  // First pages up to 5 or current + 1
-  const leftEnd = Math.max(5, current + 1);
-  for (let i = 1; i <= Math.min(leftEnd, total); i++) {
-    visible.add(i);
+  // Always first 2, last 2, current +/- 2
+  const visible = new Set<number>([1, 2, total - 1, total]);
+  for (let i = current - 2; i <= current + 2; i++) {
+    if (i >= 1 && i <= total) {
+      visible.add(i);
+    }
   }
-  // Last 2
-  visible.add(total - 1);
-  visible.add(total);
-
   const sorted = [...visible].sort((a, b) => a - b);
   const result: (number | "ellipsis")[] = [];
   for (const num of sorted) {
