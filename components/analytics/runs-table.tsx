@@ -324,21 +324,30 @@ function getPageNumbers(
   current: number,
   total: number
 ): (number | "ellipsis")[] {
-  if (total <= 5) {
+  if (total <= 7) {
     return Array.from({ length: total }, (_, i) => i + 1);
   }
-  const pages: (number | "ellipsis")[] = [];
-  const start = Math.max(1, current - 1);
-  const end = Math.min(total, current + 1);
-  for (let i = start; i <= end; i++) {
-    pages.push(i);
+  // Always show first 5 or current neighborhood, ellipsis, last 2
+  const visible = new Set<number>();
+  // First pages up to 5 or current + 1
+  const leftEnd = Math.max(5, current + 1);
+  for (let i = 1; i <= Math.min(leftEnd, total); i++) {
+    visible.add(i);
   }
-  if (end < total) {
-    pages.push("ellipsis");
-    pages.push(total - 1);
-    pages.push(total);
+  // Last 2
+  visible.add(total - 1);
+  visible.add(total);
+
+  const sorted = [...visible].sort((a, b) => a - b);
+  const result: (number | "ellipsis")[] = [];
+  for (const num of sorted) {
+    const prev = result.at(-1);
+    if (typeof prev === "number" && num - prev > 1) {
+      result.push("ellipsis");
+    }
+    result.push(num);
   }
-  return pages;
+  return result;
 }
 
 function Pagination({
