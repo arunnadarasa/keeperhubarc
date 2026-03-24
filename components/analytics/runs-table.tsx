@@ -320,32 +320,6 @@ function TableSkeleton(): ReactNode {
   );
 }
 
-function getPageNumbers(
-  current: number,
-  total: number
-): (number | "ellipsis")[] {
-  if (total <= 7) {
-    return Array.from({ length: total }, (_, i) => i + 1);
-  }
-  // Always first 2, last 2, current +/- 2
-  const visible = new Set<number>([1, 2, total - 1, total]);
-  for (let i = current - 2; i <= current + 2; i++) {
-    if (i >= 1 && i <= total) {
-      visible.add(i);
-    }
-  }
-  const sorted = [...visible].sort((a, b) => a - b);
-  const result: (number | "ellipsis")[] = [];
-  for (const num of sorted) {
-    const prev = result.at(-1);
-    if (typeof prev === "number" && num - prev > 1) {
-      result.push("ellipsis");
-    }
-    result.push(num);
-  }
-  return result;
-}
-
 function Pagination({
   page,
   totalPages,
@@ -361,10 +335,8 @@ function Pagination({
     return null;
   }
 
-  const pages = getPageNumbers(page, totalPages);
-
   return (
-    <nav aria-label="Pagination" className="flex items-center gap-0.5">
+    <nav aria-label="Pagination" className="flex items-center gap-1.5">
       <button
         className="flex items-center gap-0.5 rounded px-1.5 py-1 text-muted-foreground text-xs transition-colors hover:text-foreground disabled:opacity-40 disabled:pointer-events-none"
         disabled={page <= 1 || loading}
@@ -374,31 +346,9 @@ function Pagination({
         <ChevronLeft className="size-3" />
         Prev
       </button>
-      {pages.map((p, idx) =>
-        p === "ellipsis" ? (
-          <span
-            className="px-1 text-muted-foreground/50 text-xs"
-            key={idx < 3 ? "ellipsis-start" : "ellipsis-end"}
-          >
-            ...
-          </span>
-        ) : (
-          <button
-            className={cn(
-              "flex size-6 items-center justify-center rounded text-xs transition-colors",
-              p === page
-                ? "bg-muted font-medium text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-            disabled={loading}
-            key={p}
-            onClick={() => onPageChange(p)}
-            type="button"
-          >
-            {p}
-          </button>
-        )
-      )}
+      <span className="text-muted-foreground text-xs tabular-nums">
+        {page} of {totalPages}
+      </span>
       <button
         className="flex items-center gap-0.5 rounded px-1.5 py-1 text-muted-foreground text-xs transition-colors hover:text-foreground disabled:opacity-40 disabled:pointer-events-none"
         disabled={page >= totalPages || loading}
