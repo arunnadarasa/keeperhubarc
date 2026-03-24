@@ -8,11 +8,10 @@ import {
   ExternalLink,
   Loader2,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type {
   NormalizedStatus,
@@ -362,52 +361,50 @@ function Pagination({
   const pages = getPageNumbers(page, totalPages);
 
   return (
-    <nav aria-label="Pagination" className="flex items-center gap-1">
-      <Button
-        className="gap-1"
+    <nav aria-label="Pagination" className="flex items-center gap-0.5">
+      <button
+        className="flex items-center gap-0.5 rounded px-1.5 py-1 text-muted-foreground text-xs transition-colors hover:text-foreground disabled:opacity-40 disabled:pointer-events-none"
         disabled={page <= 1 || loading}
         onClick={() => onPageChange(page - 1)}
-        size="sm"
-        variant="ghost"
+        type="button"
       >
-        <ChevronLeft className="size-4" />
-        Previous
-      </Button>
+        <ChevronLeft className="size-3" />
+        Prev
+      </button>
       {pages.map((p, idx) =>
         p === "ellipsis" ? (
           <span
-            className="px-2 text-muted-foreground text-sm"
+            className="px-1 text-muted-foreground/50 text-xs"
             key={idx < 3 ? "ellipsis-start" : "ellipsis-end"}
           >
             ...
           </span>
         ) : (
-          <Button
+          <button
             className={cn(
-              "size-8",
-              p === page &&
-                "bg-primary text-primary-foreground hover:bg-primary/90"
+              "flex size-6 items-center justify-center rounded text-xs transition-colors",
+              p === page
+                ? "bg-muted font-medium text-foreground"
+                : "text-muted-foreground hover:text-foreground"
             )}
             disabled={loading}
             key={p}
             onClick={() => onPageChange(p)}
-            size="sm"
-            variant={p === page ? "default" : "ghost"}
+            type="button"
           >
             {p}
-          </Button>
+          </button>
         )
       )}
-      <Button
-        className="gap-1"
+      <button
+        className="flex items-center gap-0.5 rounded px-1.5 py-1 text-muted-foreground text-xs transition-colors hover:text-foreground disabled:opacity-40 disabled:pointer-events-none"
         disabled={page >= totalPages || loading}
         onClick={() => onPageChange(page + 1)}
-        size="sm"
-        variant="ghost"
+        type="button"
       >
         Next
-        <ChevronRight className="size-4" />
-      </Button>
+        <ChevronRight className="size-3" />
+      </button>
     </nav>
   );
 }
@@ -467,6 +464,8 @@ export function RunsTable(): ReactNode {
   const statusFilter = useAtomValue(analyticsStatusFilterAtom);
   const sourceFilter = useAtomValue(analyticsSourceFilterAtom);
   const search = useAtomValue(analyticsSearchAtom);
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [pageLoading, setPageLoading] = useState(false);
 
   const currentPage = runsData?.page ?? 1;
@@ -476,6 +475,16 @@ export function RunsTable(): ReactNode {
   const handlePageChange = useCallback(
     async (newPage: number): Promise<void> => {
       setPageLoading(true);
+
+      // Update URL without full navigation
+      const url = new URL(window.location.href);
+      if (newPage > 1) {
+        url.searchParams.set("page", String(newPage));
+      } else {
+        url.searchParams.delete("page");
+      }
+      router.replace(url.pathname + url.search, { scroll: false });
+
       try {
         const params = new URLSearchParams({
           range,
@@ -505,8 +514,18 @@ export function RunsTable(): ReactNode {
         setPageLoading(false);
       }
     },
-    [range, statusFilter, sourceFilter, setRunsData]
+    [range, statusFilter, sourceFilter, setRunsData, router]
   );
+
+  // Load initial page from URL ?page= param after data arrives
+  const urlPage = Number(searchParams.get("page")) || 1;
+  useEffect(() => {
+    if (urlPage > 1 && runsData && currentPage !== urlPage) {
+      handlePageChange(urlPage).catch(() => {
+        /* errors handled in handler */
+      });
+    }
+  }, [urlPage, runsData, currentPage, handlePageChange]);
 
   const allRuns = runsData?.runs ?? [];
 
