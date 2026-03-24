@@ -1,6 +1,6 @@
 "use client";
 
-import { Globe } from "lucide-react";
+import { Share2 } from "lucide-react";
 import { Overlay } from "./overlay";
 import { useOverlay } from "./overlay-provider";
 import type { OverlayComponentProps } from "./types";
@@ -24,15 +24,15 @@ export function MakePublicOverlay({
     <Overlay
       actions={[
         { label: "Cancel", variant: "outline", onClick: closeAll },
-        { label: "Make Public", onClick: handleConfirm },
+        { label: "Share", onClick: handleConfirm },
       ]}
       overlayId={overlayId}
-      title="Make Workflow Public?"
+      title="Share Workflow?"
     >
       <div className="flex items-center gap-2 text-muted-foreground">
-        <Globe className="size-5 shrink-0" />
+        <Share2 className="size-5 shrink-0" />
         <p className="text-sm">
-          Making this workflow public means anyone with the link can:
+          Sharing this workflow means anyone with the link can:
         </p>
       </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Globe } from "lucide-react";
+import { AlertTriangle, Share2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Overlay } from "@/components/overlays/overlay";
@@ -35,9 +35,9 @@ export function GoLiveOverlay({
   const [selectedTags, setSelectedTags] = useState<PublicTag[]>(initialTags);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const title = isEditing ? "Public Settings" : "Go Live";
-  const submitLabel = isEditing ? "Save Changes" : "Go Live";
-  const submittingTitle = isEditing ? "Saving..." : "Going Live...";
+  const title = isEditing ? "Share Settings" : "Share";
+  const submitLabel = isEditing ? "Save Changes" : "Share";
+  const submittingTitle = isEditing ? "Saving..." : "Sharing...";
 
   const handleSubmit = async (): Promise<void> => {
     const trimmedName = name.trim();
@@ -122,9 +122,9 @@ export function GoLiveOverlay({
 
         {!isEditing && (
           <div className="flex items-center gap-2 text-muted-foreground">
-            <Globe className="size-4 shrink-0" />
+            <Share2 className="size-4 shrink-0" />
             <p className="text-sm">
-              Public workflows are visible on the Hub. Others can view the
+              Shared workflows are visible on the Hub. Others can view the
               structure and duplicate it. Your credentials and logs remain
               private.
             </p>
