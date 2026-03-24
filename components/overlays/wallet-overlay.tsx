@@ -812,6 +812,104 @@ function NoWalletSection({
 // ============================================================================
 
 // Component for account details section (email + wallet address)
+function AddTurnkeyWalletSection({
+  initialEmail,
+  onCreateWallet,
+  onWalletCreated,
+}: {
+  initialEmail: string;
+  onCreateWallet: (
+    email: string,
+    provider: WalletProviderOption
+  ) => Promise<void>;
+  onWalletCreated: () => void;
+}): React.ReactElement {
+  const [expanded, setExpanded] = useState(false);
+  const [email, setEmail] = useState(initialEmail);
+  const [creating, setCreating] = useState(false);
+
+  const handleCreate = async (): Promise<void> => {
+    if (!email) {
+      toast.error("Email is required");
+      return;
+    }
+    setCreating(true);
+    try {
+      await onCreateWallet(email, "turnkey");
+      toast.success("Turnkey wallet created successfully!");
+      setExpanded(false);
+      onWalletCreated();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to create wallet"
+      );
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  if (!expanded) {
+    return (
+      <Button
+        className="w-full"
+        onClick={() => setExpanded(true)}
+        size="sm"
+        variant="outline"
+      >
+        <ShieldCheck className="mr-2 h-3 w-3" />
+        Add Turnkey Wallet (with key export)
+      </Button>
+    );
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border bg-muted/50 p-4">
+      <div>
+        <h3 className="mb-1 font-medium text-sm">Add Turnkey Wallet</h3>
+        <p className="text-muted-foreground text-xs">
+          Turnkey uses secure enclaves and supports private key export.
+        </p>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="turnkey-email">Email Address</Label>
+        <Input
+          disabled={creating}
+          id="turnkey-email"
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          type="email"
+          value={email}
+        />
+      </div>
+      <div className="flex gap-2">
+        <Button
+          disabled={creating}
+          onClick={() => setExpanded(false)}
+          size="sm"
+          variant="outline"
+        >
+          Cancel
+        </Button>
+        <Button
+          className="flex-1"
+          disabled={creating || !email}
+          onClick={handleCreate}
+          size="sm"
+        >
+          {creating ? (
+            <>
+              <Spinner className="mr-2 h-3 w-3" />
+              Creating...
+            </>
+          ) : (
+            "Create Turnkey Wallet"
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function ExportPrivateKeyButton(): React.ReactElement {
   const [exporting, setExporting] = useState(false);
   const [privateKey, setPrivateKey] = useState<string | null>(null);
@@ -1433,12 +1531,20 @@ export function WalletOverlay({ overlayId }: WalletOverlayProps) {
             supportedTokenBalances={supportedTokenBalances}
             tokenBalances={tokenBalances}
           />
+
+          {isAdmin && walletData.provider === "para" && (
+            <AddTurnkeyWalletSection
+              initialEmail={session?.user?.email ?? ""}
+              onCreateWallet={handleCreateWallet}
+              onWalletCreated={loadWallet}
+            />
+          )}
         </div>
       )}
 
       {!(walletLoading || walletData?.hasWallet) && (
         <NoWalletSection
-          initialEmail={session?.user?.email || ""}
+          initialEmail={session?.user?.email ?? ""}
           isAdmin={isAdmin}
           onCreateWallet={handleCreateWallet}
         />
