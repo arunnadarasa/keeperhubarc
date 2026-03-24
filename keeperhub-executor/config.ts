@@ -18,6 +18,7 @@ export const CONFIG = {
   namespace: process.env.K8S_NAMESPACE || "local",
   jobTtlSeconds: Number(process.env.JOB_TTL_SECONDS) || 3600,
   jobActiveDeadline: Number(process.env.JOB_ACTIVE_DEADLINE) || 300,
+  maxConcurrentJobs: Number(process.env.MAX_CONCURRENT_JOBS) || 1,
 
   keeperhubApiUrl: process.env.KEEPERHUB_API_URL || "http://localhost:3000",
   keeperhubApiKey: process.env.KEEPERHUB_API_KEY || "",

@@ -5,8 +5,33 @@ const kc = new KubeConfig();
 kc.loadFromDefault();
 const batchApi = kc.makeApiClient(BatchV1Api);
 
+// Semaphore to limit concurrent K8s Jobs
+let activeJobs = 0;
+const jobQueue: Array<{ resolve: () => void }> = [];
+
+function acquireJobSlot(): Promise<void> {
+  if (activeJobs < CONFIG.maxConcurrentJobs) {
+    activeJobs++;
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    jobQueue.push({ resolve });
+  });
+}
+
+function releaseJobSlot(): void {
+  activeJobs--;
+  const next = jobQueue.shift();
+  if (next) {
+    activeJobs++;
+    next.resolve();
+  }
+}
+
 /**
  * Create a K8s Job to execute a workflow in an isolated container.
+ * Respects MAX_CONCURRENT_JOBS limit to prevent cluster overload.
  * The Job runs keeperhub-executor/workflow-runner.ts via the runner image.
  */
 export async function createWorkflowJob(params: {
@@ -84,10 +109,16 @@ export async function createWorkflowJob(params: {
     },
   };
 
-  const response = await batchApi.createNamespacedJob({
-    namespace: CONFIG.namespace,
-    body: job,
-  });
+  await acquireJobSlot();
 
-  return response;
+  try {
+    const response = await batchApi.createNamespacedJob({
+      namespace: CONFIG.namespace,
+      body: job,
+    });
+
+    return response;
+  } finally {
+    releaseJobSlot();
+  }
 }
