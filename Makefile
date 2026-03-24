@@ -78,13 +78,16 @@ db-studio:
 
 # Schedule Trigger Deployment
 build-scheduler-images:
-	@echo "Building dispatcher image from submodule..."
-	docker build --target dispatcher -t keeperhub-dispatcher:latest ./keeperhub-scheduler
-	@echo "Building executor image from submodule..."
-	docker build --target executor -t keeperhub-executor:latest ./keeperhub-scheduler
+	@echo "Building dispatcher image..."
+	docker build --target schedule-dispatcher -t keeperhub-dispatcher:latest .
+	@echo "Building executor image..."
+	docker build --target executor -t keeperhub-executor:latest .
+	@echo "Building workflow runner image..."
+	docker build --target workflow-runner -t keeperhub-runner:latest .
 	@echo "Loading images into minikube..."
 	minikube image load keeperhub-dispatcher:latest
 	minikube image load keeperhub-executor:latest
+	minikube image load keeperhub-runner:latest
 	@echo "Images ready!"
 
 deploy-scheduler: check-local-kubernetes
@@ -93,9 +96,9 @@ deploy-scheduler: check-local-kubernetes
 	@echo ""
 	@echo "Schedule trigger components deployed:"
 	@echo "  - ConfigMap: scheduler-env"
-	@echo "  - RBAC: ServiceAccount, Role, RoleBinding for job-spawner"
+	@echo "  - RBAC: ServiceAccount, Role, RoleBinding for executor"
 	@echo "  - CronJob: schedule-dispatcher (runs every minute)"
-	@echo "  - Deployment: job-spawner (polls SQS, creates K8s Jobs)"
+	@echo "  - Deployment: executor (polls SQS, executes workflows)"
 
 scheduler-status:
 	@echo "=== Schedule Dispatcher Jobs ==="
@@ -103,7 +106,7 @@ scheduler-status:
 	@kubectl get jobs -n local -l app=schedule-dispatcher --sort-by=.metadata.creationTimestamp | tail -5
 	@echo ""
 	@echo "=== Job Spawner ==="
-	@kubectl get pods -n local -l app=job-spawner
+	@kubectl get pods -n local -l app=executor
 	@echo ""
 	@echo "=== Workflow Runner Jobs ==="
 	@kubectl get jobs -n local -l app=workflow-runner --sort-by=.metadata.creationTimestamp | tail -10 || echo "No workflow jobs"
@@ -116,7 +119,7 @@ scheduler-logs:
 	@kubectl logs -n local -l app=schedule-dispatcher --tail=50 2>/dev/null || echo "No dispatcher logs available"
 	@echo ""
 	@echo "=== Job Spawner Logs ==="
-	@kubectl logs -n local -l app=job-spawner --tail=100 -f
+	@kubectl logs -n local -l app=executor --tail=100 -f
 
 runner-logs:
 	@echo "=== Recent Workflow Runner Job Logs ==="
@@ -302,19 +305,19 @@ hybrid-reset:
 	@sleep 10
 	@echo "Running database migrations..."
 	docker compose run --rm migrator || true
-	@echo "Deploying scheduler to Minikube..."
+	@echo "Deploying executor to Minikube..."
 	./deploy/local/hybrid/deploy.sh --build
 	@echo ""
 	@echo "Hybrid reset complete!"
 	@echo "  App: http://localhost:3000"
 
 hybrid-logs:
-	# Follow job-spawner logs
-	kubectl logs -n local -l app=job-spawner -f
+	# Follow executor logs
+	kubectl logs -n local -l app=executor -f
 
 hybrid-executor-logs:
 	# Show schedule executor logs (same as hybrid-logs)
-	kubectl logs -n local -l app=job-spawner --tail=100 2>/dev/null || echo "No executor logs available"
+	kubectl logs -n local -l app=executor --tail=100 2>/dev/null || echo "No executor logs available"
 
 # Help
 help:
@@ -367,9 +370,9 @@ help:
 	@echo ""
 	@echo "  Schedule Trigger (Full K8s mode):"
 	@echo "    build-scheduler-images     - Build and load scheduler + runner images"
-	@echo "    deploy-scheduler           - Deploy dispatcher, job-spawner, RBAC"
+	@echo "    deploy-scheduler           - Deploy executor, RBAC"
 	@echo "    scheduler-status           - Show scheduler pods and workflow jobs"
-	@echo "    scheduler-logs             - Follow job-spawner logs"
+	@echo "    scheduler-logs             - Follow executor logs"
 	@echo "    runner-logs                - Show workflow runner job logs"
 	@echo "    teardown-scheduler         - Remove scheduler components"
 	@echo ""

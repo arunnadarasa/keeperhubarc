@@ -3,7 +3,7 @@
 #
 # Profiles:
 #   dev              - Full development stack (no K8s Jobs, dispatcher runs as cron)
-#   minikube         - Hybrid mode (services in Docker, job-spawner in Minikube)
+#   minikube         - Hybrid mode (services in Docker, executor in Minikube)
 #   prod             - Production-ready containers
 #   test             - Isolated E2E test stack (separate DB, ports, volumes)
 #   profile-workflows - Workflow profiling tools (js-sandbox for WASM fuel calibration)
@@ -242,7 +242,6 @@ services:
         condition: service_started
     profiles:
       - dev
-      - minikube
 
   # ===========================================================================
   # Reaper (stale execution cleanup)

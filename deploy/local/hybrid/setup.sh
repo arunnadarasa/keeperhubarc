@@ -114,8 +114,8 @@ start_minikube() {
     log_info "Minikube is ready"
 }
 
-deploy_scheduler() {
-    log_info "Building images and deploying scheduler to Minikube..."
+deploy_executor() {
+    log_info "Building images and deploying executor to Minikube..."
     "$SCRIPT_DIR/deploy.sh" --build
 }
 
@@ -153,7 +153,7 @@ main() {
     start_docker_compose
     run_migrations
     start_minikube
-    deploy_scheduler
+    deploy_executor
     show_status
 }
 

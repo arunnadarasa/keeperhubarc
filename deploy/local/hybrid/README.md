@@ -110,7 +110,7 @@ docker compose --profile minikube down
 ### View Executor Logs
 
 ```bash
-kubectl logs -n local -l app=job-spawner -f
+kubectl logs -n local -l app=executor -f
 ```
 
 ## Switching Between Modes
@@ -162,7 +162,7 @@ minikube stop && minikube start
 Check executor logs:
 
 ```bash
-kubectl logs -n local -l app=job-spawner
+kubectl logs -n local -l app=executor
 ```
 
 Verify executor image is loaded:
