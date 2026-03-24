@@ -239,7 +239,7 @@ Test the workflow runner directly without K8s:
 WORKFLOW_ID=<workflow-id> \
 EXECUTION_ID=<execution-id> \
 DATABASE_URL="postgresql://postgres:postgres@localhost:5433/keeperhub" \
-  tsx scripts/runtime/workflow-runner-bootstrap.ts
+  tsx keeperhub-executor/workflow-runner-bootstrap.ts
 ```
 
 ### Test in Docker Container
