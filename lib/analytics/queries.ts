@@ -637,6 +637,7 @@ export async function getUnifiedRuns(
   range: TimeRange,
   options: {
     cursor?: string;
+    page?: number;
     limit?: number;
     status?: NormalizedStatus;
     source?: RunSource;
@@ -644,9 +645,16 @@ export async function getUnifiedRuns(
     customEnd?: string;
     projectId?: string;
   } = {}
-): Promise<{ runs: UnifiedRun[]; nextCursor: string | null; total: number }> {
+): Promise<{
+  runs: UnifiedRun[];
+  nextCursor: string | null;
+  total: number;
+  page: number;
+  pageSize: number;
+}> {
   const {
     cursor,
+    page = 1,
     limit = 50,
     status,
     source,
@@ -658,6 +666,7 @@ export async function getUnifiedRuns(
   const rangeEnd = customEnd ? new Date(customEnd) : new Date();
   const pageLimit = Math.min(limit, 100);
   const skipDirect = Boolean(projectId) || source === "direct";
+  const offset = cursor ? undefined : (page - 1) * pageLimit;
 
   // Fire run fetches and count queries in parallel
   const [workflowRuns, directRuns, total] = await Promise.all([
@@ -670,7 +679,8 @@ export async function getUnifiedRuns(
           status,
           cursor,
           pageLimit + 1,
-          projectId
+          projectId,
+          offset
         ),
     skipDirect || source === "workflow"
       ? ([] as UnifiedRun[])
@@ -680,7 +690,8 @@ export async function getUnifiedRuns(
           rangeEnd,
           status,
           cursor,
-          pageLimit + 1
+          pageLimit + 1,
+          offset
         ),
     getUnifiedRunsTotal(
       organizationId,
@@ -700,7 +711,7 @@ export async function getUnifiedRuns(
   const pagedRuns = allRuns.slice(0, pageLimit);
   const nextCursor = hasMore ? (pagedRuns.at(-1)?.startedAt ?? null) : null;
 
-  return { runs: pagedRuns, nextCursor, total };
+  return { runs: pagedRuns, nextCursor, total, page, pageSize: pageLimit };
 }
 
 async function fetchWorkflowRuns(
@@ -710,7 +721,8 @@ async function fetchWorkflowRuns(
   status: NormalizedStatus | undefined,
   cursor: string | undefined,
   limit: number,
-  projectId?: string
+  projectId?: string,
+  offset?: number
 ): Promise<UnifiedRun[]> {
   // Scope to org's workflows via subquery so leftJoin still enforces org isolation
   const orgWorkflowIds = db
@@ -802,7 +814,8 @@ async function fetchWorkflowRuns(
     .leftJoin(logSummary, eq(workflowExecutions.id, logSummary.executionId))
     .where(and(...conditions))
     .orderBy(desc(workflowExecutions.startedAt))
-    .limit(limit);
+    .limit(limit)
+    .offset(offset ?? 0);
 
   return result.map((row) => ({
     id: row.id,
@@ -829,7 +842,8 @@ async function fetchDirectRuns(
   rangeEnd: Date,
   status: NormalizedStatus | undefined,
   cursor: string | undefined,
-  limit: number
+  limit: number,
+  offset?: number
 ): Promise<UnifiedRun[]> {
   const conditions = [
     eq(directExecutions.organizationId, organizationId),
@@ -865,7 +879,8 @@ async function fetchDirectRuns(
     .from(directExecutions)
     .where(and(...conditions))
     .orderBy(desc(directExecutions.createdAt))
-    .limit(limit);
+    .limit(limit)
+    .offset(offset ?? 0);
 
   return result.map((row) => ({
     id: row.id,

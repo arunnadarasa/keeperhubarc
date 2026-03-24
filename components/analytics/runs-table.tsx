@@ -1,7 +1,13 @@
 "use client";
 
 import { useAtom, useAtomValue } from "jotai";
-import { ChevronDown, ChevronRight, ExternalLink, Loader2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Loader2,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useCallback, useMemo, useState } from "react";
@@ -315,20 +321,107 @@ function TableSkeleton(): ReactNode {
   );
 }
 
+function getPageNumbers(
+  current: number,
+  total: number
+): (number | "ellipsis")[] {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  const pages: (number | "ellipsis")[] = [1];
+  if (current > 3) {
+    pages.push("ellipsis");
+  }
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+  for (let i = start; i <= end; i++) {
+    pages.push(i);
+  }
+  if (current < total - 2) {
+    pages.push("ellipsis");
+  }
+  pages.push(total);
+  return pages;
+}
+
+function Pagination({
+  page,
+  totalPages,
+  onPageChange,
+  loading,
+}: {
+  page: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  loading: boolean;
+}): ReactNode {
+  if (totalPages <= 1) {
+    return null;
+  }
+
+  const pages = getPageNumbers(page, totalPages);
+
+  return (
+    <nav aria-label="Pagination" className="flex items-center gap-1">
+      <Button
+        className="gap-1"
+        disabled={page <= 1 || loading}
+        onClick={() => onPageChange(page - 1)}
+        size="sm"
+        variant="ghost"
+      >
+        <ChevronLeft className="size-4" />
+        Previous
+      </Button>
+      {pages.map((p, idx) =>
+        p === "ellipsis" ? (
+          <span
+            className="px-2 text-muted-foreground text-sm"
+            key={idx < 3 ? "ellipsis-start" : "ellipsis-end"}
+          >
+            ...
+          </span>
+        ) : (
+          <Button
+            className={cn(
+              "size-8",
+              p === page &&
+                "bg-primary text-primary-foreground hover:bg-primary/90"
+            )}
+            disabled={loading}
+            key={p}
+            onClick={() => onPageChange(p)}
+            size="sm"
+            variant={p === page ? "default" : "ghost"}
+          >
+            {p}
+          </Button>
+        )
+      )}
+      <Button
+        className="gap-1"
+        disabled={page >= totalPages || loading}
+        onClick={() => onPageChange(page + 1)}
+        size="sm"
+        variant="ghost"
+      >
+        Next
+        <ChevronRight className="size-4" />
+      </Button>
+    </nav>
+  );
+}
+
 function RunsTableContent({
   loading,
   isEmpty,
   runs,
-  nextCursor,
-  loadingMore,
-  handleLoadMore,
+  pageLoading,
 }: {
   loading: boolean;
   isEmpty: boolean;
   runs: UnifiedRun[];
-  nextCursor: string | null;
-  loadingMore: boolean;
-  handleLoadMore: () => Promise<void>;
+  pageLoading: boolean;
 }): ReactNode {
   if (loading && isEmpty) {
     return <TableSkeleton />;
@@ -343,49 +436,27 @@ function RunsTableContent({
   }
 
   return (
-    <>
-      <div className="overflow-x-auto">
-        <table className="min-w-[700px] w-full text-left">
-          <thead>
-            <tr className="border-b text-xs text-muted-foreground">
-              <th className="w-8 pb-2 pl-3" />
-              <th className="pb-2 pr-3 font-medium">Name</th>
-              <th className="pb-2 pr-3 font-medium">Status</th>
-              <th className="pb-2 pr-3 font-medium">Source</th>
-              <th className="pb-2 pr-3 font-medium">Duration</th>
-              <th className="pb-2 pr-3 font-medium">Network</th>
-              <th className="pb-2 pr-3 font-medium">Gas</th>
-              <th className="pb-2 pr-3 text-right font-medium">Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {runs.map((run) => (
-              <ExpandableRunRow key={run.id} run={run} />
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {nextCursor ? (
-        <div className="mt-4 flex justify-center">
-          <Button
-            disabled={loadingMore}
-            onClick={() => {
-              handleLoadMore().catch(() => {
-                /* errors handled in handler */
-              });
-            }}
-            size="sm"
-            variant="outline"
-          >
-            {loadingMore ? (
-              <Loader2 className="mr-1.5 size-4 animate-spin" />
-            ) : null}
-            Load more
-          </Button>
-        </div>
-      ) : null}
-    </>
+    <div className={cn("overflow-x-auto", pageLoading && "opacity-50")}>
+      <table className="min-w-[700px] w-full text-left">
+        <thead>
+          <tr className="border-b text-xs text-muted-foreground">
+            <th className="w-8 pb-2 pl-3" />
+            <th className="pb-2 pr-3 font-medium">Name</th>
+            <th className="pb-2 pr-3 font-medium">Status</th>
+            <th className="pb-2 pr-3 font-medium">Source</th>
+            <th className="pb-2 pr-3 font-medium">Duration</th>
+            <th className="pb-2 pr-3 font-medium">Network</th>
+            <th className="pb-2 pr-3 font-medium">Gas</th>
+            <th className="pb-2 pr-3 text-right font-medium">Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {runs.map((run) => (
+            <ExpandableRunRow key={run.id} run={run} />
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -396,43 +467,46 @@ export function RunsTable(): ReactNode {
   const statusFilter = useAtomValue(analyticsStatusFilterAtom);
   const sourceFilter = useAtomValue(analyticsSourceFilterAtom);
   const search = useAtomValue(analyticsSearchAtom);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [pageLoading, setPageLoading] = useState(false);
 
-  const handleLoadMore = useCallback(async (): Promise<void> => {
-    if (!runsData?.nextCursor) {
-      return;
-    }
+  const currentPage = runsData?.page ?? 1;
+  const pageSize = runsData?.pageSize ?? 50;
+  const totalPages = runsData ? Math.ceil(runsData.total / pageSize) : 1;
 
-    setLoadingMore(true);
-    try {
-      const params = new URLSearchParams({
-        range,
-        cursor: runsData.nextCursor,
-      });
-      if (statusFilter) {
-        params.set("status", statusFilter);
-      }
-      if (sourceFilter) {
-        params.set("source", sourceFilter);
-      }
-
-      const response = await fetch(`/api/analytics/runs?${params.toString()}`);
-      if (response.ok) {
-        const newData = (await response.json()) as {
-          runs: UnifiedRun[];
-          nextCursor: string | null;
-          total: number;
-        };
-        setRunsData({
-          runs: [...(runsData?.runs ?? []), ...newData.runs],
-          nextCursor: newData.nextCursor,
-          total: newData.total,
+  const handlePageChange = useCallback(
+    async (newPage: number): Promise<void> => {
+      setPageLoading(true);
+      try {
+        const params = new URLSearchParams({
+          range,
+          page: String(newPage),
         });
+        if (statusFilter) {
+          params.set("status", statusFilter);
+        }
+        if (sourceFilter) {
+          params.set("source", sourceFilter);
+        }
+
+        const response = await fetch(
+          `/api/analytics/runs?${params.toString()}`
+        );
+        if (response.ok) {
+          const data = (await response.json()) as {
+            runs: UnifiedRun[];
+            nextCursor: string | null;
+            total: number;
+            page: number;
+            pageSize: number;
+          };
+          setRunsData(data);
+        }
+      } finally {
+        setPageLoading(false);
       }
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [runsData, range, statusFilter, sourceFilter, setRunsData]);
+    },
+    [range, statusFilter, sourceFilter, setRunsData]
+  );
 
   const allRuns = runsData?.runs ?? [];
 
@@ -466,20 +540,30 @@ export function RunsTable(): ReactNode {
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>Workflow Runs</span>
-            {runsData ? (
-              <span className="text-sm font-normal text-muted-foreground">
-                {runsData.total.toLocaleString()} total
-              </span>
-            ) : null}
+            <div className="flex items-center gap-3">
+              <Pagination
+                loading={pageLoading}
+                onPageChange={(p) => {
+                  handlePageChange(p).catch(() => {
+                    /* errors handled in handler */
+                  });
+                }}
+                page={currentPage}
+                totalPages={totalPages}
+              />
+              {runsData ? (
+                <span className="text-sm font-normal text-muted-foreground">
+                  {runsData.total.toLocaleString()} total
+                </span>
+              ) : null}
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <RunsTableContent
-            handleLoadMore={handleLoadMore}
             isEmpty={isEmpty}
             loading={loading}
-            loadingMore={loadingMore}
-            nextCursor={runsData?.nextCursor ?? null}
+            pageLoading={pageLoading}
             runs={runs}
           />
         </CardContent>

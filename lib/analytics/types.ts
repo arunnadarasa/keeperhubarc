@@ -94,6 +94,8 @@ export type RunsResponse = {
   runs: UnifiedRun[];
   nextCursor: string | null;
   total: number;
+  page: number;
+  pageSize: number;
 };
 
 export type StepLog = {

@@ -32,6 +32,9 @@ export const GET = requireOrganization(
       const customEnd = params.get("customEnd") ?? undefined;
       const cursor = params.get("cursor") ?? undefined;
 
+      const pageParam = params.get("page");
+      const page = pageParam ? Math.max(1, Number(pageParam)) : undefined;
+
       const limitParam = params.get("limit");
       const limit = limitParam ? Number(limitParam) : undefined;
 
@@ -51,6 +54,7 @@ export const GET = requireOrganization(
 
       const result = await getUnifiedRuns(organizationId, range, {
         cursor,
+        page,
         limit,
         status,
         source,
