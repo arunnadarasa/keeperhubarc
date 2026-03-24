@@ -90,30 +90,25 @@ async function validateUserAndOrganization(request: Request) {
   return { user, organizationId: activeOrgId, member: activeMember };
 }
 
-// Helper: Check if wallet or integration already exists for organization
-async function checkExistingWallet(organizationId: string) {
-  const hasWallet = await organizationHasWallet(organizationId);
-  if (hasWallet) {
-    return {
-      error: "Wallet already exists for this organization",
-      status: 400,
-    };
-  }
-
-  const existingIntegration = await db
-    .select()
-    .from(integrations)
+// Helper: Check if wallet already exists for this organization + provider combo
+async function checkExistingWallet(
+  organizationId: string,
+  provider: WalletProvider
+): Promise<{ error: string; status: number } | { valid: true }> {
+  const existing = await db
+    .select({ id: organizationWallets.id })
+    .from(organizationWallets)
     .where(
       and(
-        eq(integrations.organizationId, organizationId),
-        eq(integrations.type, "web3")
+        eq(organizationWallets.organizationId, organizationId),
+        eq(organizationWallets.provider, provider)
       )
     )
     .limit(1);
 
-  if (existingIntegration.length > 0) {
+  if (existing.length > 0) {
     return {
-      error: "Web3 integration already exists for this organization",
+      error: `A ${provider} wallet already exists for this organization`,
       status: 400,
     };
   }
@@ -329,15 +324,6 @@ export async function POST(request: Request) {
     }
     const { user, organizationId } = validation;
 
-    // 2. Check if wallet/integration already exists for this organization
-    const existingCheck = await checkExistingWallet(organizationId);
-    if ("error" in existingCheck) {
-      return NextResponse.json(
-        { error: existingCheck.error },
-        { status: existingCheck.status }
-      );
-    }
-
     // 3. Parse request body
     const body: { email?: string; provider?: string } = await request.json();
     const walletEmail = body.email;
@@ -366,7 +352,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // 4. Create wallet via selected provider
+    // 4. Check if this provider's wallet already exists
+    const existingCheck = await checkExistingWallet(organizationId, provider);
+    if ("error" in existingCheck) {
+      return NextResponse.json(
+        { error: existingCheck.error },
+        { status: existingCheck.status }
+      );
+    }
+
+    // 5. Create wallet via selected provider
     if (provider === "turnkey") {
       const orgName = `org-${organizationId.slice(0, 8)}`;
       const turnkeyResult = await createTurnkeyWallet(walletEmail, orgName);

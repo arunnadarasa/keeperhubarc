@@ -41,28 +41,35 @@ import { generateId } from "@/lib/utils/id";
  * NOTE: userId tracks who created the wallet, but the wallet belongs to the organization.
  * Only organization admins and owners can create/manage wallets.
  */
-export const organizationWallets = pgTable("organization_wallets", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => generateId()),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  organizationId: text("organization_id")
-    .unique()
-    .references(() => organization.id, { onDelete: "cascade" }),
-  provider: text("provider").notNull().$type<"para" | "turnkey">(),
-  email: text("email").notNull(),
-  walletAddress: text("wallet_address").notNull(),
-  // Para-specific fields
-  paraWalletId: text("para_wallet_id"),
-  userShare: text("user_share"), // Encrypted MPC keyshare (Para only)
-  // Turnkey-specific fields
-  turnkeySubOrgId: text("turnkey_sub_org_id"),
-  turnkeyWalletId: text("turnkey_wallet_id"),
-  turnkeyPrivateKeyId: text("turnkey_private_key_id"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const organizationWallets = pgTable(
+  "organization_wallets",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => generateId()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "cascade",
+    }),
+    provider: text("provider").notNull().$type<"para" | "turnkey">(),
+    email: text("email").notNull(),
+    walletAddress: text("wallet_address").notNull(),
+    // Para-specific fields
+    paraWalletId: text("para_wallet_id"),
+    userShare: text("user_share"), // Encrypted MPC keyshare (Para only)
+    // Turnkey-specific fields
+    turnkeySubOrgId: text("turnkey_sub_org_id"),
+    turnkeyWalletId: text("turnkey_wallet_id"),
+    turnkeyPrivateKeyId: text("turnkey_private_key_id"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    unique("uq_org_wallet_provider").on(table.organizationId, table.provider),
+    index("idx_org_wallets_org").on(table.organizationId),
+  ]
+);
 
 // Backward compatibility alias
 export const paraWallets = organizationWallets;

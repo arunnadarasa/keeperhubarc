@@ -18,3 +18,9 @@ ALTER TABLE "organization_wallets" ALTER COLUMN "user_share" DROP NOT NULL;
 ALTER TABLE "organization_wallets" ADD COLUMN "turnkey_sub_org_id" text;
 ALTER TABLE "organization_wallets" ADD COLUMN "turnkey_wallet_id" text;
 ALTER TABLE "organization_wallets" ADD COLUMN "turnkey_private_key_id" text;
+
+-- Replace single-org unique constraint with per-provider unique constraint
+-- (allows one Para wallet + one Turnkey wallet per organization)
+ALTER TABLE "organization_wallets" DROP CONSTRAINT IF EXISTS "para_wallets_organization_id_unique";
+CREATE UNIQUE INDEX "uq_org_wallet_provider" ON "organization_wallets" ("organization_id", "provider");
+CREATE INDEX "idx_org_wallets_org" ON "organization_wallets" ("organization_id");
