@@ -14,6 +14,10 @@ variable "NEXT_PUBLIC_GITHUB_CLIENT_ID" { default = "" }
 variable "NEXT_PUBLIC_GOOGLE_CLIENT_ID" { default = "" }
 variable "NEXT_PUBLIC_BILLING_ENABLED" { default = "" }
 variable "ENVIRONMENT_TAG" { default = "" }
+variable "SENTRY_ORG" { default = "" }
+variable "SENTRY_PROJECT" { default = "" }
+variable "SENTRY_AUTH_TOKEN" { default = "" }
+variable "SENTRY_RELEASE" { default = "" }
 
 group "default" {
   targets = ["app", "migrator"]
@@ -28,6 +32,10 @@ target "app" {
     NEXT_PUBLIC_GITHUB_CLIENT_ID = NEXT_PUBLIC_GITHUB_CLIENT_ID
     NEXT_PUBLIC_GOOGLE_CLIENT_ID = NEXT_PUBLIC_GOOGLE_CLIENT_ID
     NEXT_PUBLIC_BILLING_ENABLED  = NEXT_PUBLIC_BILLING_ENABLED
+    SENTRY_ORG                   = SENTRY_ORG
+    SENTRY_PROJECT               = SENTRY_PROJECT
+    SENTRY_AUTH_TOKEN            = SENTRY_AUTH_TOKEN
+    SENTRY_RELEASE               = SENTRY_RELEASE
   }
   tags = compact([
     "${ECR_REGISTRY}/${ECR_REPO}:app-${IMAGE_TAG}",
