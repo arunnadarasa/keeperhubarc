@@ -828,42 +828,50 @@ export function NavigationSidebar(): React.ReactNode {
           ))}
         </nav>
 
-        <div
-          className={cn(
-            "flex gap-1 border-t px-2.5 py-3",
-            showLabels ? "flex-row" : "flex-col items-center"
-          )}
-        >
-          <Tooltip>
-            <TooltipTrigger asChild>
+        <div className="flex flex-col gap-1 border-t px-2.5 py-3">
+          {(
+            [
+              {
+                icon: DiscordIcon,
+                label: "Join Discord",
+                href: "https://discord.gg/keeperhub",
+              },
+              {
+                icon: Info,
+                label: "Documentation",
+                href: "https://docs.keeperhub.com",
+              },
+            ] as const
+          ).map((item) => {
+            const link = (
               <a
-                className="flex size-8 items-center justify-center rounded-md text-foreground transition-colors hover:text-muted-foreground"
-                href="https://discord.gg/keeperhub"
+                className={cn(
+                  "flex h-9 w-full items-center rounded-md transition-colors hover:bg-muted",
+                  showLabels ? "gap-3 px-2" : "justify-center"
+                )}
+                href={item.href}
+                key={item.label}
                 rel="noopener"
                 target="_blank"
               >
-                <DiscordIcon className="size-4" />
+                <item.icon className="size-4 shrink-0" />
+                {showLabels && (
+                  <span className="truncate text-sm">{item.label}</span>
+                )}
               </a>
-            </TooltipTrigger>
-            <TooltipContent side={showLabels ? "bottom" : "right"}>
-              Discord community
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <a
-                className="flex size-8 items-center justify-center rounded-md text-foreground transition-colors hover:text-muted-foreground"
-                href="https://docs.keeperhub.com"
-                rel="noopener"
-                target="_blank"
-              >
-                <Info className="size-4" />
-              </a>
-            </TooltipTrigger>
-            <TooltipContent side={showLabels ? "bottom" : "right"}>
-              Documentation
-            </TooltipContent>
-          </Tooltip>
+            );
+
+            if (showLabels) {
+              return link;
+            }
+
+            return (
+              <Tooltip key={item.label}>
+                <TooltipTrigger asChild>{link}</TooltipTrigger>
+                <TooltipContent side="right">{item.label}</TooltipContent>
+              </Tooltip>
+            );
+          })}
         </div>
 
         {/* Resize handle */}
