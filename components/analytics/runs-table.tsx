@@ -11,6 +11,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -249,7 +250,7 @@ function ExpandableRunRow({ run }: ExpandableRunRowProps): ReactNode {
         )}
         onClick={() => {
           handleToggleExpand().catch(() => {
-            /* errors handled in handler */
+            /* noop - errors handled with toast in handlePageChange */
           });
         }}
       >
@@ -465,7 +466,11 @@ export function RunsTable(): ReactNode {
             pageSize: number;
           };
           setRunsData(data);
+        } else {
+          toast.error("Failed to load runs");
         }
+      } catch {
+        toast.error("Failed to load runs");
       } finally {
         setPageLoading(false);
       }
@@ -482,7 +487,7 @@ export function RunsTable(): ReactNode {
     }
     hasRestoredPage.current = true;
     handlePageChange(urlPage).catch(() => {
-      /* errors handled in handler */
+      /* noop - errors handled with toast in handlePageChange */
     });
   }, [urlPage, runsData, handlePageChange]);
 
@@ -522,7 +527,7 @@ export function RunsTable(): ReactNode {
               loading={pageLoading}
               onPageChange={(p) => {
                 handlePageChange(p).catch(() => {
-                  /* errors handled in handler */
+                  /* noop - errors handled with toast in handlePageChange */
                 });
               }}
               page={currentPage}
