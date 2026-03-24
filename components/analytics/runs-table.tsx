@@ -515,23 +515,16 @@ export function RunsTable(): ReactNode {
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>Workflow Runs</span>
-            <div className="flex items-center gap-3">
-              <Pagination
-                loading={pageLoading}
-                onPageChange={(p) => {
-                  handlePageChange(p).catch(() => {
-                    /* errors handled in handler */
-                  });
-                }}
-                page={currentPage}
-                totalPages={totalPages}
-              />
-              {runsData ? (
-                <span className="text-sm font-normal text-muted-foreground">
-                  {runsData.total.toLocaleString()} total
-                </span>
-              ) : null}
-            </div>
+            <Pagination
+              loading={pageLoading}
+              onPageChange={(p) => {
+                handlePageChange(p).catch(() => {
+                  /* errors handled in handler */
+                });
+              }}
+              page={currentPage}
+              totalPages={totalPages}
+            />
           </CardTitle>
         </CardHeader>
         <CardContent>
