@@ -1347,7 +1347,7 @@ function ToolbarActions({
       </div>
 
       {/* Save/Download - Desktop Horizontal */}
-      <div className="hidden items-center gap-1 lg:flex">
+      <div className="hidden items-center gap-2 lg:flex">
         {state.isSaving && !isAnonymousUser(state.session?.user) && (
           <span className="flex items-center gap-1 text-muted-foreground text-xs">
             <Loader2 className="size-3 animate-spin" />
@@ -1362,22 +1362,47 @@ function ToolbarActions({
       <VisibilityButton actions={actions} state={state} />
 
       {shouldDisplayEnableWorkflowSwitch && (
-        <>
-          {/* Enable Workflow Switch - Desktop Horizontal */}
-          <div className="hidden items-center gap-2 lg:flex">
-            <label
-              className="font-medium text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              htmlFor="enable-workflow-switch"
-            >
-              {state.isEnabled ? "Deactivate" : "Activate"} workflow
-            </label>
-            <Switch
-              checked={state.isEnabled}
-              id="enable-workflow-switch"
-              onCheckedChange={actions.handleToggleEnabled}
-            />
-          </div>
-        </>
+        <button
+          className="relative hidden h-8 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background lg:inline-flex"
+          onClick={() => actions.handleToggleEnabled(!state.isEnabled)}
+          style={{
+            width: 98,
+            backgroundColor: state.isEnabled
+              ? "var(--color-keeperhub-green)"
+              : "var(--color-input)",
+          }}
+          title={state.isEnabled ? "Disable workflow" : "Enable workflow"}
+          type="button"
+        >
+          <span
+            className="pointer-events-none absolute inset-0 flex items-center pl-3 pr-2 font-medium text-sm transition-opacity"
+            style={{
+              justifyContent: "flex-start",
+              opacity: state.isEnabled ? 1 : 0,
+              color: "var(--color-background)",
+            }}
+          >
+            Disable
+          </span>
+          <span
+            className="pointer-events-none absolute inset-0 flex items-center pl-2 pr-3 font-medium text-sm transition-opacity"
+            style={{
+              justifyContent: "flex-end",
+              opacity: state.isEnabled ? 0 : 1,
+              color: "var(--color-foreground)",
+            }}
+          >
+            Enable
+          </span>
+          <span
+            className="pointer-events-none block size-6 rounded-full bg-background shadow-lg ring-0 transition-transform"
+            style={{
+              transform: state.isEnabled
+                ? "translateX(66px)"
+                : "translateX(2px)",
+            }}
+          />
+        </button>
       )}
 
       <RunButtonGroup actions={actions} state={state} />
