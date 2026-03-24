@@ -13,6 +13,13 @@ import {
   ShieldCheck,
   Trash2,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -926,15 +933,20 @@ function AddTurnkeyWalletSection({
 type ExportStep = "idle" | "requesting" | "otp" | "verifying" | "done";
 
 function ExportPrivateKeyButton(): React.ReactElement {
+  const [open, setOpen] = useState(false);
   const [step, setStep] = useState<ExportStep>("idle");
   const [otpCode, setOtpCode] = useState("");
   const [privateKey, setPrivateKey] = useState<string | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleRequestOtp = async (): Promise<void> => {
+  const handleOpen = async (): Promise<void> => {
+    setOpen(true);
     setStep("requesting");
     setError(null);
+    setOtpCode("");
+    setPrivateKey(null);
+    setRevealed(false);
     try {
       const res = await fetch("/api/user/wallet/export-key/request", {
         method: "POST",
@@ -945,12 +957,12 @@ function ExportPrivateKeyButton(): React.ReactElement {
         throw new Error(data.error ?? "Failed to send verification code");
       }
 
-      toast.success("Verification code sent to your email");
       setStep("otp");
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to send code"
       );
+      setOpen(false);
       setStep("idle");
     }
   };
@@ -983,9 +995,7 @@ function ExportPrivateKeyButton(): React.ReactElement {
       setRevealed(false);
       setStep("done");
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Verification failed"
-      );
+      setError(err instanceof Error ? err.message : "Verification failed");
       setStep("otp");
     }
   };
@@ -998,125 +1008,135 @@ function ExportPrivateKeyButton(): React.ReactElement {
     toast.success("Private key copied to clipboard");
   };
 
-  const handleDismiss = (): void => {
-    setPrivateKey(null);
-    setRevealed(false);
+  const handleClose = (): void => {
+    setOpen(false);
     setStep("idle");
     setOtpCode("");
+    setPrivateKey(null);
+    setRevealed(false);
     setError(null);
   };
 
-  // Key revealed
-  if (privateKey) {
-    return (
-      <div className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
-        <div className="flex items-center justify-between">
-          <span className="font-medium text-destructive text-xs">
-            Private Key
-          </span>
-          <div className="flex items-center gap-1">
-            <button
-              aria-label={revealed ? "Hide private key" : "Reveal private key"}
-              className="text-muted-foreground hover:text-foreground"
-              onClick={() => setRevealed(!revealed)}
-              type="button"
-            >
-              {revealed ? (
-                <EyeOff className="h-3.5 w-3.5" />
-              ) : (
-                <Eye className="h-3.5 w-3.5" />
-              )}
-            </button>
-            <button
-              aria-label="Copy private key"
-              className="text-muted-foreground hover:text-foreground"
-              onClick={handleCopy}
-              type="button"
-            >
-              <Copy className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-        <code className="block break-all font-mono text-xs">
-          {revealed ? privateKey : privateKey.replace(/./g, "\u2022")}
-        </code>
-        <Button
-          className="w-full"
-          onClick={handleDismiss}
-          size="sm"
-          variant="outline"
-        >
-          Dismiss
-        </Button>
-      </div>
-    );
-  }
-
-  // OTP input
-  if (step === "otp" || step === "verifying") {
-    return (
-      <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-        <div className="text-muted-foreground text-xs">
-          Enter the verification code sent to your email
-        </div>
-        <Input
-          className="font-mono text-center text-sm tracking-widest"
-          maxLength={6}
-          onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-          placeholder="000000"
-          value={otpCode}
-        />
-        {error && <p className="text-destructive text-xs">{error}</p>}
-        <div className="flex gap-2">
-          <Button
-            disabled={step === "verifying"}
-            onClick={handleDismiss}
-            size="sm"
-            variant="outline"
-          >
-            Cancel
-          </Button>
-          <Button
-            className="flex-1"
-            disabled={step === "verifying" || otpCode.length !== 6}
-            onClick={handleVerify}
-            size="sm"
-          >
-            {step === "verifying" ? (
-              <>
-                <Spinner className="mr-2 h-3 w-3" />
-                Verifying...
-              </>
-            ) : (
-              "Verify & Export"
-            )}
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // Initial button
   return (
-    <Button
-      className="w-full"
-      disabled={step === "requesting"}
-      onClick={handleRequestOtp}
-      size="sm"
-      variant="outline"
-    >
-      {step === "requesting" ? (
-        <>
-          <Spinner className="mr-2 h-3 w-3" />
-          Sending code...
-        </>
-      ) : (
-        <>
-          <KeyRound className="mr-2 h-3 w-3" />
-          Export Private Key
-        </>
-      )}
-    </Button>
+    <>
+      <Button
+        className="w-full"
+        onClick={handleOpen}
+        size="sm"
+        variant="outline"
+      >
+        <KeyRound className="mr-2 h-3 w-3" />
+        Export Private Key
+      </Button>
+
+      <Dialog onOpenChange={(v) => { if (!v) { handleClose(); } }} open={open}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Export Private Key</DialogTitle>
+            <DialogDescription>
+              {step === "done"
+                ? "Your private key is shown below. Copy it and store it securely."
+                : "A verification code has been sent to your email."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {step === "requesting" && (
+            <div className="flex items-center justify-center py-8">
+              <Spinner className="h-6 w-6" />
+            </div>
+          )}
+
+          {(step === "otp" || step === "verifying") && (
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="export-otp">Verification Code</Label>
+                <Input
+                  className="font-mono text-center text-lg tracking-[0.3em]"
+                  id="export-otp"
+                  maxLength={6}
+                  onChange={(e) =>
+                    setOtpCode(e.target.value.replace(/\D/g, ""))
+                  }
+                  placeholder="000000"
+                  value={otpCode}
+                />
+                {error && (
+                  <p className="text-destructive text-sm">{error}</p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1"
+                  disabled={step === "verifying"}
+                  onClick={handleClose}
+                  variant="outline"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1"
+                  disabled={step === "verifying" || otpCode.length !== 6}
+                  onClick={handleVerify}
+                >
+                  {step === "verifying" ? (
+                    <>
+                      <Spinner className="mr-2 h-4 w-4" />
+                      Verifying...
+                    </>
+                  ) : (
+                    "Verify & Export"
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {step === "done" && privateKey && (
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="font-medium text-destructive text-sm">
+                    Private Key
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      aria-label={
+                        revealed ? "Hide private key" : "Reveal private key"
+                      }
+                      className="text-muted-foreground hover:text-foreground"
+                      onClick={() => setRevealed(!revealed)}
+                      type="button"
+                    >
+                      {revealed ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                    <button
+                      aria-label="Copy private key"
+                      className="text-muted-foreground hover:text-foreground"
+                      onClick={handleCopy}
+                      type="button"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+                <code className="block break-all font-mono text-sm">
+                  {revealed
+                    ? privateKey
+                    : privateKey.replace(/./g, "\u2022")}
+                </code>
+              </div>
+              <Button className="w-full" onClick={handleClose}>
+                Done
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
