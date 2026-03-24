@@ -60,7 +60,7 @@ describe("toJsonSafe", () => {
 
   it("handles nested objects with mixed types", () => {
     const input = {
-      blockNumber: BigInt(12345678),
+      blockNumber: BigInt(12_345_678),
       args: {
         from: "0xabc",
         value: BigInt("1000000000000000000"),

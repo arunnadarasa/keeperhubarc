@@ -1,4 +1,8 @@
+export type ExecutionMode = "isolated" | "process" | "complex";
+
 export const CONFIG = {
+  executionMode: (process.env.EXECUTION_MODE || "complex") as ExecutionMode,
+
   databaseUrl: process.env.DATABASE_URL || "postgres://localhost:5432/workflow",
 
   awsRegion: process.env.AWS_REGION || "us-east-1",
@@ -14,6 +18,9 @@ export const CONFIG = {
   namespace: process.env.K8S_NAMESPACE || "local",
   jobTtlSeconds: Number(process.env.JOB_TTL_SECONDS) || 3600,
   jobActiveDeadline: Number(process.env.JOB_ACTIVE_DEADLINE) || 300,
+
+  keeperhubApiUrl: process.env.KEEPERHUB_API_URL || "http://localhost:3000",
+  keeperhubApiKey: process.env.KEEPERHUB_API_KEY || "",
 
   healthPort: Number(process.env.HEALTH_PORT) || 3080,
   integrationEncryptionKey: process.env.INTEGRATION_ENCRYPTION_KEY || "",

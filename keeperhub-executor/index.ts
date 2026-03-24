@@ -38,8 +38,9 @@ import {
 } from "../lib/db/schema";
 import { generateId } from "../lib/utils/id";
 import type { WorkflowNode } from "../lib/workflow-store";
+import { executeViaApi } from "./api-execute";
 import { CONFIG } from "./config";
-import { determineExecutionMode } from "./execution-mode";
+import { resolveDispatchTarget } from "./execution-mode";
 import { executeInProcess } from "./in-process";
 import { createWorkflowJob } from "./k8s-job";
 import { toJsonSafe } from "./lib/serialize";
@@ -121,54 +122,65 @@ function getScheduleId(message: ExecutorMessage): string | undefined {
 }
 
 async function dispatchExecution(params: {
-  mode: string;
+  target: string;
   workflowId: string;
   executionId: string;
   input: Record<string, unknown>;
   triggerType: string;
   scheduleId?: string;
 }): Promise<void> {
-  const { mode, workflowId, executionId, input, triggerType, scheduleId } =
+  const { target, workflowId, executionId, input, triggerType, scheduleId } =
     params;
 
-  if (mode === "k8s-job") {
-    try {
-      const job = await createWorkflowJob({
+  switch (target) {
+    case "k8s-job": {
+      try {
+        const job = await createWorkflowJob({
+          workflowId,
+          executionId,
+          input,
+          triggerType,
+          scheduleId,
+        });
+
+        console.log(
+          `[Executor] Created K8s Job: ${job.metadata?.name} for execution ${executionId}`
+        );
+      } catch (error) {
+        console.error("[Executor] Failed to create K8s Job:", error);
+
+        await db
+          .update(workflowExecutions)
+          .set({
+            status: "error",
+            error:
+              error instanceof Error
+                ? `Failed to create job: ${error.message}`
+                : "Failed to create job",
+            completedAt: new Date(),
+          })
+          .where(eq(workflowExecutions.id, executionId));
+
+        throw error;
+      }
+      break;
+    }
+    case "api": {
+      await executeViaApi({ workflowId, executionId, input });
+      break;
+    }
+    case "in-process": {
+      await executeInProcess({
         workflowId,
         executionId,
         input,
-        triggerType,
         scheduleId,
+        db,
       });
-
-      console.log(
-        `[Executor] Created K8s Job: ${job.metadata?.name} for execution ${executionId}`
-      );
-    } catch (error) {
-      console.error("[Executor] Failed to create K8s Job:", error);
-
-      await db
-        .update(workflowExecutions)
-        .set({
-          status: "error",
-          error:
-            error instanceof Error
-              ? `Failed to create job: ${error.message}`
-              : "Failed to create job",
-          completedAt: new Date(),
-        })
-        .where(eq(workflowExecutions.id, executionId));
-
-      throw error;
+      break;
     }
-  } else {
-    await executeInProcess({
-      workflowId,
-      executionId,
-      input,
-      scheduleId,
-      db,
-    });
+    default:
+      throw new Error(`Unknown dispatch target: ${target}`);
   }
 }
 
@@ -217,11 +229,13 @@ async function processExecutorMessage(message: ExecutorMessage): Promise<void> {
   console.log(`[Executor] Created execution record: ${executionId}`);
 
   const nodes = workflow.nodes as WorkflowNode[];
-  const mode = determineExecutionMode(nodes);
-  console.log(`[Executor] Execution mode: ${mode}`);
+  const target = resolveDispatchTarget(nodes);
+  console.log(
+    `[Executor] Dispatch target: ${target} (mode: ${CONFIG.executionMode})`
+  );
 
   await dispatchExecution({
-    mode,
+    target,
     workflowId,
     executionId,
     input,
@@ -271,6 +285,7 @@ async function processMessage(message: Message): Promise<void> {
 
 async function listen(): Promise<void> {
   console.log("[Executor] Starting unified workflow executor...");
+  console.log(`[Executor] Execution mode: ${CONFIG.executionMode}`);
   console.log(`[Executor] Queue URL: ${CONFIG.sqsQueueUrl}`);
   console.log(`[Executor] Runner image: ${CONFIG.runnerImage}`);
   console.log(`[Executor] K8s namespace: ${CONFIG.namespace}`);

@@ -35,7 +35,7 @@ export type EventMessage = {
 
 export type ExecutorMessage = ScheduleMessage | BlockMessage | EventMessage;
 
-export type ExecutionMode = "k8s-job" | "in-process";
+export type DispatchTarget = "k8s-job" | "in-process" | "api";
 
 export type WorkflowRecord = {
   id: string;
