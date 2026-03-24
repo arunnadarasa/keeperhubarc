@@ -15,6 +15,7 @@ import {
 } from "@xyflow/react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Canvas } from "@/components/ai-elements/canvas";
 import { Connection } from "@/components/ai-elements/connection";
 import { Controls } from "@/components/ai-elements/controls";
@@ -93,6 +94,8 @@ const VIEWPORT_STORAGE_PREFIX = "wf-viewport-";
 const FIT_VIEW_DEFAULTS = { maxZoom: 1, minZoom: 0.1, padding: 0.2, duration: 0 } as const;
 
 export function WorkflowCanvas() {
+  const pathname = usePathname();
+  const isWorkflowRoute = pathname.startsWith("/workflows/");
   const [nodes, setNodes] = useAtom(nodesAtom);
   const [edges, setEdges] = useAtom(edgesAtom);
   const [isGenerating] = useAtom(isGeneratingAtom);
@@ -755,22 +758,24 @@ export function WorkflowCanvas() {
         onPaneContextMenu={isGenerating ? undefined : onPaneContextMenu}
         onSelectionChange={isGenerating ? undefined : onSelectionChange}
       >
-        <Panel
-          className="workflow-controls-panel flex items-end gap-2 border-none bg-transparent p-0"
-          position="bottom-right"
-        >
-          {showMinimap && (
-            <div className="overflow-hidden rounded-md">
-              <MiniMap
-                bgColor="var(--sidebar)"
-                maskColor="rgba(255, 255, 255, 0.1)"
-                nodeStrokeColor="var(--border)"
-                className="!relative !m-0"
-              />
-            </div>
-          )}
-          <Controls onFitView={() => fitViewSidebarAware({ duration: 300 })} onAutoLayout={handleAutoLayout} />
-        </Panel>
+        {isWorkflowRoute && (
+          <Panel
+            className="workflow-controls-panel flex items-end gap-2 border-none bg-transparent p-0"
+            position="bottom-right"
+          >
+            {showMinimap && (
+              <div className="overflow-hidden rounded-md">
+                <MiniMap
+                  bgColor="var(--sidebar)"
+                  maskColor="rgba(255, 255, 255, 0.1)"
+                  nodeStrokeColor="var(--border)"
+                  className="!relative !m-0"
+                />
+              </div>
+            )}
+            <Controls onFitView={() => fitViewSidebarAware({ duration: 300 })} onAutoLayout={handleAutoLayout} />
+          </Panel>
+        )}
       </Canvas>
 
       {/* AI Prompt */}
