@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Test script for the unified executor SQS pipeline.
 # Sends one message per trigger type to the local SQS queue and tails executor logs.
 #
