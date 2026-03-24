@@ -3,6 +3,7 @@
 import { useReactFlow } from "@xyflow/react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
+  BookOpen,
   Check,
   Copy,
   Download,
@@ -38,6 +39,7 @@ import { BUILTIN_NODE_ID } from "@/lib/builtin-variables";
 import { isAnonymousUser } from "@/lib/is-anonymous";
 import { api, ApiError, type Project, type Tag } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
+import { DiscordIcon } from "@/components/icons/discord-icon";
 import { getCustomLogo } from "@/lib/extension-registry";
 import { integrationsAtom } from "@/lib/integrations-store";
 import type { IntegrationType } from "@/lib/types/integration";
@@ -1740,6 +1742,24 @@ export const WorkflowToolbar = ({
                   onDuplicate={actions.handleDuplicate}
                 />
               )}
+              <a
+                className="hidden text-muted-foreground transition-colors hover:text-foreground lg:block"
+                href="https://docs.keeperhub.com"
+                rel="noopener"
+                target="_blank"
+                title="Documentation"
+              >
+                <BookOpen className="size-4" />
+              </a>
+              <a
+                className="hidden text-muted-foreground transition-colors hover:text-foreground lg:block"
+                href="https://discord.gg/keeperhub"
+                rel="noopener"
+                target="_blank"
+                title="Discord community"
+              >
+                <DiscordIcon className="size-4" />
+              </a>
               <div className="hidden lg:block">
                 <OrgSwitcher />
               </div>
@@ -1794,6 +1814,24 @@ export const WorkflowToolbar = ({
                 onDuplicate={actions.handleDuplicate}
               />
             )}
+            <a
+              className="hidden text-muted-foreground transition-colors hover:text-foreground lg:block"
+              href="https://docs.keeperhub.com"
+              rel="noopener"
+              target="_blank"
+              title="Documentation"
+            >
+              <BookOpen className="size-4" />
+            </a>
+            <a
+              className="hidden text-muted-foreground transition-colors hover:text-foreground lg:block"
+              href="https://discord.gg/keeperhub"
+              rel="noopener"
+              target="_blank"
+              title="Discord community"
+            >
+              <DiscordIcon className="size-4" />
+            </a>
             <div className="hidden lg:block">
               <OrgSwitcher />
             </div>
