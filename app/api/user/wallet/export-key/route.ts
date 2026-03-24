@@ -2,11 +2,12 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api-error";
 import { auth } from "@/lib/auth";
-import { decryptUserShare } from "@/lib/encryption";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { getActiveOrgId } from "@/lib/middleware/org-context";
 import { getOrganizationWallet } from "@/lib/para/wallet-helpers";
+import { exportTurnkeyPrivateKey } from "@/lib/turnkey/turnkey-client";
 
-export async function GET(request: Request): Promise<NextResponse> {
+export async function POST(request: Request): Promise<NextResponse> {
   try {
     const session = await auth.api.getSession({
       headers: request.headers,
@@ -37,24 +38,43 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     if (activeMember.role !== "admin" && activeMember.role !== "owner") {
       return NextResponse.json(
-        { error: "Only admins and owners can access wallet shares" },
+        { error: "Only admins and owners can export wallet keys" },
         { status: 403 }
       );
     }
 
     const wallet = await getOrganizationWallet(activeOrgId);
 
-    if (!wallet.userShare) {
+    if (wallet.provider !== "turnkey") {
       return NextResponse.json(
-        { error: "This wallet does not have a user share (non-Para wallet)" },
+        {
+          error:
+            "Private key export is only available for Turnkey wallets. Para wallets use MPC signing and do not support server-side key export.",
+        },
         { status: 400 }
       );
     }
 
-    const decryptedShare = decryptUserShare(wallet.userShare);
+    if (!wallet.turnkeySubOrgId) {
+      return NextResponse.json(
+        { error: "Turnkey wallet configuration is incomplete" },
+        { status: 500 }
+      );
+    }
 
-    return NextResponse.json({ userShare: decryptedShare });
+    const privateKey = await exportTurnkeyPrivateKey(
+      wallet.turnkeySubOrgId,
+      wallet.walletAddress
+    );
+
+    return NextResponse.json({ privateKey });
   } catch (error) {
-    return apiError(error, "Failed to get wallet share");
+    logSystemError(
+      ErrorCategory.EXTERNAL_SERVICE,
+      "[Wallet] Failed to export private key",
+      error,
+      { endpoint: "/api/user/wallet/export-key", operation: "post" }
+    );
+    return apiError(error, "Failed to export private key");
   }
 }

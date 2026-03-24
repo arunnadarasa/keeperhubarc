@@ -253,6 +253,13 @@
       "when": 1773788983127,
       "tag": "0035_confused_ogun",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1774588800000,
+      "tag": "0036_turnkey-wallet-provider",
+      "breakpoints": true
     }
   ]
 }

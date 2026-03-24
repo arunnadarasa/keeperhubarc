@@ -2,10 +2,15 @@
 
 import {
   Copy,
+  Eye,
+  EyeOff,
   ExternalLink,
+  KeyRound,
   Plus,
   RefreshCw,
   SendHorizontal,
+  Shield,
+  ShieldCheck,
   Trash2,
 } from "lucide-react";
 import Image from "next/image";
@@ -502,6 +507,8 @@ function AddTokenForm({
   );
 }
 
+type WalletProviderOption = "para" | "turnkey";
+
 function CreateWalletForm({
   initialEmail,
   onCancel,
@@ -509,19 +516,20 @@ function CreateWalletForm({
 }: {
   initialEmail: string;
   onCancel: () => void;
-  onSubmit: (email: string) => Promise<void>;
+  onSubmit: (email: string, provider: WalletProviderOption) => Promise<void>;
 }) {
   const [email, setEmail] = useState(initialEmail);
+  const [provider, setProvider] = useState<WalletProviderOption>("turnkey");
   const [creating, setCreating] = useState(false);
 
-  const handleCreate = async () => {
+  const handleCreate = async (): Promise<void> => {
     if (!email) {
       toast.error("Email is required");
       return;
     }
     setCreating(true);
     try {
-      await onSubmit(email);
+      await onSubmit(email, provider);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to create wallet"
@@ -543,6 +551,49 @@ function CreateWalletForm({
             admins and owners can manage it.
           </p>
         </div>
+
+        <div className="space-y-2">
+          <Label>Wallet Provider</Label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              className={`flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors ${
+                provider === "turnkey"
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-border/80"
+              }`}
+              disabled={creating}
+              onClick={() => setProvider("turnkey")}
+              type="button"
+            >
+              <div className="flex items-center gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+                <span className="font-medium text-xs">Turnkey</span>
+              </div>
+              <span className="text-muted-foreground text-[10px] leading-tight">
+                Secure enclave. Supports private key export.
+              </span>
+            </button>
+            <button
+              className={`flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors ${
+                provider === "para"
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-border/80"
+              }`}
+              disabled={creating}
+              onClick={() => setProvider("para")}
+              type="button"
+            >
+              <div className="flex items-center gap-1.5">
+                <Shield className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="font-medium text-xs">Para</span>
+              </div>
+              <span className="text-muted-foreground text-[10px] leading-tight">
+                MPC-based signing. No key export.
+              </span>
+            </button>
+          </div>
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="wallet-email">Email Address</Label>
           <Input
@@ -716,7 +767,7 @@ function NoWalletSection({
 }: {
   isAdmin: boolean;
   initialEmail: string;
-  onCreateWallet: (email: string) => Promise<void>;
+  onCreateWallet: (email: string, provider: WalletProviderOption) => Promise<void>;
 }) {
   const [showCreateForm, setShowCreateForm] = useState(false);
 
@@ -761,15 +812,133 @@ function NoWalletSection({
 // ============================================================================
 
 // Component for account details section (email + wallet address)
+function ExportPrivateKeyButton(): React.ReactElement {
+  const [exporting, setExporting] = useState(false);
+  const [privateKey, setPrivateKey] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState(false);
+
+  const handleExport = async (): Promise<void> => {
+    setExporting(true);
+    try {
+      const response = await fetch("/api/user/wallet/export-key", {
+        method: "POST",
+      });
+      const data: { privateKey?: string; error?: string } =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to export private key");
+      }
+
+      if (!data.privateKey) {
+        throw new Error("No private key returned");
+      }
+
+      setPrivateKey(data.privateKey);
+      setRevealed(false);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to export private key"
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleCopy = (): void => {
+    if (!privateKey) {
+      return;
+    }
+    navigator.clipboard.writeText(privateKey);
+    toast.success("Private key copied to clipboard");
+  };
+
+  const handleDismiss = (): void => {
+    setPrivateKey(null);
+    setRevealed(false);
+  };
+
+  if (privateKey) {
+    return (
+      <div className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+        <div className="flex items-center justify-between">
+          <span className="font-medium text-destructive text-xs">
+            Private Key
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              aria-label={revealed ? "Hide private key" : "Reveal private key"}
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => setRevealed(!revealed)}
+              type="button"
+            >
+              {revealed ? (
+                <EyeOff className="h-3.5 w-3.5" />
+              ) : (
+                <Eye className="h-3.5 w-3.5" />
+              )}
+            </button>
+            <button
+              aria-label="Copy private key"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={handleCopy}
+              type="button"
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+        <code className="block break-all font-mono text-xs">
+          {revealed
+            ? privateKey
+            : privateKey.replace(/./g, "\u2022")}
+        </code>
+        <Button
+          className="w-full"
+          onClick={handleDismiss}
+          size="sm"
+          variant="outline"
+        >
+          Dismiss
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <Button
+      className="w-full"
+      disabled={exporting}
+      onClick={handleExport}
+      size="sm"
+      variant="outline"
+    >
+      {exporting ? (
+        <>
+          <Spinner className="mr-2 h-3 w-3" />
+          Exporting...
+        </>
+      ) : (
+        <>
+          <KeyRound className="mr-2 h-3 w-3" />
+          Export Private Key
+        </>
+      )}
+    </Button>
+  );
+}
+
 function AccountDetailsSection({
   email,
   walletAddress,
   isAdmin,
+  canExportKey,
   onEmailUpdated,
 }: {
   email: string;
   walletAddress: string;
   isAdmin: boolean;
+  canExportKey: boolean;
   onEmailUpdated: () => void;
 }) {
   const [isEditingEmail, setIsEditingEmail] = useState(false);
@@ -893,6 +1062,12 @@ function AccountDetailsSection({
               <Copy className="h-3 w-3" />
             </button>
           </div>
+        </div>
+      )}
+
+      {isAdmin && canExportKey && (
+        <div className="mt-3">
+          <ExportPrivateKeyButton />
         </div>
       )}
     </div>
@@ -1093,16 +1268,19 @@ export function WalletOverlay({ overlayId }: WalletOverlayProps) {
     }
   };
 
-  const handleCreateWallet = async (email: string) => {
+  const handleCreateWallet = async (
+    email: string,
+    provider: WalletProviderOption
+  ): Promise<void> => {
     const response = await fetch("/api/user/wallet", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, provider }),
     });
 
-    const data = await response.json();
+    const data: { error?: string } = await response.json();
     if (!response.ok) {
-      throw new Error(data.error || "Failed to create wallet");
+      throw new Error(data.error ?? "Failed to create wallet");
     }
 
     toast.success("Wallet created successfully!");
@@ -1233,6 +1411,7 @@ export function WalletOverlay({ overlayId }: WalletOverlayProps) {
         <div className="space-y-4">
           {walletData.email && walletData.walletAddress && (
             <AccountDetailsSection
+              canExportKey={!!walletData.canExportKey}
               email={walletData.email}
               isAdmin={isAdmin}
               onEmailUpdated={loadWallet}

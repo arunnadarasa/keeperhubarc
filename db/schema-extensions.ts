@@ -29,36 +29,49 @@ import { organization, users, workflows } from "@/lib/db/schema";
 import { generateId } from "@/lib/utils/id";
 
 /**
- * Para Wallets table
+ * Organization Wallets table
  *
- * Stores organization wallet information for Para (Web3) integration.
- * Each organization can have one wallet (enforced by unique constraint on organizationId).
- * The userShare is encrypted before storage for security.
+ * Stores wallet information for Web3 integration. Supports multiple providers
+ * (Para MPC, Turnkey secure enclaves). Each organization can have one wallet
+ * (enforced by unique constraint on organizationId).
+ *
+ * Provider-specific columns are nullable since each row only uses one provider's fields.
+ * The `provider` column determines which fields are relevant.
  *
  * NOTE: userId tracks who created the wallet, but the wallet belongs to the organization.
  * Only organization admins and owners can create/manage wallets.
  */
-export const paraWallets = pgTable("para_wallets", {
+export const organizationWallets = pgTable("organization_wallets", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => generateId()),
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  // TODO: Make this NOT NULL after migrating existing user wallets to organizations
   organizationId: text("organization_id")
-    .unique() // One wallet per organization
+    .unique()
     .references(() => organization.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull().$type<"para" | "turnkey">(),
   email: text("email").notNull(),
-  walletId: text("wallet_id").notNull(), // Para wallet ID
-  walletAddress: text("wallet_address").notNull(), // EVM address (0x...)
-  userShare: text("user_share").notNull(), // Encrypted keyshare for signing
+  walletAddress: text("wallet_address").notNull(),
+  // Para-specific fields
+  paraWalletId: text("para_wallet_id"),
+  userShare: text("user_share"), // Encrypted MPC keyshare (Para only)
+  // Turnkey-specific fields
+  turnkeySubOrgId: text("turnkey_sub_org_id"),
+  turnkeyWalletId: text("turnkey_wallet_id"),
+  turnkeyPrivateKeyId: text("turnkey_private_key_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Type exports for the Para Wallets table
-export type ParaWallet = typeof paraWallets.$inferSelect;
-export type NewParaWallet = typeof paraWallets.$inferInsert;
+// Backward compatibility alias
+export const paraWallets = organizationWallets;
+
+// Type exports
+export type OrganizationWallet = typeof organizationWallets.$inferSelect;
+export type NewOrganizationWallet = typeof organizationWallets.$inferInsert;
+export type ParaWallet = OrganizationWallet;
+export type NewParaWallet = NewOrganizationWallet;
 
 /**
  * Organization API Keys table

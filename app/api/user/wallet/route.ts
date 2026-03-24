@@ -10,7 +10,7 @@ import { apiError } from "@/lib/api-error";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { createIntegration } from "@/lib/db/integrations";
-import { integrations, paraWallets } from "@/lib/db/schema";
+import { integrations, organizationWallets } from "@/lib/db/schema";
 import { encryptUserShare } from "@/lib/encryption";
 import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
@@ -19,10 +19,13 @@ import {
   getOrganizationWallet,
   organizationHasWallet,
 } from "@/lib/para/wallet-helpers";
+import { createTurnkeyWallet } from "@/lib/turnkey/turnkey-client";
+import type { WalletProvider } from "@/lib/wallet/types";
 
-const PARA_API_KEY = process.env.PARA_API_KEY || "";
-const PARA_ENV = process.env.PARA_ENVIRONMENT || "beta";
+const PARA_API_KEY = process.env.PARA_API_KEY ?? "";
+const PARA_ENV = process.env.PARA_ENVIRONMENT ?? "beta";
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const VALID_PROVIDERS: WalletProvider[] = ["para", "turnkey"];
 
 // Helper: Validate user authentication, organization membership, and admin permissions
 async function validateUserAndOrganization(request: Request) {
@@ -190,37 +193,37 @@ function getErrorResponse(error: unknown) {
   return NextResponse.json({ error: errorMessage }, { status: statusCode });
 }
 
-// Helper: Store wallet in database and create integration
-async function storeWalletAndIntegration(options: {
+// Helper: Store Para wallet in database and create integration
+async function storeParaWalletAndIntegration(options: {
   userId: string;
   organizationId: string;
   email: string;
-  walletId: string;
+  paraWalletId: string;
   walletAddress: string;
   userShare: string;
-}) {
-  const { userId, organizationId, email, walletId, walletAddress, userShare } =
-    options;
-
-  const normalizedWalletAddress = normalizeAddressForStorage(walletAddress);
-
-  // Store wallet in para_wallets table (lowercase for consistency)
-  await db.insert(paraWallets).values({
+}): Promise<{ walletAddress: string; walletId: string }> {
+  const {
     userId,
     organizationId,
     email,
-    walletId,
+    paraWalletId,
+    walletAddress,
+    userShare,
+  } = options;
+
+  const normalizedWalletAddress = normalizeAddressForStorage(walletAddress);
+
+  await db.insert(organizationWallets).values({
+    userId,
+    organizationId,
+    provider: "para",
+    email,
     walletAddress: normalizedWalletAddress,
+    paraWalletId,
     userShare: encryptUserShare(userShare),
   });
 
-  console.log(
-    `[Para] Wallet created for organization ${organizationId}: ${normalizedWalletAddress}`
-  );
-
-  // Create Web3 integration record with truncated address as name
   const truncatedAddress = truncateAddress(normalizedWalletAddress);
-
   await createIntegration({
     userId,
     organizationId,
@@ -229,13 +232,52 @@ async function storeWalletAndIntegration(options: {
     config: {},
   });
 
-  console.log(`[Para] Web3 integration created: ${truncatedAddress}`);
+  return { walletAddress: normalizedWalletAddress, walletId: paraWalletId };
+}
 
-  return {
+// Helper: Store Turnkey wallet in database and create integration
+async function storeTurnkeyWalletAndIntegration(options: {
+  userId: string;
+  organizationId: string;
+  email: string;
+  walletAddress: string;
+  turnkeySubOrgId: string;
+  turnkeyWalletId: string;
+  turnkeyPrivateKeyId: string;
+}): Promise<{ walletAddress: string; walletId: string }> {
+  const {
+    userId,
+    organizationId,
+    email,
+    walletAddress,
+    turnkeySubOrgId,
+    turnkeyWalletId,
+    turnkeyPrivateKeyId,
+  } = options;
+
+  const normalizedWalletAddress = normalizeAddressForStorage(walletAddress);
+
+  await db.insert(organizationWallets).values({
+    userId,
+    organizationId,
+    provider: "turnkey",
+    email,
     walletAddress: normalizedWalletAddress,
-    walletId,
-    truncatedAddress,
-  };
+    turnkeySubOrgId,
+    turnkeyWalletId,
+    turnkeyPrivateKeyId,
+  });
+
+  const truncatedAddress = truncateAddress(normalizedWalletAddress);
+  await createIntegration({
+    userId,
+    organizationId,
+    name: truncatedAddress,
+    type: "web3",
+    config: {},
+  });
+
+  return { walletAddress: normalizedWalletAddress, walletId: turnkeyWalletId };
 }
 
 export async function GET(request: Request) {
@@ -254,7 +296,7 @@ export async function GET(request: Request) {
     if (!hasWallet) {
       return NextResponse.json({
         hasWallet: false,
-        message: "No Para wallet found for this organization",
+        message: "No wallet found for this organization",
       });
     }
 
@@ -262,8 +304,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       hasWallet: true,
+      provider: wallet.provider,
+      canExportKey: wallet.provider === "turnkey",
       walletAddress: wallet.walletAddress,
-      walletId: wallet.walletId,
+      walletId: wallet.paraWalletId ?? wallet.turnkeyWalletId,
       email: wallet.email,
       createdAt: wallet.createdAt,
       organizationId: wallet.organizationId,
@@ -294,9 +338,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Get email from request body (user-provided, pre-filled with their email)
-    const body = await request.json();
+    // 3. Parse request body
+    const body: { email?: string; provider?: string } = await request.json();
     const walletEmail = body.email;
+    const provider = (body.provider ?? "para") as WalletProvider;
 
     if (!walletEmail || typeof walletEmail !== "string") {
       return NextResponse.json(
@@ -305,7 +350,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Basic email validation
     if (!EMAIL_REGEX.test(walletEmail)) {
       return NextResponse.json(
         { error: "Invalid email format" },
@@ -313,31 +357,67 @@ export async function POST(request: Request) {
       );
     }
 
-    // 4. Create wallet via Para SDK using user-provided email
-    const { wallet, userShare } = await createParaWallet(walletEmail);
+    if (!VALID_PROVIDERS.includes(provider)) {
+      return NextResponse.json(
+        {
+          error: `Invalid provider. Must be one of: ${VALID_PROVIDERS.join(", ")}`,
+        },
+        { status: 400 }
+      );
+    }
 
-    // wallet.id and wallet.address are validated in createParaWallet
-    const walletId = wallet.id as string;
-    const walletAddress = wallet.address as string;
+    // 4. Create wallet via selected provider
+    if (provider === "turnkey") {
+      const orgName = `org-${organizationId.slice(0, 8)}`;
+      const turnkeyResult = await createTurnkeyWallet(walletEmail, orgName);
 
-    // 5. Store wallet and create integration (returns normalized lowercase address)
-    const { walletAddress: storedAddress } = await storeWalletAndIntegration({
-      userId: user.id,
-      organizationId,
-      email: walletEmail,
-      walletId,
-      walletAddress,
-      userShare,
-    });
+      const { walletAddress: storedAddress, walletId } =
+        await storeTurnkeyWalletAndIntegration({
+          userId: user.id,
+          organizationId,
+          email: walletEmail,
+          walletAddress: turnkeyResult.walletAddress,
+          turnkeySubOrgId: turnkeyResult.subOrgId,
+          turnkeyWalletId: turnkeyResult.walletId,
+          turnkeyPrivateKeyId: turnkeyResult.privateKeyId,
+        });
 
-    // 6. Return success (return stored lowercase address for consistency)
+      return NextResponse.json({
+        success: true,
+        wallet: {
+          address: storedAddress,
+          walletId,
+          email: walletEmail,
+          organizationId,
+          provider: "turnkey",
+        },
+      });
+    }
+
+    // Para wallet creation (default)
+    const { wallet: paraWallet, userShare } =
+      await createParaWallet(walletEmail);
+    const paraWalletId = paraWallet.id as string;
+    const paraAddress = paraWallet.address as string;
+
+    const { walletAddress: paraStoredAddress } =
+      await storeParaWalletAndIntegration({
+        userId: user.id,
+        organizationId,
+        email: walletEmail,
+        paraWalletId,
+        walletAddress: paraAddress,
+        userShare,
+      });
+
     return NextResponse.json({
       success: true,
       wallet: {
-        address: storedAddress,
-        walletId,
+        address: paraStoredAddress,
+        walletId: paraWalletId,
         email: walletEmail,
         organizationId,
+        provider: "para",
       },
     });
   } catch (error) {
@@ -379,8 +459,8 @@ export async function PATCH(request: Request) {
     // 3. Get existing wallet from database
     const existingWallet = await db
       .select()
-      .from(paraWallets)
-      .where(eq(paraWallets.organizationId, organizationId))
+      .from(organizationWallets)
+      .where(eq(organizationWallets.organizationId, organizationId))
       .limit(1);
 
     if (existingWallet.length === 0) {
@@ -400,36 +480,30 @@ export async function PATCH(request: Request) {
       );
     }
 
-    // 5. Update wallet identifier in Para
-    const environment =
-      PARA_ENV === "prod" ? Environment.PROD : Environment.BETA;
-    const paraClient = new ParaServer(environment, PARA_API_KEY);
+    // 5. Update wallet identifier in provider (Para only)
+    if (wallet.provider === "para" && wallet.paraWalletId) {
+      const environment =
+        PARA_ENV === "prod" ? Environment.PROD : Environment.BETA;
+      const paraClient = new ParaServer(environment, PARA_API_KEY);
 
-    console.log(
-      `[Para] Updating wallet email for organization ${organizationId}: ${wallet.email} -> ${newEmail}`
-    );
-
-    await paraClient.updatePregenWalletIdentifier({
-      walletId: wallet.walletId,
-      newPregenId: { email: newEmail },
-    });
+      await paraClient.updatePregenWalletIdentifier({
+        walletId: wallet.paraWalletId,
+        newPregenId: { email: newEmail },
+      });
+    }
 
     // 6. Update email in local database
     await db
-      .update(paraWallets)
+      .update(organizationWallets)
       .set({ email: newEmail })
-      .where(eq(paraWallets.organizationId, organizationId));
-
-    console.log(
-      `[Para] Wallet email updated for organization ${organizationId}: ${newEmail}`
-    );
+      .where(eq(organizationWallets.organizationId, organizationId));
 
     return NextResponse.json({
       success: true,
       message: "Wallet email updated successfully",
       wallet: {
         address: wallet.walletAddress,
-        walletId: wallet.walletId,
+        walletId: wallet.paraWalletId ?? wallet.turnkeyWalletId,
         email: newEmail,
         organizationId,
       },
@@ -459,8 +533,8 @@ export async function DELETE(request: Request) {
 
     // 2. Delete wallet data for this organization
     const deletedWallet = await db
-      .delete(paraWallets)
-      .where(eq(paraWallets.organizationId, organizationId))
+      .delete(organizationWallets)
+      .where(eq(organizationWallets.organizationId, organizationId))
       .returning();
 
     if (deletedWallet.length === 0) {
@@ -469,10 +543,6 @@ export async function DELETE(request: Request) {
         { status: 404 }
       );
     }
-
-    console.log(
-      `[Para] Wallet deleted for organization ${organizationId}: ${deletedWallet[0].walletAddress}`
-    );
 
     // 3. Delete associated Web3 integration record
     await db
@@ -483,10 +553,6 @@ export async function DELETE(request: Request) {
           eq(integrations.type, "web3")
         )
       );
-
-    console.log(
-      `[Para] Web3 integration deleted for organization ${organizationId}`
-    );
 
     return NextResponse.json({
       success: true,

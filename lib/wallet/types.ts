@@ -120,12 +120,16 @@ export type SupportedTokenBalance = {
 // Wallet Types
 // ============================================================================
 
+export type WalletProvider = "para" | "turnkey";
+
 export type WalletData = {
   hasWallet: boolean;
+  provider?: WalletProvider;
   walletAddress?: string;
   walletId?: string;
   email?: string;
   createdAt?: string;
+  canExportKey?: boolean;
 };
 
 // ============================================================================
