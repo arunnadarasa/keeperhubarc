@@ -7,6 +7,7 @@ import {
   ChevronRight,
   CreditCard,
   Globe,
+  Info,
   List,
   Loader2,
   Plus,
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { DiscordIcon } from "@/components/icons/discord-icon";
 import {
   Tooltip,
   TooltipContent,
@@ -825,6 +827,52 @@ export function NavigationSidebar(): React.ReactNode {
             />
           ))}
         </nav>
+
+        <div className="flex flex-col gap-1 border-t px-2.5 py-3">
+          {(
+            [
+              {
+                icon: DiscordIcon,
+                label: "Join Discord",
+                href: "https://discord.gg/keeperhub",
+              },
+              {
+                icon: Info,
+                label: "Documentation",
+                href: "https://docs.keeperhub.com",
+              },
+            ] as const
+          ).map((item) => {
+            const link = (
+              <a
+                className={cn(
+                  "flex h-9 w-full items-center rounded-md transition-colors hover:bg-muted",
+                  showLabels ? "gap-3 px-2" : "justify-center"
+                )}
+                href={item.href}
+                key={item.label}
+                rel="noopener"
+                target="_blank"
+              >
+                <item.icon className="size-4 shrink-0" />
+                {showLabels && (
+                  <span className="truncate text-sm">{item.label}</span>
+                )}
+              </a>
+            );
+
+            if (showLabels) {
+              return link;
+            }
+
+            return (
+              <Tooltip key={item.label}>
+                <TooltipTrigger asChild>{link}</TooltipTrigger>
+                <TooltipContent side="right">{item.label}</TooltipContent>
+              </Tooltip>
+            );
+          })}
+        </div>
 
         {/* Resize handle */}
         {/* biome-ignore lint/a11y/useSemanticElements: custom resize handle */}
