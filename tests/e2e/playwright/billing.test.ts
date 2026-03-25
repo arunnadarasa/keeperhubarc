@@ -13,6 +13,7 @@ const CONFIRM_OR_YES_RE = /confirm|yes/i;
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
+// biome-ignore lint/suspicious/noSkippedTests: billing tests unreliable in ephemeral CI - mocked subscription API + serial auth cause cascading failures
 test.describe.skip("Billing", () => {
   test.describe.configure({ mode: "serial" });
 
