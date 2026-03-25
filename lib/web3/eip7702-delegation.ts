@@ -2,8 +2,8 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import type { Address, Hex } from "viem";
 import { createPublicClient, http } from "viem";
-import { gasSponsorshipDelegations } from "@/db/schema-extensions";
 import { db } from "@/lib/db";
+import { gasSponsorshipDelegations } from "@/lib/db/schema-extensions";
 import { getSimpleAccount7702Address } from "@/lib/web3/pimlico-config";
 
 /**

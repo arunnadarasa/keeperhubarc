@@ -122,7 +122,7 @@ export function useOnboardingStatus(): OnboardingStatus {
 
       const results = await Promise.allSettled([
         fetch("/api/workflows").then((r) => r.json()),
-        fetch("/api/keeperhub/keys").then((r) => r.json()),
+        fetch("/api/keys").then((r) => r.json()),
         fetch("/api/user/wallet").then((r) => r.json()),
       ]);
 

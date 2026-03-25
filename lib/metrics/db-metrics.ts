@@ -448,6 +448,7 @@ export type UserListEntry = {
   email: string;
   name: string;
   verified: boolean;
+  createdAt: Date;
 };
 
 export async function getUserListFromDb(): Promise<UserListEntry[]> {
@@ -457,6 +458,7 @@ export async function getUserListFromDb(): Promise<UserListEntry[]> {
         email: users.email,
         name: users.name,
         verified: users.emailVerified,
+        createdAt: users.createdAt,
       })
       .from(users)
       .where(eq(users.isAnonymous, false));
@@ -465,6 +467,7 @@ export async function getUserListFromDb(): Promise<UserListEntry[]> {
       email: row.email ?? "unknown",
       name: row.name ?? "unknown",
       verified: row.verified,
+      createdAt: row.createdAt,
     }));
   } catch (error) {
     console.error("[Metrics] Failed to query user list from DB:", error);

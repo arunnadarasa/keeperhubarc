@@ -1,8 +1,11 @@
 import "server-only";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { createPublicClient, http } from "viem";
-import { gasCreditAllocations, gasCreditUsage } from "@/db/schema-extensions";
 import { db } from "@/lib/db";
+import {
+  gasCreditAllocations,
+  gasCreditUsage,
+} from "@/lib/db/schema-extensions";
 import {
   AGGREGATOR_V3_ABI,
   getEthUsdFeedAddress,

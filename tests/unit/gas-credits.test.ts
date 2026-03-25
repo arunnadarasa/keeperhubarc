@@ -39,7 +39,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/db/schema-extensions", () => ({
+vi.mock("@/lib/db/schema-extensions", () => ({
   gasCreditAllocations: {
     organizationId: "organizationId",
     periodStart: "periodStart",
