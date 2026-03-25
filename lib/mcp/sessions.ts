@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { logMcpEvent } from "@/lib/mcp/logging";
 
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -22,10 +23,19 @@ export function getSession(sessionId: string): SessionEntry | undefined {
 
 export function setSession(sessionId: string, entry: SessionEntry): void {
   sessions.set(sessionId, entry);
+  logMcpEvent("mcp.session.created", {
+    sessionId,
+    orgId: entry.organizationId,
+  });
 }
 
 export function deleteSession(sessionId: string): void {
+  const entry = sessions.get(sessionId);
   sessions.delete(sessionId);
+  logMcpEvent("mcp.session.terminated", {
+    sessionId,
+    orgId: entry?.organizationId,
+  });
 }
 
 export function touchSession(sessionId: string): void {
@@ -42,6 +52,10 @@ export function cleanupExpiredSessions(): void {
       entry.server.close().catch(() => undefined);
       entry.transport.close().catch(() => undefined);
       sessions.delete(sessionId);
+      logMcpEvent("mcp.session.expired", {
+        sessionId,
+        orgId: entry.organizationId,
+      });
     }
   }
 }

@@ -2,7 +2,9 @@ import "server-only";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { type ApiKeyAuthResult, authenticateApiKey } from "@/lib/api-key-auth";
+import { logMcpEvent } from "@/lib/mcp/logging";
 import { authenticateOAuthToken } from "@/lib/mcp/oauth-auth";
+import { checkMcpRateLimit } from "@/lib/mcp/rate-limit";
 import { createMcpServer } from "@/lib/mcp/server";
 import {
   deleteSession,
@@ -13,6 +15,14 @@ import {
 } from "@/lib/mcp/sessions";
 
 export const dynamic = "force-dynamic";
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers":
+    "Authorization, Content-Type, Mcp-Session-Id, Mcp-Protocol-Version",
+  "Access-Control-Expose-Headers": "Mcp-Session-Id",
+} as const;
 
 // Start the session cleanup interval once per process lifetime
 startCleanupInterval();
@@ -54,36 +64,69 @@ function isInitializeRequestBody(body: unknown): boolean {
   return isInitializeRequest(body);
 }
 
+function rateLimitResponse(retryAfter: number): Response {
+  return new Response(
+    JSON.stringify({
+      jsonrpc: "2.0",
+      error: { code: -32_029, message: "Rate limit exceeded" },
+      id: null,
+    }),
+    {
+      status: 429,
+      headers: {
+        "Content-Type": "application/json",
+        "Retry-After": String(retryAfter),
+        ...CORS_HEADERS,
+      },
+    }
+  );
+}
+
+export function OPTIONS(): Response {
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
+}
+
+function handleExistingSession(
+  request: Request,
+  sessionId: string,
+  organizationId: string
+): Response | Promise<Response> {
+  const session = getSession(sessionId);
+  if (!session || session.organizationId !== organizationId) {
+    return new Response(JSON.stringify({ error: "Session not found" }), {
+      status: 404,
+      headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    });
+  }
+  touchSession(sessionId);
+  return session.transport.handleRequest(request);
+}
+
 export async function POST(request: Request): Promise<Response> {
   const auth = await authenticate(request);
   if (!auth.authenticated) {
+    logMcpEvent("mcp.auth.failed", { reason: auth.error ?? "Unauthorized" });
     return new Response(
       JSON.stringify({ error: auth.error ?? "Unauthorized" }),
       {
         status: auth.statusCode ?? 401,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...CORS_HEADERS },
       }
     );
+  }
+
+  const organizationId = auth.organizationId ?? "";
+
+  const rateLimit = checkMcpRateLimit(organizationId);
+  if (!rateLimit.allowed) {
+    logMcpEvent("mcp.rate.limited", { orgId: organizationId });
+    return rateLimitResponse(rateLimit.retryAfter);
   }
 
   const sessionId = request.headers.get("mcp-session-id");
 
   if (sessionId) {
-    const session = getSession(sessionId);
-    if (!session) {
-      return new Response(JSON.stringify({ error: "Session not found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-    if (session.organizationId !== auth.organizationId) {
-      return new Response(JSON.stringify({ error: "Session not found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-    touchSession(sessionId);
-    return session.transport.handleRequest(request);
+    return handleExistingSession(request, sessionId, organizationId);
   }
 
   // No session ID - must be an initialize request.
@@ -95,7 +138,7 @@ export async function POST(request: Request): Promise<Response> {
   } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
       status: 400,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...CORS_HEADERS },
     });
   }
 
@@ -106,7 +149,7 @@ export async function POST(request: Request): Promise<Response> {
       }),
       {
         status: 400,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...CORS_HEADERS },
       }
     );
   }
@@ -116,12 +159,11 @@ export async function POST(request: Request): Promise<Response> {
       JSON.stringify({ error: "API key missing organization context" }),
       {
         status: 403,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...CORS_HEADERS },
       }
     );
   }
 
-  const organizationId = auth.organizationId;
   const apiKeyId = auth.apiKeyId;
 
   const transport = new WebStandardStreamableHTTPServerTransport({
@@ -156,11 +198,12 @@ export async function POST(request: Request): Promise<Response> {
 export async function GET(request: Request): Promise<Response> {
   const auth = await authenticate(request);
   if (!auth.authenticated) {
+    logMcpEvent("mcp.auth.failed", { reason: auth.error ?? "Unauthorized" });
     return new Response(
       JSON.stringify({ error: auth.error ?? "Unauthorized" }),
       {
         status: auth.statusCode ?? 401,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...CORS_HEADERS },
       }
     );
   }
@@ -171,7 +214,7 @@ export async function GET(request: Request): Promise<Response> {
       JSON.stringify({ error: "Missing mcp-session-id header" }),
       {
         status: 400,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...CORS_HEADERS },
       }
     );
   }
@@ -180,13 +223,13 @@ export async function GET(request: Request): Promise<Response> {
   if (!session) {
     return new Response(JSON.stringify({ error: "Session not found" }), {
       status: 404,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...CORS_HEADERS },
     });
   }
   if (session.organizationId !== auth.organizationId) {
     return new Response(JSON.stringify({ error: "Session not found" }), {
       status: 404,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...CORS_HEADERS },
     });
   }
 
@@ -197,11 +240,12 @@ export async function GET(request: Request): Promise<Response> {
 export async function DELETE(request: Request): Promise<Response> {
   const auth = await authenticate(request);
   if (!auth.authenticated) {
+    logMcpEvent("mcp.auth.failed", { reason: auth.error ?? "Unauthorized" });
     return new Response(
       JSON.stringify({ error: auth.error ?? "Unauthorized" }),
       {
         status: auth.statusCode ?? 401,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...CORS_HEADERS },
       }
     );
   }
@@ -212,7 +256,7 @@ export async function DELETE(request: Request): Promise<Response> {
       JSON.stringify({ error: "Missing mcp-session-id header" }),
       {
         status: 400,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...CORS_HEADERS },
       }
     );
   }
@@ -221,13 +265,13 @@ export async function DELETE(request: Request): Promise<Response> {
   if (!session) {
     return new Response(JSON.stringify({ error: "Session not found" }), {
       status: 404,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...CORS_HEADERS },
     });
   }
   if (session.organizationId !== auth.organizationId) {
     return new Response(JSON.stringify({ error: "Session not found" }), {
       status: 404,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...CORS_HEADERS },
     });
   }
 
@@ -235,5 +279,5 @@ export async function DELETE(request: Request): Promise<Response> {
   await session.transport.close();
   deleteSession(sessionId);
 
-  return new Response(null, { status: 204 });
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
 }
