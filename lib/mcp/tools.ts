@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { flattenConfigFields, getAllIntegrations } from "@/plugins/registry";
 
 type ApiResponse = Record<string, unknown>;
 
@@ -616,4 +617,66 @@ export function registerTools(
       };
     }
   );
+}
+
+// =============================================================================
+// Dynamic tool registration from plugin registry
+// =============================================================================
+
+function slugToToolName(integration: string, slug: string): string {
+  const combined = `${integration}_${slug}`;
+  return combined.replace(/[\s/-]/g, "_");
+}
+
+export function registerDynamicTools(
+  server: McpServer,
+  baseUrl: string,
+  authHeader: string
+): void {
+  const plugins = getAllIntegrations();
+
+  for (const plugin of plugins) {
+    for (const action of plugin.actions) {
+      const toolName = slugToToolName(plugin.type, action.slug);
+      const flatFields = flattenConfigFields(action.configFields);
+
+      const inputSchema: Record<string, z.ZodTypeAny> = {
+        organizationId: z
+          .string()
+          .optional()
+          .describe(
+            "Optional organization ID to override the API key's default org."
+          ),
+      };
+
+      for (const field of flatFields) {
+        const fieldSchema = field.required
+          ? z.string().describe(field.label)
+          : z.string().optional().describe(field.label);
+        inputSchema[field.key] = fieldSchema;
+      }
+
+      const integration = plugin.type;
+      const slug = action.slug;
+      const description = action.description;
+
+      server.tool(toolName, description, inputSchema, async (args) => {
+        const { organizationId, ...fieldArgs } = args as Record<
+          string,
+          string | undefined
+        >;
+        const data = await callApi(
+          baseUrl,
+          authHeader,
+          `/api/execute/${integration}/${slug}`,
+          "POST",
+          fieldArgs,
+          organizationId
+        );
+        return {
+          content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+        };
+      });
+    }
+  }
 }
