@@ -177,8 +177,9 @@ pnpm test:e2e         # E2E tests
 | **Block** | Monitors blockchain blocks via WebSocket, dispatches matching workflows to SQS | `keeperhub-scheduler/block-dispatcher/` |
 | **Event** | Monitors blockchain events and routes to SQS | `keeperhub-events/event-tracker/` |
 | **Executor** | Polls SQS for all trigger types, executes workflows in-process or as K8s Jobs | `keeperhub-executor/` |
+| **Workflow Runner** | Isolated container for executing web3 write workflows in K8s Jobs | `keeperhub-executor/workflow-runner.ts` |
 
-All trigger services (scheduler, block, event) send messages to a shared SQS queue. The executor consumes from this queue and runs workflows.
+All trigger services (scheduler, block, event) send messages to a shared SQS queue. The executor consumes from this queue and runs workflows either in-process (read-only/conditions) or in isolated K8s Job containers using the workflow-runner image (web3 writes).
 
 ### Tech Stack
 
