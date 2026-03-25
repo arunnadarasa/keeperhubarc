@@ -17,7 +17,6 @@
 #   MAX_ROUNDS=10        Maximum scaling rounds
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_URL="${1:?Usage: $0 <base_url>}"
 USERS="${USERS:-20}"
 WF_PER_ROUND="${WF_PER_ROUND:-5}"
@@ -527,7 +526,7 @@ else:
       triggered_no_id) local_success=$((local_success + 1)) ;;
     esac
 
-    remaining=$((OBSERVE_WINDOW - ($(date +%s) - obs_start)))
+    # remaining time calculated inline below
     total_triggered=$((local_success + local_error + local_timeout + local_trigger_fail))
     if [ $((total_triggered % 10)) -eq 0 ] && [ "$total_triggered" -gt 0 ]; then
       echo "  [${elapsed}s/${OBSERVE_WINDOW}s] triggered: $total_triggered | success: $local_success | error: $local_error | timeout: $local_timeout | fail: $local_trigger_fail"
