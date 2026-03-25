@@ -465,6 +465,7 @@ services:
       - .:/app
       - keeperhub_test_node_modules:/app/node_modules
     environment:
+      <<: *env_service_keys
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@test-db:5432/${POSTGRES_DB:-workflow_builder_test}
       AWS_ENDPOINT_URL: http://test-localstack:4566
       AWS_REGION: us-east-1
@@ -496,16 +497,18 @@ services:
       - .:/app
       - keeperhub_test_node_modules:/app/node_modules
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@test-db:5432/${POSTGRES_DB:-workflow_builder_test}
+      KEEPERHUB_API_URL: http://test-app:3000
+      KEEPERHUB_API_KEY: ${KEEPERHUB_API_KEY:-local-scheduler-key-for-dev}
       AWS_ENDPOINT_URL: http://test-localstack:4566
       AWS_REGION: us-east-1
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       SQS_QUEUE_URL: http://test-localstack:4566/000000000000/keeperhub-workflow-queue
+      HEALTH_PORT: "3060"
     depends_on:
       test-app:
         condition: service_healthy
-    command: sh -c "npm install -g pnpm && while true; do npx tsx scripts/scheduler/schedule-dispatcher.ts; sleep 10; done"
+    command: sh -c "npm install -g pnpm && npx tsx keeperhub-scheduler/schedule-dispatcher/index.ts"
     profiles:
       - test
 

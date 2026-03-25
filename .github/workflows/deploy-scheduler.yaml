@@ -1,4 +1,4 @@
-# Type: standalone | Builds and deploys scheduler services (dispatcher, executor, block-dispatcher).
+# Type: standalone | Builds and deploys scheduler services (dispatcher, block-dispatcher).
 # Runs independently from ci-pipeline.yml because the scheduler has its own
 # Dockerfile, ECR repos, and Helm releases separate from the main app.
 on:
@@ -33,7 +33,6 @@ jobs:
       NAMESPACE: keeperhub
       SCHEDULER_ECR_NAME: keeperhub-scheduler-${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
       DISPATCHER_HELM_FILE: deploy/scheduler/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/dispatcher-values.yaml
-      EXECUTOR_HELM_FILE: deploy/scheduler/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/executor-values.yaml
       BLOCK_DISPATCHER_HELM_FILE: deploy/scheduler/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/block-dispatcher-values.yaml
 
     steps:
@@ -74,7 +73,7 @@ jobs:
         if: steps.skip.outputs.skip_build == 'true'
         run: |
           IMAGE_TAG="${{ steps.vars.outputs.sha_short }}"
-          for prefix in dispatcher executor block-dispatcher; do
+          for prefix in dispatcher block-dispatcher; do
             if ! aws ecr describe-images \
               --repository-name "$SCHEDULER_ECR_NAME" \
               --image-ids "imageTag=${prefix}-${IMAGE_TAG}" \
@@ -105,7 +104,7 @@ jobs:
           IMAGE_TAG: ${{ steps.vars.outputs.sha_short }}
           AWS_ACCOUNT_ID: ${{ vars.TO_AWS_ACCOUNT_ID }}
         run: |
-          for f in "$DISPATCHER_HELM_FILE" "$EXECUTOR_HELM_FILE" "$BLOCK_DISPATCHER_HELM_FILE"; do
+          for f in "$DISPATCHER_HELM_FILE" "$BLOCK_DISPATCHER_HELM_FILE"; do
             sed -i "s|\${ECR_REGISTRY}|${ECR_REGISTRY}|g" "$f"
             sed -i "s|\${IMAGE_TAG}|${IMAGE_TAG}|g" "$f"
             sed -i "s|\${AWS_ACCOUNT_ID}|${AWS_ACCOUNT_ID}|g" "$f"
@@ -131,20 +130,6 @@ jobs:
           namespace: ${{ env.NAMESPACE }}
           timeout: 5m0s
           name: keeperhub-scheduler-dispatcher
-          chart-repository: https://techops-services.github.io/helm-charts
-          version: 0.2.1
-          atomic: true
-
-      - name: Deploy scheduler-executor
-        if: steps.skip.outputs.skip_deploy != 'true'
-        uses: bitovi/github-actions-deploy-eks-helm@v1.2.12
-        with:
-          cluster-name: ${{ env.CLUSTER_NAME }}
-          config-files: ${{ env.EXECUTOR_HELM_FILE }}
-          chart-path: techops-services/common
-          namespace: ${{ env.NAMESPACE }}
-          timeout: 5m0s
-          name: keeperhub-scheduler-executor
           chart-repository: https://techops-services.github.io/helm-charts
           version: 0.2.1
           atomic: true
