@@ -72,8 +72,8 @@ target "event-tracker" {
   context    = "./keeperhub-events"
   dockerfile = "event-tracker/Dockerfile"
   tags = compact([
-    "${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:app-${IMAGE_TAG}",
-    "${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:app-latest",
+    "${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:event-${IMAGE_TAG}",
+    "${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:event-latest",
     ENVIRONMENT_TAG != "" ? "${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:${ENVIRONMENT_TAG}" : "",
   ])
   cache-from = ["type=registry,ref=${ECR_REGISTRY}/${EVENTS_ECR_TRACKER_REPO}:cache"]

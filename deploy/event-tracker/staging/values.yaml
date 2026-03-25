@@ -14,7 +14,7 @@ ingress:
 
 image:
   repository: ${ECR_REGISTRY}/keeperhub-event-staging
-  tag: app-${IMAGE_TAG}
+  tag: event-${IMAGE_TAG}
   pullPolicy: Always
 
 deployment:
