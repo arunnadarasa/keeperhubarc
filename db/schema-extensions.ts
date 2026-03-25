@@ -66,7 +66,7 @@ export const organizationWallets = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
-    unique("uq_org_wallet_provider").on(table.organizationId, table.provider),
+    unique("uq_org_wallet").on(table.organizationId),
     index("idx_org_wallets_org").on(table.organizationId),
   ]
 );

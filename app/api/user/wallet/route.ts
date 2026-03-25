@@ -86,25 +86,19 @@ async function validateUserAndOrganization(request: Request) {
   return { user, organizationId: activeOrgId, member: activeMember };
 }
 
-// Helper: Check if wallet already exists for this organization + provider combo
+// Helper: Check if a wallet already exists for this organization (one wallet per org)
 async function checkExistingWallet(
-  organizationId: string,
-  provider: WalletProvider
+  organizationId: string
 ): Promise<{ error: string; status: number } | { valid: true }> {
   const existing = await db
     .select({ id: organizationWallets.id })
     .from(organizationWallets)
-    .where(
-      and(
-        eq(organizationWallets.organizationId, organizationId),
-        eq(organizationWallets.provider, provider)
-      )
-    )
+    .where(eq(organizationWallets.organizationId, organizationId))
     .limit(1);
 
   if (existing.length > 0) {
     return {
-      error: `A ${provider} wallet already exists for this organization`,
+      error: "A wallet already exists for this organization",
       status: 400,
     };
   }
@@ -358,8 +352,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // 4. Check if this provider's wallet already exists
-    const existingCheck = await checkExistingWallet(organizationId, provider);
+    // 4. Check if a wallet already exists for this organization
+    const existingCheck = await checkExistingWallet(organizationId);
     if ("error" in existingCheck) {
       return NextResponse.json(
         { error: existingCheck.error },

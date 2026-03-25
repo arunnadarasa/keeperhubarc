@@ -4,6 +4,7 @@ import { Environment, Para as ParaServer } from "@getpara/server-sdk";
 import { TurnkeySigner } from "@turnkey/ethers";
 import { eq } from "drizzle-orm";
 import type { ethers } from "ethers";
+import { toChecksumAddress } from "@/lib/address-utils";
 import { db } from "@/lib/db";
 import { type OrganizationWallet, organizationWallets } from "@/lib/db/schema";
 import { decryptUserShare } from "@/lib/encryption";
@@ -52,7 +53,7 @@ export async function getUserWallet(userId: string) {
  * Initialize an ethers-compatible signer for the organization's wallet.
  * Dispatches to the correct provider (Para MPC or Turnkey secure enclave).
  */
-export async function initializeParaSigner(
+export async function initializeWalletSigner(
   organizationId: string,
   rpcUrl: string
 ): Promise<ethers.Signer> {
@@ -77,7 +78,7 @@ function initializeTurnkeySigner(
 
   const config = getTurnkeySignerConfig(
     wallet.turnkeySubOrgId,
-    wallet.walletAddress
+    toChecksumAddress(wallet.walletAddress)
   );
 
   const signer = new TurnkeySigner({

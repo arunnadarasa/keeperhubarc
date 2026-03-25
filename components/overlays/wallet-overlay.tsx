@@ -48,8 +48,6 @@ import type {
   TokenBalance,
   TokenData,
   WalletData,
-  WalletInfo,
-  WalletProvider,
 } from "@/lib/wallet/types";
 import { useWalletBalances } from "@/lib/wallet/use-wallet-balances";
 import { type WithdrawableAsset, WithdrawModal } from "./withdraw-modal";
@@ -820,116 +818,6 @@ function NoWalletSection({
 // Main Component
 // ============================================================================
 
-// Component for account details section (email + wallet address)
-function AddTurnkeyWalletSection({
-  initialEmail,
-  existingEmail,
-  onCreateWallet,
-  onWalletCreated,
-}: {
-  initialEmail: string;
-  existingEmail?: string;
-  onCreateWallet: (
-    email: string,
-    provider: WalletProviderOption
-  ) => Promise<void>;
-  onWalletCreated: () => void;
-}): React.ReactElement {
-  const [expanded, setExpanded] = useState(false);
-  const [email, setEmail] = useState(initialEmail);
-  const [creating, setCreating] = useState(false);
-
-  const handleCreate = async (): Promise<void> => {
-    if (!email) {
-      toast.error("Email is required");
-      return;
-    }
-    setCreating(true);
-    try {
-      await onCreateWallet(email, "turnkey");
-      toast.success("Turnkey wallet created successfully!");
-      setExpanded(false);
-      onWalletCreated();
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to create wallet"
-      );
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  if (!expanded) {
-    return (
-      <Button
-        className="w-full"
-        onClick={() => setExpanded(true)}
-        size="sm"
-        variant="outline"
-      >
-        <ShieldCheck className="mr-2 h-3 w-3" />
-        Add Turnkey Wallet
-      </Button>
-    );
-  }
-
-  return (
-    <div className="space-y-3 rounded-lg border bg-muted/50 p-4">
-      <div>
-        <h3 className="mb-1 font-medium text-sm">Add Turnkey Wallet</h3>
-        <p className="text-muted-foreground text-xs">
-          Turnkey uses secure enclaves and supports private key export.
-        </p>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="turnkey-email">Email Address</Label>
-        <Input
-          disabled={creating}
-          id="turnkey-email"
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
-          type="email"
-          value={email}
-        />
-        {existingEmail && existingEmail !== email && (
-          <button
-            className="text-primary text-xs hover:underline"
-            onClick={() => setEmail(existingEmail)}
-            type="button"
-          >
-            Use same email as Para wallet ({existingEmail})
-          </button>
-        )}
-      </div>
-      <div className="flex gap-2">
-        <Button
-          disabled={creating}
-          onClick={() => setExpanded(false)}
-          size="sm"
-          variant="outline"
-        >
-          Cancel
-        </Button>
-        <Button
-          className="flex-1"
-          disabled={creating || !email}
-          onClick={handleCreate}
-          size="sm"
-        >
-          {creating ? (
-            <>
-              <Spinner className="mr-2 h-3 w-3" />
-              Creating...
-            </>
-          ) : (
-            "Create Turnkey Wallet"
-          )}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 type ExportStep = "idle" | "requesting" | "otp" | "verifying" | "done";
 
 function ExportPrivateKeyButton(): React.ReactElement {
@@ -1293,7 +1181,6 @@ export function WalletOverlay({ overlayId }: WalletOverlayProps) {
 
   const [walletLoading, setWalletLoading] = useState(true);
   const [walletData, setWalletData] = useState<WalletData | null>(null);
-  const [activeProvider, setActiveProvider] = useState<WalletProvider>("para");
   const [chains, setChains] = useState<ChainData[]>([]);
   const [tokens, setTokens] = useState<TokenData[]>([]);
   const [supportedTokens, setSupportedTokens] = useState<SupportedToken[]>([]);
@@ -1620,78 +1507,34 @@ export function WalletOverlay({ overlayId }: WalletOverlayProps) {
         </div>
       )}
 
-      {!walletLoading && walletData?.hasWallet && (() => {
-        const wallets = walletData.wallets ?? [];
-        const hasMultiple = wallets.length > 1;
-        const activeWallet = hasMultiple
-          ? wallets.find((w) => w.provider === activeProvider) ?? wallets[0]
-          : wallets[0] ?? walletData;
-        const missingProviders: WalletProvider[] = [];
-        const existingProviders = new Set(wallets.map((w) => w.provider));
-        if (!existingProviders.has("turnkey")) {
-          missingProviders.push("turnkey");
-        }
-        if (!existingProviders.has("para")) {
-          missingProviders.push("para");
-        }
-
-        return (
-          <div className="space-y-4">
-            {hasMultiple && (
-              <div className="flex gap-1 rounded-lg border border-border/30 p-0.5">
-                {wallets.map((w) => (
-                  <button
-                    className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                      activeProvider === w.provider
-                        ? "bg-muted text-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                    key={w.provider}
-                    onClick={() => setActiveProvider(w.provider as WalletProvider)}
-                    type="button"
-                  >
-                    {w.provider === "para" ? "Para" : "Turnkey"}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {activeWallet?.email && activeWallet?.walletAddress && (
-              <AccountDetailsSection
-                canExportKey={!!activeWallet.canExportKey}
-                email={activeWallet.email}
-                isAdmin={isAdmin}
-                onEmailUpdated={loadWallet}
-                walletAddress={activeWallet.walletAddress}
-              />
-            )}
-
-            <BalanceListSection
-              balances={balances}
-              chains={chains}
+      {!walletLoading && walletData?.hasWallet && (
+        <div className="space-y-4">
+          {walletData.email && walletData.walletAddress && (
+            <AccountDetailsSection
+              canExportKey={!!walletData.canExportKey}
+              email={walletData.email}
               isAdmin={isAdmin}
-              onAddToken={handleAddToken}
-              onRefresh={handleRefresh}
-              onRemoveToken={handleRemoveToken}
-              onWithdraw={handleWithdraw}
-              refreshing={refreshing}
-              setShowAddToken={setShowAddToken}
-              showAddToken={showAddToken}
-              supportedTokenBalances={supportedTokenBalances}
-              tokenBalances={tokenBalances}
+              onEmailUpdated={loadWallet}
+              walletAddress={walletData.walletAddress}
             />
+          )}
 
-            {isAdmin && missingProviders.length > 0 && (
-              <AddTurnkeyWalletSection
-                existingEmail={activeWallet?.email}
-                initialEmail={session?.user?.email ?? ""}
-                onCreateWallet={handleCreateWallet}
-                onWalletCreated={loadWallet}
-              />
-            )}
-          </div>
-        );
-      })()}
+          <BalanceListSection
+            balances={balances}
+            chains={chains}
+            isAdmin={isAdmin}
+            onAddToken={handleAddToken}
+            onRefresh={handleRefresh}
+            onRemoveToken={handleRemoveToken}
+            onWithdraw={handleWithdraw}
+            refreshing={refreshing}
+            setShowAddToken={setShowAddToken}
+            showAddToken={showAddToken}
+            supportedTokenBalances={supportedTokenBalances}
+            tokenBalances={tokenBalances}
+          />
+        </div>
+      )}
 
       {!(walletLoading || walletData?.hasWallet) && (
         <NoWalletSection

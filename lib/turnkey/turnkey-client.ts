@@ -157,6 +157,10 @@ export async function exportTurnkeyPrivateKey(
 
 /**
  * Initialize a Turnkey ethers signer for transaction signing.
+ *
+ * Creates a Turnkey client scoped to the sub-organization. The TurnkeySigner
+ * SDK path uses the client's defaultOrganizationId (not the config's
+ * organizationId), so we must create a client per sub-org.
  */
 export function getTurnkeySignerConfig(
   subOrgId: string,
@@ -166,7 +170,22 @@ export function getTurnkeySignerConfig(
   organizationId: string;
   signWith: string;
 } {
-  const turnkey = getTurnkeyClient();
+  const apiPublicKey = process.env.TURNKEY_API_PUBLIC_KEY;
+  const apiPrivateKey = process.env.TURNKEY_API_PRIVATE_KEY;
+
+  if (!(apiPublicKey && apiPrivateKey)) {
+    throw new Error(
+      "TURNKEY_API_PUBLIC_KEY and TURNKEY_API_PRIVATE_KEY must be set"
+    );
+  }
+
+  const turnkey = new Turnkey({
+    apiBaseUrl: "https://api.turnkey.com",
+    apiPublicKey,
+    apiPrivateKey,
+    defaultOrganizationId: subOrgId,
+  });
+
   return {
     client: turnkey.apiClient(),
     organizationId: subOrgId,
