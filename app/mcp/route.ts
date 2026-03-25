@@ -16,7 +16,10 @@ export const dynamic = "force-dynamic";
 // Start the session cleanup interval once per process lifetime
 startCleanupInterval();
 
-function deriveBaseUrl(request: Request): string {
+function getBaseUrl(request: Request): string {
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL;
+  }
   const url = new URL(request.url);
   return `${url.protocol}//${url.host}`;
 }
@@ -108,7 +111,7 @@ export async function POST(request: Request): Promise<Response> {
 
   // Auth header is captured once and reused for all tool calls in this session.
   // If the API key is revoked mid-session, it remains valid until session expiry.
-  const baseUrl = deriveBaseUrl(request);
+  const baseUrl = getBaseUrl(request);
   const authHeader = request.headers.get("authorization") ?? "";
   const server = createMcpServer(baseUrl, authHeader);
 
