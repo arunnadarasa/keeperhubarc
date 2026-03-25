@@ -2,13 +2,19 @@ import "server-only";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { type ApiKeyAuthResult, authenticateApiKey } from "@/lib/api-key-auth";
+import { McpEventStore } from "@/lib/mcp/event-store";
 import { logMcpEvent } from "@/lib/mcp/logging";
 import { authenticateOAuthToken } from "@/lib/mcp/oauth-auth";
 import { checkMcpRateLimit } from "@/lib/mcp/rate-limit";
 import { createMcpServer } from "@/lib/mcp/server";
 import {
+  createSessionToken,
+  verifySessionToken,
+} from "@/lib/mcp/session-token";
+import {
   deleteSession,
   getSession,
+  type SessionEntry,
   setSession,
   startCleanupInterval,
   touchSession,
@@ -24,7 +30,7 @@ const CORS_HEADERS = {
   "Access-Control-Expose-Headers": "Mcp-Session-Id",
 } as const;
 
-// Start the session cleanup interval once per process lifetime
+// Start the local-cache cleanup interval once per process lifetime.
 startCleanupInterval();
 
 function getBaseUrl(request: Request): string {
@@ -54,7 +60,7 @@ async function authenticate(request: Request): Promise<ApiKeyAuthResult> {
     };
   }
 
-  // Fall back to API key auth to get a consistent error format for non-OAuth tokens
+  // Fall back to API key auth to get a consistent error format for non-OAuth tokens.
   return await authenticateApiKey(request);
 }
 
@@ -87,20 +93,97 @@ export function OPTIONS(): Response {
   return new Response(null, { status: 204, headers: CORS_HEADERS });
 }
 
-function handleExistingSession(
-  request: Request,
+type BuiltSession = {
+  transport: WebStandardStreamableHTTPServerTransport;
+  entry: SessionEntry;
+};
+
+function buildSession(
   sessionId: string,
-  organizationId: string
-): Response | Promise<Response> {
-  const session = getSession(sessionId);
-  if (!session || session.organizationId !== organizationId) {
-    return new Response(JSON.stringify({ error: "Session not found" }), {
-      status: 404,
-      headers: { "Content-Type": "application/json", ...CORS_HEADERS },
-    });
+  organizationId: string,
+  apiKeyId: string,
+  scope: string | undefined,
+  baseUrl: string,
+  authHeader: string
+): BuiltSession {
+  const eventStore = new McpEventStore();
+
+  // Passing () => sessionId as the generator ensures the transport uses the
+  // provided session ID both for fresh sessions and for reconstructed
+  // cross-pod sessions, so it validates incoming Mcp-Session-Id headers correctly.
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    sessionIdGenerator: () => sessionId,
+    eventStore,
+    onsessioninitialized: (sid) => {
+      setSession(sid, entry);
+    },
+    onsessionclosed: (sid) => {
+      deleteSession(sid);
+    },
+    enableJsonResponse: true,
+  });
+
+  const server = createMcpServer(baseUrl, authHeader, scope);
+
+  const entry: SessionEntry = {
+    transport,
+    server,
+    eventStore,
+    organizationId,
+    apiKeyId,
+    scope,
+    createdAt: Date.now(),
+    lastActivity: Date.now(),
+  };
+
+  return { transport, entry };
+}
+
+async function resolveSession(
+  sessionId: string,
+  organizationId: string,
+  request: Request
+): Promise<WebStandardStreamableHTTPServerTransport | null> {
+  // Fast path: same-pod cache hit.
+  const cached = getSession(sessionId);
+  if (cached) {
+    if (cached.organizationId !== organizationId) {
+      return null;
+    }
+    touchSession(sessionId);
+    return cached.transport;
   }
-  touchSession(sessionId);
-  return session.transport.handleRequest(request);
+
+  // Slow path: verify JWT and reconstruct transport+server (different pod or restart).
+  const payload = verifySessionToken(sessionId);
+  if (!payload || payload.org !== organizationId) {
+    return null;
+  }
+
+  logMcpEvent("mcp.session.reconstructed", {
+    sessionId,
+    orgId: organizationId,
+  });
+
+  const baseUrl = getBaseUrl(request);
+  // Re-derive the auth header from the current request so tool calls in this
+  // reconstructed session use the caller's credentials.
+  const authHeader = request.headers.get("authorization") ?? "";
+  const { transport, entry } = buildSession(
+    sessionId,
+    organizationId,
+    payload.key,
+    payload.scope,
+    baseUrl,
+    authHeader
+  );
+
+  await entry.server.connect(transport);
+
+  // Cache locally for subsequent same-pod requests.
+  setSession(sessionId, entry);
+
+  return transport;
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -127,12 +210,23 @@ export async function POST(request: Request): Promise<Response> {
   const sessionId = request.headers.get("mcp-session-id");
 
   if (sessionId) {
-    return handleExistingSession(request, sessionId, organizationId);
+    const existingTransport = await resolveSession(
+      sessionId,
+      organizationId,
+      request
+    );
+    if (!existingTransport) {
+      return new Response(JSON.stringify({ error: "Session not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+      });
+    }
+    return existingTransport.handleRequest(request);
   }
 
-  // No session ID - must be an initialize request.
-  // Pre-parse the body here because request.json() consumes the stream.
-  // We pass parsedBody to handleRequest so the SDK doesn't re-read it.
+  // No session ID: must be an initialize request.
+  // Pre-parse body because request.json() consumes the stream.
+  // We pass parsedBody to handleRequest so the SDK does not re-read it.
   let body: unknown;
   try {
     body = await request.json();
@@ -166,36 +260,29 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const apiKeyId = auth.apiKeyId;
-
   // OAuth tokens carry a scope string; API keys have full access (undefined scope).
   const scope = auth.scope;
 
-  const transport = new WebStandardStreamableHTTPServerTransport({
-    sessionIdGenerator: () => crypto.randomUUID(),
-    onsessioninitialized: (sid) => {
-      setSession(sid, {
-        transport,
-        server,
-        organizationId,
-        apiKeyId,
-        scope,
-        createdAt: Date.now(),
-        lastActivity: Date.now(),
-      });
-    },
-    onsessionclosed: (sid) => {
-      deleteSession(sid);
-    },
-    enableJsonResponse: true,
+  // Mint the JWT that becomes the Mcp-Session-Id returned to the client.
+  // Any pod can verify and reconstruct state from this token on future requests.
+  const newSessionId = createSessionToken({
+    org: organizationId,
+    key: apiKeyId,
+    scope,
   });
 
-  // Auth header is captured once and reused for all tool calls in this session.
-  // If the API key is revoked mid-session, it remains valid until session expiry.
   const baseUrl = getBaseUrl(request);
   const authHeader = request.headers.get("authorization") ?? "";
-  const server = createMcpServer(baseUrl, authHeader, scope);
+  const { transport, entry } = buildSession(
+    newSessionId,
+    organizationId,
+    apiKeyId,
+    scope,
+    baseUrl,
+    authHeader
+  );
 
-  await server.connect(transport);
+  await entry.server.connect(transport);
 
   return transport.handleRequest(request, { parsedBody: body });
 }
@@ -224,22 +311,16 @@ export async function GET(request: Request): Promise<Response> {
     );
   }
 
-  const session = getSession(sessionId);
-  if (!session) {
-    return new Response(JSON.stringify({ error: "Session not found" }), {
-      status: 404,
-      headers: { "Content-Type": "application/json", ...CORS_HEADERS },
-    });
-  }
-  if (session.organizationId !== auth.organizationId) {
+  const organizationId = auth.organizationId ?? "";
+  const transport = await resolveSession(sessionId, organizationId, request);
+  if (!transport) {
     return new Response(JSON.stringify({ error: "Session not found" }), {
       status: 404,
       headers: { "Content-Type": "application/json", ...CORS_HEADERS },
     });
   }
 
-  touchSession(sessionId);
-  return session.transport.handleRequest(request);
+  return transport.handleRequest(request);
 }
 
 export async function DELETE(request: Request): Promise<Response> {
@@ -266,23 +347,24 @@ export async function DELETE(request: Request): Promise<Response> {
     );
   }
 
-  const session = getSession(sessionId);
-  if (!session) {
-    return new Response(JSON.stringify({ error: "Session not found" }), {
-      status: 404,
-      headers: { "Content-Type": "application/json", ...CORS_HEADERS },
-    });
-  }
-  if (session.organizationId !== auth.organizationId) {
+  const organizationId = auth.organizationId ?? "";
+
+  // Verify ownership via JWT before touching anything in the local cache.
+  const payload = verifySessionToken(sessionId);
+  if (!payload || payload.org !== organizationId) {
     return new Response(JSON.stringify({ error: "Session not found" }), {
       status: 404,
       headers: { "Content-Type": "application/json", ...CORS_HEADERS },
     });
   }
 
-  await session.server.close();
-  await session.transport.close();
-  deleteSession(sessionId);
+  // Close and evict from local cache if present on this pod.
+  const cached = getSession(sessionId);
+  if (cached) {
+    await cached.server.close();
+    await cached.transport.close();
+    deleteSession(sessionId);
+  }
 
   return new Response(null, { status: 204, headers: CORS_HEADERS });
 }

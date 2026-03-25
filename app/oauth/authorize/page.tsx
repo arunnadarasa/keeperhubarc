@@ -45,7 +45,7 @@ async function handleApprove(formData: FormData): Promise<void> {
   const codeChallenge = formData.get("code_challenge") as string;
   const codeChallengeMethod = formData.get("code_challenge_method") as string;
 
-  const client = getOAuthClient(clientId);
+  const client = await getOAuthClient(clientId);
   if (!client?.redirectUris.includes(redirectUri)) {
     redirect("/oauth/authorize?error=invalid_request");
   }
@@ -86,7 +86,7 @@ async function handleDeny(formData: FormData): Promise<void> {
   const redirectUri = formData.get("redirect_uri") as string;
   const state = formData.get("state") as string | null;
 
-  const client = getOAuthClient(clientId);
+  const client = await getOAuthClient(clientId);
   if (!client?.redirectUris.includes(redirectUri)) {
     redirect("/oauth/authorize?error=invalid_request");
   }
@@ -130,7 +130,7 @@ export default async function AuthorizePage({
     );
   }
 
-  const client = getOAuthClient(clientId);
+  const client = await getOAuthClient(clientId);
   if (!client) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background">

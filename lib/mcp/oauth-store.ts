@@ -1,3 +1,8 @@
+import { createHash } from "node:crypto";
+import { eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { mcpOauthClients, mcpOauthRefreshTokens } from "@/lib/db/schema";
+
 const AUTH_CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -33,9 +38,8 @@ export type OAuthClient = {
   createdAt: number;
 };
 
+// Auth codes stay in-memory (10min TTL, no need to persist across restarts)
 const authCodes = new Map<string, AuthorizationCode>();
-const refreshTokens = new Map<string, RefreshTokenEntry>();
-const oauthClients = new Map<string, OAuthClient>();
 
 export function storeAuthCode(entry: AuthorizationCode): void {
   authCodes.set(entry.code, entry);
@@ -57,34 +61,6 @@ export function deleteAuthCode(code: string): void {
   authCodes.delete(code);
 }
 
-export function storeRefreshToken(entry: RefreshTokenEntry): void {
-  refreshTokens.set(entry.token, entry);
-}
-
-export function getRefreshToken(token: string): RefreshTokenEntry | undefined {
-  const entry = refreshTokens.get(token);
-  if (!entry) {
-    return undefined;
-  }
-  if (Date.now() > entry.expiresAt) {
-    refreshTokens.delete(token);
-    return undefined;
-  }
-  return entry;
-}
-
-export function deleteRefreshToken(token: string): void {
-  refreshTokens.delete(token);
-}
-
-export function storeOAuthClient(client: OAuthClient): void {
-  oauthClients.set(client.clientId, client);
-}
-
-export function getOAuthClient(clientId: string): OAuthClient | undefined {
-  return oauthClients.get(clientId);
-}
-
 export function cleanupExpiredAuthCodes(): void {
   const now = Date.now();
   for (const [code, entry] of authCodes) {
@@ -94,13 +70,99 @@ export function cleanupExpiredAuthCodes(): void {
   }
 }
 
-export function cleanupExpiredRefreshTokens(): void {
-  const now = Date.now();
-  for (const [token, entry] of refreshTokens) {
-    if (now > entry.expiresAt) {
-      refreshTokens.delete(token);
-    }
+function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+export async function storeOAuthClient(client: OAuthClient): Promise<void> {
+  await db.insert(mcpOauthClients).values({
+    clientId: client.clientId,
+    clientSecretHash: client.clientSecretHash,
+    clientName: client.clientName,
+    redirectUris: client.redirectUris,
+    scopes: client.scopes,
+    grantTypes: client.grantTypes,
+    organizationId: client.organizationId,
+  });
+}
+
+export async function getOAuthClient(
+  clientId: string
+): Promise<OAuthClient | undefined> {
+  const rows = await db
+    .select()
+    .from(mcpOauthClients)
+    .where(eq(mcpOauthClients.clientId, clientId))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) {
+    return undefined;
   }
+
+  return {
+    clientId: row.clientId,
+    clientSecretHash: row.clientSecretHash,
+    clientName: row.clientName,
+    redirectUris: row.redirectUris,
+    scopes: row.scopes,
+    grantTypes: row.grantTypes,
+    organizationId: row.organizationId ?? null,
+    createdAt: row.createdAt.getTime(),
+  };
+}
+
+export async function storeRefreshToken(
+  entry: RefreshTokenEntry
+): Promise<void> {
+  const tokenHash = hashToken(entry.token);
+  await db.insert(mcpOauthRefreshTokens).values({
+    tokenHash,
+    clientId: entry.clientId,
+    userId: entry.userId,
+    organizationId: entry.organizationId,
+    scope: entry.scope,
+    expiresAt: new Date(entry.expiresAt),
+  });
+}
+
+export async function getRefreshToken(
+  token: string
+): Promise<RefreshTokenEntry | undefined> {
+  const tokenHash = hashToken(token);
+  const rows = await db
+    .select()
+    .from(mcpOauthRefreshTokens)
+    .where(eq(mcpOauthRefreshTokens.tokenHash, tokenHash))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) {
+    return undefined;
+  }
+
+  if (Date.now() > row.expiresAt.getTime()) {
+    await db
+      .delete(mcpOauthRefreshTokens)
+      .where(eq(mcpOauthRefreshTokens.tokenHash, tokenHash));
+    return undefined;
+  }
+
+  return {
+    token,
+    clientId: row.clientId,
+    userId: row.userId,
+    organizationId: row.organizationId,
+    scope: row.scope,
+    expiresAt: row.expiresAt.getTime(),
+  };
+}
+
+export async function deleteRefreshToken(token: string): Promise<void> {
+  const tokenHash = hashToken(token);
+  await db
+    .delete(mcpOauthRefreshTokens)
+    .where(eq(mcpOauthRefreshTokens.tokenHash, tokenHash));
 }
 
 export { AUTH_CODE_TTL_MS, REFRESH_TOKEN_TTL_MS };

@@ -353,6 +353,15 @@ export {
   workflowPublicTags,
 } from "./schema-extensions";
 
+export {
+  type McpOauthClient,
+  type McpOauthRefreshToken,
+  mcpOauthClients,
+  mcpOauthRefreshTokens,
+  type NewMcpOauthClient,
+  type NewMcpOauthRefreshToken,
+} from "./schema-oauth";
+
 // Better Auth: Device Authorization table (for CLI device flow)
 export const deviceCode = pgTable("device_code", {
   id: text("id").primaryKey(),

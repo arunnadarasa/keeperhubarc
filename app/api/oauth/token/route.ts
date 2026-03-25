@@ -9,6 +9,7 @@ import {
   REFRESH_TOKEN_TTL_MS,
   storeRefreshToken,
 } from "@/lib/mcp/oauth-store";
+import { checkIpRateLimit, getClientIp } from "@/lib/mcp/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,9 @@ function verifyPkceS256(verifier: string, challenge: string): boolean {
   return hash === challenge;
 }
 
-function handleAuthorizationCode(params: URLSearchParams): Response {
+async function handleAuthorizationCode(
+  params: URLSearchParams
+): Promise<Response> {
   const code = params.get("code");
   const clientId = params.get("client_id");
   const redirectUri = params.get("redirect_uri");
@@ -70,7 +73,7 @@ function handleAuthorizationCode(params: URLSearchParams): Response {
   });
 
   const refreshToken = randomBytes(32).toString("hex");
-  storeRefreshToken({
+  await storeRefreshToken({
     token: refreshToken,
     clientId,
     userId: authCode.userId,
@@ -88,7 +91,7 @@ function handleAuthorizationCode(params: URLSearchParams): Response {
   });
 }
 
-function handleRefreshToken(params: URLSearchParams): Response {
+async function handleRefreshToken(params: URLSearchParams): Promise<Response> {
   const refreshTokenValue = params.get("refresh_token");
   const clientId = params.get("client_id");
 
@@ -99,12 +102,12 @@ function handleRefreshToken(params: URLSearchParams): Response {
     );
   }
 
-  const client = getOAuthClient(clientId);
+  const client = await getOAuthClient(clientId);
   if (!client) {
     return jsonError("Unknown client_id", 400);
   }
 
-  const entry = getRefreshToken(refreshTokenValue);
+  const entry = await getRefreshToken(refreshTokenValue);
   if (!entry) {
     return jsonError("Invalid or expired refresh token", 400);
   }
@@ -114,10 +117,10 @@ function handleRefreshToken(params: URLSearchParams): Response {
   }
 
   // Rotate the refresh token
-  deleteRefreshToken(refreshTokenValue);
+  await deleteRefreshToken(refreshTokenValue);
 
   const newRefreshToken = randomBytes(32).toString("hex");
-  storeRefreshToken({
+  await storeRefreshToken({
     token: newRefreshToken,
     clientId,
     userId: entry.userId,
@@ -142,6 +145,18 @@ function handleRefreshToken(params: URLSearchParams): Response {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  const ip = getClientIp(request);
+  const rateLimit = checkIpRateLimit(ip, 30, 60_000);
+  if (!rateLimit.allowed) {
+    return Response.json(
+      { error: "Too many requests" },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.retryAfter) },
+      }
+    );
+  }
+
   let params: URLSearchParams;
 
   const contentType = request.headers.get("content-type") ?? "";
@@ -160,11 +175,11 @@ export async function POST(request: Request): Promise<Response> {
   const grantType = params.get("grant_type");
 
   if (grantType === "authorization_code") {
-    return handleAuthorizationCode(params);
+    return await handleAuthorizationCode(params);
   }
 
   if (grantType === "refresh_token") {
-    return handleRefreshToken(params);
+    return await handleRefreshToken(params);
   }
 
   return jsonError(

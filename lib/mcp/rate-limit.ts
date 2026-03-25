@@ -6,6 +6,7 @@ const WINDOW_MS = 60_000; // 1 minute
 const LIMIT = 120; // requests per window (higher than execute endpoint; MCP sessions are chatty)
 
 const requestLog = new Map<string, number[]>();
+const ipRequestLog = new Map<string, number[]>();
 
 export type RateLimitResult =
   | { allowed: true }
@@ -29,4 +30,35 @@ export function checkMcpRateLimit(organizationId: string): RateLimitResult {
   requestLog.set(organizationId, recent);
 
   return { allowed: true };
+}
+
+export function checkIpRateLimit(
+  ip: string,
+  limit: number,
+  windowMs: number
+): RateLimitResult {
+  const now = Date.now();
+  const windowStart = now - windowMs;
+
+  const timestamps = ipRequestLog.get(ip);
+  const recent = timestamps ? timestamps.filter((t) => t > windowStart) : [];
+
+  if (recent.length >= limit) {
+    const oldestInWindow = recent[0];
+    const retryAfter = Math.ceil((oldestInWindow + windowMs - now) / 1000);
+    return { allowed: false, retryAfter: Math.max(retryAfter, 1) };
+  }
+
+  recent.push(now);
+  ipRequestLog.set(ip, recent);
+
+  return { allowed: true };
+}
+
+export function getClientIp(request: Request): string {
+  return (
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    request.headers.get("x-real-ip") ??
+    "unknown"
+  );
 }

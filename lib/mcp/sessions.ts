@@ -1,13 +1,15 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import type { McpEventStore } from "@/lib/mcp/event-store";
 import { logMcpEvent } from "@/lib/mcp/logging";
 
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
-type SessionEntry = {
+export type SessionEntry = {
   transport: WebStandardStreamableHTTPServerTransport;
   server: McpServer;
+  eventStore: McpEventStore;
   organizationId: string;
   apiKeyId: string;
   scope?: string;
@@ -15,28 +17,19 @@ type SessionEntry = {
   lastActivity: number;
 };
 
-const sessions = new Map<string, SessionEntry>();
+// Local in-process cache. The JWT session token is the source of truth.
+// This cache is a performance optimisation: same-pod requests skip reconstruction.
+// Cross-pod and post-restart requests fall back to JWT verification.
+const localCache = new Map<string, SessionEntry>();
 
-const CLEANUP_KEY = Symbol.for("keeperhub-mcp-cleanup-timer");
-
-type GlobalThisWithTimer = typeof globalThis & Record<symbol, unknown>;
-
-function getGlobalTimer(): ReturnType<typeof setInterval> | null {
-  const g = globalThis as GlobalThisWithTimer;
-  return (g[CLEANUP_KEY] as ReturnType<typeof setInterval> | null) ?? null;
-}
-
-function setGlobalTimer(timer: ReturnType<typeof setInterval> | null): void {
-  const g = globalThis as GlobalThisWithTimer;
-  g[CLEANUP_KEY] = timer;
-}
+let cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
 export function getSession(sessionId: string): SessionEntry | undefined {
-  return sessions.get(sessionId);
+  return localCache.get(sessionId);
 }
 
 export function setSession(sessionId: string, entry: SessionEntry): void {
-  sessions.set(sessionId, entry);
+  localCache.set(sessionId, entry);
   logMcpEvent("mcp.session.created", {
     sessionId,
     orgId: entry.organizationId,
@@ -44,8 +37,8 @@ export function setSession(sessionId: string, entry: SessionEntry): void {
 }
 
 export function deleteSession(sessionId: string): void {
-  const entry = sessions.get(sessionId);
-  sessions.delete(sessionId);
+  const entry = localCache.get(sessionId);
+  localCache.delete(sessionId);
   logMcpEvent("mcp.session.terminated", {
     sessionId,
     orgId: entry?.organizationId,
@@ -53,7 +46,7 @@ export function deleteSession(sessionId: string): void {
 }
 
 export function touchSession(sessionId: string): void {
-  const entry = sessions.get(sessionId);
+  const entry = localCache.get(sessionId);
   if (entry) {
     entry.lastActivity = Date.now();
   }
@@ -61,11 +54,11 @@ export function touchSession(sessionId: string): void {
 
 export function cleanupExpiredSessions(): void {
   const now = Date.now();
-  for (const [sessionId, entry] of sessions) {
+  for (const [sessionId, entry] of localCache) {
     if (now - entry.lastActivity > SESSION_TTL_MS) {
       entry.server.close().catch(() => undefined);
       entry.transport.close().catch(() => undefined);
-      sessions.delete(sessionId);
+      localCache.delete(sessionId);
       logMcpEvent("mcp.session.expired", {
         sessionId,
         orgId: entry.organizationId,
@@ -75,25 +68,26 @@ export function cleanupExpiredSessions(): void {
 }
 
 export function getSessionCount(): number {
-  return sessions.size;
+  return localCache.size;
 }
 
 export function startCleanupInterval(): void {
-  const existing = getGlobalTimer();
-  if (existing !== null) {
-    clearInterval(existing);
+  if (cleanupTimer !== null) {
+    clearInterval(cleanupTimer);
   }
-  const timer = setInterval(cleanupExpiredSessions, CLEANUP_INTERVAL_MS);
-  if (timer && typeof timer === "object" && "unref" in timer) {
-    timer.unref();
+  cleanupTimer = setInterval(cleanupExpiredSessions, CLEANUP_INTERVAL_MS);
+  if (
+    cleanupTimer !== null &&
+    typeof cleanupTimer === "object" &&
+    "unref" in cleanupTimer
+  ) {
+    cleanupTimer.unref();
   }
-  setGlobalTimer(timer);
 }
 
 export function stopCleanupInterval(): void {
-  const timer = getGlobalTimer();
-  if (timer !== null) {
-    clearInterval(timer);
-    setGlobalTimer(null);
+  if (cleanupTimer !== null) {
+    clearInterval(cleanupTimer);
+    cleanupTimer = null;
   }
 }

@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { normalizeScope } from "@/lib/mcp/oauth-scopes";
 import { type OAuthClient, storeOAuthClient } from "@/lib/mcp/oauth-store";
+import { checkIpRateLimit, getClientIp } from "@/lib/mcp/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,18 @@ function isStringArray(value: unknown): value is string[] {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  const ip = getClientIp(request);
+  const rateLimit = checkIpRateLimit(ip, 10, 60_000);
+  if (!rateLimit.allowed) {
+    return Response.json(
+      { error: "Too many requests" },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.retryAfter) },
+      }
+    );
+  }
+
   let body: RegistrationRequestBody;
   try {
     body = (await request.json()) as RegistrationRequestBody;
@@ -86,7 +99,7 @@ export async function POST(request: Request): Promise<Response> {
     createdAt: Date.now(),
   };
 
-  storeOAuthClient(client);
+  await storeOAuthClient(client);
 
   return Response.json(
     {
