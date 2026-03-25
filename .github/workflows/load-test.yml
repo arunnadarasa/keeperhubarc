@@ -31,26 +31,26 @@ on:
         type: string
         default: '95'
       # Execution mode parameters
-      users:
-        description: '[execution] Number of test users'
+      target_vus:
+        description: '[execution] Number of concurrent VUs'
         required: false
         type: string
         default: '20'
-      workflows_per_round:
-        description: '[execution] Workflows added per user per round'
+      wf_per_vu:
+        description: '[execution] Workflows created per VU'
         required: false
         type: string
         default: '5'
-      observe_window:
-        description: '[execution] Observation window in seconds'
+      duration:
+        description: '[execution] Sustained load duration (e.g. 60s, 5m)'
         required: false
         type: string
-        default: '600'
-      max_rounds:
-        description: '[execution] Maximum scaling rounds'
+        default: '60s'
+      ramp_interval:
+        description: '[execution] Seconds between each new VU during ramp-up'
         required: false
         type: string
-        default: '10'
+        default: '5'
       # HTTP ramp mode parameters
       step_size:
         description: '[http-ramp] VU increment per step'
@@ -104,6 +104,9 @@ jobs:
           echo "BASE_URL=$BASE_URL" >> $GITHUB_ENV
           echo "Target: $BASE_URL (mode: ${{ inputs.test_mode }})"
 
+      - name: Create results directory
+        run: mkdir -p /tmp/k6-results
+
       - name: Wait for target to be healthy
         run: |
           echo "Waiting for ${BASE_URL}/api/health to return 200..."
@@ -126,22 +129,27 @@ jobs:
           CF_ACCESS_CLIENT_ID: ${{ secrets.TO_CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.TO_CF_ACCESS_CLIENT_SECRET }}
 
-      # ── Execution mode: workflow execution load test ──
+      # ── Execution mode: pure k6 workflow execution load test ──
       - name: Run execution load test
         if: inputs.test_mode == 'execution'
         run: |
-          chmod +x tests/k6/workflows-load-test.sh
-          tests/k6/workflows-load-test.sh "${{ env.BASE_URL }}" || true
+          k6 run tests/k6/execution-load-test.js \
+            -e BASE_URL="${BASE_URL}" \
+            -e TEST_API_KEY="${TEST_API_KEY}" \
+            -e SERVICE_KEY="${SERVICE_KEY}" \
+            -e CF_ACCESS_CLIENT_ID="${CF_ACCESS_CLIENT_ID}" \
+            -e CF_ACCESS_CLIENT_SECRET="${CF_ACCESS_CLIENT_SECRET}" \
+            -e TARGET_VUS="${{ inputs.target_vus }}" \
+            -e WF_PER_VU="${{ inputs.wf_per_vu }}" \
+            -e DURATION="${{ inputs.duration }}" \
+            -e RAMP_INTERVAL="${{ inputs.ramp_interval }}" \
+            --summary-export /tmp/k6-results/summary.json \
+            --no-usage-report || true
         env:
           TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
+          SERVICE_KEY: ${{ secrets.SCHEDULER_SERVICE_API_KEY }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.TO_CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.TO_CF_ACCESS_CLIENT_SECRET }}
-          USERS: ${{ inputs.users }}
-          WF_PER_ROUND: ${{ inputs.workflows_per_round }}
-          OBSERVE_WINDOW: ${{ inputs.observe_window }}
-          THRESHOLD: ${{ inputs.threshold }}
-          MAX_ROUNDS: ${{ inputs.max_rounds }}
-          RESULTS_DIR: /tmp/k6-exec-load
 
       # ── HTTP ramp mode: VU ramp-until-breach ──
       - name: Run HTTP ramp load test
@@ -201,47 +209,44 @@ jobs:
           lines.append("")
 
           if test_mode == "execution":
-              results_file = "/tmp/k6-exec-load/rounds.json"
-              rounds = []
+              results_file = "/tmp/k6-results/summary.json"
+              data = {}
               try:
                   with open(results_file) as f:
-                      rounds = json.load(f)
+                      data = json.load(f)
               except:
                   pass
 
-              if not rounds:
+              metrics = data.get("metrics", {})
+              if not metrics:
                   lines.append(f":x: **No results collected** -- check the [workflow logs]({run_url}) for errors.")
               else:
-                  breach = next((r for r in rounds if r["success_rate"] < threshold), None)
-                  if breach:
-                      lines.append(f":warning: **Threshold breached in round {breach['round']}** "
-                                   f"({breach['total_workflows']} workflows, {breach['success_rate']}% < {threshold}%)")
-                  else:
-                      last = rounds[-1]
-                      lines.append(f":white_check_mark: **All rounds passed** -- "
-                                   f"{last['total_workflows']} workflows at {last['success_rate']}% success")
+                  ok = int(metrics.get("trigger_ok", {}).get("count", 0))
+                  fail = int(metrics.get("trigger_fail", {}).get("count", 0))
+                  total = ok + fail
+                  rate = round(100.0 * ok / max(total, 1), 2)
+                  dur = metrics.get("trigger_duration_ms", {})
+                  p95 = round(dur.get("p(95)", 0), 1)
+                  avg = round(dur.get("avg", 0), 1)
+                  med = round(dur.get("med", 0), 1)
+                  rps = round(metrics.get("trigger_ok", {}).get("rate", 0), 2)
 
+                  icon = ":white_check_mark:" if rate >= threshold else ":warning:" if rate >= 80 else ":x:"
+
+                  lines.append(f"### {icon} Trigger Success Rate: {rate}%")
                   lines.append("")
-                  lines.append("| Round | Workflows | Executions | Success | Errors | Rate | Avg (ms) | p95 (ms) | Throughput | Status |")
-                  lines.append("|-------|-----------|------------|---------|--------|------|----------|----------|------------|--------|")
-
-                  for r in rounds:
-                      icon = ":white_check_mark:" if r["success_rate"] >= threshold else ":warning:" if r["success_rate"] >= 80 else ":x:"
-                      lines.append(f"| {r['round']} | {r['total_workflows']} | {r['total_executions']} | "
-                                   f"{r['success']} | {r['errors']} | {r['success_rate']}% | "
-                                   f"{r['avg_duration_ms']} | {r['p95_duration_ms']} | "
-                                   f"{r['throughput_per_min']}/min | {icon} |")
-
-                  last_good = None
-                  for r in rounds:
-                      if r["success_rate"] >= threshold:
-                          last_good = r
-                  if last_good:
-                      lines.append("")
-                      lines.append(f"### Capacity")
-                      lines.append(f"**{last_good['total_workflows']} active workflows** at "
-                                   f"{last_good['success_rate']}% success rate, "
-                                   f"{last_good['throughput_per_min']} executions/min")
+                  lines.append(f"| Metric | Value |")
+                  lines.append(f"|--------|-------|")
+                  lines.append(f"| VUs | ${{ inputs.target_vus }} |")
+                  lines.append(f"| Workflows/VU | ${{ inputs.wf_per_vu }} |")
+                  lines.append(f"| Duration | ${{ inputs.duration }} |")
+                  lines.append(f"| Triggers OK | {ok} |")
+                  lines.append(f"| Triggers Failed | {fail} |")
+                  lines.append(f"| Success Rate | {rate}% |")
+                  lines.append(f"| Throughput | {rps}/sec ({round(rps*60,1)}/min) |")
+                  lines.append(f"| p95 Latency | {p95}ms |")
+                  lines.append(f"| Avg Latency | {avg}ms |")
+                  lines.append(f"| Median Latency | {med}ms |")
 
           elif test_mode == "http-ramp":
               results_file = "/tmp/k6-results/all-tiers.json"
