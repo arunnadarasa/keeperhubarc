@@ -56,6 +56,9 @@ export function startCleanupInterval(): void {
     return;
   }
   cleanupTimer = setInterval(cleanupExpiredSessions, CLEANUP_INTERVAL_MS);
+  if (cleanupTimer && typeof cleanupTimer === "object" && "unref" in cleanupTimer) {
+    cleanupTimer.unref();
+  }
 }
 
 export function stopCleanupInterval(): void {
