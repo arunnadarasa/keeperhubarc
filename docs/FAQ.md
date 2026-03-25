@@ -165,15 +165,6 @@ claude mcp add --transport http keeperhub https://app.keeperhub.com/mcp
 
 Then run `/mcp` inside Claude Code and authorize via browser. No CLI or plugin installation needed.
 
-Alternatively, install the [`kh` CLI](https://github.com/KeeperHub/cli) for a local MCP server:
-
-```bash
-brew install keeperhub/tap/kh
-kh auth login
-```
-
-See [CLI installation options](https://github.com/KeeperHub/cli#install) for other platforms.
-
 ### How do I connect Claude Code to KeeperHub?
 
 **Option A (remote, no install):**

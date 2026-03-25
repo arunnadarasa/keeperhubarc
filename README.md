@@ -4,7 +4,7 @@ A Web3 workflow automation platform (forked from vercel-labs/workflow-builder-te
 
 ## Core Value
 
-Users and Agents can build and deploy Web3 automation workflows through a visual builder or with the [kh CLI](https://github.com/KeeperHub/cli) without writing code.
+Users and Agents can build and deploy Web3 automation workflows through a visual builder or via the [MCP server](https://docs.keeperhub.com/ai-tools/mcp-server) without writing code.
 
 ## Add KeeperHub to your Agent
 

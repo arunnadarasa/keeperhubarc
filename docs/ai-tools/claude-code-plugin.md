@@ -55,22 +55,18 @@ Restart Claude Code after setup for MCP tools to become available.
 
 ### `/keeperhub:login`
 
-One-time setup. Checks the `kh` CLI is installed and runs `kh auth login` to authenticate via browser. Credentials are stored in the OS keyring by the CLI.
-
-For headless/CI environments, set the `KH_API_KEY` environment variable with an organization API key (`kh_` prefix).
+Setup guide for connecting to KeeperHub MCP. Walks you through running `/mcp` to authorize via browser, or setting up `KH_API_KEY` for headless/CI environments.
 
 ### `/keeperhub:status`
 
-Check authentication status, CLI version, and MCP server readiness.
+Check MCP connection status and authentication.
 
 ```
 KeeperHub Status
 ----------------
-kh CLI:       Installed (v1.2.0)
-Auth:         Authenticated as simon@keeperhub.com
-Organization: KeeperHub
-Auth method:  browser
-MCP server:   Ready (kh serve --mcp)
+MCP Server:   app.keeperhub.com/mcp (remote)
+Connection:   Connected
+Auth method:  OAuth
 ```
 
 ## Skills
@@ -112,16 +108,15 @@ Lists available plugins and their actions, shows configured integrations, and va
 
 ## Configuration
 
-Authentication is handled by the `kh` CLI, which stores credentials in the OS keyring (from `kh auth login`) or reads the `KH_API_KEY` environment variable.
+The plugin connects to KeeperHub's remote MCP server at `app.keeperhub.com/mcp`. Authentication is handled via OAuth (browser) when you run `/mcp`, or via the `KH_API_KEY` environment variable for headless environments.
 
 | Variable | Description |
 |----------|-------------|
 | `KH_API_KEY` | API key for headless/CI environments (`kh_` prefix, organization-scoped) |
 
-The MCP server runs via `kh serve --mcp` and is configured automatically by the plugin.
-
 ## Security
 
-- Browser-based OAuth stores tokens in the OS keyring (not on disk)
+- OAuth tokens are managed by Claude Code (automatic refresh)
 - API keys (`KH_API_KEY`) are only used in headless environments
-- All API communication is over HTTPS
+- All communication is over HTTPS
+- OAuth scopes restrict tool access (mcp:read, mcp:write, mcp:admin)

@@ -26,33 +26,13 @@ claude mcp add --transport http keeperhub https://app.keeperhub.com/mcp \
   --header "Authorization: Bearer kh_your_key_here"
 ```
 
-### Local via kh CLI
-
-The [`kh` CLI](https://github.com/KeeperHub/cli) runs a local MCP server over stdio. Use this if you prefer a local process or need offline access.
-
-```bash
-brew install keeperhub/tap/kh
-kh auth login
-```
-
-Then configure Claude Code:
-
-```json
-{
-  "mcpServers": {
-    "keeperhub": {
-      "command": "kh",
-      "args": ["serve", "--mcp"]
-    }
-  }
-}
-```
-
-See [CLI installation options](https://github.com/KeeperHub/cli#install) for other platforms.
-
 ### Via Claude Code Plugin
 
-If you installed the [Claude Code Plugin](/ai-tools/claude-code-plugin), the MCP server is configured automatically via the `kh` CLI. No manual setup needed.
+Install the [Claude Code Plugin](/ai-tools/claude-code-plugin) for additional skills and slash commands on top of the MCP tools. The plugin connects to the same remote endpoint.
+
+### Local via kh CLI (deprecated)
+
+The [`kh` CLI](https://github.com/KeeperHub/cli) can run a local MCP server over stdio via `kh serve --mcp`. This is deprecated in favor of the remote endpoint above and will be removed in a future release.
 
 ## Authentication
 
