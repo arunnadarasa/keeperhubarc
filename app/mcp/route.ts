@@ -1,7 +1,8 @@
 import "server-only";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
-import { authenticateApiKey } from "@/lib/api-key-auth";
+import { type ApiKeyAuthResult, authenticateApiKey } from "@/lib/api-key-auth";
+import { authenticateOAuthToken } from "@/lib/mcp/oauth-auth";
 import { createMcpServer } from "@/lib/mcp/server";
 import {
   deleteSession,
@@ -24,6 +25,28 @@ function getBaseUrl(request: Request): string {
   return `${url.protocol}//${url.host}`;
 }
 
+async function authenticate(request: Request): Promise<ApiKeyAuthResult> {
+  const authHeader = request.headers.get("Authorization") ?? "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : "";
+
+  if (token.startsWith("kh_")) {
+    return await authenticateApiKey(request);
+  }
+
+  const oauthResult = authenticateOAuthToken(request);
+  if (oauthResult.authenticated) {
+    return {
+      authenticated: true,
+      organizationId: oauthResult.organizationId,
+      userId: oauthResult.userId,
+      apiKeyId: `oauth:${oauthResult.userId ?? "unknown"}`,
+    };
+  }
+
+  // Fall back to API key auth to get a consistent error format for non-OAuth tokens
+  return await authenticateApiKey(request);
+}
+
 function isInitializeRequestBody(body: unknown): boolean {
   if (Array.isArray(body)) {
     return body.some((item) => isInitializeRequest(item));
@@ -32,7 +55,7 @@ function isInitializeRequestBody(body: unknown): boolean {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  const auth = await authenticateApiKey(request);
+  const auth = await authenticate(request);
   if (!auth.authenticated) {
     return new Response(
       JSON.stringify({ error: auth.error ?? "Unauthorized" }),
@@ -131,7 +154,7 @@ export async function POST(request: Request): Promise<Response> {
 }
 
 export async function GET(request: Request): Promise<Response> {
-  const auth = await authenticateApiKey(request);
+  const auth = await authenticate(request);
   if (!auth.authenticated) {
     return new Response(
       JSON.stringify({ error: auth.error ?? "Unauthorized" }),
@@ -172,7 +195,7 @@ export async function GET(request: Request): Promise<Response> {
 }
 
 export async function DELETE(request: Request): Promise<Response> {
-  const auth = await authenticateApiKey(request);
+  const auth = await authenticate(request);
   if (!auth.authenticated) {
     return new Response(
       JSON.stringify({ error: auth.error ?? "Unauthorized" }),
