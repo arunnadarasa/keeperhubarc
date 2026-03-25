@@ -208,6 +208,7 @@ export async function DELETE(request: Request): Promise<Response> {
     });
   }
 
+  await session.server.close();
   await session.transport.close();
   deleteSession(sessionId);
 

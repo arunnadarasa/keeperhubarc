@@ -39,9 +39,8 @@ export function cleanupExpiredSessions(): void {
   const now = Date.now();
   for (const [sessionId, entry] of sessions) {
     if (now - entry.lastActivity > SESSION_TTL_MS) {
-      entry.transport.close().catch(() => {
-        // Ignore close errors during cleanup
-      });
+      entry.server.close().catch(() => {});
+      entry.transport.close().catch(() => {});
       sessions.delete(sessionId);
     }
   }
