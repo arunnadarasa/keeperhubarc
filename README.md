@@ -179,7 +179,7 @@ pnpm test:e2e         # E2E tests
 | **Executor** | Polls SQS for all trigger types, executes workflows in-process or as K8s Jobs | `keeperhub-executor/` |
 | **Workflow Runner** | Isolated container for executing web3 write workflows in K8s Jobs | `keeperhub-executor/workflow-runner.ts` |
 
-All trigger services (scheduler, block, event) send messages to a shared SQS queue. The executor consumes from this queue and runs workflows either in-process (read-only/conditions) or in isolated K8s Job containers using the workflow-runner image (web3 writes).
+All trigger services (scheduler, block, event) send messages to a shared SQS queue. The executor consumes from this queue and runs workflows in isolated K8s Job containers using the workflow-runner image. The execution mode is configurable via `EXECUTION_MODE`: `isolated` (default, all workflows in K8s Jobs), `complex` (K8s Jobs for web3 writes, in-process for everything else), or `process` (all in-process, no K8s).
 
 ### Tech Stack
 
