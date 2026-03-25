@@ -355,7 +355,16 @@ export {
   type WorkflowPublicTag,
   walletLocks,
   workflowPublicTags,
-} from "@/db/schema-extensions";
+} from "./schema-extensions";
+
+export {
+  type McpOauthClient,
+  type McpOauthRefreshToken,
+  mcpOauthClients,
+  mcpOauthRefreshTokens,
+  type NewMcpOauthClient,
+  type NewMcpOauthRefreshToken,
+} from "./schema-oauth";
 
 // Better Auth: Device Authorization table (for CLI device flow)
 export const deviceCode = pgTable("device_code", {
@@ -637,7 +646,7 @@ export type WorkflowExecution = typeof workflowExecutions.$inferSelect;
 export type NewWorkflowExecution = typeof workflowExecutions.$inferInsert;
 export type WorkflowExecutionLog = typeof workflowExecutionLogs.$inferSelect;
 export type NewWorkflowExecutionLog = typeof workflowExecutionLogs.$inferInsert;
-// ParaWallet types are exported from @/db/schema-extensions
+// ParaWallet types are exported from ./schema-extensions
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type NewApiKey = typeof apiKeys.$inferInsert;
 export type BetaAccessRequest = typeof betaAccessRequests.$inferSelect;
