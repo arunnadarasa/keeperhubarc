@@ -10,7 +10,7 @@ replicaCount: 1
 
 service:
   enabled: true
-  name: keeperhub-block-dispatcher-staging
+  name: keeperhub-block-staging
   type: ClusterIP
   port: 3000
   containerPort: 3000
@@ -22,7 +22,7 @@ ingress:
 
 image:
   repository: ${ECR_REGISTRY}/keeperhub-scheduler-staging
-  tag: block-dispatcher-${IMAGE_TAG}
+  tag: block-${IMAGE_TAG}
   pullPolicy: Always
 
 deployment:

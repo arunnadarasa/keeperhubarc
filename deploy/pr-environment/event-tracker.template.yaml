@@ -17,7 +17,7 @@ ingress:
   enabled: false
 
 image:
-  repository: ${ECR_REGISTRY}/keeperhub-events-staging
+  repository: ${ECR_REGISTRY}/keeperhub-event-staging
   tag: app-latest
   pullPolicy: Always
 

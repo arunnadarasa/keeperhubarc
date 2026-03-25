@@ -73,7 +73,7 @@ jobs:
         if: steps.skip.outputs.skip_build == 'true'
         run: |
           IMAGE_TAG="${{ steps.vars.outputs.sha_short }}"
-          for prefix in schedule-dispatcher block-dispatcher; do
+          for prefix in schedule block; do
             if ! aws ecr describe-images \
               --repository-name "$SCHEDULER_ECR_NAME" \
               --image-ids "imageTag=${prefix}-${IMAGE_TAG}" \
@@ -129,7 +129,7 @@ jobs:
           chart-path: techops-services/common
           namespace: ${{ env.NAMESPACE }}
           timeout: 5m0s
-          name: keeperhub-scheduler-dispatcher
+          name: keeperhub-schedule
           chart-repository: https://techops-services.github.io/helm-charts
           version: 0.2.1
           atomic: true
@@ -143,7 +143,7 @@ jobs:
           chart-path: techops-services/common
           namespace: ${{ env.NAMESPACE }}
           timeout: 5m0s
-          name: keeperhub-block-dispatcher
+          name: keeperhub-block
           chart-repository: https://techops-services.github.io/helm-charts
           version: 0.2.1
           atomic: true

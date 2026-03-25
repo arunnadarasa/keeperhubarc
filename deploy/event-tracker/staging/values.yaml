@@ -2,7 +2,7 @@ replicaCount: 1
 
 service:
   enabled: true
-  name: keeperhub-events-staging
+  name: keeperhub-event-staging
   port: 3000
   type: ClusterIP
   containerPort: 3000
@@ -13,7 +13,7 @@ ingress:
   enabled: false
 
 image:
-  repository: ${ECR_REGISTRY}/keeperhub-events-staging
+  repository: ${ECR_REGISTRY}/keeperhub-event-staging
   tag: app-${IMAGE_TAG}
   pullPolicy: Always
 

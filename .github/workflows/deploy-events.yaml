@@ -31,7 +31,7 @@ jobs:
       CLUSTER_NAME: ${{ vars.TO_CLUSTER_NAME }}
       ENVIRONMENT_TAG: ${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
       NAMESPACE: keeperhub
-      TRACKER_ECR_NAME: keeperhub-events-${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
+      TRACKER_ECR_NAME: keeperhub-event-${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
       TRACKER_HELM_FILE: deploy/event-tracker/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/values.yaml
 
     steps:
@@ -124,7 +124,7 @@ jobs:
           chart-path: techops-services/common
           namespace: ${{ env.NAMESPACE }}
           timeout: 5m0s
-          name: keeperhub-events-tracker
+          name: keeperhub-event
           chart-repository: https://techops-services.github.io/helm-charts
           version: 0.2.1
           atomic: true

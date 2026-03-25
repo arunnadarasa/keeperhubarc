@@ -315,8 +315,8 @@ services:
       context: .
       dockerfile: Dockerfile
       target: block-dispatcher
-    image: keeperhub-block-dispatcher:latest
-    container_name: keeperhub-block-dispatcher
+    image: keeperhub-block:latest
+    container_name: keeperhub-block
     restart: unless-stopped
     working_dir: /app
     environment:

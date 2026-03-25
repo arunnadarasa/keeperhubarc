@@ -86,9 +86,9 @@ target "schedule-dispatcher" {
   dockerfile = "Dockerfile"
   target     = "schedule-dispatcher"
   tags = compact([
-    "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:schedule-dispatcher-${IMAGE_TAG}",
-    "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:schedule-dispatcher-latest",
-    ENVIRONMENT_TAG != "" ? "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:schedule-dispatcher-${ENVIRONMENT_TAG}" : "",
+    "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:schedule-${IMAGE_TAG}",
+    "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:schedule-latest",
+    ENVIRONMENT_TAG != "" ? "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:schedule-${ENVIRONMENT_TAG}" : "",
   ])
   cache-from = [
     "type=registry,ref=${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:cache-deps",
@@ -103,9 +103,9 @@ target "block-dispatcher" {
   dockerfile = "Dockerfile"
   target     = "block-dispatcher"
   tags = compact([
-    "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:block-schedule-dispatcher-${IMAGE_TAG}",
-    "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:block-schedule-dispatcher-latest",
-    ENVIRONMENT_TAG != "" ? "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:block-schedule-dispatcher-${ENVIRONMENT_TAG}" : "",
+    "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:block-${IMAGE_TAG}",
+    "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:block-latest",
+    ENVIRONMENT_TAG != "" ? "${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:block-${ENVIRONMENT_TAG}" : "",
   ])
   cache-from = [
     "type=registry,ref=${ECR_REGISTRY}/${SCHEDULER_ECR_REPO}:cache-deps",

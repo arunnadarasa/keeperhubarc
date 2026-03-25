@@ -18,7 +18,7 @@ ingress:
 
 image:
   repository: ${ECR_REGISTRY}/keeperhub-scheduler-staging
-  tag: schedule-dispatcher-latest
+  tag: schedule-latest
   pullPolicy: Always
 
 deployment:
