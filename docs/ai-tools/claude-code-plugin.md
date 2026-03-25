@@ -11,24 +11,35 @@ The KeeperHub plugin for Claude Code lets you create workflows, browse templates
 
 ## Installation
 
+There are two ways to connect Claude Code to KeeperHub:
+
+### Option A: Remote MCP (no install needed)
+
+Connect directly to KeeperHub's hosted MCP server. No CLI or plugin installation required.
+
+```bash
+claude mcp add --transport http keeperhub https://app.keeperhub.com/mcp
+```
+
+Then run `/mcp` inside Claude Code to authorize via browser. That's it.
+
+### Option B: Plugin with local CLI
+
+Install the plugin for skills, slash commands, and a local MCP server.
+
 **1. Install the `kh` CLI**
 
 ```bash
 brew install keeperhub/tap/kh
 ```
 
-See [CLI installation options](https://github.com/KeeperHub/cli#install) for other platforms (Go install, GitHub Releases).
+See [CLI installation options](https://github.com/KeeperHub/cli#install) for other platforms.
 
 **2. Install the plugin**
 
 ```bash
-# Add the marketplace
 /plugin marketplace add KeeperHub/claude-plugins
-
-# Install the plugin
 /plugin install keeperhub@keeperhub-plugins
-
-# Authenticate (opens browser)
 /keeperhub:login
 ```
 
@@ -37,7 +48,8 @@ Restart Claude Code after setup for MCP tools to become available.
 ### Requirements
 
 - KeeperHub account at [app.keeperhub.com](https://app.keeperhub.com)
-- The `kh` CLI ([install instructions](https://github.com/KeeperHub/cli#install))
+- Option A: just a browser (for OAuth)
+- Option B: the `kh` CLI ([install instructions](https://github.com/KeeperHub/cli#install))
 
 ## Commands
 

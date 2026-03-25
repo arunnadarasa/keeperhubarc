@@ -157,18 +157,34 @@ The KeeperHub [MCP server](/ai-tools/mcp-server) lets AI agents (Claude, custom 
 
 ### How do I set up the MCP server?
 
-Install the [`kh` CLI](https://github.com/KeeperHub/cli) and authenticate:
+The fastest way is to connect directly to KeeperHub's hosted MCP server:
+
+```bash
+claude mcp add --transport http keeperhub https://app.keeperhub.com/mcp
+```
+
+Then run `/mcp` inside Claude Code and authorize via browser. No CLI or plugin installation needed.
+
+Alternatively, install the [`kh` CLI](https://github.com/KeeperHub/cli) for a local MCP server:
 
 ```bash
 brew install keeperhub/tap/kh
 kh auth login
 ```
 
-The CLI includes a built-in MCP server (`kh serve --mcp`). See [CLI installation options](https://github.com/KeeperHub/cli#install) for other platforms.
+See [CLI installation options](https://github.com/KeeperHub/cli#install) for other platforms.
 
 ### How do I connect Claude Code to KeeperHub?
 
-Install the Claude Code plugin and run `/keeperhub:login`:
+**Option A (remote, no install):**
+
+```bash
+claude mcp add --transport http keeperhub https://app.keeperhub.com/mcp
+```
+
+Run `/mcp` in Claude Code to authorize via browser.
+
+**Option B (plugin with local CLI):**
 
 ```bash
 /plugin marketplace add KeeperHub/claude-plugins
@@ -176,7 +192,7 @@ Install the Claude Code plugin and run `/keeperhub:login`:
 /keeperhub:login
 ```
 
-Restart Claude Code after setup. You can verify with `/keeperhub:status`.
+Restart Claude Code after setup. Verify with `/keeperhub:status`.
 
 ### What's the difference between `kh_` and `wfb_` API keys?
 

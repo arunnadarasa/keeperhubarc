@@ -7,37 +7,36 @@ description: "Model Context Protocol server for AI agents to build and manage Ke
 
 The KeeperHub MCP server exposes tools over the Model Context Protocol, enabling AI agents to create, execute, and monitor blockchain automation workflows.
 
-## Installation
+## Connect to KeeperHub MCP
 
-### Via kh CLI (recommended)
+### Remote (recommended)
 
-The [`kh` CLI](https://github.com/KeeperHub/cli) includes a built-in MCP server. Install it and authenticate:
+Connect directly to KeeperHub's hosted MCP server. No local process or CLI installation needed.
+
+```bash
+claude mcp add --transport http keeperhub https://app.keeperhub.com/mcp
+```
+
+Then run `/mcp` inside Claude Code to complete the OAuth authorization via browser. KeeperHub will ask you to approve access, and the token is stored automatically.
+
+For headless or CI environments where browser auth is not available, pass an API key:
+
+```bash
+claude mcp add --transport http keeperhub https://app.keeperhub.com/mcp \
+  --header "Authorization: Bearer kh_your_key_here"
+```
+
+### Local via kh CLI
+
+The [`kh` CLI](https://github.com/KeeperHub/cli) runs a local MCP server over stdio. Use this if you prefer a local process or need offline access.
 
 ```bash
 brew install keeperhub/tap/kh
 kh auth login
 ```
 
-See [CLI installation options](https://github.com/KeeperHub/cli#install) for other platforms.
+Then configure Claude Code:
 
-### Via Claude Code Plugin
-
-If you installed the [Claude Code Plugin](/ai-tools/claude-code-plugin), the MCP server is configured automatically. No manual setup needed.
-
-## Configuration
-
-### Authentication
-
-The `kh` CLI resolves authentication in this order:
-1. `KH_API_KEY` environment variable (for CI/headless environments)
-2. OS keyring (from `kh auth login` browser flow)
-3. `~/.config/kh/hosts.yml` (fallback)
-
-### MCP Client Configuration
-
-**Claude Code (via plugin):** Automatically configured when you install the [Claude Code Plugin](/ai-tools/claude-code-plugin).
-
-**Claude Code (manual):**
 ```json
 {
   "mcpServers": {
@@ -49,17 +48,19 @@ The `kh` CLI resolves authentication in this order:
 }
 ```
 
-**Claude Code (custom host, for development only):**
-```json
-{
-  "mcpServers": {
-    "keeperhub": {
-      "command": "kh",
-      "args": ["serve", "--mcp", "--host", "http://localhost:3000"]
-    }
-  }
-}
-```
+See [CLI installation options](https://github.com/KeeperHub/cli#install) for other platforms.
+
+### Via Claude Code Plugin
+
+If you installed the [Claude Code Plugin](/ai-tools/claude-code-plugin), the MCP server is configured automatically via the `kh` CLI. No manual setup needed.
+
+## Authentication
+
+The MCP endpoint supports two authentication methods:
+
+**OAuth 2.1 (browser-based):** When you add the remote MCP server, Claude Code discovers the OAuth metadata at `/.well-known/oauth-authorization-server` and opens a browser for authorization. Tokens are managed automatically (1-hour access tokens, 30-day refresh tokens).
+
+**API keys (headless):** Pass an organization API key (`kh_` prefix) as a Bearer token. Create one at [app.keeperhub.com](https://app.keeperhub.com) under Settings > API Keys > Organisation tab.
 
 ## Tools Reference
 

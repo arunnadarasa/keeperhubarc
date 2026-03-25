@@ -8,30 +8,25 @@ Users and Agents can build and deploy Web3 automation workflows through a visual
 
 ## Add KeeperHub to your Agent
 
-**1. Install the plugin**
+**Quick setup (no install needed):**
 
+```bash
+claude mcp add --transport http keeperhub https://app.keeperhub.com/mcp
 ```
+
+Then run `/mcp` inside Claude Code to authorize via browser. That's it.
+
+Try asking Claude to "create a workflow that monitors a wallet".
+
+**Alternative: install the Claude Code plugin** for skills and slash commands:
+
+```bash
 /plugin marketplace add KeeperHub/claude-plugins
 /plugin install keeperhub@keeperhub-plugins
-```
-
-You can view the plugin source code here https://github.com/KeeperHub/claude-plugins/tree/main/plugins/keeperhub
-
-**2. Run setup**
-
-```
 /keeperhub:login
 ```
 
-This walks you through:
-
-- Authenticating with your KeeperHub account via browser login
-- Verifying API connectivity
-- Configuring the MCP server (powered by the `kh` CLI)
-
-**3. Restart Claude Code** for the MCP tools to become available.
-
-That's it. Try asking Claude to "create a workflow that monitors a wallet" or run `/keeperhub:status` to verify.
+Restart Claude Code after setup. [Plugin source code](https://github.com/KeeperHub/claude-plugins/tree/main/plugins/keeperhub).
 
 ## What KeeperHub Does
 
