@@ -63,7 +63,7 @@ env:
     value: "https://sqs.us-east-1.amazonaws.com/${AWS_ACCOUNT_ID}/keeperhub-workflow-queue-staging"
   RUNNER_IMAGE:
     type: kv
-    value: "${ECR_REGISTRY}/keeperhub-runner-staging:app-${IMAGE_TAG}"
+    value: "${ECR_REGISTRY}/keeperhub-staging:workflow-runner-${IMAGE_TAG}"
   IMAGE_PULL_POLICY:
     type: kv
     value: "Always"
