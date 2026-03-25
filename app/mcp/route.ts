@@ -106,6 +106,8 @@ export async function POST(request: Request): Promise<Response> {
     enableJsonResponse: true,
   });
 
+  // Auth header is captured once and reused for all tool calls in this session.
+  // If the API key is revoked mid-session, it remains valid until session expiry.
   const baseUrl = deriveBaseUrl(request);
   const authHeader = request.headers.get("authorization") ?? "";
   const server = createMcpServer(baseUrl, authHeader);
