@@ -88,8 +88,18 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const organizationId = auth.organizationId ?? "";
-  const apiKeyId = auth.apiKeyId ?? "";
+  if (!auth.organizationId || !auth.apiKeyId) {
+    return new Response(
+      JSON.stringify({ error: "API key missing organization context" }),
+      {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+
+  const organizationId = auth.organizationId;
+  const apiKeyId = auth.apiKeyId;
 
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: () => crypto.randomUUID(),
