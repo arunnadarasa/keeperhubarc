@@ -49,8 +49,8 @@ args:
 env:
   DATABASE_URL:
     type: parameterStore
-    name: database-url
-    parameter_name: /eks/techops-staging/keeperhub/database-url
+    name: db-url
+    parameter_name: /eks/techops-staging/keeperhub/db-url
   INTEGRATION_ENCRYPTION_KEY:
     type: parameterStore
     name: integration-encryption-key
