@@ -60,7 +60,9 @@ export async function POST(request: Request): Promise<Response> {
     return session.transport.handleRequest(request);
   }
 
-  // No session ID - must be an initialize request
+  // No session ID - must be an initialize request.
+  // Pre-parse the body here because request.json() consumes the stream.
+  // We pass parsedBody to handleRequest so the SDK doesn't re-read it.
   let body: unknown;
   try {
     body = await request.json();
