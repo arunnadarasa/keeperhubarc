@@ -18,7 +18,7 @@ ingress:
 
 image:
   repository: ${ECR_REGISTRY}/keeperhub-executor-prod
-  tag: app-${IMAGE_TAG}
+  tag: executor-${IMAGE_TAG}
   pullPolicy: Always
 
 deployment:

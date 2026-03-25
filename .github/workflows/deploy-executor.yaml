@@ -74,12 +74,12 @@ jobs:
           IMAGE_TAG="${{ steps.vars.outputs.sha_short }}"
           if ! aws ecr describe-images \
             --repository-name "$EXECUTOR_ECR_NAME" \
-            --image-ids "imageTag=app-${IMAGE_TAG}" \
+            --image-ids "imageTag=executor-${IMAGE_TAG}" \
             --region "${{ env.REGION }}" >/dev/null 2>&1; then
-            echo "::error::Cannot skip build: app-${IMAGE_TAG} not found in ${EXECUTOR_ECR_NAME}. Remove [skip build] or push a build first."
+            echo "::error::Cannot skip build: executor-${IMAGE_TAG} not found in ${EXECUTOR_ECR_NAME}. Remove [skip build] or push a build first."
             exit 1
           fi
-          echo "app-${IMAGE_TAG} exists in ${EXECUTOR_ECR_NAME}"
+          echo "executor-${IMAGE_TAG} exists in ${EXECUTOR_ECR_NAME}"
 
       - name: Build and push executor image
         if: steps.skip.outputs.skip_build != 'true'

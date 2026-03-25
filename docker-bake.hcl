@@ -120,8 +120,8 @@ target "executor" {
   dockerfile = "Dockerfile"
   target     = "executor"
   tags = compact([
-    "${ECR_REGISTRY}/${EXECUTOR_ECR_REPO}:app-${IMAGE_TAG}",
-    "${ECR_REGISTRY}/${EXECUTOR_ECR_REPO}:app-latest",
+    "${ECR_REGISTRY}/${EXECUTOR_ECR_REPO}:executor-${IMAGE_TAG}",
+    "${ECR_REGISTRY}/${EXECUTOR_ECR_REPO}:executor-latest",
     ENVIRONMENT_TAG != "" ? "${ECR_REGISTRY}/${EXECUTOR_ECR_REPO}:${ENVIRONMENT_TAG}" : "",
   ])
   cache-from = ["type=registry,ref=${ECR_REGISTRY}/${EXECUTOR_ECR_REPO}:cache"]
