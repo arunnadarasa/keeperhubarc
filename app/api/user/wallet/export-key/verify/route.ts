@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { toChecksumAddress } from "@/lib/address-utils";
@@ -84,6 +84,25 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const storedCode = storedCodes[0];
+
+    const MAX_ATTEMPTS = 5;
+
+    // Increment attempt counter before comparing to prevent TOCTOU races
+    await db
+      .update(keyExportCodes)
+      .set({ attempts: sql`${keyExportCodes.attempts} + 1` })
+      .where(eq(keyExportCodes.id, storedCode.id));
+
+    if (storedCode.attempts >= MAX_ATTEMPTS) {
+      await db
+        .delete(keyExportCodes)
+        .where(eq(keyExportCodes.id, storedCode.id));
+      return NextResponse.json(
+        { error: "Too many attempts. Please request a new code." },
+        { status: 429 }
+      );
+    }
+
     const providedHash = hashCode(code);
 
     if (providedHash !== storedCode.codeHash) {

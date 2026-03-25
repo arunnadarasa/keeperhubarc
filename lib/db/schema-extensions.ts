@@ -5,7 +5,7 @@
  * These are extensions to the base workflow-builder schema.
  *
  * Tables defined here:
- * - paraWallets: Stores Para wallet information for Web3 operations
+ * - organizationWallets: Stores wallet information for Web3 operations (aliased as paraWallets)
  * - organizationApiKeys: Stores organization-scoped API keys for MCP server authentication
  * - organizationTokens: Tracks ERC20 tokens per organization/chain for balance display
  * - supportedTokens: System-wide default tokens (stablecoins) available on each chain
@@ -95,6 +95,7 @@ export const keyExportCodes = pgTable("key_export_codes", {
     .references(() => organization.id, { onDelete: "cascade" }),
   codeHash: text("code_hash").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
+  attempts: integer("attempts").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

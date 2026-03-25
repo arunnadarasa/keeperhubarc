@@ -54,6 +54,19 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
+    const MIN_USER_SHARE_LENGTH = 100;
+    const MAX_USER_SHARE_LENGTH = 10_000;
+
+    if (
+      userShare.length < MIN_USER_SHARE_LENGTH ||
+      userShare.length > MAX_USER_SHARE_LENGTH
+    ) {
+      return NextResponse.json(
+        { error: "Invalid userShare: unexpected length" },
+        { status: 400 }
+      );
+    }
+
     const encryptedShare = encryptUserShare(userShare);
 
     const updated = await db
