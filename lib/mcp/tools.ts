@@ -8,13 +8,18 @@ async function callApi(
   authHeader: string,
   path: string,
   method: string,
-  body?: unknown
+  body?: unknown,
+  organizationId?: string
 ): Promise<ApiResponse> {
   const url = `${baseUrl}${path}`;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: authHeader,
   };
+
+  if (organizationId) {
+    headers["X-Organization-Id"] = organizationId;
+  }
 
   const response = await fetch(url, {
     method,
@@ -58,6 +63,12 @@ export function registerTools(
         .string()
         .optional()
         .describe("Optional tag ID to filter workflows"),
+      organizationId: z
+        .string()
+        .optional()
+        .describe(
+          "Optional organization ID to override the API key's default org. The API key creator must be a member of the target org."
+        ),
     },
     async (args) => {
       const params = new URLSearchParams();
@@ -69,7 +80,14 @@ export function registerTools(
       }
       const query = params.toString();
       const path = `/api/workflows${query ? `?${query}` : ""}`;
-      const data = await callApi(baseUrl, authHeader, path, "GET");
+      const data = await callApi(
+        baseUrl,
+        authHeader,
+        path,
+        "GET",
+        undefined,
+        args.organizationId
+      );
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
@@ -81,13 +99,21 @@ export function registerTools(
     "Get a single workflow by ID, including its nodes, edges, and configuration.",
     {
       workflowId: z.string().describe("The workflow ID"),
+      organizationId: z
+        .string()
+        .optional()
+        .describe(
+          "Optional organization ID to override the API key's default org."
+        ),
     },
     async (args) => {
       const data = await callApi(
         baseUrl,
         authHeader,
         `/api/workflows/${args.workflowId}`,
-        "GET"
+        "GET",
+        undefined,
+        args.organizationId
       );
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -118,6 +144,12 @@ export function registerTools(
         .string()
         .optional()
         .describe("Optional tag ID to label the workflow"),
+      organizationId: z
+        .string()
+        .optional()
+        .describe(
+          "Optional organization ID to override the API key's default org."
+        ),
     },
     async (args) => {
       const data = await callApi(
@@ -132,7 +164,8 @@ export function registerTools(
           edges: args.edges,
           projectId: args.projectId,
           tagId: args.tagId,
-        }
+        },
+        args.organizationId
       );
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -165,15 +198,22 @@ export function registerTools(
         .nullable()
         .optional()
         .describe("Tag ID to assign (null to unassign)"),
+      organizationId: z
+        .string()
+        .optional()
+        .describe(
+          "Optional organization ID to override the API key's default org."
+        ),
     },
     async (args) => {
-      const { workflowId, ...body } = args;
+      const { workflowId, organizationId, ...body } = args;
       const data = await callApi(
         baseUrl,
         authHeader,
         `/api/workflows/${workflowId}`,
         "PUT",
-        body
+        body,
+        organizationId
       );
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -186,13 +226,21 @@ export function registerTools(
     "Delete a workflow by ID. This action is irreversible.",
     {
       workflowId: z.string().describe("The workflow ID to delete"),
+      organizationId: z
+        .string()
+        .optional()
+        .describe(
+          "Optional organization ID to override the API key's default org."
+        ),
     },
     async (args) => {
       const data = await callApi(
         baseUrl,
         authHeader,
         `/api/workflows/${args.workflowId}`,
-        "DELETE"
+        "DELETE",
+        undefined,
+        args.organizationId
       );
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -213,6 +261,12 @@ export function registerTools(
         .record(z.string(), z.unknown())
         .optional()
         .describe("Optional input data to pass to the workflow trigger"),
+      organizationId: z
+        .string()
+        .optional()
+        .describe(
+          "Optional organization ID to override the API key's default org. Use this to execute workflows under a different org's context (wallet, settings)."
+        ),
     },
     async (args) => {
       const data = await callApi(
@@ -220,7 +274,8 @@ export function registerTools(
         authHeader,
         `/api/workflow/${args.workflowId}/execute`,
         "POST",
-        { input: args.input ?? {} }
+        { input: args.input ?? {} },
+        args.organizationId
       );
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -387,13 +442,22 @@ export function registerTools(
   server.tool(
     "list_integrations",
     "List all configured integrations (credentials) for the organization. These are required for actions like Discord notifications or Sendgrid emails.",
-    {},
-    async () => {
+    {
+      organizationId: z
+        .string()
+        .optional()
+        .describe(
+          "Optional organization ID to override the API key's default org."
+        ),
+    },
+    async (args) => {
       const data = await callApi(
         baseUrl,
         authHeader,
         "/api/integrations",
-        "GET"
+        "GET",
+        undefined,
+        args.organizationId
       );
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -406,13 +470,21 @@ export function registerTools(
     "Get details for a specific wallet integration. Required for web3 write actions like fund transfers and contract writes.",
     {
       integrationId: z.string().describe("The integration (wallet) ID"),
+      organizationId: z
+        .string()
+        .optional()
+        .describe(
+          "Optional organization ID to override the API key's default org."
+        ),
     },
     async (args) => {
       const data = await callApi(
         baseUrl,
         authHeader,
         `/api/integrations/${args.integrationId}`,
-        "GET"
+        "GET",
+        undefined,
+        args.organizationId
       );
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
