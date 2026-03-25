@@ -42,7 +42,7 @@ import { generateId } from "@/lib/utils/id";
  * Only organization admins and owners can create/manage wallets.
  */
 export const organizationWallets = pgTable(
-  "organization_wallets",
+  "para_wallets",
   {
     id: text("id")
       .primaryKey()
@@ -66,8 +66,7 @@ export const organizationWallets = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
-    unique("uq_org_wallet").on(table.organizationId),
-    index("idx_org_wallets_org").on(table.organizationId),
+    unique("para_wallets_organization_id_unique").on(table.organizationId),
   ]
 );
 
