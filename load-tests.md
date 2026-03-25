@@ -1,98 +1,84 @@
-# k6 Execution Load Test Results
+# k6 Load Test Results — Production-Realistic Execution Test
 
 **Date:** 2026-03-25
-**Target:** PR-663 environment (`app-pr-663.keeperhub.com`) via Cloudflare Access service token
+**Target:** PR-663 environment (`app-pr-663.keeperhub.com`)
 **Cluster:** techops-staging EKS (us-east-1), namespace `pr-663`
-**Infrastructure:** Single app pod, CNPG PostgreSQL 16, Redis, LocalStack (SQS)
-**Test tool:** k6 v0.56.0 with pure JavaScript, no curl dependencies
+**Infrastructure:** Single app pod, CNPG PostgreSQL 16, Redis, LocalStack (SQS), scheduler-dispatcher + scheduler-executor
 
 ## Test Design
 
-Each k6 VU (virtual user):
-1. **Signs up** (email + password) with retry on 429
-2. **Verifies email** via admin OTP endpoint with retry
-3. **Signs in** to establish session
-4. **Creates 5 workflows** with realistic node patterns (2-7 nodes: conditions, HTTP chains, branching, parallel reads)
-5. **Hammers workflow executions** in a tight loop using `X-Service-Key` auth (same auth path the scheduler service uses in production)
+Replicates the real production workload: scheduled workflows triggered by the actual scheduler service.
 
-VUs ramp up gradually (one new VU every 5 seconds) to avoid rate-limit storms during user creation. Once a VU is ready, it fires executions continuously with 0.5s pause between calls.
+**Setup per VU:**
+1. Sign up, verify email (OTP), sign in
+2. Create N workflows with realistic patterns (75% Schedule, 25% Manual)
+3. Enable workflows via admin endpoint (creates `workflow_schedules` records)
 
-Teardown cleans up all test users, workflows, and executions automatically.
+**Execution — real scheduler path:**
+- `scheduler-dispatcher` polls `/api/internal/schedules` every 60 seconds
+- Evaluates cron expressions, enqueues matching workflows to SQS
+- `scheduler-executor` polls SQS, calls `POST /api/workflow/{id}/execute`
+- Manual workflows triggered by k6 via `X-Service-Key` every 60 seconds
 
-## Results
+**Observation:** 3-minute window per tier, then collect execution results from API.
 
-| Concurrent VUs | Workflows | Triggers | Success | Fail | Success Rate | Throughput | p95 Latency | Median |
-|---------------|-----------|----------|---------|------|-------------|------------|-------------|--------|
-| **10** | 50 | 643 | 643 | 0 | **100%** | 4.8/sec (286/min) | 1.36s | 200ms |
-| **12** | 55 | 816 | 675 | 141 | **82.72%** | 4.8/sec (289/min) | 1.59s | 211ms |
-| **15** | 75 | 913 | 708 | 205 | **77.54%** | 3.9/sec (232/min) | 1.89s | 200ms |
-| **20** | 80 | 1,038 | 734 | 304 | **70.71%** | 3.4/sec (204/min) | 3.21s | 202ms |
+**Workflow patterns (10 templates):**
+- 7 Schedule + 3 Manual (matching production's ~95/5 distribution)
+- 2-7 nodes each: HTTP Request, Condition, branching, parallel reads, sequential pipelines
+- All actions mock external services via `/api/health` (isolates execution engine from third-party latency)
 
-## Key Findings
+## Results — Gradual Buildup (Finding the Breaking Point)
 
-### Capacity: 10 concurrent executing users at 100% success
+20 VUs, workflows added incrementally per tier, 3-minute observation windows.
 
-The single-pod PR environment sustains **10 concurrent VUs executing workflows at 100% success rate, ~5 executions/second (286/min)**, with p95 latency of 1.36 seconds.
+| Tier (wf/VU) | Total Workflows | Executions | Success | Error | Success Rate | Status |
+|-------------|----------------|------------|---------|-------|-------------|--------|
+| 10 | 200 | 735 | 735 | 0 | **100%** | PASS |
+| 12 | 240 | 880 | 880 | 0 | **100%** | PASS |
+| 14 | 280 | 1,035 | 609 | 426 | **58.8%** | FAIL |
 
-### Sharp degradation at 12+ VUs
+## Results — Starting at 20 wf/VU (Cold Start)
 
-Success rate drops sharply from 100% to 82.72% when going from 10 to 12 concurrent VUs. The failures are HTTP 500 or timeout responses on the execute endpoint, indicating the app process reaches its concurrency limit. Throughput doesn't increase beyond ~5/sec — additional VUs only add contention.
+20 VUs, all 20 workflows created at once per VU.
 
-### Throughput ceiling: ~5 executions/second
+| Tier (wf/VU) | Total Workflows | Executions | Success | Error | Success Rate | Status |
+|-------------|----------------|------------|---------|-------|-------------|--------|
+| 20 | 400 | 1,375 | 822 | 553 | **59.8%** | FAIL |
 
-Regardless of VU count, maximum throughput plateaus at approximately 4.8 executions/second. At 20 VUs, throughput actually decreases (3.4/sec) as the app spends more time handling contention than executing workflows.
+## Capacity Summary
 
-### Latency profile
+**Single-pod PR environment can sustain 240 active scheduled workflows (20 users x 12 each) at 100% execution success rate.**
 
-- **Median latency stays flat** at ~200ms across all VU levels — individual requests are fast when they succeed
-- **p95 increases** from 1.36s (10 VUs) to 3.21s (20 VUs) — tail latency worsens under load
-- **Max latency** reaches 5-7 seconds at higher concurrency
+At 280 workflows (14/VU), success rate drops to 58.8%. The degradation is sharp — not a gradual decline but a cliff between 240 and 280 concurrent workflows.
 
 ## Bottleneck Analysis
 
-### Primary: Node.js single-thread + workflow execution concurrency
+The scheduler dispatches all workflows every 60 seconds. At 240 workflows, the app processes them all within the minute. At 280+, executions start queuing up, overlapping with the next dispatch cycle, causing timeouts and errors.
 
-Workflow execution runs inline in the API process via the Workflow SDK `start()` function. Each execution occupies the Node.js event loop while processing nodes (HTTP requests, condition evaluation, DB writes for execution logs). At 10+ concurrent executions, the event loop saturates.
-
-The `checkConcurrencyLimit()` function in the execute endpoint may also be rejecting requests when too many workflows are already executing.
-
-### Secondary: Database connection pool
-
-The app uses a connection pool of max 10 connections (`postgres({ max: 10 })`). Each workflow execution performs multiple DB operations (create execution record, create log entries per node, update status). At 10+ concurrent executions, the pool becomes the bottleneck.
-
-### Not a bottleneck: Rate limiting
-
-Rate limiting only affects the setup phase (user creation). Once VUs are authenticated, the execute endpoint does not have rate limiting — failures are from genuine overload, not policy.
+Key factors:
+- **Node.js single-thread**: Workflow execution runs inline in the API process
+- **DB connection pool (max 10)**: Each execution does multiple DB operations
+- **Concurrent execution limit**: `checkConcurrencyLimit()` may reject workflows when too many are already running
 
 ## Recommendations
 
-1. **Horizontal scaling**: Add more app replicas. With 2 pods, capacity should roughly double to ~20 concurrent users.
-2. **Increase DB connection pool**: Raise `max` from 10 to 25-50 to match pod concurrency needs.
-3. **Async execution dispatch**: Move workflow execution from inline to K8s Jobs via SQS (the infrastructure already exists via LocalStack). This would decouple trigger latency from execution latency.
-4. **Production baseline**: Run this same test against staging (2 replicas, real RDS) to get production-representative numbers.
+1. **Horizontal scaling**: 2 pods should roughly double capacity to ~500 workflows
+2. **Increase DB pool**: Raise from 10 to 25+ connections
+3. **Async execution**: Dispatch to K8s Jobs via SQS instead of inline execution
+4. **Production test**: Run against staging (same infra but real RDS) after merge
 
-## Test Configuration
+## Test Infrastructure
 
-```bash
-k6 run execution-load-test.js \
-  -e BASE_URL=https://app-pr-663.keeperhub.com \
-  -e TEST_API_KEY=placeholder \
-  -e SERVICE_KEY=<scheduler-service-key> \
-  -e CF_ACCESS_CLIENT_ID=<cf-id> \
-  -e CF_ACCESS_CLIENT_SECRET=<cf-secret> \
-  -e TARGET_VUS=10 \
-  -e WF_PER_VU=5 \
-  -e DURATION=60s \
-  -e RAMP_INTERVAL=5
-```
+| Component | Configuration |
+|-----------|--------------|
+| App | 1 pod, KeeperHub Next.js (Node.js 22) |
+| Database | CNPG PostgreSQL 16 (PR-isolated) |
+| Redis | 1 pod |
+| SQS | LocalStack |
+| Scheduler | dispatcher + executor (1 pod each) |
+| Test tool | k6 v0.56.0, run from local machine via CF Access headers |
+| Auth | k6 signs up/verifies/signs in; enables via admin endpoint; scheduler triggers via SQS |
 
 ## Cleanup
 
-All tests cleaned up automatically via `POST /api/admin/test/cleanup` in the k6 teardown function. Verified zero test records remaining after each run.
-
-| Run | Users Cleaned | Orgs | Workflows |
-|-----|--------------|------|-----------|
-| 10 VU | 10 | 10 | 50 |
-| 12 VU | 12 | 12 | 55 |
-| 15 VU | 15 | 15 | 75 |
-| 20 VU | 25 | 25 | 80 |
+All tests cleaned via `POST /api/admin/test/cleanup` API endpoint. Verified zero test records remaining after each run.
