@@ -1,12 +1,12 @@
-# SC Event Tracker for PR environments
-# Uses pre-built staging image (from keeperhub-events submodule)
+# Event Tracker for PR environments
+# Uses pre-built staging image
 # Variables to be replaced: ${PR_NUMBER}, ${ECR_REGISTRY}
 
 replicaCount: 1
 
 service:
   enabled: true
-  name: event-tracker-pr-${PR_NUMBER}
+  name: event-pr-${PR_NUMBER}
   port: 3000
   type: ClusterIP
   containerPort: 3000
@@ -26,6 +26,7 @@ deployment:
 
 serviceAccount:
   create: false
+  name: keeperhub-pr-${PR_NUMBER}
 
 podAnnotations:
   reloader.stakater.com/auto: "true"
@@ -50,8 +51,10 @@ env:
   KEEPERHUB_API_URL:
     type: kv
     value: "http://keeperhub-pr-${PR_NUMBER}-common:3000"
-    type: kv
-    value: "http://events-worker-pr-${PR_NUMBER}-common:3010"
+  KEEPERHUB_API_KEY:
+    type: parameterStore
+    name: events-service-api-key
+    parameter_name: /eks/techops-staging/keeperhub-events/keeperhub-api-key
   REDIS_HOST:
     type: kv
     value: "redis.pr-${PR_NUMBER}.svc.cluster.local"
@@ -73,23 +76,29 @@ env:
     type: parameterStore
     name: etherscan-api-key
     parameter_name: /eks/techops-staging/keeperhub/etherscan-api-key
+  SQS_QUEUE_URL:
+    type: kv
+    value: "http://localstack.pr-${PR_NUMBER}.svc.cluster.local:4566/000000000000/keeperhub-workflow-queue"
+  AWS_REGION:
+    type: kv
+    value: "us-east-1"
 
 externalSecrets:
   clusterSecretStoreName: techops-staging
 
 livenessProbe:
-  initialDelaySeconds: 10
+  initialDelaySeconds: 30
   periodSeconds: 30
   exec:
     command:
-      - node
-      - -e
-      - "process.exit(0)"
+      - /bin/sh
+      - -c
+      - "pgrep -f 'src/index.ts' || exit 1"
 readinessProbe:
   initialDelaySeconds: 10
-  periodSeconds: 30
+  periodSeconds: 10
   exec:
     command:
-      - node
-      - -e
-      - "process.exit(0)"
+      - /bin/sh
+      - -c
+      - "pgrep -f 'src/index.ts' || exit 1"
