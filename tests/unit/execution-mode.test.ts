@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
@@ -34,7 +34,17 @@ function makeNode(
 }
 
 describe("resolveDispatchTarget", () => {
-  describe("complex mode (default)", () => {
+  describe("complex mode", () => {
+    const originalMode = CONFIG.executionMode;
+
+    beforeEach(() => {
+      (CONFIG as { executionMode: string }).executionMode = "complex";
+    });
+
+    afterEach(() => {
+      (CONFIG as { executionMode: string }).executionMode = originalMode;
+    });
+
     it("returns in-process for empty nodes", () => {
       expect(resolveDispatchTarget([])).toBe("in-process");
     });
@@ -101,11 +111,8 @@ describe("resolveDispatchTarget", () => {
     });
   });
 
-  describe("isolated mode", () => {
-    const originalMode = CONFIG.executionMode;
-
+  describe("isolated mode (default)", () => {
     it("always returns k8s-job regardless of nodes", () => {
-      (CONFIG as { executionMode: string }).executionMode = "isolated";
       expect(resolveDispatchTarget([])).toBe("k8s-job");
       expect(
         resolveDispatchTarget([makeNode("action", "web3/check-balance")])
@@ -113,7 +120,6 @@ describe("resolveDispatchTarget", () => {
       expect(
         resolveDispatchTarget([makeNode("action", "discord/send-message")])
       ).toBe("k8s-job");
-      (CONFIG as { executionMode: string }).executionMode = originalMode;
     });
   });
 
