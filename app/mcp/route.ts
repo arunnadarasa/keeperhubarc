@@ -33,9 +33,12 @@ const CORS_HEADERS = {
 // Start the local-cache cleanup interval once per process lifetime.
 startCleanupInterval();
 
+const TRAILING_SLASH = /\/$/;
+
 function getBaseUrl(request: Request): string {
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL;
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.BETTER_AUTH_URL;
+  if (envUrl) {
+    return envUrl.replace(TRAILING_SLASH, "");
   }
   const url = new URL(request.url);
   return `${url.protocol}//${url.host}`;
