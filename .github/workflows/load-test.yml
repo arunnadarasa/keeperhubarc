@@ -3,6 +3,14 @@ name: k6 Load Test
 on:
   workflow_dispatch:
     inputs:
+      test_mode:
+        description: 'Test mode'
+        required: true
+        type: choice
+        options:
+          - execution
+          - http-ramp
+        default: execution
       environment:
         description: 'Target environment'
         required: true
@@ -18,22 +26,44 @@ on:
         type: string
         default: ''
       threshold:
-        description: 'Success rate threshold (%) — stops when rate drops below'
+        description: 'Success rate threshold (%)'
         required: false
         type: string
-        default: '99'
+        default: '95'
+      # Execution mode parameters
+      users:
+        description: '[execution] Number of test users'
+        required: false
+        type: string
+        default: '20'
+      workflows_per_round:
+        description: '[execution] Workflows added per user per round'
+        required: false
+        type: string
+        default: '5'
+      observe_window:
+        description: '[execution] Observation window in seconds'
+        required: false
+        type: string
+        default: '600'
+      max_rounds:
+        description: '[execution] Maximum scaling rounds'
+        required: false
+        type: string
+        default: '10'
+      # HTTP ramp mode parameters
       step_size:
-        description: 'VU increment per step'
+        description: '[http-ramp] VU increment per step'
         required: false
         type: string
         default: '5'
       step_duration:
-        description: 'Duration per step (e.g. 30s, 1m)'
+        description: '[http-ramp] Duration per step (e.g. 30s, 1m)'
         required: false
         type: string
         default: '30s'
       max_vus:
-        description: 'Maximum VUs safety cap'
+        description: '[http-ramp] Maximum VUs safety cap'
         required: false
         type: string
         default: '500'
@@ -46,7 +76,7 @@ jobs:
   load-test:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment == 'production' && 'prod' || 'staging' }}
-    timeout-minutes: 120
+    timeout-minutes: 240
 
     steps:
       - name: Checkout code
@@ -61,7 +91,6 @@ jobs:
           k6 version
 
       - name: Resolve target URL
-        id: target
         run: |
           if [[ "${{ inputs.environment }}" == "custom" ]]; then
             BASE_URL="${{ inputs.custom_url }}"
@@ -73,8 +102,7 @@ jobs:
             BASE_URL="${{ vars.TO_HEALTH_URL }}"
           fi
           echo "BASE_URL=$BASE_URL" >> $GITHUB_ENV
-          echo "base_url=$BASE_URL" >> $GITHUB_OUTPUT
-          echo "Target: $BASE_URL"
+          echo "Target: $BASE_URL (mode: ${{ inputs.test_mode }})"
 
       - name: Wait for target to be healthy
         run: |
@@ -98,8 +126,26 @@ jobs:
           CF_ACCESS_CLIENT_ID: ${{ secrets.TO_CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.TO_CF_ACCESS_CLIENT_SECRET }}
 
-      - name: Run ramp-until-breach load test
-        id: load-test
+      # ── Execution mode: workflow execution load test ──
+      - name: Run execution load test
+        if: inputs.test_mode == 'execution'
+        run: |
+          chmod +x tests/k6/workflows-load-test.sh
+          tests/k6/workflows-load-test.sh "${{ env.BASE_URL }}" || true
+        env:
+          TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.TO_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.TO_CF_ACCESS_CLIENT_SECRET }}
+          USERS: ${{ inputs.users }}
+          WF_PER_ROUND: ${{ inputs.workflows_per_round }}
+          OBSERVE_WINDOW: ${{ inputs.observe_window }}
+          THRESHOLD: ${{ inputs.threshold }}
+          MAX_ROUNDS: ${{ inputs.max_rounds }}
+          RESULTS_DIR: /tmp/k6-exec-load
+
+      # ── HTTP ramp mode: VU ramp-until-breach ──
+      - name: Run HTTP ramp load test
+        if: inputs.test_mode == 'http-ramp'
         run: |
           chmod +x tests/k6/ramp-until-breach.sh
           tests/k6/ramp-until-breach.sh \
@@ -126,7 +172,6 @@ jobs:
           RESPONSE=$(curl "${CURL_ARGS[@]}" "${BASE_URL}/api/admin/test/cleanup" || echo '{"error":"cleanup request failed"}')
           echo "Cleanup response: $RESPONSE"
 
-          # Extract user count for summary
           DELETED_USERS=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('deleted',{}).get('users',0))" 2>/dev/null || echo "unknown")
           echo "DELETED_USERS=$DELETED_USERS" >> $GITHUB_ENV
         env:
@@ -137,85 +182,112 @@ jobs:
       - name: Generate summary
         if: always()
         run: |
-          RESULTS_FILE="/tmp/k6-results/all-tiers.json"
-
-          python3 -c "
+          python3 << 'PYSUMMARY'
           import json, os
 
-          results_file = '$RESULTS_FILE'
-          summary_file = os.environ.get('GITHUB_STEP_SUMMARY', '/dev/stdout')
-          threshold = ${{ inputs.threshold }}
-          env_name = '${{ inputs.environment }}'
-          base_url = '${{ env.BASE_URL }}'
-          deleted_users = os.environ.get('DELETED_USERS', 'unknown')
-          run_url = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+          test_mode = "${{ inputs.test_mode }}"
+          threshold = float("${{ inputs.threshold }}")
+          env_name = "${{ inputs.environment }}"
+          base_url = os.environ.get("BASE_URL", "")
+          deleted_users = os.environ.get("DELETED_USERS", "unknown")
+          run_url = "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/stdout")
 
-          tiers = []
-          try:
-              with open(results_file) as f:
-                  tiers = json.load(f)
-          except:
-              pass
+          lines = ["## k6 Load Test Results", ""]
+          lines.append(f"**Target:** [{base_url}]({base_url})")
+          lines.append(f"**Environment:** {env_name}")
+          lines.append(f"**Mode:** {test_mode}")
+          lines.append(f"**Threshold:** {threshold}% success rate")
+          lines.append("")
 
-          lines = []
-          lines.append('## k6 Load Test Results')
-          lines.append('')
-          lines.append(f'**Target:** [{base_url}]({base_url})')
-          lines.append(f'**Environment:** {env_name}')
-          lines.append(f'**Threshold:** {threshold}% success rate')
-          lines.append(f'**Step:** +${{ inputs.step_size }} VUs every ${{ inputs.step_duration }}')
-          lines.append(f'**Max VUs:** ${{ inputs.max_vus }}')
-          lines.append('')
+          if test_mode == "execution":
+              results_file = "/tmp/k6-exec-load/rounds.json"
+              rounds = []
+              try:
+                  with open(results_file) as f:
+                      rounds = json.load(f)
+              except:
+                  pass
 
-          if not tiers:
-              lines.append(':x: **No results collected** -- check the [workflow logs]({}) for errors.'.format(run_url))
-          else:
-              # Find breach point
-              breach_tier = None
-              for t in tiers:
-                  if t['success_rate'] < threshold:
-                      breach_tier = t
-                      break
-
-              if breach_tier:
-                  lines.append(f':warning: **Threshold breached at {breach_tier[\"vus\"]} VUs** (success rate {breach_tier[\"success_rate\"]}% < {threshold}%)')
+              if not rounds:
+                  lines.append(f":x: **No results collected** -- check the [workflow logs]({run_url}) for errors.")
               else:
-                  last = tiers[-1]
-                  lines.append(f':white_check_mark: **All steps passed** up to {last[\"vus\"]} VUs at {last[\"success_rate\"]}% success rate')
+                  breach = next((r for r in rounds if r["success_rate"] < threshold), None)
+                  if breach:
+                      lines.append(f":warning: **Threshold breached in round {breach['round']}** "
+                                   f"({breach['total_workflows']} workflows, {breach['success_rate']}% < {threshold}%)")
+                  else:
+                      last = rounds[-1]
+                      lines.append(f":white_check_mark: **All rounds passed** -- "
+                                   f"{last['total_workflows']} workflows at {last['success_rate']}% success")
 
-              lines.append('')
-              lines.append('| Step | VUs | Success Rate | Requests | RPS | p95 (ms) | Avg (ms) | Checks | Status |')
-              lines.append('|------|-----|-------------|----------|-----|----------|----------|--------|--------|')
+                  lines.append("")
+                  lines.append("| Round | Workflows | Executions | Success | Errors | Rate | Avg (ms) | p95 (ms) | Throughput | Status |")
+                  lines.append("|-------|-----------|------------|---------|--------|------|----------|----------|------------|--------|")
 
-              for t in tiers:
-                  icon = ':white_check_mark:' if t['success_rate'] >= threshold else ':warning:' if t['success_rate'] >= 80 else ':x:'
-                  checks = f\"{t['checks_passed']}/{t['checks_passed'] + t['checks_failed']}\"
-                  lines.append(f\"| {t.get('step', '-')} | {t['vus']} | {t['success_rate']}% | {t['total_requests']} | {t['rps']} | {t['p95_ms']} | {t['avg_ms']} | {checks} | {icon} |\")
+                  for r in rounds:
+                      icon = ":white_check_mark:" if r["success_rate"] >= threshold else ":warning:" if r["success_rate"] >= 80 else ":x:"
+                      lines.append(f"| {r['round']} | {r['total_workflows']} | {r['total_executions']} | "
+                                   f"{r['success']} | {r['errors']} | {r['success_rate']}% | "
+                                   f"{r['avg_duration_ms']} | {r['p95_duration_ms']} | "
+                                   f"{r['throughput_per_min']}/min | {icon} |")
 
-              # Issues summary
-              has_issues = False
-              for t in tiers:
-                  issues = [i for i in (t.get('issues', []) or []) if i != 'None']
-                  if issues:
-                      if not has_issues:
-                          lines.append('')
-                          lines.append('### Issues by Step')
-                          has_issues = True
-                      lines.append(f'**{t[\"vus\"]} VUs:** {', '.join(issues)}')
+                  last_good = None
+                  for r in rounds:
+                      if r["success_rate"] >= threshold:
+                          last_good = r
+                  if last_good:
+                      lines.append("")
+                      lines.append(f"### Capacity")
+                      lines.append(f"**{last_good['total_workflows']} active workflows** at "
+                                   f"{last_good['success_rate']}% success rate, "
+                                   f"{last_good['throughput_per_min']} executions/min")
 
-          lines.append('')
-          lines.append(f'### Cleanup')
-          lines.append(f'Deleted **{deleted_users}** test users from the database.')
-          lines.append('')
+          elif test_mode == "http-ramp":
+              results_file = "/tmp/k6-results/all-tiers.json"
+              tiers = []
+              try:
+                  with open(results_file) as f:
+                      tiers = json.load(f)
+              except:
+                  pass
 
-          with open(summary_file, 'w') as f:
-              f.write('\n'.join(lines))
-          " >> "$GITHUB_STEP_SUMMARY"
+              if not tiers:
+                  lines.append(f":x: **No results collected** -- check the [workflow logs]({run_url}) for errors.")
+              else:
+                  breach = next((t for t in tiers if t["success_rate"] < threshold), None)
+                  if breach:
+                      lines.append(f":warning: **Threshold breached at {breach['vus']} VUs** ({breach['success_rate']}% < {threshold}%)")
+                  else:
+                      last = tiers[-1]
+                      lines.append(f":white_check_mark: **All steps passed** up to {last['vus']} VUs at {last['success_rate']}%")
 
-      - name: Upload k6 results
+                  lines.append("")
+                  lines.append("| Step | VUs | Success Rate | Requests | RPS | p95 (ms) | Avg (ms) | Checks | Status |")
+                  lines.append("|------|-----|-------------|----------|-----|----------|----------|--------|--------|")
+
+                  for t in tiers:
+                      icon = ":white_check_mark:" if t["success_rate"] >= threshold else ":warning:" if t["success_rate"] >= 80 else ":x:"
+                      checks = f"{t['checks_passed']}/{t['checks_passed'] + t['checks_failed']}"
+                      lines.append(f"| {t.get('step', '-')} | {t['vus']} | {t['success_rate']}% | "
+                                   f"{t['total_requests']} | {t['rps']} | {t['p95_ms']} | "
+                                   f"{t['avg_ms']} | {checks} | {icon} |")
+
+          lines.append("")
+          lines.append("### Cleanup")
+          lines.append(f"Deleted **{deleted_users}** test users from the database.")
+          lines.append("")
+
+          with open(summary_path, "w") as f:
+              f.write("\n".join(lines))
+          PYSUMMARY
+
+      - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: k6-load-test-${{ inputs.environment }}-${{ github.run_number }}
-          path: /tmp/k6-results/
+          name: k6-load-test-${{ inputs.test_mode }}-${{ inputs.environment }}-${{ github.run_number }}
+          path: |
+            /tmp/k6-exec-load/
+            /tmp/k6-results/
           retention-days: 30
