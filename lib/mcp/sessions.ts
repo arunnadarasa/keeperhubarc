@@ -10,12 +10,26 @@ type SessionEntry = {
   server: McpServer;
   organizationId: string;
   apiKeyId: string;
+  scope?: string;
   createdAt: number;
   lastActivity: number;
 };
 
 const sessions = new Map<string, SessionEntry>();
-let cleanupTimer: ReturnType<typeof setInterval> | null = null;
+
+const CLEANUP_KEY = Symbol.for("keeperhub-mcp-cleanup-timer");
+
+type GlobalThisWithTimer = typeof globalThis & Record<symbol, unknown>;
+
+function getGlobalTimer(): ReturnType<typeof setInterval> | null {
+  const g = globalThis as GlobalThisWithTimer;
+  return (g[CLEANUP_KEY] as ReturnType<typeof setInterval> | null) ?? null;
+}
+
+function setGlobalTimer(timer: ReturnType<typeof setInterval> | null): void {
+  const g = globalThis as GlobalThisWithTimer;
+  g[CLEANUP_KEY] = timer;
+}
 
 export function getSession(sessionId: string): SessionEntry | undefined {
   return sessions.get(sessionId);
@@ -65,22 +79,21 @@ export function getSessionCount(): number {
 }
 
 export function startCleanupInterval(): void {
-  if (cleanupTimer !== null) {
-    return;
+  const existing = getGlobalTimer();
+  if (existing !== null) {
+    clearInterval(existing);
   }
-  cleanupTimer = setInterval(cleanupExpiredSessions, CLEANUP_INTERVAL_MS);
-  if (
-    cleanupTimer &&
-    typeof cleanupTimer === "object" &&
-    "unref" in cleanupTimer
-  ) {
-    cleanupTimer.unref();
+  const timer = setInterval(cleanupExpiredSessions, CLEANUP_INTERVAL_MS);
+  if (timer && typeof timer === "object" && "unref" in timer) {
+    timer.unref();
   }
+  setGlobalTimer(timer);
 }
 
 export function stopCleanupInterval(): void {
-  if (cleanupTimer !== null) {
-    clearInterval(cleanupTimer);
-    cleanupTimer = null;
+  const timer = getGlobalTimer();
+  if (timer !== null) {
+    clearInterval(timer);
+    setGlobalTimer(null);
   }
 }

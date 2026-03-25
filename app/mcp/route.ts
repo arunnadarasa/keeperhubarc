@@ -50,6 +50,7 @@ async function authenticate(request: Request): Promise<ApiKeyAuthResult> {
       organizationId: oauthResult.organizationId,
       userId: oauthResult.userId,
       apiKeyId: `oauth:${oauthResult.userId ?? "unknown"}`,
+      scope: oauthResult.scope,
     };
   }
 
@@ -166,6 +167,9 @@ export async function POST(request: Request): Promise<Response> {
 
   const apiKeyId = auth.apiKeyId;
 
+  // OAuth tokens carry a scope string; API keys have full access (undefined scope).
+  const scope = auth.scope;
+
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: () => crypto.randomUUID(),
     onsessioninitialized: (sid) => {
@@ -174,6 +178,7 @@ export async function POST(request: Request): Promise<Response> {
         server,
         organizationId,
         apiKeyId,
+        scope,
         createdAt: Date.now(),
         lastActivity: Date.now(),
       });
@@ -188,7 +193,7 @@ export async function POST(request: Request): Promise<Response> {
   // If the API key is revoked mid-session, it remains valid until session expiry.
   const baseUrl = getBaseUrl(request);
   const authHeader = request.headers.get("authorization") ?? "";
-  const server = createMcpServer(baseUrl, authHeader);
+  const server = createMcpServer(baseUrl, authHeader, scope);
 
   await server.connect(transport);
 

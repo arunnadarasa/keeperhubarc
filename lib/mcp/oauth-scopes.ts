@@ -19,6 +19,7 @@ const READ_TOOLS = new Set<string>([
   "search_plugins",
   "get_plugin",
   "list_integrations",
+  "get_wallet_integration",
   "search_templates",
   "get_template",
   "tools_documentation",

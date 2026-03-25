@@ -1,6 +1,41 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { flattenConfigFields, getAllIntegrations } from "@/plugins/registry";
+import { isToolAllowed } from "./oauth-scopes";
+
+const SCOPE_DENIED_RESULT = {
+  content: [
+    {
+      type: "text" as const,
+      text: JSON.stringify({
+        error: "Forbidden",
+        message: "This tool is not allowed by the current OAuth scope.",
+      }),
+    },
+  ],
+} as const;
+
+// biome-ignore lint/suspicious/noExplicitAny: SDK ToolCallback uses complex generic overloads that cannot be expressed without any
+type AnyToolHandler = (...args: any[]) => unknown;
+
+function withScopeCheck<H extends AnyToolHandler>(
+  toolName: string,
+  scope: string | undefined,
+  handler: H
+): H {
+  if (scope === undefined) {
+    return handler;
+  }
+  const wrapped = (
+    ...args: Parameters<H>
+  ): ReturnType<H> | typeof SCOPE_DENIED_RESULT => {
+    if (!isToolAllowed(toolName, scope)) {
+      return SCOPE_DENIED_RESULT;
+    }
+    return handler(...args) as ReturnType<H>;
+  };
+  return wrapped as unknown as H;
+}
 
 type ApiResponse = Record<string, unknown>;
 
@@ -46,7 +81,8 @@ async function callApi(
 export function registerTools(
   server: McpServer,
   baseUrl: string,
-  authHeader: string
+  authHeader: string,
+  scope?: string
 ): void {
   // =========================================================================
   // Workflow CRUD
@@ -71,7 +107,7 @@ export function registerTools(
           "Optional organization ID to override the API key's default org. The API key creator must be a member of the target org."
         ),
     },
-    async (args) => {
+    withScopeCheck("list_workflows", scope, async (args) => {
       const params = new URLSearchParams();
       if (args.projectId) {
         params.set("projectId", args.projectId);
@@ -92,7 +128,7 @@ export function registerTools(
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
-    }
+    })
   );
 
   server.tool(
@@ -107,7 +143,7 @@ export function registerTools(
           "Optional organization ID to override the API key's default org."
         ),
     },
-    async (args) => {
+    withScopeCheck("get_workflow", scope, async (args) => {
       const data = await callApi(
         baseUrl,
         authHeader,
@@ -119,7 +155,7 @@ export function registerTools(
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
-    }
+    })
   );
 
   server.tool(
@@ -152,7 +188,7 @@ export function registerTools(
           "Optional organization ID to override the API key's default org."
         ),
     },
-    async (args) => {
+    withScopeCheck("create_workflow", scope, async (args) => {
       const data = await callApi(
         baseUrl,
         authHeader,
@@ -171,7 +207,7 @@ export function registerTools(
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
-    }
+    })
   );
 
   server.tool(
@@ -206,7 +242,7 @@ export function registerTools(
           "Optional organization ID to override the API key's default org."
         ),
     },
-    async (args) => {
+    withScopeCheck("update_workflow", scope, async (args) => {
       const { workflowId, organizationId, ...body } = args;
       const data = await callApi(
         baseUrl,
@@ -219,7 +255,7 @@ export function registerTools(
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
-    }
+    })
   );
 
   server.tool(
@@ -234,7 +270,7 @@ export function registerTools(
           "Optional organization ID to override the API key's default org."
         ),
     },
-    async (args) => {
+    withScopeCheck("delete_workflow", scope, async (args) => {
       const data = await callApi(
         baseUrl,
         authHeader,
@@ -246,7 +282,7 @@ export function registerTools(
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
-    }
+    })
   );
 
   // =========================================================================
@@ -269,7 +305,7 @@ export function registerTools(
           "Optional organization ID to override the API key's default org. Use this to execute workflows under a different org's context (wallet, settings)."
         ),
     },
-    async (args) => {
+    withScopeCheck("execute_workflow", scope, async (args) => {
       const data = await callApi(
         baseUrl,
         authHeader,
@@ -281,7 +317,7 @@ export function registerTools(
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
-    }
+    })
   );
 
   server.tool(
@@ -292,7 +328,7 @@ export function registerTools(
         .string()
         .describe("The execution ID returned by execute_workflow"),
     },
-    async (args) => {
+    withScopeCheck("get_execution_status", scope, async (args) => {
       const data = await callApi(
         baseUrl,
         authHeader,
@@ -302,7 +338,7 @@ export function registerTools(
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
-    }
+    })
   );
 
   server.tool(
@@ -311,7 +347,7 @@ export function registerTools(
     {
       executionId: z.string().describe("The execution ID to fetch logs for"),
     },
-    async (args) => {
+    withScopeCheck("get_execution_logs", scope, async (args) => {
       const data = await callApi(
         baseUrl,
         authHeader,
@@ -321,7 +357,7 @@ export function registerTools(
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
-    }
+    })
   );
 
   // =========================================================================
@@ -342,7 +378,7 @@ export function registerTools(
         .optional()
         .describe("Additional context or constraints for the AI generator"),
     },
-    async (args) => {
+    withScopeCheck("ai_generate_workflow", scope, async (args) => {
       const data = await callApi(
         baseUrl,
         authHeader,
@@ -353,7 +389,7 @@ export function registerTools(
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
-    }
+    })
   );
 
   // =========================================================================
@@ -377,7 +413,7 @@ export function registerTools(
           "Whether to include supported blockchain networks (default: true)"
         ),
     },
-    async (args) => {
+    withScopeCheck("list_action_schemas", scope, async (args) => {
       const params = new URLSearchParams();
       if (args.category) {
         params.set("category", args.category);
@@ -391,19 +427,21 @@ export function registerTools(
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
-    }
+    })
   );
 
   server.tool(
     "search_plugins",
-    "Search for available workflow plugins and integrations by keyword.",
+    "List available action schemas filtered by category (e.g., 'web3', 'discord', 'system').",
     {
-      query: z
+      category: z
         .string()
-        .describe("Search query to find relevant plugins or actions"),
+        .describe(
+          "Category to filter by (e.g., 'web3', 'discord', 'sendgrid', 'system', 'triggers')"
+        ),
     },
-    async (args) => {
-      const params = new URLSearchParams({ category: args.query });
+    withScopeCheck("search_plugins", scope, async (args) => {
+      const params = new URLSearchParams({ category: args.category });
       const data = await callApi(
         baseUrl,
         authHeader,
@@ -413,7 +451,7 @@ export function registerTools(
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
-    }
+    })
   );
 
   server.tool(
@@ -426,7 +464,7 @@ export function registerTools(
           "Plugin type identifier (e.g., 'web3', 'discord', 'sendgrid')"
         ),
     },
-    async (args) => {
+    withScopeCheck("get_plugin", scope, async (args) => {
       const params = new URLSearchParams({ category: args.pluginType });
       const data = await callApi(
         baseUrl,
@@ -437,7 +475,7 @@ export function registerTools(
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
-    }
+    })
   );
 
   server.tool(
@@ -451,7 +489,7 @@ export function registerTools(
           "Optional organization ID to override the API key's default org."
         ),
     },
-    async (args) => {
+    withScopeCheck("list_integrations", scope, async (args) => {
       const data = await callApi(
         baseUrl,
         authHeader,
@@ -463,7 +501,7 @@ export function registerTools(
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
-    }
+    })
   );
 
   server.tool(
@@ -478,7 +516,7 @@ export function registerTools(
           "Optional organization ID to override the API key's default org."
         ),
     },
-    async (args) => {
+    withScopeCheck("get_wallet_integration", scope, async (args) => {
       const data = await callApi(
         baseUrl,
         authHeader,
@@ -490,7 +528,7 @@ export function registerTools(
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
-    }
+    })
   );
 
   // =========================================================================
@@ -507,7 +545,7 @@ export function registerTools(
         .describe("Search query to find relevant templates"),
       category: z.string().optional().describe("Filter templates by category"),
     },
-    async (args) => {
+    withScopeCheck("search_templates", scope, async (args) => {
       const params = new URLSearchParams();
       if (args.query) {
         params.set("q", args.query);
@@ -521,7 +559,7 @@ export function registerTools(
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
-    }
+    })
   );
 
   server.tool(
@@ -530,7 +568,7 @@ export function registerTools(
     {
       templateId: z.string().describe("The template workflow ID"),
     },
-    async (args) => {
+    withScopeCheck("get_template", scope, async (args) => {
       const data = await callApi(
         baseUrl,
         authHeader,
@@ -540,7 +578,7 @@ export function registerTools(
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
-    }
+    })
   );
 
   server.tool(
@@ -553,7 +591,7 @@ export function registerTools(
         .optional()
         .describe("Optional name for the cloned workflow"),
     },
-    async (args) => {
+    withScopeCheck("deploy_template", scope, async (args) => {
       const data = await callApi(
         baseUrl,
         authHeader,
@@ -564,7 +602,7 @@ export function registerTools(
       return {
         content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
-    }
+    })
   );
 
   // =========================================================================
@@ -575,7 +613,7 @@ export function registerTools(
     "tools_documentation",
     "Get documentation on how to use the KeeperHub MCP tools, including examples and best practices for workflow creation.",
     {},
-    () => {
+    withScopeCheck("tools_documentation", scope, (_args) => {
       const text = [
         "KeeperHub MCP Tools Documentation",
         "",
@@ -615,7 +653,7 @@ export function registerTools(
       return {
         content: [{ type: "text", text }],
       };
-    }
+    })
   );
 }
 
@@ -631,7 +669,8 @@ function slugToToolName(integration: string, slug: string): string {
 export function registerDynamicTools(
   server: McpServer,
   baseUrl: string,
-  authHeader: string
+  authHeader: string,
+  scope?: string
 ): void {
   const plugins = getAllIntegrations();
 
@@ -660,23 +699,28 @@ export function registerDynamicTools(
       const slug = action.slug;
       const description = action.description;
 
-      server.tool(toolName, description, inputSchema, async (args) => {
-        const { organizationId, ...fieldArgs } = args as Record<
-          string,
-          string | undefined
-        >;
-        const data = await callApi(
-          baseUrl,
-          authHeader,
-          `/api/execute/${integration}/${slug}`,
-          "POST",
-          fieldArgs,
-          organizationId
-        );
-        return {
-          content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-        };
-      });
+      server.tool(
+        toolName,
+        description,
+        inputSchema,
+        withScopeCheck(toolName, scope, async (args) => {
+          const { organizationId, ...fieldArgs } = args as Record<
+            string,
+            string | undefined
+          >;
+          const data = await callApi(
+            baseUrl,
+            authHeader,
+            `/api/execute/${integration}/${slug}`,
+            "POST",
+            fieldArgs,
+            organizationId
+          );
+          return {
+            content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+          };
+        })
+      );
     }
   }
 }

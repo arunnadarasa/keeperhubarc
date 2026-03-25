@@ -75,15 +75,16 @@ function registerResources(
 
 export function createMcpServer(
   baseUrl: string,
-  authHeader: string
+  authHeader: string,
+  scope?: string
 ): McpServer {
   const server = new McpServer({
     name: "keeperhub",
     version: "1.0.0",
   });
 
-  registerTools(server, baseUrl, authHeader);
-  registerDynamicTools(server, baseUrl, authHeader);
+  registerTools(server, baseUrl, authHeader, scope);
+  registerDynamicTools(server, baseUrl, authHeader, scope);
   registerResources(server, baseUrl, authHeader);
 
   return server;

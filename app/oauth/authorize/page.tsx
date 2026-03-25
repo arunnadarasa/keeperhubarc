@@ -44,8 +44,20 @@ async function handleApprove(formData: FormData): Promise<void> {
   const state = formData.get("state") as string | null;
   const codeChallenge = formData.get("code_challenge") as string;
   const codeChallengeMethod = formData.get("code_challenge_method") as string;
-  const userId = formData.get("user_id") as string;
-  const organizationId = formData.get("organization_id") as string;
+
+  const client = getOAuthClient(clientId);
+  if (!client?.redirectUris.includes(redirectUri)) {
+    redirect("/oauth/authorize?error=invalid_request");
+  }
+
+  const requestHeaders = await headers();
+  const session = await auth.api.getSession({ headers: requestHeaders });
+  if (!session?.user) {
+    redirect(`/?returnTo=${encodeURIComponent("/oauth/authorize")}`);
+  }
+
+  const orgContext = await getOrgContext();
+  const organizationId = orgContext.organization?.id ?? session.user.id;
 
   const code = crypto.randomUUID().replace(/-/g, "");
   storeAuthCode({
@@ -53,7 +65,7 @@ async function handleApprove(formData: FormData): Promise<void> {
     clientId,
     redirectUri,
     scope,
-    userId,
+    userId: session.user.id,
     organizationId,
     codeChallenge,
     codeChallengeMethod,
@@ -70,8 +82,14 @@ async function handleApprove(formData: FormData): Promise<void> {
 
 async function handleDeny(formData: FormData): Promise<void> {
   "use server";
+  const clientId = formData.get("client_id") as string;
   const redirectUri = formData.get("redirect_uri") as string;
   const state = formData.get("state") as string | null;
+
+  const client = getOAuthClient(clientId);
+  if (!client?.redirectUris.includes(redirectUri)) {
+    redirect("/oauth/authorize?error=invalid_request");
+  }
 
   const callbackUrl = new URL(redirectUri);
   callbackUrl.searchParams.set("error", "access_denied");
@@ -172,8 +190,6 @@ export default async function AuthorizePage({
 
   const resolvedScope = scope ?? "mcp:read";
   const scopeList = parseScopes(resolvedScope);
-  const orgContext = await getOrgContext();
-  const organizationId = orgContext.organization?.id ?? session.user.id;
 
   const scopeDescriptions: Record<string, string> = {
     "mcp:read": "Read your workflows, executions, and plugin schemas",
@@ -216,6 +232,7 @@ export default async function AuthorizePage({
 
         <div className="flex gap-3">
           <form action={handleDeny} className="flex-1">
+            <input name="client_id" type="hidden" value={clientId} />
             <input name="redirect_uri" type="hidden" value={redirectUri} />
             {state && <input name="state" type="hidden" value={state} />}
             <button
@@ -236,12 +253,6 @@ export default async function AuthorizePage({
               name="code_challenge_method"
               type="hidden"
               value={codeChallengeMethod}
-            />
-            <input name="user_id" type="hidden" value={session.user.id} />
-            <input
-              name="organization_id"
-              type="hidden"
-              value={organizationId}
             />
             <button
               className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
