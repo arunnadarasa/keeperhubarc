@@ -11,14 +11,24 @@ The KeeperHub plugin for Claude Code lets you create workflows, browse templates
 
 ## Installation
 
+**1. Install the `kh` CLI**
+
+```bash
+brew install keeperhub/tap/kh
+```
+
+See [CLI installation options](https://github.com/KeeperHub/cli#install) for other platforms (Go install, GitHub Releases).
+
+**2. Install the plugin**
+
 ```bash
 # Add the marketplace
 /plugin marketplace add KeeperHub/claude-plugins
 
 # Install the plugin
-/plugin install keeperhub@techops-plugins
+/plugin install keeperhub@keeperhub-plugins
 
-# Run setup (creates API key config, installs MCP server)
+# Authenticate (opens browser)
 /keeperhub:login
 ```
 
@@ -27,35 +37,33 @@ Restart Claude Code after setup for MCP tools to become available.
 ### Requirements
 
 - KeeperHub account at [app.keeperhub.com](https://app.keeperhub.com)
-- Node.js 20+
-- curl
+- The `kh` CLI ([install instructions](https://github.com/KeeperHub/cli#install))
 
 ## Commands
 
 ### `/keeperhub:login`
 
-One-time setup. Guides you through creating an organization API key, saves it to `~/.claude/keeperhub/config.json`, and auto-installs the MCP server.
+One-time setup. Checks the `kh` CLI is installed and runs `kh auth login` to authenticate via browser. Credentials are stored in the OS keyring by the CLI.
 
-The key must be organization-scoped (prefix `kh_`). User-scoped keys (`wfb_`) are not supported.
+For headless/CI environments, set the `KH_API_KEY` environment variable with an organization API key (`kh_` prefix).
 
 ### `/keeperhub:status`
 
-Check authentication status, API connectivity, and MCP server availability.
+Check authentication status, CLI version, and MCP server readiness.
 
 ```
 KeeperHub Status
 ----------------
-Auth:       Authenticated
-Key source: config file
-API:        Connected
-MCP server: Installed
-Base URL:   https://app.keeperhub.com
-Config:     ~/.claude/keeperhub/config.json
+kh CLI:       Installed (v1.2.0)
+Auth:         Authenticated as simon@keeperhub.com
+Organization: KeeperHub
+Auth method:  browser
+MCP server:   Ready (kh serve --mcp)
 ```
 
 ## Skills
 
-Skills activate automatically based on what you ask Claude to do. No slash commands needed -- just describe what you want.
+Skills activate automatically based on what you ask Claude to do. No slash commands needed; just describe what you want.
 
 ### workflow-builder
 
@@ -92,27 +100,16 @@ Lists available plugins and their actions, shows configured integrations, and va
 
 ## Configuration
 
-Stored at `~/.claude/keeperhub/config.json` (permissions 600):
-
-```json
-{
-  "apiKey": "kh_...",
-  "baseUrl": "https://app.keeperhub.com",
-  "mcpDir": "~/.claude/keeperhub/mcp-server"
-}
-```
-
-Environment variables override the config file:
+Authentication is handled by the `kh` CLI, which stores credentials in the OS keyring (from `kh auth login`) or reads the `KH_API_KEY` environment variable.
 
 | Variable | Description |
 |----------|-------------|
-| `KEEPERHUB_API_KEY` | API key (overrides config file) |
-| `KEEPERHUB_API_URL` | Base URL (default: `https://app.keeperhub.com`) |
-| `KEEPERHUB_MCP_DIR` | MCP server directory |
+| `KH_API_KEY` | API key for headless/CI environments (`kh_` prefix, organization-scoped) |
+
+The MCP server runs via `kh serve --mcp` and is configured automatically by the plugin.
 
 ## Security
 
-- API keys are saved with file permissions 600 (owner read/write only)
-- Keys are never echoed, logged, or displayed after saving
-- Keys are masked as `kh_***` in status output
+- Browser-based OAuth stores tokens in the OS keyring (not on disk)
+- API keys (`KH_API_KEY`) are only used in headless environments
 - All API communication is over HTTPS

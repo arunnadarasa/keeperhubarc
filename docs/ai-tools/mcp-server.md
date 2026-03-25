@@ -5,75 +5,57 @@ description: "Model Context Protocol server for AI agents to build and manage Ke
 
 # MCP Server
 
-[GitHub](https://github.com/KeeperHub/keeperhub-mcp)
-
-The KeeperHub MCP server exposes 19 tools over the Model Context Protocol, enabling AI agents to create, execute, and monitor blockchain automation workflows.
+The KeeperHub MCP server exposes tools over the Model Context Protocol, enabling AI agents to create, execute, and monitor blockchain automation workflows.
 
 ## Installation
 
-### Docker (recommended)
+### Via kh CLI (recommended)
+
+The [`kh` CLI](https://github.com/KeeperHub/cli) includes a built-in MCP server. Install it and authenticate:
 
 ```bash
-docker build -t keeperhub-mcp .
-docker run -i --rm -e KEEPERHUB_API_KEY=kh_your_key keeperhub-mcp
+brew install keeperhub/tap/kh
+kh auth login
 ```
 
-### Node.js
-
-```bash
-pnpm install
-pnpm build
-KEEPERHUB_API_KEY=kh_your_key pnpm start
-```
+See [CLI installation options](https://github.com/KeeperHub/cli#install) for other platforms.
 
 ### Via Claude Code Plugin
 
-If you installed the [Claude Code Plugin](/ai-tools/claude-code-plugin), the MCP server is auto-installed at `~/.claude/keeperhub/mcp-server`. No manual setup needed.
+If you installed the [Claude Code Plugin](/ai-tools/claude-code-plugin), the MCP server is configured automatically. No manual setup needed.
 
 ## Configuration
 
-### Environment Variables
+### Authentication
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `KEEPERHUB_API_KEY` | Yes | -- | Organization API key (prefix `kh_`) |
-| `KEEPERHUB_API_URL` | No | `https://app.keeperhub.com` | API base URL |
-| `PORT` | No | -- | Set to enable HTTP/SSE mode (leave unset for stdio) |
-| `MCP_API_KEY` | No | -- | Required if PORT is set; authenticates MCP requests |
-
-### Transport Modes
-
-**Stdio (default)** -- For local MCP clients like Claude Code. Uses stdin/stdout.
-
-**HTTP/SSE** -- For remote AI agents. Set `PORT` and `MCP_API_KEY`. All requests require `Authorization: Bearer <MCP_API_KEY>`.
+The `kh` CLI resolves authentication in this order:
+1. `KH_API_KEY` environment variable (for CI/headless environments)
+2. OS keyring (from `kh auth login` browser flow)
+3. `~/.config/kh/hosts.yml` (fallback)
 
 ### MCP Client Configuration
 
-**Claude Code (stdio):**
+**Claude Code (via plugin):** Automatically configured when you install the [Claude Code Plugin](/ai-tools/claude-code-plugin).
+
+**Claude Code (manual):**
 ```json
 {
   "mcpServers": {
     "keeperhub": {
-      "command": "docker",
-      "args": ["run", "-i", "--rm", "-e", "KEEPERHUB_API_KEY", "keeperhub-mcp"],
-      "env": {
-        "KEEPERHUB_API_KEY": "kh_your_key_here"
-      }
+      "command": "kh",
+      "args": ["serve", "--mcp"]
     }
   }
 }
 ```
 
-**Claude Code (local development):**
+**Claude Code (custom host, for development only):**
 ```json
 {
   "mcpServers": {
     "keeperhub": {
-      "command": "node",
-      "args": ["/path/to/keeperhub-mcp/dist/index.js"],
-      "env": {
-        "KEEPERHUB_API_KEY": "kh_your_key_here"
-      }
+      "command": "kh",
+      "args": ["serve", "--mcp", "--host", "http://localhost:3000"]
     }
   }
 }
@@ -239,16 +221,6 @@ Conditions reference previous node outputs using template syntax: `{{@nodeId:Lab
 Get the `walletId` by calling `get_wallet_integration`.
 
 The `network` field accepts chain IDs as strings: `"1"` (Ethereum mainnet), `"11155111"` (Sepolia), `"8453"` (Base), `"42161"` (Arbitrum), `"137"` (Polygon).
-
-## HTTP Endpoints
-
-When running in HTTP/SSE mode (PORT is set):
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/health` | Optional | Health check |
-| GET | `/sse` | Required | Establish SSE connection |
-| POST | `/message?sessionId=...` | Required | Send MCP message |
 
 ## Error Handling
 

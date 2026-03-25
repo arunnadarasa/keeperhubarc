@@ -4,7 +4,7 @@ A Web3 workflow automation platform (forked from vercel-labs/workflow-builder-te
 
 ## Core Value
 
-Users and Agents can build and deploy Web3 automation workflows through a visual builder or with [KeeperHub MCP](https://github.com/KeeperHub/keeperhub-mcp) without writing code.
+Users and Agents can build and deploy Web3 automation workflows through a visual builder or with the [kh CLI](https://github.com/KeeperHub/cli) without writing code.
 
 ## Add KeeperHub to your Agent
 
@@ -12,7 +12,7 @@ Users and Agents can build and deploy Web3 automation workflows through a visual
 
 ```
 /plugin marketplace add KeeperHub/claude-plugins
-/plugin install keeperhub@techops-plugins
+/plugin install keeperhub@keeperhub-plugins
 ```
 
 You can view the plugin source code here https://github.com/KeeperHub/claude-plugins/tree/main/plugins/keeperhub
@@ -25,9 +25,9 @@ You can view the plugin source code here https://github.com/KeeperHub/claude-plu
 
 This walks you through:
 
-- Creating an organization API key (`kh_` prefix) at app.keeperhub.com
-- Auto-installing the keeperhub-mcp server
-- Saving config to `~/.claude/keeperhub/config.json`
+- Authenticating with your KeeperHub account via browser login
+- Verifying API connectivity
+- Configuring the MCP server (powered by the `kh` CLI)
 
 **3. Restart Claude Code** for the MCP tools to become available.
 
