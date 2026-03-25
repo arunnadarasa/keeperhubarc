@@ -39,8 +39,8 @@ export function cleanupExpiredSessions(): void {
   const now = Date.now();
   for (const [sessionId, entry] of sessions) {
     if (now - entry.lastActivity > SESSION_TTL_MS) {
-      entry.server.close().catch(() => {});
-      entry.transport.close().catch(() => {});
+      entry.server.close().catch(() => undefined);
+      entry.transport.close().catch(() => undefined);
       sessions.delete(sessionId);
     }
   }
@@ -55,7 +55,11 @@ export function startCleanupInterval(): void {
     return;
   }
   cleanupTimer = setInterval(cleanupExpiredSessions, CLEANUP_INTERVAL_MS);
-  if (cleanupTimer && typeof cleanupTimer === "object" && "unref" in cleanupTimer) {
+  if (
+    cleanupTimer &&
+    typeof cleanupTimer === "object" &&
+    "unref" in cleanupTimer
+  ) {
     cleanupTimer.unref();
   }
 }

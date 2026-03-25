@@ -88,7 +88,7 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  if (!auth.organizationId || !auth.apiKeyId) {
+  if (!(auth.organizationId && auth.apiKeyId)) {
     return new Response(
       JSON.stringify({ error: "API key missing organization context" }),
       {
