@@ -1,0 +1,305 @@
+import "server-only";
+
+import { and, eq } from "drizzle-orm";
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { integrations } from "@/lib/db/schema";
+import { getErrorMessage } from "@/lib/utils";
+import type { ResolvedAction } from "../_lib/action-resolver";
+import { resolveAction } from "../_lib/action-resolver";
+import type { ApiKeyContext } from "../_lib/auth";
+import { validateApiKey } from "../_lib/auth";
+import {
+  completeExecution,
+  createExecution,
+  failExecution,
+  incrementRetryCount,
+  markRunning,
+  redactInput,
+} from "../_lib/execution-service";
+import { checkRateLimit } from "../_lib/rate-limit";
+import { executeWithRetry, type TransactionResult } from "../_lib/retry";
+import { checkSpendingCap } from "../_lib/spending-cap";
+import type { NodeExecuteRequest, RetryConfig } from "../_lib/types";
+import { requireWallet } from "../_lib/wallet-check";
+
+function validateRequest(
+  body: unknown
+): { valid: true; data: NodeExecuteRequest } | { valid: false; error: string } {
+  if (!body || typeof body !== "object") {
+    return { valid: false, error: "Request body must be a JSON object" };
+  }
+
+  const req = body as Record<string, unknown>;
+
+  if (typeof req.actionType !== "string" || req.actionType.trim() === "") {
+    return { valid: false, error: "actionType is required" };
+  }
+
+  if (
+    !req.config ||
+    typeof req.config !== "object" ||
+    Array.isArray(req.config)
+  ) {
+    return { valid: false, error: "config must be a JSON object" };
+  }
+
+  if (
+    req.integrationId !== undefined &&
+    typeof req.integrationId !== "string"
+  ) {
+    return { valid: false, error: "integrationId must be a string" };
+  }
+
+  if (req.network !== undefined && typeof req.network !== "string") {
+    return { valid: false, error: "network must be a string" };
+  }
+
+  return {
+    valid: true,
+    data: {
+      actionType: req.actionType as string,
+      config: req.config as Record<string, unknown>,
+      integrationId: req.integrationId as string | undefined,
+      network: req.network as string | undefined,
+      retry: req.retry as NodeExecuteRequest["retry"],
+    },
+  };
+}
+
+async function verifyIntegrationOwnership(
+  integrationId: string,
+  organizationId: string
+): Promise<boolean> {
+  const result = await db
+    .select({ id: integrations.id })
+    .from(integrations)
+    .where(
+      and(
+        eq(integrations.id, integrationId),
+        eq(integrations.organizationId, organizationId)
+      )
+    )
+    .limit(1);
+
+  return result.length > 0;
+}
+
+function isTransactionResult(output: unknown): output is {
+  transactionHash: string;
+  gasUsed: string;
+  gasUsedUnits?: string;
+  effectiveGasPrice?: string;
+} {
+  if (!output || typeof output !== "object") {
+    return false;
+  }
+  const obj = output as Record<string, unknown>;
+  return (
+    typeof obj.transactionHash === "string" && typeof obj.gasUsed === "string"
+  );
+}
+
+// biome-ignore lint/suspicious/noExplicitAny: Step functions have varying signatures
+type StepFn = (input: any) => Promise<unknown>;
+
+async function invokeStep(
+  stepFn: StepFn,
+  stepInput: Record<string, unknown>,
+  retry: RetryConfig | undefined,
+  network: string | undefined
+): Promise<{ result: unknown; retryCount: number }> {
+  if (retry && network) {
+    const retryResult = await executeWithRetry(
+      async () => (await stepFn(stepInput)) as TransactionResult,
+      retry
+    );
+    return { result: retryResult.result, retryCount: retryResult.retryCount };
+  }
+  const result = await stepFn(stepInput);
+  return { result, retryCount: 0 };
+}
+
+async function handleResult(
+  executionId: string,
+  result: unknown,
+  retryCount: number
+): Promise<NextResponse> {
+  const output = result as Record<string, unknown> | undefined;
+  const success =
+    output && typeof output === "object" && "success" in output
+      ? (output.success as boolean)
+      : true;
+
+  if (!success) {
+    const errorMsg =
+      output && "error" in output ? String(output.error) : "Execution failed";
+    await failExecution(executionId, errorMsg);
+    return NextResponse.json(
+      {
+        executionId,
+        status: "failed",
+        error: errorMsg,
+        ...(retryCount > 0 ? { retryCount } : {}),
+      },
+      { status: 422 }
+    );
+  }
+
+  const completeParams: Parameters<typeof completeExecution>[1] = {
+    output: output ?? {},
+  };
+
+  if (isTransactionResult(output)) {
+    completeParams.transactionHash = output.transactionHash;
+    completeParams.gasUsedWei = output.gasUsed;
+    completeParams.gasPriceWei = output.effectiveGasPrice;
+  }
+
+  await completeExecution(executionId, completeParams);
+
+  return NextResponse.json(
+    {
+      executionId,
+      status: "completed",
+      result: output,
+      ...(retryCount > 0 ? { retryCount } : {}),
+    },
+    { status: isTransactionResult(output) ? 202 : 200 }
+  );
+}
+
+async function executeNode(
+  data: NodeExecuteRequest,
+  resolved: ResolvedAction,
+  apiKeyCtx: ApiKeyContext
+): Promise<NextResponse> {
+  const { config, integrationId, network, retry } = data;
+
+  const redactedInput = redactInput({ actionType: data.actionType, ...config });
+  const { executionId } = await createExecution({
+    organizationId: apiKeyCtx.organizationId,
+    apiKeyId: apiKeyCtx.apiKeyId,
+    type: resolved.actionType,
+    network,
+    input: redactedInput,
+  });
+
+  await markRunning(executionId);
+
+  const stepInput = {
+    ...config,
+    ...(integrationId ? { integrationId } : {}),
+    ...(network ? { network } : {}),
+    _context: {
+      executionId,
+      nodeId: executionId,
+      nodeName: resolved.label,
+      nodeType: "action",
+      organizationId: apiKeyCtx.organizationId,
+    },
+  };
+
+  try {
+    const module = await resolved.importer.importer();
+    const stepFn = module[resolved.importer.stepFunction] as StepFn | undefined;
+
+    if (typeof stepFn !== "function") {
+      await failExecution(
+        executionId,
+        `Step function not found: ${resolved.importer.stepFunction}`
+      );
+      return NextResponse.json(
+        { error: "Internal error: step function not found" },
+        { status: 500 }
+      );
+    }
+
+    const { result, retryCount } = await invokeStep(
+      stepFn,
+      stepInput,
+      retry,
+      network
+    );
+
+    if (retryCount > 0) {
+      await incrementRetryCount(executionId);
+    }
+
+    return await handleResult(executionId, result, retryCount);
+  } catch (err: unknown) {
+    const errorMsg = getErrorMessage(err);
+    await failExecution(executionId, errorMsg);
+    return NextResponse.json(
+      { executionId, status: "failed", error: errorMsg },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: Request): Promise<NextResponse> {
+  const apiKeyCtx = await validateApiKey(request);
+  if (!apiKeyCtx) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const rateLimit = checkRateLimit(apiKeyCtx.apiKeyId);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Rate limit exceeded" },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfter) } }
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const validation = validateRequest(body);
+  if (!validation.valid) {
+    return NextResponse.json({ error: validation.error }, { status: 400 });
+  }
+
+  const { actionType, integrationId, network } = validation.data;
+
+  const resolved = resolveAction(actionType);
+  if (!resolved) {
+    return NextResponse.json(
+      { error: `Unknown action type: ${actionType}` },
+      { status: 400 }
+    );
+  }
+
+  if (integrationId) {
+    const owned = await verifyIntegrationOwnership(
+      integrationId,
+      apiKeyCtx.organizationId
+    );
+    if (!owned) {
+      return NextResponse.json(
+        {
+          error:
+            "Integration not found or does not belong to this organization",
+        },
+        { status: 403 }
+      );
+    }
+  }
+
+  if (network) {
+    const walletError = await requireWallet(apiKeyCtx.organizationId);
+    if (walletError) {
+      return walletError;
+    }
+
+    const spendCap = await checkSpendingCap(apiKeyCtx.organizationId);
+    if (!spendCap.allowed) {
+      return NextResponse.json({ error: spendCap.reason }, { status: 403 });
+    }
+  }
+
+  return await executeNode(validation.data, resolved, apiKeyCtx);
+}

@@ -92,6 +92,7 @@ async function executeConditionalWrite(
       transactionHash: result.transactionHash,
       transactionLink: result.transactionLink,
       gasUsedWei: result.gasUsed,
+      gasPriceWei: result.effectiveGasPrice,
       output: result as unknown as Record<string, unknown>,
     });
   } else {
