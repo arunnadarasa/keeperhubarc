@@ -1,20 +1,18 @@
-// Production-realistic load test.
+// Production load test — real scheduler + manual triggers.
 //
-// Creates users and scheduled workflows, enables them via admin endpoint
-// (which creates workflow_schedules records), then WAITS for the real
-// scheduler-dispatcher to pick them up and trigger executions via SQS.
+// 20 VUs. Each VU creates workflows in escalating tiers.
+// ~75% Schedule (triggered by real scheduler every minute)
+// ~25% Manual (triggered by k6 via service key every minute)
 //
-// This is the real production path:
-//   scheduler-dispatcher polls /api/internal/schedules every 60s
-//   -> evaluates cron -> enqueues to SQS
-//   -> scheduler-executor polls SQS -> calls /api/workflow/{id}/execute
+// Tiers: 10, 25, 50, 75, 100, 200, 500 workflows per VU
+// Each tier: create workflows -> enable schedules -> trigger manuals every 60s
+// for 3 minutes -> collect execution results -> report -> next tier.
 //
 // k6 run execution-load-test.js \
 //   -e BASE_URL=https://app-pr-663.keeperhub.com \
 //   -e TEST_API_KEY=placeholder \
-//   -e CF_ACCESS_CLIENT_ID=... -e CF_ACCESS_CLIENT_SECRET=... \
-//   -e TARGET_VUS=20 -e WF_PER_VU=10 \
-//   -e ROUNDS=3 -e OBSERVE_SECONDS=180
+//   -e SERVICE_KEY=<key> \
+//   -e CF_ACCESS_CLIENT_ID=... -e CF_ACCESS_CLIENT_SECRET=...
 
 import http from "k6/http";
 import { sleep } from "k6";
@@ -25,23 +23,24 @@ const BASE_URL = __ENV.BASE_URL || "http://localhost:3000";
 const TEST_API_KEY = __ENV.TEST_API_KEY || "";
 const CF_ID = __ENV.CF_ACCESS_CLIENT_ID || "";
 const CF_SECRET = __ENV.CF_ACCESS_CLIENT_SECRET || "";
+const SERVICE_KEY = __ENV.SERVICE_KEY || "";
 const TARGET_VUS = parseInt(__ENV.TARGET_VUS || "20", 10);
-const WF_PER_VU = parseInt(__ENV.WF_PER_VU || "10", 10);
-const ROUNDS = parseInt(__ENV.ROUNDS || "3", 10);
 const OBSERVE_SECONDS = parseInt(__ENV.OBSERVE_SECONDS || "180", 10);
 const PASSWORD = "K6LoadTest!2024";
+
+const TIERS = (__ENV.TIERS || "10,25,50,75,100,200,500").split(",").map(Number);
 
 // Metrics
 const execSuccess = new Counter("exec_success");
 const execError = new Counter("exec_error");
 const execRate = new Rate("exec_success_rate");
 const execDur = new Trend("exec_duration_ms", true);
-const wfCreated = new Counter("workflows_created");
-const wfEnabled = new Counter("workflows_enabled");
+const manualTriggerOk = new Counter("manual_trigger_ok");
+const manualTriggerFail = new Counter("manual_trigger_fail");
 
-// Scenario — ramp up VUs, hold for all rounds + observation
+// Scenario
 const rampSec = TARGET_VUS * 5;
-const holdSec = ROUNDS * (OBSERVE_SECONDS + 60) + 300;
+const holdSec = TIERS.length * (OBSERVE_SECONDS + 120) + 300;
 
 export const options = {
   scenarios: {
@@ -68,13 +67,10 @@ function h() {
   if (CF_SECRET) hd["CF-Access-Client-Secret"] = CF_SECRET;
   return hd;
 }
-function adminH() {
-  const hd = h();
-  if (TEST_API_KEY) hd["Authorization"] = `Bearer ${TEST_API_KEY}`;
-  return hd;
-}
+function adminH() { const hd = h(); if (TEST_API_KEY) hd["Authorization"] = `Bearer ${TEST_API_KEY}`; return hd; }
+function serviceH() { const hd = h(); if (SERVICE_KEY) hd["X-Service-Key"] = SERVICE_KEY; return hd; }
 
-// Workflow patterns — all Schedule trigger (production reality: 99.5% Schedule)
+// Node builders
 function act(id, x, y) {
   return { id, type: "action", position: { x, y }, data: { type: "action", label: id, config: {
     actionType: "HTTP Request", endpoint: `${BASE_URL}/api/health`,
@@ -88,32 +84,40 @@ function sched() {
   return { id: "t", type: "trigger", position: { x: 0, y: 0 }, data: { type: "trigger", label: "Schedule",
     config: { triggerType: "Schedule", scheduleCron: "* * * * *", scheduleTimezone: "UTC" } } };
 }
+function manual() {
+  return { id: "t", type: "trigger", position: { x: 0, y: 0 }, data: { type: "trigger", label: "Manual",
+    config: { triggerType: "Manual" } } };
+}
 function e(id, s, t) { return { id, source: s, target: t, type: "default" }; }
 
+// 10 patterns: 7 Schedule + 3 Manual (~75/25 split)
 const PATTERNS = [
-  { n: [sched(), act("a1",200,0)], e: [e("e1","t","a1")] },
-  { n: [sched(), act("a1",200,0), cnd("c1",400,0), act("a2",600,0)],
-    e: [e("e1","t","a1"), e("e2","a1","c1"), e("e3","c1","a2")] },
-  { n: [sched(), cnd("c1",200,0), act("a1",400,0)],
-    e: [e("e1","t","c1"), e("e2","c1","a1")] },
-  { n: [sched(), act("a1",200,-50), act("a2",200,50), cnd("c1",400,-50), cnd("c2",400,50), act("a3",600,-50), act("a4",600,50)],
-    e: [e("e1","t","a1"), e("e2","t","a2"), e("e3","a1","c1"), e("e4","a2","c2"), e("e5","c1","a3"), e("e6","c2","a4")] },
-  { n: [sched(), act("a1",200,0), act("a2",400,0), act("a3",600,0)],
-    e: [e("e1","t","a1"), e("e2","a1","a2"), e("e3","a2","a3")] },
-  { n: [sched(), act("a1",200,-50), act("a2",200,50), act("a3",200,150), cnd("c1",400,50)],
-    e: [e("e1","t","a1"), e("e2","t","a2"), e("e3","t","a3"), e("e4","a1","c1"), e("e5","a2","c1"), e("e6","a3","c1")] },
-  { n: [sched(), act("a1",200,0), cnd("c1",400,0), act("a2",600,-50), act("a3",600,50)],
-    e: [e("e1","t","a1"), e("e2","a1","c1"), e("e3","c1","a2"), e("e4","c1","a3")] },
-  { n: [sched(), act("a1",200,0)], e: [e("e1","t","a1")] },
-  { n: [sched(), cnd("c1",200,0), act("a1",400,0), act("a2",600,0)],
-    e: [e("e1","t","c1"), e("e2","c1","a1"), e("e3","a1","a2")] },
-  { n: [sched(), act("a1",200,0)], e: [e("e1","t","a1")] },
+  // Schedule patterns (7)
+  { trig: sched, n: (t) => [t(), act("a1",200,0)], e: [e("e1","t","a1")], type: "Schedule" },
+  { trig: sched, n: (t) => [t(), act("a1",200,0), cnd("c1",400,0), act("a2",600,0)],
+    e: [e("e1","t","a1"), e("e2","a1","c1"), e("e3","c1","a2")], type: "Schedule" },
+  { trig: sched, n: (t) => [t(), cnd("c1",200,0), act("a1",400,0)],
+    e: [e("e1","t","c1"), e("e2","c1","a1")], type: "Schedule" },
+  { trig: sched, n: (t) => [t(), act("a1",200,-50), act("a2",200,50), cnd("c1",400,-50), cnd("c2",400,50), act("a3",600,-50), act("a4",600,50)],
+    e: [e("e1","t","a1"), e("e2","t","a2"), e("e3","a1","c1"), e("e4","a2","c2"), e("e5","c1","a3"), e("e6","c2","a4")], type: "Schedule" },
+  { trig: sched, n: (t) => [t(), act("a1",200,0), act("a2",400,0), act("a3",600,0)],
+    e: [e("e1","t","a1"), e("e2","a1","a2"), e("e3","a2","a3")], type: "Schedule" },
+  { trig: sched, n: (t) => [t(), act("a1",200,0), cnd("c1",400,0), act("a2",600,-50), act("a3",600,50)],
+    e: [e("e1","t","a1"), e("e2","a1","c1"), e("e3","c1","a2"), e("e4","c1","a3")], type: "Schedule" },
+  { trig: sched, n: (t) => [t(), act("a1",200,0)], e: [e("e1","t","a1")], type: "Schedule" },
+  // Manual patterns (3)
+  { trig: manual, n: (t) => [t(), act("a1",200,0)], e: [e("e1","t","a1")], type: "Manual" },
+  { trig: manual, n: (t) => [t(), act("a1",200,0), cnd("c1",400,0), act("a2",600,0)],
+    e: [e("e1","t","a1"), e("e2","a1","c1"), e("e3","c1","a2")], type: "Manual" },
+  { trig: manual, n: (t) => [t(), act("a1",200,0), act("a2",400,0), act("a3",600,0)],
+    e: [e("e1","t","a1"), e("e2","a1","a2"), e("e3","a2","a3")], type: "Manual" },
 ];
 
 // Per-VU state
 let setupDone = false;
-let myWfIds = [];
-let completedRounds = 0;
+let allWfIds = [];       // {id, type}
+let manualWfIds = [];
+let completedTiers = 0;
 
 function retryPost(url, body, max) {
   for (let a = 1; a <= max; a++) {
@@ -151,58 +155,56 @@ function doSetup() {
   return true;
 }
 
-function createAndEnableBatch(round) {
+function createWorkflows(count) {
   const v = exec.vu.idInTest;
   let created = 0;
+  const startIdx = allWfIds.length;
 
-  for (let w = 0; w < WF_PER_VU; w++) {
-    const p = PATTERNS[(myWfIds.length + w) % PATTERNS.length];
-    const nm = `k6-vu${v}-r${round}-w${w}`;
+  for (let w = 0; w < count; w++) {
+    const pIdx = (startIdx + w) % PATTERNS.length;
+    const p = PATTERNS[pIdx];
+    const nm = `k6-vu${v}-t${completedTiers}-w${startIdx + w}`;
 
-    // Create workflow (uses session cookie from signin)
     const cr = http.post(`${BASE_URL}/api/workflows/create`,
-      JSON.stringify({ name: nm, description: "load test", nodes: p.n, edges: p.e }), { headers: h() });
-    if (cr.status !== 200) {
-      console.error(`VU${v}: wf create failed ${cr.status}`);
-      continue;
-    }
+      JSON.stringify({ name: nm, description: "load test", nodes: p.n(p.trig), edges: p.e }), { headers: h() });
+    if (cr.status !== 200) continue;
 
     const wfId = JSON.parse(cr.body).id;
 
-    // Enable via admin endpoint (bypasses session, creates schedule record)
+    // Enable via admin endpoint (creates schedule record for Schedule types)
     const en = http.post(`${BASE_URL}/api/admin/test/enable-workflow`,
       JSON.stringify({ workflowId: wfId }), { headers: adminH() });
-    if (en.status === 200) {
-      myWfIds.push(wfId);
-      wfCreated.add(1);
-      wfEnabled.add(1);
-      created++;
-    } else {
-      console.error(`VU${v}: enable failed ${en.status} ${en.body}`);
-    }
+    if (en.status !== 200) continue;
+
+    allWfIds.push({ id: wfId, type: p.type });
+    if (p.type === "Manual") manualWfIds.push(wfId);
+    created++;
   }
 
-  console.log(`VU${v}: round ${round} — ${created} workflows enabled (total: ${myWfIds.length})`);
+  console.log(`VU${v}: created ${created} workflows (total: ${allWfIds.length}, manual: ${manualWfIds.length})`);
 }
 
-function collectResults(round) {
+function triggerManualWorkflows() {
+  for (const wfId of manualWfIds) {
+    const r = http.post(`${BASE_URL}/api/workflow/${wfId}/execute`, JSON.stringify({}), { headers: serviceH() });
+    if (r.status === 200 || r.status === 201) {
+      manualTriggerOk.add(1);
+    } else {
+      manualTriggerFail.add(1);
+    }
+  }
+}
+
+function collectResults(tier) {
   const v = exec.vu.idInTest;
   let s = 0, er = 0, tot = 0;
 
-  for (const wfId of myWfIds) {
-    // Use admin auth to read executions (session might be dead)
-    const r = http.get(`${BASE_URL}/api/workflows/${wfId}/executions`, { headers: adminH() });
-    if (r.status !== 200) {
-      // Try with session cookie (might still work for own workflows)
-      const r2 = http.get(`${BASE_URL}/api/workflows/${wfId}/executions`, { headers: h() });
-      if (r2.status !== 200) continue;
-    }
+  for (const wf of allWfIds) {
+    const r = http.get(`${BASE_URL}/api/workflows/${wf.id}/executions`, { headers: adminH() });
+    if (r.status !== 200) continue;
 
     let execs;
-    try {
-      const body = r.status === 200 ? r.body : "";
-      execs = JSON.parse(body);
-    } catch { continue; }
+    try { execs = JSON.parse(r.body); } catch { continue; }
     if (!Array.isArray(execs)) continue;
 
     for (const ex of execs) {
@@ -216,7 +218,7 @@ function collectResults(round) {
   }
 
   const pct = tot > 0 ? Math.round(100 * s / tot) : 0;
-  console.log(`VU${v}: round ${round} — ${tot} executions, ${s} success, ${er} error (${pct}%), ${myWfIds.length} active workflows`);
+  console.log(`VU${v}: TIER ${tier} wf/vu — ${tot} executions, ${s} success, ${er} error (${pct}%), ${allWfIds.length} workflows`);
 }
 
 // Main loop
@@ -226,23 +228,39 @@ export default function () {
     if (!setupDone) { sleep(30); return; }
   }
 
-  if (completedRounds >= ROUNDS) {
+  if (completedTiers >= TIERS.length) {
     sleep(30);
     return;
   }
 
-  const round = completedRounds + 1;
+  const tierTarget = TIERS[completedTiers];
+  const toCreate = tierTarget - allWfIds.length;
 
-  // Create and enable workflows (scheduler will pick them up)
-  createAndEnableBatch(round);
+  // Create new workflows to reach this tier's target
+  if (toCreate > 0) {
+    createWorkflows(toCreate);
+  }
 
-  // Wait for scheduler to trigger them
-  console.log(`VU${exec.vu.idInTest}: waiting ${OBSERVE_SECONDS}s for scheduler to trigger ${myWfIds.length} workflows...`);
-  sleep(OBSERVE_SECONDS);
+  // Observation: trigger manual workflows every 60s, scheduler handles the rest
+  console.log(`VU${exec.vu.idInTest}: TIER ${tierTarget} wf/vu — observing ${OBSERVE_SECONDS}s (${allWfIds.length} total, ${manualWfIds.length} manual)...`);
 
-  // Collect execution results
-  collectResults(round);
-  completedRounds = round;
+  const startTime = Date.now();
+  while ((Date.now() - startTime) / 1000 < OBSERVE_SECONDS) {
+    // Trigger all manual workflows
+    triggerManualWorkflows();
+
+    // Wait ~60s for next trigger cycle (matching scheduler interval)
+    const elapsed = (Date.now() - startTime) / 1000;
+    const waitTime = Math.min(60, OBSERVE_SECONDS - elapsed);
+    if (waitTime > 0) sleep(waitTime);
+  }
+
+  // Wait for last executions to complete
+  sleep(15);
+
+  // Collect results for this tier
+  collectResults(tierTarget);
+  completedTiers++;
 }
 
 // Teardown
