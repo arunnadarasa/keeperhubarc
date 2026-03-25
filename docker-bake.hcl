@@ -19,7 +19,7 @@ variable "SCHEDULER_ECR_REPO" { default = "" }
 variable "EXECUTOR_ECR_REPO" { default = "" }
 
 group "default" {
-  targets = ["app", "migrator"]
+  targets = ["app", "migrator", "workflow-runner"]
 }
 
 group "events" {
@@ -31,7 +31,7 @@ group "scheduler" {
 }
 
 group "all" {
-  targets = ["app", "migrator", "event-tracker", "schedule-dispatcher", "block-dispatcher", "executor"]
+  targets = ["app", "migrator", "workflow-runner", "event-tracker", "schedule-dispatcher", "block-dispatcher", "executor"]
 }
 
 target "app" {
@@ -66,6 +66,23 @@ target "migrator" {
     "type=registry,ref=${ECR_REGISTRY}/${ECR_REPO}:cache-migrator",
   ]
   cache-to = ["type=registry,ref=${ECR_REGISTRY}/${ECR_REPO}:cache-migrator,mode=max"]
+}
+
+target "workflow-runner" {
+  context    = "."
+  dockerfile = "Dockerfile"
+  target     = "workflow-runner"
+  tags = compact([
+    "${ECR_REGISTRY}/${ECR_REPO}:workflow-runner-${IMAGE_TAG}",
+    "${ECR_REGISTRY}/${ECR_REPO}:workflow-runner-latest",
+    ENVIRONMENT_TAG != "" ? "${ECR_REGISTRY}/${ECR_REPO}:workflow-runner-${ENVIRONMENT_TAG}" : "",
+  ])
+  cache-from = [
+    "type=registry,ref=${ECR_REGISTRY}/${ECR_REPO}:cache-app",
+    "type=registry,ref=${ECR_REGISTRY}/${ECR_REPO}:cache-workflow-runner",
+  ]
+  cache-to = ["type=registry,ref=${ECR_REGISTRY}/${ECR_REPO}:cache-workflow-runner,mode=max"]
+  attest   = []
 }
 
 target "event-tracker" {
