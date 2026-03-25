@@ -279,6 +279,7 @@ jobs:
         run: |
           envsubst < deploy/pr-environment/values.template.yaml > ${{ github.workspace }}/values-pr-${{ env.PR_NUMBER }}.yaml
           envsubst < deploy/pr-environment/scheduler-dispatcher.template.yaml > ${{ github.workspace }}/schedule-pr-${{ env.PR_NUMBER }}.yaml
+          envsubst < deploy/pr-environment/block-dispatcher.template.yaml > ${{ github.workspace }}/block-pr-${{ env.PR_NUMBER }}.yaml
           envsubst < deploy/pr-environment/event-tracker.template.yaml > ${{ github.workspace }}/event-pr-${{ env.PR_NUMBER }}.yaml
 
       - name: Clean up stale Helm releases
@@ -316,15 +317,23 @@ jobs:
           PID1=$!
 
           (
+            helm upgrade --install block-pr-${PR_NUMBER} \
+              techops-services/common \
+              -f ${GITHUB_WORKSPACE}/block-pr-${PR_NUMBER}.yaml \
+              "${COMMON_ARGS[@]}"
+          ) > "${LOGDIR}/block.log" 2>&1 &
+          PID2=$!
+
+          (
             helm upgrade --install event-pr-${PR_NUMBER} \
               techops-services/common \
               -f ${GITHUB_WORKSPACE}/event-pr-${PR_NUMBER}.yaml \
               "${COMMON_ARGS[@]}"
           ) > "${LOGDIR}/event.log" 2>&1 &
-          PID2=$!
+          PID3=$!
 
           FAILED=0
-          for COMPONENT in schedule:$PID1 event:$PID2; do
+          for COMPONENT in schedule:$PID1 block:$PID2 event:$PID3; do
             NAME="${COMPONENT%%:*}"
             PID="${COMPONENT##*:}"
             if wait "$PID"; then
@@ -380,6 +389,7 @@ jobs:
             - LocalStack (SQS emulation)
             - Redis (isolated instance)
             - Schedule Dispatcher (staging image)
+            - Block Dispatcher (staging image)
             - Event Tracker (staging image)
 
             The environment will be automatically cleaned up when this PR is closed or merged.
