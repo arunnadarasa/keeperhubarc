@@ -1,7 +1,7 @@
 export type ExecutionMode = "isolated" | "process" | "complex";
 
 export const CONFIG = {
-  executionMode: (process.env.EXECUTION_MODE || "complex") as ExecutionMode,
+  executionMode: (process.env.EXECUTION_MODE || "isolated") as ExecutionMode,
 
   databaseUrl: process.env.DATABASE_URL || "postgres://localhost:5432/workflow",
 
