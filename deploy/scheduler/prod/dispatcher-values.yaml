@@ -23,7 +23,7 @@ ingress:
 
 image:
   repository: ${ECR_REGISTRY}/keeperhub-scheduler-prod
-  tag: dispatcher-${IMAGE_TAG}
+  tag: schedule-dispatcher-${IMAGE_TAG}
   pullPolicy: Always
 
 deployment:
