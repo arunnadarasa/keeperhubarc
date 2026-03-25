@@ -1,149 +1,98 @@
-# k6 Load Test Results - PR Environment
+# k6 Execution Load Test Results
 
-**Date:** 2026-03-24
-**Target:** PR-663 environment (`app-pr-663.keeperhub.com`) via `kubectl port-forward`
-**Cluster:** techops-staging (us-east-1), namespace `pr-663`
-**Infrastructure:** db.t4g.medium RDS (PostgreSQL 17), single replica app pod, Redis, LocalStack (SQS)
+**Date:** 2026-03-25
+**Target:** PR-663 environment (`app-pr-663.keeperhub.com`) via Cloudflare Access service token
+**Cluster:** techops-staging EKS (us-east-1), namespace `pr-663`
+**Infrastructure:** Single app pod, CNPG PostgreSQL 16, Redis, LocalStack (SQS)
+**Test tool:** k6 v0.56.0 with pure JavaScript, no curl dependencies
 
-## Test Configuration
+## Test Design
 
-| Parameter       | Value                      |
-|-----------------|----------------------------|
-| Threshold       | 95% success rate           |
-| Step size       | +5 VUs per step            |
-| Step duration   | 30 seconds                 |
-| Max VUs         | 500                        |
-| Start VUs       | 1                          |
-| Test script     | `tests/k6/ramp-until-breach.sh` |
-| User journey    | Signup -> OTP verify -> Signin -> Create 5 workflows -> List/Get/Execute/Webhook workflows |
+Each k6 VU (virtual user):
+1. **Signs up** (email + password) with retry on 429
+2. **Verifies email** via admin OTP endpoint with retry
+3. **Signs in** to establish session
+4. **Creates 5 workflows** with realistic node patterns (2-7 nodes: conditions, HTTP chains, branching, parallel reads)
+5. **Hammers workflow executions** in a tight loop using `X-Service-Key` auth (same auth path the scheduler service uses in production)
 
-## Results Summary
+VUs ramp up gradually (one new VU every 5 seconds) to avoid rate-limit storms during user creation. Once a VU is ready, it fires executions continuously with 0.5s pause between calls.
 
-**Threshold breached at 16 VUs (Step 4)** - success rate dropped to 63.53%, well below the 95% threshold.
+Teardown cleans up all test users, workflows, and executions automatically.
 
-| Step | VUs | Success Rate | Requests | RPS   | p95 (ms) | Avg (ms) | Checks        | Status |
-|------|-----|-------------|----------|-------|----------|----------|---------------|--------|
-| 1    | 1   | 97.25%      | 218      | 7.2   | 142.6    | 137.6    | 211/217       | PASS   |
-| 2    | 6   | 97.15%      | 738      | 24.6  | 128.3    | 243.8    | 711/732       | PASS   |
-| 3    | 11  | 98.94%      | 1,042    | 34.6  | 129.1    | 317.0    | 1,020/1,031   | PASS   |
-| 4    | 16  | 63.53%      | 85       | 2.5   | 27,731.7 | 6,278.8  | 38/69         | FAIL   |
+## Results
 
-## Detailed Step Analysis
+| Concurrent VUs | Workflows | Triggers | Success | Fail | Success Rate | Throughput | p95 Latency | Median |
+|---------------|-----------|----------|---------|------|-------------|------------|-------------|--------|
+| **10** | 50 | 643 | 643 | 0 | **100%** | 4.8/sec (286/min) | 1.36s | 200ms |
+| **12** | 55 | 816 | 675 | 141 | **82.72%** | 4.8/sec (289/min) | 1.59s | 211ms |
+| **15** | 75 | 913 | 708 | 205 | **77.54%** | 3.9/sec (232/min) | 1.89s | 200ms |
+| **20** | 80 | 1,038 | 734 | 304 | **70.71%** | 3.4/sec (204/min) | 3.21s | 202ms |
 
-### Step 1: 1 VU (97.25% success)
+## Key Findings
 
-- **Duration:** 30s
-- **Requests:** 218 total, 7.2 RPS
-- **Latency:** avg 137.6ms, median 114.6ms, p95 142.6ms
-- **Failed checks:** 6 out of 217
+### Capacity: 10 concurrent executing users at 100% success
 
-**Issues:**
-- `api-key create: status 200` - 0/1 passed (401 Unauthorized)
-- `workflow create: status 200` - 0/5 passed (401 Unauthorized)
+The single-pod PR environment sustains **10 concurrent VUs executing workflows at 100% success rate, ~5 executions/second (286/min)**, with p95 latency of 1.36 seconds.
 
-**Root cause:** After successful signup/OTP/signin, the session cookie is set but API key creation returns 401. This appears to be a session handling issue where the authenticated session is not properly propagated to subsequent API calls within the same k6 iteration. The user journey still works for list/get operations that use the session cookie, but API key creation fails.
+### Sharp degradation at 12+ VUs
 
-Despite the 401s on API key creation, the overall success rate stays at 97.25% because the majority of HTTP requests (health checks, list workflows, etc.) succeed.
+Success rate drops sharply from 100% to 82.72% when going from 10 to 12 concurrent VUs. The failures are HTTP 500 or timeout responses on the execute endpoint, indicating the app process reaches its concurrency limit. Throughput doesn't increase beyond ~5/sec — additional VUs only add contention.
 
-### Step 2: 6 VUs (97.15% success)
+### Throughput ceiling: ~5 executions/second
 
-- **Duration:** 30s
-- **Requests:** 738 total, 24.6 RPS
-- **Latency:** avg 243.8ms, median 114.5ms, p95 128.3ms, max 10.89s
-- **Failed checks:** 21 out of 732
+Regardless of VU count, maximum throughput plateaus at approximately 4.8 executions/second. At 20 VUs, throughput actually decreases (3.4/sec) as the app spends more time handling contention than executing workflows.
 
-**Issues:**
-- `verify: status 200` - 3/6 passed (50%) - rate limiting on OTP verification endpoint (HTTP 429)
-- `api-key create: status 200` - 0/3 passed (401 Unauthorized on remaining authenticated users)
-- `workflow create: status 200` - 0/15 passed (401 Unauthorized)
+### Latency profile
 
-**Root cause:** Rate limiter begins rejecting concurrent OTP verification requests at 6 VUs. The `better-auth` rate limiter applies per-endpoint throttling. Users who fail OTP verification cannot proceed to workflow creation, cascading to zero workflow operations for those users.
-
-### Step 3: 11 VUs (98.94% success)
-
-- **Duration:** 30s
-- **Requests:** 1,042 total, 34.6 RPS
-- **Latency:** avg 317.0ms, median 114.3ms, p95 129.1ms, max 19.2s
-- **Failed checks:** 11 out of 1,031
-
-**Issues:**
-- `verify: status 200` - 0/11 passed (0%) - all OTP verifications rate-limited (HTTP 429)
-- All 11 VUs failed auth, so no workflow operations were attempted
-
-**Observation:** Paradoxically, the success rate is *higher* (98.94%) because users who fail auth still generate successful HTTP requests during the steady-state loop (list workflows returns 200 even with an empty list). The 11 failures are exclusively the OTP verification checks.
-
-### Step 4: 16 VUs (63.53% success - THRESHOLD BREACHED)
-
-- **Duration:** 30s (mostly spent on timeouts)
-- **Requests:** 85 total, 2.5 RPS (severe degradation)
-- **Latency:** avg 6,278.8ms, median 138.4ms, p95 27,731.7ms (27.7 seconds)
-- **Failed checks:** 31 out of 69
-
-**Issues:**
-- `verify: status 200` - 3/16 passed (18%) - most OTP verifications rate-limited
-- `api-key create: status 200` - 0/3 passed (401 Unauthorized)
-- `workflow create: status 200` - 0/15 passed (401 Unauthorized)
-- HTTP request failure rate: 36.47%
-- p95 latency: 27.7 seconds (requests timing out)
-
-**Root cause:** At 16 concurrent VUs, the application becomes overwhelmed. The combination of:
-1. Rate limiter rejecting most auth requests (429)
-2. Requests backing up and timing out (27+ second p95)
-3. Only 85 total requests completed in 30s (vs 1,042 at 11 VUs)
-
-This indicates the single-pod deployment hits a wall between 11-16 concurrent users.
+- **Median latency stays flat** at ~200ms across all VU levels — individual requests are fast when they succeed
+- **p95 increases** from 1.36s (10 VUs) to 3.21s (20 VUs) — tail latency worsens under load
+- **Max latency** reaches 5-7 seconds at higher concurrency
 
 ## Bottleneck Analysis
 
-### Primary bottleneck: Rate limiting on auth endpoints
+### Primary: Node.js single-thread + workflow execution concurrency
 
-The `better-auth` middleware applies per-endpoint rate limiting that begins to reject requests at 6+ concurrent signups/verifications. This is by design for production security but limits load test throughput.
+Workflow execution runs inline in the API process via the Workflow SDK `start()` function. Each execution occupies the Node.js event loop while processing nodes (HTTP requests, condition evaluation, DB writes for execution logs). At 10+ concurrent executions, the event loop saturates.
 
-**Affected endpoints:**
-- `POST /api/auth/email-otp/verify-email` - most impacted, 429 errors start at 6 VUs
-- `POST /api/auth/sign-in/email` - impacted at higher VU counts
+The `checkConcurrencyLimit()` function in the execute endpoint may also be rejecting requests when too many workflows are already executing.
 
-### Secondary bottleneck: Session/cookie handling in k6
+### Secondary: Database connection pool
 
-API key creation (`POST /api/api-keys`) consistently returns 401 even after successful signin. This suggests the k6 HTTP client is not properly maintaining session cookies across requests, or the session is not fully established by the time the API key request is made.
+The app uses a connection pool of max 10 connections (`postgres({ max: 10 })`). Each workflow execution performs multiple DB operations (create execution record, create log entries per node, update status). At 10+ concurrent executions, the pool becomes the bottleneck.
 
-### Tertiary bottleneck: Single pod resource limits
+### Not a bottleneck: Rate limiting
 
-At 16 VUs, the application pod becomes unresponsive (27s p95 latency, 2.5 RPS). The PR environment runs a single pod with limited resources. Horizontal pod autoscaling or increased resource limits would improve this.
-
-## Cleanup
-
-After the test, all k6 test users were cleaned up via the `POST /api/admin/test/cleanup` endpoint:
-
-| Resource       | Deleted |
-|----------------|---------|
-| Users          | 413     |
-| Organizations  | 413     |
-| Workflows      | 345     |
-
-The 413 users include leftovers from previous test runs (earlier iterations of this PR). All related data (sessions, accounts, API keys, workflow executions, verifications) was deleted in a single transaction.
-
-**Post-cleanup verification:** Zero k6 test records remain in the database.
+Rate limiting only affects the setup phase (user creation). Once VUs are authenticated, the execute endpoint does not have rate limiting — failures are from genuine overload, not policy.
 
 ## Recommendations
 
-1. **Rate limiter tuning for test mode:** Consider relaxing rate limits when `TEST_API_KEY` is present in the request headers, or adding a configurable rate limit bypass for load testing.
+1. **Horizontal scaling**: Add more app replicas. With 2 pods, capacity should roughly double to ~20 concurrent users.
+2. **Increase DB connection pool**: Raise `max` from 10 to 25-50 to match pod concurrency needs.
+3. **Async execution dispatch**: Move workflow execution from inline to K8s Jobs via SQS (the infrastructure already exists via LocalStack). This would decouple trigger latency from execution latency.
+4. **Production baseline**: Run this same test against staging (2 replicas, real RDS) to get production-representative numbers.
 
-2. **Session cookie handling:** Investigate why API key creation returns 401 after successful signin. May need to explicitly extract and forward the `set-cookie` response from signin in the k6 auth helper.
+## Test Configuration
 
-3. **Horizontal scaling:** Test with multiple app replicas to find the actual per-pod capacity ceiling vs the rate limiter ceiling.
+```bash
+k6 run execution-load-test.js \
+  -e BASE_URL=https://app-pr-663.keeperhub.com \
+  -e TEST_API_KEY=placeholder \
+  -e SERVICE_KEY=<scheduler-service-key> \
+  -e CF_ACCESS_CLIENT_ID=<cf-id> \
+  -e CF_ACCESS_CLIENT_SECRET=<cf-secret> \
+  -e TARGET_VUS=10 \
+  -e WF_PER_VU=5 \
+  -e DURATION=60s \
+  -e RAMP_INTERVAL=5
+```
 
-4. **Separate auth from steady-state:** Consider a test mode that pre-creates users via admin API, so the load test can focus on workflow CRUD/execution throughput without being bottlenecked by auth rate limiting.
+## Cleanup
 
-## Environment Details
+All tests cleaned up automatically via `POST /api/admin/test/cleanup` in the k6 teardown function. Verified zero test records remaining after each run.
 
-| Component          | Configuration                                    |
-|--------------------|--------------------------------------------------|
-| App                | 1 pod, KeeperHub Next.js (Node.js 22)            |
-| Database           | CNPG PostgreSQL 16 (PR-isolated instance)        |
-| Redis              | 1 pod (PR-isolated)                              |
-| LocalStack         | 1 pod (SQS emulation)                            |
-| k6                 | v0.56.0, run from local machine via port-forward |
-| Network            | kubectl port-forward (localhost:8663 -> pod:3000) |
-| Scheduler          | Dispatcher + Executor (staging images)            |
-| Events             | Tracker + Worker (staging images)                 |
+| Run | Users Cleaned | Orgs | Workflows |
+|-----|--------------|------|-----------|
+| 10 VU | 10 | 10 | 50 |
+| 12 VU | 12 | 12 | 55 |
+| 15 VU | 15 | 15 | 75 |
+| 20 VU | 25 | 25 | 80 |
