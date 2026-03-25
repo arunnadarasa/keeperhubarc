@@ -295,7 +295,7 @@ export function registerTools(
       const data = await callApi(
         baseUrl,
         authHeader,
-        `/api/executions/${args.executionId}`,
+        `/api/workflows/executions/${args.executionId}/status`,
         "GET"
       );
       return {
@@ -314,7 +314,7 @@ export function registerTools(
       const data = await callApi(
         baseUrl,
         authHeader,
-        `/api/executions/${args.executionId}`,
+        `/api/workflows/executions/${args.executionId}/logs`,
         "GET"
       );
       return {
