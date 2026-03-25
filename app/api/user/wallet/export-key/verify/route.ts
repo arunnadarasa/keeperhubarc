@@ -93,7 +93,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       .set({ attempts: sql`${keyExportCodes.attempts} + 1` })
       .where(eq(keyExportCodes.id, storedCode.id));
 
-    if (storedCode.attempts >= MAX_ATTEMPTS) {
+    if (storedCode.attempts + 1 >= MAX_ATTEMPTS) {
       await db
         .delete(keyExportCodes)
         .where(eq(keyExportCodes.id, storedCode.id));
