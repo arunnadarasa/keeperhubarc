@@ -148,6 +148,28 @@ async function createParaWallet(email: string) {
 
 // Helper: Get user-friendly error response for wallet creation failures
 function getErrorResponse(error: unknown): NextResponse {
+  // Catch DB unique constraint violation (race condition: wallet already exists)
+  if (error instanceof Error) {
+    const cause = error.cause;
+    if (
+      cause &&
+      typeof cause === "object" &&
+      "code" in cause &&
+      cause.code === "23505"
+    ) {
+      logSystemError(
+        ErrorCategory.EXTERNAL_SERVICE,
+        "[Wallet] Race condition: external wallet created but DB insert hit unique constraint",
+        error,
+        { endpoint: "/api/user/wallet", operation: "post" }
+      );
+      return NextResponse.json(
+        { error: "A wallet already exists for this organization" },
+        { status: 409 }
+      );
+    }
+  }
+
   logSystemError(
     ErrorCategory.EXTERNAL_SERVICE,
     "[Wallet] Creation failed",
