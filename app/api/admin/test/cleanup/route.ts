@@ -1,4 +1,4 @@
-import { inArray, like } from "drizzle-orm";
+import { inArray, like, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { authenticateAdmin } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
@@ -12,100 +12,96 @@ import {
   sessions,
   users,
   verifications,
-  workflowExecutionLogs,
-  workflowExecutions,
-  workflowSchedules,
   workflows,
 } from "@/lib/db/schema";
 
 const K6_EMAIL_PATTERN = "k6-%@techops.services";
 
-const EMPTY_RESULT = {
-  deleted: { users: 0, organizations: 0, workflows: 0 },
-  emails: [] as string[],
-};
-
-async function findTestData() {
+async function findTestUserIds(): Promise<{
+  userIds: string[];
+  emails: string[];
+}> {
   const testUsers = await db
     .select({ id: users.id, email: users.email })
     .from(users)
     .where(like(users.email, K6_EMAIL_PATTERN));
 
   if (testUsers.length === 0) {
-    return null;
+    return { userIds: [], emails: [] };
   }
 
-  const userIds = testUsers.map((u) => u.id);
-  const emails = testUsers.map((u) => u.email).filter(Boolean) as string[];
+  return {
+    userIds: testUsers.map((u) => u.id),
+    emails: testUsers.map((u) => u.email).filter(Boolean) as string[],
+  };
+}
 
-  const testMembers = await db
+// Delete using raw SQL subqueries to avoid IN clause size limits.
+// Each statement runs independently (no wrapping transaction to avoid timeouts).
+async function deleteTestData(userIds: string[]) {
+  if (userIds.length === 0) {
+    return;
+  }
+
+  // Use raw SQL with subqueries for cascade-safe deletion
+  // This avoids materializing thousands of IDs in IN clauses
+
+  // 1. Execution logs (via execution -> workflow -> user)
+  await db.execute(sql`
+    DELETE FROM workflow_execution_logs WHERE execution_id IN (
+      SELECT id FROM workflow_executions WHERE workflow_id IN (
+        SELECT id FROM workflows WHERE user_id = ANY(${userIds})
+      )
+    )
+  `);
+
+  // 2. Executions
+  await db.execute(sql`
+    DELETE FROM workflow_executions WHERE workflow_id IN (
+      SELECT id FROM workflows WHERE user_id = ANY(${userIds})
+    )
+  `);
+
+  // 3. Workflow schedules
+  await db.execute(sql`
+    DELETE FROM workflow_schedules WHERE workflow_id IN (
+      SELECT id FROM workflows WHERE user_id = ANY(${userIds})
+    )
+  `);
+
+  // 4. Workflows
+  await db.delete(workflows).where(inArray(workflows.userId, userIds));
+
+  // 5. Other user-owned data
+  await db.delete(integrations).where(inArray(integrations.userId, userIds));
+  await db.delete(apiKeys).where(inArray(apiKeys.userId, userIds));
+  await db.delete(deviceCode).where(inArray(deviceCode.userId, userIds));
+  await db
+    .delete(verifications)
+    .where(
+      like(
+        verifications.identifier,
+        "email-verification-otp-k6-%@techops.services"
+      )
+    );
+  await db.delete(sessions).where(inArray(sessions.userId, userIds));
+  await db.delete(accounts).where(inArray(accounts.userId, userIds));
+
+  // 6. Orgs (find via member, then delete)
+  const orgRows = await db
     .select({ organizationId: member.organizationId })
     .from(member)
     .where(inArray(member.userId, userIds));
-  const orgIds = [...new Set(testMembers.map((m) => m.organizationId))];
+  const orgIds = [...new Set(orgRows.map((r) => r.organizationId))];
 
-  const testWorkflows = await db
-    .select({ id: workflows.id })
-    .from(workflows)
-    .where(inArray(workflows.userId, userIds));
-  const workflowIds = testWorkflows.map((w) => w.id);
+  await db.delete(member).where(inArray(member.userId, userIds));
 
-  return { userIds, emails, orgIds, workflowIds };
-}
+  if (orgIds.length > 0) {
+    await db.delete(organization).where(inArray(organization.id, orgIds));
+  }
 
-// Delete in FK dependency order within a transaction.
-// Most user->X FKs do NOT have ON DELETE CASCADE, so we must
-// delete children explicitly before deleting users.
-async function deleteTestData(data: {
-  userIds: string[];
-  orgIds: string[];
-  workflowIds: string[];
-}) {
-  const { userIds, orgIds, workflowIds } = data;
-
-  await db.transaction(async (tx) => {
-    if (workflowIds.length > 0) {
-      const execRows = await tx
-        .select({ id: workflowExecutions.id })
-        .from(workflowExecutions)
-        .where(inArray(workflowExecutions.workflowId, workflowIds));
-      const execIds = execRows.map((e) => e.id);
-
-      if (execIds.length > 0) {
-        await tx
-          .delete(workflowExecutionLogs)
-          .where(inArray(workflowExecutionLogs.executionId, execIds));
-      }
-      await tx
-        .delete(workflowExecutions)
-        .where(inArray(workflowExecutions.workflowId, workflowIds));
-      await tx
-        .delete(workflowSchedules)
-        .where(inArray(workflowSchedules.workflowId, workflowIds));
-    }
-
-    await tx.delete(workflows).where(inArray(workflows.userId, userIds));
-    await tx.delete(integrations).where(inArray(integrations.userId, userIds));
-    await tx.delete(apiKeys).where(inArray(apiKeys.userId, userIds));
-    await tx.delete(deviceCode).where(inArray(deviceCode.userId, userIds));
-    await tx
-      .delete(verifications)
-      .where(
-        like(
-          verifications.identifier,
-          "email-verification-otp-k6-%@techops.services"
-        )
-      );
-    await tx.delete(sessions).where(inArray(sessions.userId, userIds));
-    await tx.delete(accounts).where(inArray(accounts.userId, userIds));
-    await tx.delete(member).where(inArray(member.userId, userIds));
-
-    if (orgIds.length > 0) {
-      await tx.delete(organization).where(inArray(organization.id, orgIds));
-    }
-
-    await tx.delete(users).where(inArray(users.id, userIds));
-  });
+  // 7. Users last
+  await db.delete(users).where(inArray(users.id, userIds));
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -121,37 +117,43 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     body = await request.json();
   } catch {
-    // No body or invalid JSON — default to non-dry-run
+    // default to non-dry-run
   }
-  const dryRun = body.dryRun === true;
 
   try {
-    const data = await findTestData();
-    if (!data) {
-      return NextResponse.json({ ...EMPTY_RESULT, dryRun });
+    const { userIds, emails } = await findTestUserIds();
+
+    if (userIds.length === 0) {
+      return NextResponse.json({
+        deleted: { users: 0, organizations: 0, workflows: 0 },
+        emails: [],
+        dryRun: body.dryRun === true,
+      });
     }
 
-    if (dryRun) {
+    if (body.dryRun === true) {
+      const wfRows = await db
+        .select({ id: workflows.id })
+        .from(workflows)
+        .where(inArray(workflows.userId, userIds));
       return NextResponse.json({
-        deleted: {
-          users: data.userIds.length,
-          organizations: data.orgIds.length,
-          workflows: data.workflowIds.length,
-        },
-        emails: data.emails,
+        deleted: { users: userIds.length, workflows: wfRows.length },
+        emails,
         dryRun: true,
       });
     }
 
-    await deleteTestData(data);
+    // Count before deleting
+    const wfRows = await db
+      .select({ id: workflows.id })
+      .from(workflows)
+      .where(inArray(workflows.userId, userIds));
+
+    await deleteTestData(userIds);
 
     return NextResponse.json({
-      deleted: {
-        users: data.userIds.length,
-        organizations: data.orgIds.length,
-        workflows: data.workflowIds.length,
-      },
-      emails: data.emails,
+      deleted: { users: userIds.length, workflows: wfRows.length },
+      emails,
       dryRun: false,
     });
   } catch (error) {

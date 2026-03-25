@@ -1,17 +1,15 @@
-// Production load test — real scheduler + manual triggers.
+// Production load test — real scheduler + manual triggers, 7 escalating tiers.
 //
-// 20 VUs. Each VU creates workflows in escalating tiers.
-// ~75% Schedule (triggered by real scheduler every minute)
+// 20 VUs. Each VU creates workflows in tiers: 10, 25, 50, 75, 100, 200, 500.
+// ~75% Schedule (triggered by real scheduler-dispatcher every minute)
 // ~25% Manual (triggered by k6 via service key every minute)
 //
-// Tiers: 10, 25, 50, 75, 100, 200, 500 workflows per VU
-// Each tier: create workflows -> enable schedules -> trigger manuals every 60s
-// for 3 minutes -> collect execution results -> report -> next tier.
+// Between tiers, VUs re-authenticate to avoid session expiry.
+// Execution counting tracks IDs to avoid double-counting across tiers.
 //
 // k6 run execution-load-test.js \
 //   -e BASE_URL=https://app-pr-663.keeperhub.com \
-//   -e TEST_API_KEY=placeholder \
-//   -e SERVICE_KEY=<key> \
+//   -e TEST_API_KEY=placeholder -e SERVICE_KEY=<key> \
 //   -e CF_ACCESS_CLIENT_ID=... -e CF_ACCESS_CLIENT_SECRET=...
 
 import http from "k6/http";
@@ -27,7 +25,6 @@ const SERVICE_KEY = __ENV.SERVICE_KEY || "";
 const TARGET_VUS = parseInt(__ENV.TARGET_VUS || "20", 10);
 const OBSERVE_SECONDS = parseInt(__ENV.OBSERVE_SECONDS || "180", 10);
 const PASSWORD = "K6LoadTest!2024";
-
 const TIERS = (__ENV.TIERS || "10,25,50,75,100,200,500").split(",").map(Number);
 
 // Metrics
@@ -41,7 +38,6 @@ const manualTriggerFail = new Counter("manual_trigger_fail");
 // Scenario
 const rampSec = TARGET_VUS * 5;
 const holdSec = TIERS.length * (OBSERVE_SECONDS + 120) + 300;
-
 export const options = {
   scenarios: {
     load: {
@@ -70,7 +66,7 @@ function h() {
 function adminH() { const hd = h(); if (TEST_API_KEY) hd["Authorization"] = `Bearer ${TEST_API_KEY}`; return hd; }
 function serviceH() { const hd = h(); if (SERVICE_KEY) hd["X-Service-Key"] = SERVICE_KEY; return hd; }
 
-// Node builders
+// Workflow node builders
 function act(id, x, y) {
   return { id, type: "action", position: { x, y }, data: { type: "action", label: id, config: {
     actionType: "HTTP Request", endpoint: `${BASE_URL}/api/health`,
@@ -90,9 +86,8 @@ function manual() {
 }
 function e(id, s, t) { return { id, source: s, target: t, type: "default" }; }
 
-// 10 patterns: 7 Schedule + 3 Manual (~75/25 split)
+// 10 patterns: 7 Schedule + 3 Manual (~75/25)
 const PATTERNS = [
-  // Schedule patterns (7)
   { trig: sched, n: (t) => [t(), act("a1",200,0)], e: [e("e1","t","a1")], type: "Schedule" },
   { trig: sched, n: (t) => [t(), act("a1",200,0), cnd("c1",400,0), act("a2",600,0)],
     e: [e("e1","t","a1"), e("e2","a1","c1"), e("e3","c1","a2")], type: "Schedule" },
@@ -105,7 +100,6 @@ const PATTERNS = [
   { trig: sched, n: (t) => [t(), act("a1",200,0), cnd("c1",400,0), act("a2",600,-50), act("a3",600,50)],
     e: [e("e1","t","a1"), e("e2","a1","c1"), e("e3","c1","a2"), e("e4","c1","a3")], type: "Schedule" },
   { trig: sched, n: (t) => [t(), act("a1",200,0)], e: [e("e1","t","a1")], type: "Schedule" },
-  // Manual patterns (3)
   { trig: manual, n: (t) => [t(), act("a1",200,0)], e: [e("e1","t","a1")], type: "Manual" },
   { trig: manual, n: (t) => [t(), act("a1",200,0), cnd("c1",400,0), act("a2",600,0)],
     e: [e("e1","t","a1"), e("e2","a1","c1"), e("e3","c1","a2")], type: "Manual" },
@@ -114,9 +108,10 @@ const PATTERNS = [
 ];
 
 // Per-VU state
-let setupDone = false;
-let allWfIds = [];       // {id, type}
+let myEmail = "";
+let allWfIds = [];
 let manualWfIds = [];
+let countedExecIds = {};
 let completedTiers = 0;
 
 function retryPost(url, body, max) {
@@ -129,29 +124,34 @@ function retryPost(url, body, max) {
   return { status: 0, body: "retries exhausted" };
 }
 
-function doSetup() {
+function authenticate() {
   const v = exec.vu.idInTest;
-  const em = `k6-vu${v}-${Date.now()}@techops.services`;
 
-  const su = retryPost(`${BASE_URL}/api/auth/sign-up/email`, JSON.stringify({ email: em, password: PASSWORD, name: `k6-${v}` }), 5);
-  if (su.status !== 200) { console.error(`VU${v}: signup ${su.status}`); return false; }
-  sleep(1);
-
-  let otp = null;
-  for (let i = 0; i < 10; i++) {
-    const r = http.get(`${BASE_URL}/api/admin/test/otp?email=${encodeURIComponent(em)}`, { headers: adminH() });
-    if (r.status === 200) { otp = JSON.parse(r.body).otp; break; }
+  if (!myEmail) {
+    // First time: signup + verify
+    myEmail = `k6-vu${v}-${Date.now()}@techops.services`;
+    const su = retryPost(`${BASE_URL}/api/auth/sign-up/email`,
+      JSON.stringify({ email: myEmail, password: PASSWORD, name: `k6-${v}` }), 5);
+    if (su.status !== 200) { console.error(`VU${v}: signup ${su.status}`); return false; }
     sleep(1);
+
+    let otp = null;
+    for (let i = 0; i < 10; i++) {
+      const r = http.get(`${BASE_URL}/api/admin/test/otp?email=${encodeURIComponent(myEmail)}`, { headers: adminH() });
+      if (r.status === 200) { otp = JSON.parse(r.body).otp; break; }
+      sleep(1);
+    }
+    if (!otp) { console.error(`VU${v}: no OTP`); return false; }
+
+    const vr = retryPost(`${BASE_URL}/api/auth/email-otp/verify-email`,
+      JSON.stringify({ email: myEmail, otp }), 5);
+    if (vr.status !== 200) { console.error(`VU${v}: verify ${vr.status}`); return false; }
   }
-  if (!otp) { console.error(`VU${v}: no OTP`); return false; }
 
-  const vr = retryPost(`${BASE_URL}/api/auth/email-otp/verify-email`, JSON.stringify({ email: em, otp }), 5);
-  if (vr.status !== 200) { console.error(`VU${v}: verify ${vr.status}`); return false; }
-
-  const sr = retryPost(`${BASE_URL}/api/auth/sign-in/email`, JSON.stringify({ email: em, password: PASSWORD }), 5);
-  if (sr.status !== 200) { console.error(`VU${v}: signin ${sr.status}`); return false; }
-
-  console.log(`VU${v}: user ${em} ready`);
+  // Sign in (works for both first time and re-auth)
+  const sr = retryPost(`${BASE_URL}/api/auth/sign-in/email`,
+    JSON.stringify({ email: myEmail, password: PASSWORD }), 5);
+  if (sr.status !== 200) { console.error(`VU${exec.vu.idInTest}: signin ${sr.status}`); return false; }
   return true;
 }
 
@@ -167,14 +167,20 @@ function createWorkflows(count) {
 
     const cr = http.post(`${BASE_URL}/api/workflows/create`,
       JSON.stringify({ name: nm, description: "load test", nodes: p.n(p.trig), edges: p.e }), { headers: h() });
-    if (cr.status !== 200) continue;
+    if (cr.status !== 200) {
+      console.error(`VU${v}: wf create failed ${cr.status}`);
+      continue;
+    }
 
     const wfId = JSON.parse(cr.body).id;
 
-    // Enable via admin endpoint (creates schedule record for Schedule types)
+    // Enable via admin (creates schedule record)
     const en = http.post(`${BASE_URL}/api/admin/test/enable-workflow`,
       JSON.stringify({ workflowId: wfId }), { headers: adminH() });
-    if (en.status !== 200) continue;
+    if (en.status !== 200) {
+      console.error(`VU${v}: enable failed ${en.status}`);
+      continue;
+    }
 
     allWfIds.push({ id: wfId, type: p.type });
     if (p.type === "Manual") manualWfIds.push(wfId);
@@ -184,23 +190,20 @@ function createWorkflows(count) {
   console.log(`VU${v}: created ${created} workflows (total: ${allWfIds.length}, manual: ${manualWfIds.length})`);
 }
 
-function triggerManualWorkflows() {
+function triggerManuals() {
   for (const wfId of manualWfIds) {
     const r = http.post(`${BASE_URL}/api/workflow/${wfId}/execute`, JSON.stringify({}), { headers: serviceH() });
-    if (r.status === 200 || r.status === 201) {
-      manualTriggerOk.add(1);
-    } else {
-      manualTriggerFail.add(1);
-    }
+    if (r.status === 200 || r.status === 201) manualTriggerOk.add(1);
+    else manualTriggerFail.add(1);
   }
 }
 
-function collectResults(tier) {
+function collectNewResults(tier) {
   const v = exec.vu.idInTest;
   let s = 0, er = 0, tot = 0;
 
   for (const wf of allWfIds) {
-    const r = http.get(`${BASE_URL}/api/workflows/${wf.id}/executions`, { headers: adminH() });
+    const r = http.get(`${BASE_URL}/api/workflows/${wf.id}/executions`, { headers: serviceH() });
     if (r.status !== 200) continue;
 
     let execs;
@@ -208,24 +211,34 @@ function collectResults(tier) {
     if (!Array.isArray(execs)) continue;
 
     for (const ex of execs) {
+      // Skip already counted
+      if (countedExecIds[ex.id]) continue;
+
       if (ex.status === "success") {
         s++; tot++; execSuccess.add(1); execRate.add(true);
         if (ex.duration) execDur.add(parseFloat(ex.duration));
+        countedExecIds[ex.id] = true;
       } else if (ex.status === "error") {
         er++; tot++; execError.add(1); execRate.add(false);
+        countedExecIds[ex.id] = true;
       }
+      // Skip pending/running — not done yet
     }
   }
 
   const pct = tot > 0 ? Math.round(100 * s / tot) : 0;
-  console.log(`VU${v}: TIER ${tier} wf/vu — ${tot} executions, ${s} success, ${er} error (${pct}%), ${allWfIds.length} workflows`);
+  console.log(`VU${v}: TIER ${tier} wf/vu | ${tot} new executions | ${s} success | ${er} error | ${pct}% | ${allWfIds.length} workflows`);
 }
 
 // Main loop
 export default function () {
-  if (!setupDone) {
-    setupDone = doSetup();
-    if (!setupDone) { sleep(30); return; }
+  // Authenticate (first time: signup+verify+signin, subsequent: re-signin)
+  if (!myEmail || completedTiers > 0) {
+    const ok = authenticate();
+    if (!ok) { sleep(30); return; }
+    if (completedTiers === 0) {
+      console.log(`VU${exec.vu.idInTest}: authenticated`);
+    }
   }
 
   if (completedTiers >= TIERS.length) {
@@ -236,30 +249,23 @@ export default function () {
   const tierTarget = TIERS[completedTiers];
   const toCreate = tierTarget - allWfIds.length;
 
-  // Create new workflows to reach this tier's target
   if (toCreate > 0) {
     createWorkflows(toCreate);
   }
 
-  // Observation: trigger manual workflows every 60s, scheduler handles the rest
-  console.log(`VU${exec.vu.idInTest}: TIER ${tierTarget} wf/vu — observing ${OBSERVE_SECONDS}s (${allWfIds.length} total, ${manualWfIds.length} manual)...`);
+  // Observe: trigger manuals every 60s, scheduler handles schedules
+  console.log(`VU${exec.vu.idInTest}: TIER ${tierTarget} | observing ${OBSERVE_SECONDS}s | ${allWfIds.length} total | ${manualWfIds.length} manual`);
 
   const startTime = Date.now();
   while ((Date.now() - startTime) / 1000 < OBSERVE_SECONDS) {
-    // Trigger all manual workflows
-    triggerManualWorkflows();
-
-    // Wait ~60s for next trigger cycle (matching scheduler interval)
+    triggerManuals();
     const elapsed = (Date.now() - startTime) / 1000;
     const waitTime = Math.min(60, OBSERVE_SECONDS - elapsed);
     if (waitTime > 0) sleep(waitTime);
   }
 
-  // Wait for last executions to complete
   sleep(15);
-
-  // Collect results for this tier
-  collectResults(tierTarget);
+  collectNewResults(tierTarget);
   completedTiers++;
 }
 
@@ -268,8 +274,12 @@ export function teardown() {
   console.log("Cleaning up...");
   const r = http.post(`${BASE_URL}/api/admin/test/cleanup`, JSON.stringify({}), { headers: adminH() });
   if (r.status === 200) {
-    const d = JSON.parse(r.body).deleted;
-    console.log(`Cleaned: ${d.users} users, ${d.organizations} orgs, ${d.workflows} workflows`);
+    try {
+      const d = JSON.parse(r.body).deleted;
+      console.log(`Cleaned: ${d.users} users, ${d.workflows} workflows`);
+    } catch {
+      console.log(`Cleanup response: ${r.body}`);
+    }
   } else {
     console.error(`Cleanup failed: ${r.status}`);
   }
