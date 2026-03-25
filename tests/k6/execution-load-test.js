@@ -1,23 +1,23 @@
 // Production-realistic load test.
 //
-// Simulates the scheduler service: each VU creates N scheduled-type workflows,
-// then triggers them every 60 seconds using X-Service-Key (exactly how the
-// production scheduler-executor works). After each observation window,
-// collects execution results and adds more workflows.
+// Creates users and scheduled workflows, enables them via admin endpoint
+// (which creates workflow_schedules records), then WAITS for the real
+// scheduler-dispatcher to pick them up and trigger executions via SQS.
 //
-// Workflow patterns: 90% Schedule + 10% Event (matching production distribution)
-// All actions use HTTP Request to /api/health (mocking web3/discord calls)
+// This is the real production path:
+//   scheduler-dispatcher polls /api/internal/schedules every 60s
+//   -> evaluates cron -> enqueues to SQS
+//   -> scheduler-executor polls SQS -> calls /api/workflow/{id}/execute
 //
 // k6 run execution-load-test.js \
 //   -e BASE_URL=https://app-pr-663.keeperhub.com \
 //   -e TEST_API_KEY=placeholder \
-//   -e SERVICE_KEY=<scheduler-service-key> \
 //   -e CF_ACCESS_CLIENT_ID=... -e CF_ACCESS_CLIENT_SECRET=... \
 //   -e TARGET_VUS=20 -e WF_PER_VU=10 \
-//   -e ROUNDS=5 -e OBSERVE_SECONDS=120
+//   -e ROUNDS=3 -e OBSERVE_SECONDS=180
 
 import http from "k6/http";
-import { check, sleep } from "k6";
+import { sleep } from "k6";
 import { Counter, Rate, Trend } from "k6/metrics";
 import exec from "k6/execution";
 
@@ -25,26 +25,23 @@ const BASE_URL = __ENV.BASE_URL || "http://localhost:3000";
 const TEST_API_KEY = __ENV.TEST_API_KEY || "";
 const CF_ID = __ENV.CF_ACCESS_CLIENT_ID || "";
 const CF_SECRET = __ENV.CF_ACCESS_CLIENT_SECRET || "";
-const SERVICE_KEY = __ENV.SERVICE_KEY || "";
 const TARGET_VUS = parseInt(__ENV.TARGET_VUS || "20", 10);
 const WF_PER_VU = parseInt(__ENV.WF_PER_VU || "10", 10);
-const ROUNDS = parseInt(__ENV.ROUNDS || "5", 10);
-const OBSERVE_SECONDS = parseInt(__ENV.OBSERVE_SECONDS || "120", 10);
-const TRIGGER_INTERVAL = parseInt(__ENV.TRIGGER_INTERVAL || "60", 10);
+const ROUNDS = parseInt(__ENV.ROUNDS || "3", 10);
+const OBSERVE_SECONDS = parseInt(__ENV.OBSERVE_SECONDS || "180", 10);
 const PASSWORD = "K6LoadTest!2024";
 
 // Metrics
-const triggerOk = new Counter("trigger_ok");
-const triggerFail = new Counter("trigger_fail");
 const execSuccess = new Counter("exec_success");
 const execError = new Counter("exec_error");
 const execRate = new Rate("exec_success_rate");
 const execDur = new Trend("exec_duration_ms", true);
 const wfCreated = new Counter("workflows_created");
+const wfEnabled = new Counter("workflows_enabled");
 
-// Scenario
+// Scenario — ramp up VUs, hold for all rounds + observation
 const rampSec = TARGET_VUS * 5;
-const holdSec = ROUNDS * (OBSERVE_SECONDS + 30) + 120;
+const holdSec = ROUNDS * (OBSERVE_SECONDS + 60) + 300;
 
 export const options = {
   scenarios: {
@@ -71,10 +68,13 @@ function h() {
   if (CF_SECRET) hd["CF-Access-Client-Secret"] = CF_SECRET;
   return hd;
 }
-function adminH() { const hd = h(); if (TEST_API_KEY) hd["Authorization"] = `Bearer ${TEST_API_KEY}`; return hd; }
-function serviceH() { const hd = h(); if (SERVICE_KEY) hd["X-Service-Key"] = SERVICE_KEY; return hd; }
+function adminH() {
+  const hd = h();
+  if (TEST_API_KEY) hd["Authorization"] = `Bearer ${TEST_API_KEY}`;
+  return hd;
+}
 
-// Workflow patterns — 9 Schedule + 1 Event (production distribution)
+// Workflow patterns — all Schedule trigger (production reality: 99.5% Schedule)
 function act(id, x, y) {
   return { id, type: "action", position: { x, y }, data: { type: "action", label: id, config: {
     actionType: "HTTP Request", endpoint: `${BASE_URL}/api/health`,
@@ -151,45 +151,60 @@ function doSetup() {
   return true;
 }
 
-function createBatch(round) {
+function createAndEnableBatch(round) {
   const v = exec.vu.idInTest;
   let created = 0;
+
   for (let w = 0; w < WF_PER_VU; w++) {
     const p = PATTERNS[(myWfIds.length + w) % PATTERNS.length];
     const nm = `k6-vu${v}-r${round}-w${w}`;
+
+    // Create workflow (uses session cookie from signin)
     const cr = http.post(`${BASE_URL}/api/workflows/create`,
       JSON.stringify({ name: nm, description: "load test", nodes: p.n, edges: p.e }), { headers: h() });
-    if (cr.status === 200) {
-      myWfIds.push(JSON.parse(cr.body).id);
-      wfCreated.add(1);
-      created++;
+    if (cr.status !== 200) {
+      console.error(`VU${v}: wf create failed ${cr.status}`);
+      continue;
     }
-  }
-  console.log(`VU${v}: round ${round} — ${created} workflows (total: ${myWfIds.length})`);
-}
 
-function triggerAllWorkflows() {
-  // Trigger each workflow using service key — same as scheduler-executor
-  for (const wfId of myWfIds) {
-    const r = http.post(`${BASE_URL}/api/workflow/${wfId}/execute`,
-      JSON.stringify({}), { headers: serviceH() });
-    if (r.status === 200 || r.status === 201) {
-      triggerOk.add(1);
+    const wfId = JSON.parse(cr.body).id;
+
+    // Enable via admin endpoint (bypasses session, creates schedule record)
+    const en = http.post(`${BASE_URL}/api/admin/test/enable-workflow`,
+      JSON.stringify({ workflowId: wfId }), { headers: adminH() });
+    if (en.status === 200) {
+      myWfIds.push(wfId);
+      wfCreated.add(1);
+      wfEnabled.add(1);
+      created++;
     } else {
-      triggerFail.add(1);
+      console.error(`VU${v}: enable failed ${en.status} ${en.body}`);
     }
   }
+
+  console.log(`VU${v}: round ${round} — ${created} workflows enabled (total: ${myWfIds.length})`);
 }
 
 function collectResults(round) {
   const v = exec.vu.idInTest;
   let s = 0, er = 0, tot = 0;
+
   for (const wfId of myWfIds) {
-    const r = http.get(`${BASE_URL}/api/workflows/${wfId}/executions`, { headers: serviceH() });
-    if (r.status !== 200) continue;
+    // Use admin auth to read executions (session might be dead)
+    const r = http.get(`${BASE_URL}/api/workflows/${wfId}/executions`, { headers: adminH() });
+    if (r.status !== 200) {
+      // Try with session cookie (might still work for own workflows)
+      const r2 = http.get(`${BASE_URL}/api/workflows/${wfId}/executions`, { headers: h() });
+      if (r2.status !== 200) continue;
+    }
+
     let execs;
-    try { execs = JSON.parse(r.body); } catch { continue; }
+    try {
+      const body = r.status === 200 ? r.body : "";
+      execs = JSON.parse(body);
+    } catch { continue; }
     if (!Array.isArray(execs)) continue;
+
     for (const ex of execs) {
       if (ex.status === "success") {
         s++; tot++; execSuccess.add(1); execRate.add(true);
@@ -199,11 +214,12 @@ function collectResults(round) {
       }
     }
   }
+
   const pct = tot > 0 ? Math.round(100 * s / tot) : 0;
-  console.log(`VU${v}: round ${round} — ${tot} executions, ${s} success, ${er} error (${pct}%), ${myWfIds.length} workflows`);
+  console.log(`VU${v}: round ${round} — ${tot} executions, ${s} success, ${er} error (${pct}%), ${myWfIds.length} active workflows`);
 }
 
-// Main — setup, then rounds of: create -> trigger on interval -> collect
+// Main loop
 export default function () {
   if (!setupDone) {
     setupDone = doSetup();
@@ -217,33 +233,14 @@ export default function () {
 
   const round = completedRounds + 1;
 
-  // Create new batch of workflows
-  createBatch(round);
+  // Create and enable workflows (scheduler will pick them up)
+  createAndEnableBatch(round);
 
-  // Simulate scheduler: trigger all workflows every TRIGGER_INTERVAL seconds
-  // for the duration of the observation window
-  const startTime = Date.now();
-  let triggers = 0;
+  // Wait for scheduler to trigger them
+  console.log(`VU${exec.vu.idInTest}: waiting ${OBSERVE_SECONDS}s for scheduler to trigger ${myWfIds.length} workflows...`);
+  sleep(OBSERVE_SECONDS);
 
-  while ((Date.now() - startTime) / 1000 < OBSERVE_SECONDS) {
-    triggerAllWorkflows();
-    triggers++;
-    console.log(`VU${exec.vu.idInTest}: trigger cycle ${triggers} (${myWfIds.length} workflows, ${Math.round((Date.now() - startTime) / 1000)}s/${OBSERVE_SECONDS}s)`);
-
-    // Wait for next trigger interval
-    const elapsed = (Date.now() - startTime) / 1000;
-    const remaining = TRIGGER_INTERVAL - ((Date.now() - startTime) / 1000 % TRIGGER_INTERVAL);
-    if (elapsed + remaining < OBSERVE_SECONDS) {
-      sleep(remaining > 0 ? remaining : TRIGGER_INTERVAL);
-    } else {
-      break;
-    }
-  }
-
-  // Wait for last executions to complete
-  sleep(10);
-
-  // Collect results
+  // Collect execution results
   collectResults(round);
   completedRounds = round;
 }
