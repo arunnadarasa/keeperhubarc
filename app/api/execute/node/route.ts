@@ -19,7 +19,7 @@ import {
 } from "../_lib/execution-service";
 import { checkRateLimit } from "../_lib/rate-limit";
 import { executeWithRetry, type TransactionResult } from "../_lib/retry";
-import { checkSpendingCap } from "../_lib/spending-cap";
+import { checkAndReserveExecution } from "../_lib/spending-cap";
 import type { NodeExecuteRequest, RetryConfig } from "../_lib/types";
 import { requireWallet } from "../_lib/wallet-check";
 
@@ -230,18 +230,26 @@ async function handleResult(
 async function executeNode(
   data: NodeExecuteRequest,
   resolved: ResolvedAction,
-  apiKeyCtx: ApiKeyContext
+  apiKeyCtx: ApiKeyContext,
+  preCreatedExecutionId?: string
 ): Promise<NextResponse> {
   const { config, integrationId, network, retry } = data;
 
   const redactedInput = redactInput({ actionType: data.actionType, ...config });
-  const { executionId } = await createExecution({
-    organizationId: apiKeyCtx.organizationId,
-    apiKeyId: apiKeyCtx.apiKeyId,
-    type: resolved.actionType,
-    network,
-    input: redactedInput,
-  });
+
+  let executionId: string;
+  if (preCreatedExecutionId) {
+    executionId = preCreatedExecutionId;
+  } else {
+    const created = await createExecution({
+      organizationId: apiKeyCtx.organizationId,
+      apiKeyId: apiKeyCtx.apiKeyId,
+      type: resolved.actionType,
+      network,
+      input: redactedInput,
+    });
+    executionId = created.executionId;
+  }
 
   await markRunning(executionId);
 
@@ -348,10 +356,27 @@ export async function POST(request: Request): Promise<NextResponse> {
       return walletError;
     }
 
-    const spendCap = await checkSpendingCap(apiKeyCtx.organizationId);
-    if (!spendCap.allowed) {
-      return NextResponse.json({ error: spendCap.reason }, { status: 403 });
+    const redactedInput = redactInput({
+      actionType: validation.data.actionType,
+      ...validation.data.config,
+    });
+    const reserve = await checkAndReserveExecution({
+      organizationId: apiKeyCtx.organizationId,
+      apiKeyId: apiKeyCtx.apiKeyId,
+      type: resolved.actionType,
+      network,
+      input: redactedInput,
+    });
+    if (!reserve.allowed) {
+      return NextResponse.json({ error: reserve.reason }, { status: 403 });
     }
+
+    return await executeNode(
+      validation.data,
+      resolved,
+      apiKeyCtx,
+      reserve.executionId
+    );
   }
 
   return await executeNode(validation.data, resolved, apiKeyCtx);

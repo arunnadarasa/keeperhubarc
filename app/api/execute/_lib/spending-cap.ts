@@ -1,28 +1,64 @@
 import "server-only";
 
-import { and, eq, gte, sql } from "drizzle-orm";
+import { and, eq, gte, ne, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { directExecutions, organizationSpendCaps } from "@/lib/db/schema";
+import { generateId } from "@/lib/utils/id";
 
 export type SpendCapResult =
   | { allowed: true }
   | { allowed: false; reason: string };
 
-export async function checkSpendingCap(
-  organizationId: string
-): Promise<SpendCapResult> {
+type ReserveExecutionParams = {
+  organizationId: string;
+  apiKeyId: string;
+  type: string;
+  network?: string;
+  // biome-ignore lint/suspicious/noExplicitAny: jsonb column accepts arbitrary serializable data
+  input: any;
+};
+
+type ReserveResult =
+  | { allowed: true; executionId: string }
+  | { allowed: false; reason: string };
+
+/**
+ * Atomically check the spending cap and create the execution record.
+ *
+ * Uses SELECT FOR UPDATE on the cap row to serialize concurrent requests
+ * for the same organization. The execution record is inserted inside the
+ * same transaction so no gap exists between the cap check and the record
+ * that represents in-flight spend.
+ *
+ * The SUM includes all non-failed executions (pending, running, completed)
+ * so that serialized-but-not-yet-completed requests are visible to
+ * subsequent callers once their gas totals are recorded.
+ */
+export async function checkAndReserveExecution(
+  params: ReserveExecutionParams
+): Promise<ReserveResult> {
   return await db.transaction(async (tx) => {
     const caps = await tx
       .select({ dailyCapWei: organizationSpendCaps.dailyCapWei })
       .from(organizationSpendCaps)
-      .where(eq(organizationSpendCaps.organizationId, organizationId))
+      .where(eq(organizationSpendCaps.organizationId, params.organizationId))
       .for("update")
       .limit(1);
 
     const cap = caps[0];
+    const id = generateId();
 
     if (!cap) {
-      return { allowed: true } as const;
+      await tx.insert(directExecutions).values({
+        id,
+        organizationId: params.organizationId,
+        apiKeyId: params.apiKeyId,
+        type: params.type,
+        network: params.network ?? null,
+        input: params.input,
+        status: "pending",
+      });
+      return { allowed: true, executionId: id } as const;
     }
 
     const todayStart = new Date();
@@ -35,8 +71,8 @@ export async function checkSpendingCap(
       .from(directExecutions)
       .where(
         and(
-          eq(directExecutions.organizationId, organizationId),
-          eq(directExecutions.status, "completed"),
+          eq(directExecutions.organizationId, params.organizationId),
+          ne(directExecutions.status, "failed"),
           gte(directExecutions.createdAt, todayStart)
         )
       )
@@ -49,6 +85,16 @@ export async function checkSpendingCap(
       return { allowed: false, reason: "Daily spending cap exceeded" } as const;
     }
 
-    return { allowed: true } as const;
+    await tx.insert(directExecutions).values({
+      id,
+      organizationId: params.organizationId,
+      apiKeyId: params.apiKeyId,
+      type: params.type,
+      network: params.network ?? null,
+      input: params.input,
+      status: "pending",
+    });
+
+    return { allowed: true, executionId: id } as const;
   });
 }
