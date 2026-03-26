@@ -167,12 +167,36 @@ function isTransactionResult(output: unknown): output is {
 // biome-ignore lint/suspicious/noExplicitAny: Step functions have varying signatures
 type StepFn = (input: any) => Promise<unknown>;
 
+type InvokeResult =
+  | { ok: true; result: unknown; retryCount: number }
+  | { ok: false; error: string; retryCount: number };
+
+function unwrapRetryResult<T>(
+  retryResult: Awaited<ReturnType<typeof executeWithRetry<T>>>
+): InvokeResult {
+  if (
+    retryResult.outcome === "timeout" ||
+    retryResult.outcome === "exhausted"
+  ) {
+    return {
+      ok: false,
+      error: retryResult.error,
+      retryCount: retryResult.retryCount,
+    };
+  }
+  return {
+    ok: true,
+    result: retryResult.result,
+    retryCount: retryResult.retryCount,
+  };
+}
+
 async function invokeStep(
   stepFn: StepFn,
   stepInput: Record<string, unknown>,
   retry: RetryConfig | undefined,
   isWeb3: boolean
-): Promise<{ result: unknown; retryCount: number }> {
+): Promise<InvokeResult> {
   if (retry) {
     if (isWeb3) {
       const retryResult = await executeWithRetry<TransactionResult>(
@@ -180,17 +204,17 @@ async function invokeStep(
         retry,
         transactionRetryOptions
       );
-      return { result: retryResult.result, retryCount: retryResult.retryCount };
+      return unwrapRetryResult(retryResult);
     }
     const retryResult = await executeWithRetry<unknown>(
       async () => stepFn(stepInput),
       retry,
       genericRetryOptions
     );
-    return { result: retryResult.result, retryCount: retryResult.retryCount };
+    return unwrapRetryResult(retryResult);
   }
   const result = await stepFn(stepInput);
-  return { result, retryCount: 0 };
+  return { ok: true, result, retryCount: 0 };
 }
 
 async function handleResult(
@@ -296,18 +320,37 @@ async function executeNode(
       );
     }
 
-    const { result, retryCount } = await invokeStep(
+    const invokeResult = await invokeStep(
       stepFn,
       stepInput,
       retry,
       Boolean(network)
     );
 
-    if (retryCount > 0) {
-      await setRetryCount(executionId, retryCount);
+    if (invokeResult.retryCount > 0) {
+      await setRetryCount(executionId, invokeResult.retryCount);
     }
 
-    return await handleResult(executionId, result, retryCount);
+    if (!invokeResult.ok) {
+      await failExecution(executionId, invokeResult.error);
+      return NextResponse.json(
+        {
+          executionId,
+          status: "failed",
+          error: invokeResult.error,
+          ...(invokeResult.retryCount > 0
+            ? { retryCount: invokeResult.retryCount }
+            : {}),
+        },
+        { status: 422 }
+      );
+    }
+
+    return await handleResult(
+      executionId,
+      invokeResult.result,
+      invokeResult.retryCount
+    );
   } catch (err: unknown) {
     const errorMsg = getErrorMessage(err);
     await failExecution(executionId, errorMsg);

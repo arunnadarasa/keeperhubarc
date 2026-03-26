@@ -48,10 +48,9 @@ function withTimeout<T>(
   ]);
 }
 
-export type RetryResult<T> = {
-  result: T;
-  retryCount: number;
-};
+export type RetryResult<T> =
+  | { outcome: "success" | "failed"; result: T; retryCount: number }
+  | { outcome: "timeout" | "exhausted"; error: string; retryCount: number };
 
 type RetryOptions<T> = {
   isSuccess: SuccessPredicate<T>;
@@ -116,10 +115,8 @@ export async function executeWithRetry<T>(
     if (resultOrTimeout === "timeout") {
       if (attempt >= resolved.maxRetries) {
         return {
-          result: {
-            success: false,
-            error: `Timed out after ${resolved.maxRetries} retries`,
-          } as T,
+          outcome: "timeout",
+          error: `Timed out after ${resolved.maxRetries} retries`,
           retryCount,
         };
       }
@@ -129,13 +126,13 @@ export async function executeWithRetry<T>(
     }
 
     if (options.isSuccess(resultOrTimeout)) {
-      return { result: resultOrTimeout, retryCount };
+      return { outcome: "success", result: resultOrTimeout, retryCount };
     }
 
     const errorMsg = options.getError(resultOrTimeout);
     const isRetryable = errorMsg ? isRetryableError(errorMsg) : false;
     if (!isRetryable || attempt >= resolved.maxRetries) {
-      return { result: resultOrTimeout, retryCount };
+      return { outcome: "failed", result: resultOrTimeout, retryCount };
     }
 
     retryCount++;
@@ -143,7 +140,8 @@ export async function executeWithRetry<T>(
   }
 
   return {
-    result: { success: false, error: "Max retries exceeded" } as T,
+    outcome: "exhausted",
+    error: "Max retries exceeded",
     retryCount,
   };
 }
