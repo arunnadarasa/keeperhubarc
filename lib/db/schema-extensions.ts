@@ -355,6 +355,7 @@ export const directExecutions = pgTable(
     error: text("error"),
     gasUsedWei: text("gas_used_wei"),
     gasPriceWei: text("gas_price_wei"),
+    // Populated by a future price-oracle integration; null until then
     estimatedCostUsd: text("estimated_cost_usd"),
     retryCount: integer("retry_count").notNull().default(0),
     createdAt: timestamp("created_at").notNull().defaultNow(),
