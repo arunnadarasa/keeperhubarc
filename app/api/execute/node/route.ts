@@ -13,15 +13,65 @@ import {
   completeExecution,
   createExecution,
   failExecution,
-  setRetryCount,
   markRunning,
   redactInput,
+  setRetryCount,
 } from "../_lib/execution-service";
 import { checkRateLimit } from "../_lib/rate-limit";
 import { executeWithRetry, type TransactionResult } from "../_lib/retry";
 import { checkSpendingCap } from "../_lib/spending-cap";
 import type { NodeExecuteRequest, RetryConfig } from "../_lib/types";
 import { requireWallet } from "../_lib/wallet-check";
+
+function validateRetryConfig(
+  raw: unknown
+): { valid: true; data: RetryConfig } | { valid: false; error: string } {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    return { valid: false, error: "retry must be a JSON object" };
+  }
+  const r = raw as Record<string, unknown>;
+
+  if (
+    r.maxRetries !== undefined &&
+    (typeof r.maxRetries !== "number" || r.maxRetries < 0 || r.maxRetries > 10)
+  ) {
+    return {
+      valid: false,
+      error: "retry.maxRetries must be a number between 0 and 10",
+    };
+  }
+  if (
+    r.timeoutMs !== undefined &&
+    (typeof r.timeoutMs !== "number" ||
+      r.timeoutMs < 1000 ||
+      r.timeoutMs > 600_000)
+  ) {
+    return {
+      valid: false,
+      error: "retry.timeoutMs must be a number between 1000 and 600000",
+    };
+  }
+  if (
+    r.gasBumpPercent !== undefined &&
+    (typeof r.gasBumpPercent !== "number" ||
+      r.gasBumpPercent < 0 ||
+      r.gasBumpPercent > 100)
+  ) {
+    return {
+      valid: false,
+      error: "retry.gasBumpPercent must be a number between 0 and 100",
+    };
+  }
+
+  return {
+    valid: true,
+    data: {
+      maxRetries: r.maxRetries as number | undefined,
+      timeoutMs: r.timeoutMs as number | undefined,
+      gasBumpPercent: r.gasBumpPercent as number | undefined,
+    },
+  };
+}
 
 function validateRequest(
   body: unknown
@@ -57,30 +107,11 @@ function validateRequest(
 
   let retry: RetryConfig | undefined;
   if (req.retry !== undefined) {
-    if (typeof req.retry !== "object" || req.retry === null || Array.isArray(req.retry)) {
-      return { valid: false, error: "retry must be a JSON object" };
+    const retryResult = validateRetryConfig(req.retry);
+    if (!retryResult.valid) {
+      return retryResult;
     }
-    const r = req.retry as Record<string, unknown>;
-    if (r.maxRetries !== undefined) {
-      if (typeof r.maxRetries !== "number" || r.maxRetries < 0 || r.maxRetries > 10) {
-        return { valid: false, error: "retry.maxRetries must be a number between 0 and 10" };
-      }
-    }
-    if (r.timeoutMs !== undefined) {
-      if (typeof r.timeoutMs !== "number" || r.timeoutMs < 1000 || r.timeoutMs > 600_000) {
-        return { valid: false, error: "retry.timeoutMs must be a number between 1000 and 600000" };
-      }
-    }
-    if (r.gasBumpPercent !== undefined) {
-      if (typeof r.gasBumpPercent !== "number" || r.gasBumpPercent < 0 || r.gasBumpPercent > 100) {
-        return { valid: false, error: "retry.gasBumpPercent must be a number between 0 and 100" };
-      }
-    }
-    retry = {
-      maxRetries: r.maxRetries as number | undefined,
-      timeoutMs: r.timeoutMs as number | undefined,
-      gasBumpPercent: r.gasBumpPercent as number | undefined,
-    };
+    retry = retryResult.data;
   }
 
   return {
@@ -242,11 +273,7 @@ async function executeNode(
       );
     }
 
-    const { result, retryCount } = await invokeStep(
-      stepFn,
-      stepInput,
-      retry
-    );
+    const { result, retryCount } = await invokeStep(stepFn, stepInput, retry);
 
     if (retryCount > 0) {
       await setRetryCount(executionId, retryCount);
