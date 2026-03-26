@@ -55,6 +55,34 @@ function validateRequest(
     return { valid: false, error: "network must be a string" };
   }
 
+  let retry: RetryConfig | undefined;
+  if (req.retry !== undefined) {
+    if (typeof req.retry !== "object" || req.retry === null || Array.isArray(req.retry)) {
+      return { valid: false, error: "retry must be a JSON object" };
+    }
+    const r = req.retry as Record<string, unknown>;
+    if (r.maxRetries !== undefined) {
+      if (typeof r.maxRetries !== "number" || r.maxRetries < 0 || r.maxRetries > 10) {
+        return { valid: false, error: "retry.maxRetries must be a number between 0 and 10" };
+      }
+    }
+    if (r.timeoutMs !== undefined) {
+      if (typeof r.timeoutMs !== "number" || r.timeoutMs < 1000 || r.timeoutMs > 600_000) {
+        return { valid: false, error: "retry.timeoutMs must be a number between 1000 and 600000" };
+      }
+    }
+    if (r.gasBumpPercent !== undefined) {
+      if (typeof r.gasBumpPercent !== "number" || r.gasBumpPercent < 0 || r.gasBumpPercent > 100) {
+        return { valid: false, error: "retry.gasBumpPercent must be a number between 0 and 100" };
+      }
+    }
+    retry = {
+      maxRetries: r.maxRetries as number | undefined,
+      timeoutMs: r.timeoutMs as number | undefined,
+      gasBumpPercent: r.gasBumpPercent as number | undefined,
+    };
+  }
+
   return {
     valid: true,
     data: {
@@ -62,7 +90,7 @@ function validateRequest(
       config: req.config as Record<string, unknown>,
       integrationId: req.integrationId as string | undefined,
       network: req.network as string | undefined,
-      retry: req.retry as NodeExecuteRequest["retry"],
+      retry,
     },
   };
 }
