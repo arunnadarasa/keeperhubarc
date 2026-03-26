@@ -134,10 +134,9 @@ type StepFn = (input: any) => Promise<unknown>;
 async function invokeStep(
   stepFn: StepFn,
   stepInput: Record<string, unknown>,
-  retry: RetryConfig | undefined,
-  network: string | undefined
+  retry: RetryConfig | undefined
 ): Promise<{ result: unknown; retryCount: number }> {
-  if (retry && network) {
+  if (retry) {
     const retryResult = await executeWithRetry(
       async () => (await stepFn(stepInput)) as TransactionResult,
       retry
@@ -246,8 +245,7 @@ async function executeNode(
     const { result, retryCount } = await invokeStep(
       stepFn,
       stepInput,
-      retry,
-      network
+      retry
     );
 
     if (retryCount > 0) {
