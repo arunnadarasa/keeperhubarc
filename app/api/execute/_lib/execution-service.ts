@@ -1,6 +1,6 @@
 import "server-only";
 
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { directExecutions } from "@/lib/db/schema";
 import { generateId } from "@/lib/utils/id";
@@ -81,12 +81,13 @@ export async function failExecution(
     .where(eq(directExecutions.id, executionId));
 }
 
-export async function incrementRetryCount(executionId: string): Promise<void> {
+export async function setRetryCount(
+  executionId: string,
+  count: number
+): Promise<void> {
   await db
     .update(directExecutions)
-    .set({
-      retryCount: sql`${directExecutions.retryCount} + 1`,
-    })
+    .set({ retryCount: count })
     .where(eq(directExecutions.id, executionId));
 }
 

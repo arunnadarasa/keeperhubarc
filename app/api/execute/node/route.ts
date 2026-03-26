@@ -13,7 +13,7 @@ import {
   completeExecution,
   createExecution,
   failExecution,
-  incrementRetryCount,
+  setRetryCount,
   markRunning,
   redactInput,
 } from "../_lib/execution-service";
@@ -223,7 +223,7 @@ async function executeNode(
     );
 
     if (retryCount > 0) {
-      await incrementRetryCount(executionId);
+      await setRetryCount(executionId, retryCount);
     }
 
     return await handleResult(executionId, result, retryCount);
