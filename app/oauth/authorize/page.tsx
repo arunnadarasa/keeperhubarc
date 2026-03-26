@@ -199,7 +199,7 @@ export default async function AuthorizePage({
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center overflow-y-auto bg-background">
+    <main className="pointer-events-auto flex min-h-screen items-center justify-center overflow-y-auto bg-background">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-8 shadow-sm">
         <h1 className="mb-1 text-xl font-semibold text-foreground">
           Authorize Access
