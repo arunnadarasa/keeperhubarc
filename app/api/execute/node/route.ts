@@ -274,12 +274,14 @@ async function executeNode(
 ): Promise<NextResponse> {
   const { config, integrationId, network, retry } = data;
 
-  const redactedInput = redactInput({ actionType: data.actionType, ...config });
-
   let executionId: string;
   if (preCreatedExecutionId) {
     executionId = preCreatedExecutionId;
   } else {
+    const redactedInput = redactInput({
+      actionType: data.actionType,
+      ...config,
+    });
     const created = await createExecution({
       organizationId: apiKeyCtx.organizationId,
       apiKeyId: apiKeyCtx.apiKeyId,
