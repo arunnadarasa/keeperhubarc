@@ -19,9 +19,9 @@ import { getOrganizationWallet } from "@/lib/para/wallet-helpers";
 
 type ParaWalletRecord = {
   userId: string;
-  walletId: string;
+  paraWalletId: string | null;
   walletAddress: string;
-  userShare: string;
+  userShare: string | null;
 };
 
 function hexToBase64(hex: string): string {
@@ -70,10 +70,16 @@ export async function createParaViemAccount(
   const walletRecord = await getOrganizationWallet(organizationId);
   const paraClient = initializeParaClient();
 
+  if (!(walletRecord.userShare && walletRecord.paraWalletId)) {
+    throw new Error(
+      "Wallet missing Para credentials (userShare or paraWalletId)"
+    );
+  }
+
   const decryptedShare = decryptUserShare(walletRecord.userShare);
   await paraClient.setUserShare(decryptedShare);
 
-  const walletId = walletRecord.walletId;
+  const walletId = walletRecord.paraWalletId;
   const address = walletRecord.walletAddress as Address;
 
   async function signRawHash(hash: Hex): Promise<Hex> {

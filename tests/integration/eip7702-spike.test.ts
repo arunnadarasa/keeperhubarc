@@ -138,6 +138,9 @@ describe.skipIf(!HAS_PARA)("Scenario B: Para signer accepts type-4 RLP", () => {
         PARA_API_KEY ?? ""
       );
 
+      if (!wallet.userShare) {
+        throw new Error("Wallet missing userShare");
+      }
       const decryptedShare = decryptUserShare(wallet.userShare);
       await paraClient.setUserShare(decryptedShare);
       await paraClient.setUserId(wallet.userId);
@@ -145,8 +148,7 @@ describe.skipIf(!HAS_PARA)("Scenario B: Para signer accepts type-4 RLP", () => {
       const provider = new ethers.JsonRpcProvider(
         "https://base-sepolia-rpc.publicnode.com"
       );
-      // biome-ignore lint/suspicious/noExplicitAny: Para server-sdk type incompatibility with core-sdk ParaCore after SDK upgrade
-      const paraSigner = new ParaEthersSigner(paraClient as any, provider);
+      const paraSigner = new ParaEthersSigner(paraClient, provider);
       const signerAddress = await paraSigner.getAddress();
 
       // Local key for authorization signing -- we're testing Para's ability
@@ -240,6 +242,9 @@ describe.skipIf(!HAS_ALL)(
         }
 
         const walletRecord = await getOrganizationWallet(orgId);
+        if (!(walletRecord.userShare && walletRecord.paraWalletId)) {
+          throw new Error("Wallet missing Para credentials");
+        }
         const decryptedShare = decryptUserShare(walletRecord.userShare);
 
         const paraEnv =
@@ -259,7 +264,7 @@ describe.skipIf(!HAS_ALL)(
           privateKeyHex = await getPrivateKey(
             ctx,
             walletRecord.userId,
-            walletRecord.walletId,
+            walletRecord.paraWalletId,
             decryptedShare
           );
 

@@ -1,6 +1,6 @@
 {
-  "id": "82141fd6-ad0e-48e3-94c8-b02088408aae",
-  "prevId": "67547040-70fe-40a5-94a0-1f7435083c4d",
+  "id": "e795b2f5-70ce-44be-b8a3-07870df044c6",
+  "prevId": "82141fd6-ad0e-48e3-94c8-b02088408aae",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1218,6 +1218,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "0"
         }
       },
       "indexes": {},

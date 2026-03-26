@@ -322,6 +322,7 @@ export {
   gasCreditAllocations,
   gasCreditUsage,
   gasSponsorshipDelegations,
+  keyExportCodes,
   type NewBillingEvent,
   type NewDirectExecution,
   type NewExecutionDebt,
@@ -330,6 +331,7 @@ export {
   type NewOrganizationSpendCap,
   type NewOrganizationSubscription,
   type NewOrganizationToken,
+  type NewOrganizationWallet,
   type NewParaWallet,
   type NewPublicTag,
   type NewSupportedToken,
@@ -338,11 +340,13 @@ export {
   type OrganizationSpendCap,
   type OrganizationSubscription,
   type OrganizationToken,
+  type OrganizationWallet,
   type OverageBillingRecord,
   organizationApiKeys,
   organizationSpendCaps,
   organizationSubscriptions,
   organizationTokens,
+  organizationWallets,
   overageBillingRecords,
   type ParaWallet,
   type PendingTransaction,
@@ -359,10 +363,13 @@ export {
 } from "./schema-extensions";
 
 export {
+  type McpOauthAuthCode,
   type McpOauthClient,
   type McpOauthRefreshToken,
+  mcpOauthAuthCodes,
   mcpOauthClients,
   mcpOauthRefreshTokens,
+  type NewMcpOauthAuthCode,
   type NewMcpOauthClient,
   type NewMcpOauthRefreshToken,
 } from "./schema-oauth";

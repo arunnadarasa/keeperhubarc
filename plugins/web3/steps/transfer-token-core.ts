@@ -20,7 +20,7 @@ import { getTransactionUrl } from "@/lib/explorer";
 import { ErrorCategory, logUserError } from "@/lib/logging";
 import {
   getOrganizationWalletAddress,
-  initializeParaSigner,
+  initializeWalletSigner,
 } from "@/lib/para/wallet-helpers";
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
@@ -303,7 +303,7 @@ export async function transferTokenCore(
   // Try gas-sponsored execution first (ERC-4337 via Pimlico)
   if (isSponsorshipSupported(chainId)) {
     try {
-      const signer = await initializeParaSigner(organizationId, rpcUrl);
+      const signer = await initializeWalletSigner(organizationId, rpcUrl);
       const readContract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
       const [decimals, symbol] = await Promise.all([
         readContract.decimals() as Promise<bigint>,
@@ -371,10 +371,10 @@ export async function transferTokenCore(
 
   return withNonceSession(txContext, walletAddress, async (session) => {
     // Initialize Para signer
-    let signer: Awaited<ReturnType<typeof initializeParaSigner>>;
+    let signer: Awaited<ReturnType<typeof initializeWalletSigner>>;
     let signerAddress: string;
     try {
-      signer = await initializeParaSigner(organizationId, rpcUrl);
+      signer = await initializeWalletSigner(organizationId, rpcUrl);
       signerAddress = await signer.getAddress();
     } catch (error) {
       return {
