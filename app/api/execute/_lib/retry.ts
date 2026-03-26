@@ -50,6 +50,12 @@ export type RetryResult = {
  * The executeFn receives optional GasBumpOverrides containing a cumulative
  * gas bump multiplier. The caller is responsible for applying this multiplier
  * to maxFeePerGas/maxPriorityFeePerGas when building the transaction.
+ *
+ * NOTE: On timeout, the original executeFn promise is abandoned but not cancelled.
+ * For EVM transactions this is acceptable -- the retry uses a bumped gas price which
+ * acts as a replacement transaction at the same nonce. If the original tx already
+ * mined before the retry is submitted, the retry will fail with "nonce already used"
+ * which is classified as retryable but will ultimately exhaust retries harmlessly.
  */
 export async function executeWithRetry(
   executeFn: ExecuteFn,
