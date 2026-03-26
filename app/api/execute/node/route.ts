@@ -18,7 +18,12 @@ import {
   setRetryCount,
 } from "../_lib/execution-service";
 import { checkRateLimit } from "../_lib/rate-limit";
-import { executeWithRetry, type TransactionResult } from "../_lib/retry";
+import {
+  executeWithRetry,
+  genericRetryOptions,
+  type TransactionResult,
+  transactionRetryOptions,
+} from "../_lib/retry";
 import { checkAndReserveExecution } from "../_lib/spending-cap";
 import type { NodeExecuteRequest, RetryConfig } from "../_lib/types";
 import { requireWallet } from "../_lib/wallet-check";
@@ -165,12 +170,22 @@ type StepFn = (input: any) => Promise<unknown>;
 async function invokeStep(
   stepFn: StepFn,
   stepInput: Record<string, unknown>,
-  retry: RetryConfig | undefined
+  retry: RetryConfig | undefined,
+  isWeb3: boolean
 ): Promise<{ result: unknown; retryCount: number }> {
   if (retry) {
-    const retryResult = await executeWithRetry(
-      async () => (await stepFn(stepInput)) as TransactionResult,
-      retry
+    if (isWeb3) {
+      const retryResult = await executeWithRetry<TransactionResult>(
+        async () => (await stepFn(stepInput)) as TransactionResult,
+        retry,
+        transactionRetryOptions
+      );
+      return { result: retryResult.result, retryCount: retryResult.retryCount };
+    }
+    const retryResult = await executeWithRetry<unknown>(
+      async () => stepFn(stepInput),
+      retry,
+      genericRetryOptions
     );
     return { result: retryResult.result, retryCount: retryResult.retryCount };
   }
@@ -281,7 +296,12 @@ async function executeNode(
       );
     }
 
-    const { result, retryCount } = await invokeStep(stepFn, stepInput, retry);
+    const { result, retryCount } = await invokeStep(
+      stepFn,
+      stepInput,
+      retry,
+      Boolean(network)
+    );
 
     if (retryCount > 0) {
       await setRetryCount(executionId, retryCount);

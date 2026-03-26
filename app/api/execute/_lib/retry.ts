@@ -14,7 +14,19 @@ type GasBumpOverrides = {
   gasBumpMultiplier?: number;
 };
 
-type ExecuteFn = (overrides?: GasBumpOverrides) => Promise<TransactionResult>;
+type ExecuteFn<T> = (overrides?: GasBumpOverrides) => Promise<T>;
+
+/**
+ * Determines whether a result represents a successful execution.
+ * Return true to stop retrying, false to retry (if attempts remain).
+ */
+type SuccessPredicate<T> = (result: T) => boolean;
+
+/**
+ * Extracts an error message from a failed result for retryability checks.
+ * Return undefined if the result has no extractable error string.
+ */
+type ErrorExtractor<T> = (result: T) => string | undefined;
 
 function resolveConfig(config?: RetryConfig): Required<RetryConfig> {
   return {
@@ -36,13 +48,39 @@ function withTimeout<T>(
   ]);
 }
 
-export type RetryResult = {
-  result: TransactionResult;
+export type RetryResult<T> = {
+  result: T;
   retryCount: number;
 };
 
+type RetryOptions<T> = {
+  isSuccess: SuccessPredicate<T>;
+  getError: ErrorExtractor<T>;
+};
+
+const TX_SUCCESS: SuccessPredicate<TransactionResult> = (r) => r.success;
+const TX_ERROR: ErrorExtractor<TransactionResult> = (r) =>
+  r.success ? undefined : r.error;
+
 /**
- * Execute a transaction with automatic retry and gas price bumping.
+ * Default options for web3 TransactionResult-shaped outputs.
+ */
+export const transactionRetryOptions: RetryOptions<TransactionResult> = {
+  isSuccess: TX_SUCCESS,
+  getError: TX_ERROR,
+};
+
+/**
+ * Options for generic (non-web3) step outputs. Any non-throwing return
+ * is treated as success; retries only happen on timeout.
+ */
+export const genericRetryOptions: RetryOptions<unknown> = {
+  isSuccess: () => true,
+  getError: () => undefined,
+};
+
+/**
+ * Execute a function with automatic retry and optional gas price bumping.
  *
  * On timeout or failure, resubmits with a higher gas price multiplier.
  * Each retry bumps the multiplier by gasBumpPercent (default 10%).
@@ -57,10 +95,11 @@ export type RetryResult = {
  * mined before the retry is submitted, the retry will fail with "nonce already used"
  * which is classified as retryable but will ultimately exhaust retries harmlessly.
  */
-export async function executeWithRetry(
-  executeFn: ExecuteFn,
-  config?: RetryConfig
-): Promise<RetryResult> {
+export async function executeWithRetry<T>(
+  executeFn: ExecuteFn<T>,
+  config: RetryConfig | undefined,
+  options: RetryOptions<T>
+): Promise<RetryResult<T>> {
   const resolved = resolveConfig(config);
   let retryCount = 0;
   let cumulativeBumpMultiplier = 1.0;
@@ -79,8 +118,8 @@ export async function executeWithRetry(
         return {
           result: {
             success: false,
-            error: `Transaction timed out after ${resolved.maxRetries} retries`,
-          },
+            error: `Timed out after ${resolved.maxRetries} retries`,
+          } as T,
           retryCount,
         };
       }
@@ -89,11 +128,12 @@ export async function executeWithRetry(
       continue;
     }
 
-    if (resultOrTimeout.success) {
+    if (options.isSuccess(resultOrTimeout)) {
       return { result: resultOrTimeout, retryCount };
     }
 
-    const isRetryable = isRetryableError(resultOrTimeout.error);
+    const errorMsg = options.getError(resultOrTimeout);
+    const isRetryable = errorMsg ? isRetryableError(errorMsg) : false;
     if (!isRetryable || attempt >= resolved.maxRetries) {
       return { result: resultOrTimeout, retryCount };
     }
@@ -103,7 +143,7 @@ export async function executeWithRetry(
   }
 
   return {
-    result: { success: false, error: "Max retries exceeded" },
+    result: { success: false, error: "Max retries exceeded" } as T,
     retryCount,
   };
 }
