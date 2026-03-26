@@ -144,6 +144,10 @@ env:
     type: parameterStore
     name: better-auth-secret
     parameter_name: /eks/maker-prod/keeperhub/better-auth-secret
+  OAUTH_JWT_SECRET:
+    type: parameterStore
+    name: oauth-jwt-secret
+    parameter_name: /eks/maker-prod/keeperhub/oauth-jwt-secret
   # Auth and social providers (GitHub, Google)
   NEXT_PUBLIC_AUTH_PROVIDERS:
     type: kv
@@ -183,6 +187,18 @@ env:
     type: parameterStore
     name: para-api-key
     parameter_name: /eks/maker-prod/keeperhub/para-api-key
+  TURNKEY_API_PUBLIC_KEY:
+    type: parameterStore
+    name: turnkey-api-public-key
+    parameter_name: /eks/maker-prod/keeperhub/turnkey-api-public-key
+  TURNKEY_API_PRIVATE_KEY:
+    type: parameterStore
+    name: turnkey-api-private-key
+    parameter_name: /eks/maker-prod/keeperhub/turnkey-api-private-key
+  TURNKEY_ORGANIZATION_ID:
+    type: parameterStore
+    name: turnkey-organization-id
+    parameter_name: /eks/maker-prod/keeperhub/turnkey-organization-id
   WALLET_ENCRYPTION_KEY:
     type: parameterStore
     name: wallet-encryption-key
@@ -202,6 +218,11 @@ env:
   FROM_ADDRESS:
     type: kv
     value: "noreply@keeperhub.com"
+  # Discord
+  DISCORD_WEBHOOK_SIGNUPS:
+    type: parameterStore
+    name: discord-webhook-signups
+    parameter_name: /eks/maker-prod/keeperhub/discord-webhook-signups
   # Sentry
   SENTRY_DSN:
     type: parameterStore
