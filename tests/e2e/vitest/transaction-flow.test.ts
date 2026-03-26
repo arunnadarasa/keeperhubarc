@@ -701,6 +701,9 @@ describe.skipIf(skipRealTx)("Real Transaction Tests (Sepolia)", () => {
       process.env.PARA_API_KEY ?? ""
     );
 
+    if (!paraWallet.userShare) {
+      throw new Error("Test wallet missing userShare");
+    }
     const decryptedShare = decryptUserShare(paraWallet.userShare);
     await paraClient.setUserShare(decryptedShare);
 
