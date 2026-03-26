@@ -33,6 +33,13 @@ type ReserveResult =
  * The SUM includes all non-failed executions (pending, running, completed)
  * so that serialized-but-not-yet-completed requests are visible to
  * subsequent callers once their gas totals are recorded.
+ *
+ * Residual race window: pending/running records have null gasUsedWei so
+ * they contribute 0 to the SUM. Two sequential requests can both pass the
+ * cap check while the first is still executing. Full elimination would
+ * require estimating gas at reservation time (not available pre-execution)
+ * or holding the lock through execution (unacceptable for long-running txs).
+ * At typical org concurrency this is acceptable.
  */
 export async function checkAndReserveExecution(
   params: ReserveExecutionParams
