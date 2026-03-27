@@ -274,6 +274,13 @@
       "when": 1774565267976,
       "tag": "0038_hot_songbird",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1774580851069,
+      "tag": "0039_burly_sinister_six",
+      "breakpoints": true
     }
   ]
 }
