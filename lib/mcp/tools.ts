@@ -1,7 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { flattenConfigFields, getAllIntegrations } from "@/plugins/registry";
 import { withToolLogging } from "./logging";
 import { isToolAllowed } from "./oauth-scopes";
 
@@ -202,7 +200,7 @@ export function registerTools(
         const data = await callApi(
           baseUrl,
           authHeader,
-          "/api/workflows",
+          "/api/workflows/create",
           "POST",
           {
             name: args.name,
@@ -261,7 +259,7 @@ export function registerTools(
           baseUrl,
           authHeader,
           `/api/workflows/${workflowId}`,
-          "PUT",
+          "PATCH",
           body,
           organizationId
         );
@@ -738,132 +736,170 @@ export function registerTools(
 }
 
 // =============================================================================
-// Dynamic tool registration from plugin registry
+// Protocol meta-tools (replaces individual per-action tool registration)
 // =============================================================================
 
-const READ_ONLY_PATTERNS = [
-  "read",
-  "get",
-  "list",
-  "check",
-  "query",
-  "balance",
-  "events",
-  "monitor",
-  "fetch",
-  "decode",
-  "assess",
-  "status",
-  "pending",
-] as const;
-
-const DESTRUCTIVE_PATTERNS = [
-  "delete",
-  "remove",
-  "revoke",
-  "transfer",
-  "write",
-  "approve",
-  "send",
-  "execute",
-  "swap",
-  "cancel",
-  "publish",
-  "create",
-  "run",
-  "generate",
-  "update",
-] as const;
-
-function deriveAnnotations(slug: string): ToolAnnotations {
-  const normalized = slug.toLowerCase();
-
-  const isReadOnly = READ_ONLY_PATTERNS.some((p) => normalized.includes(p));
-  if (isReadOnly) {
-    return { readOnlyHint: true, destructiveHint: false };
-  }
-
-  const isDestructive = DESTRUCTIVE_PATTERNS.some((p) =>
-    normalized.includes(p)
-  );
-  if (isDestructive) {
-    return { readOnlyHint: false, destructiveHint: true };
-  }
-
-  return { readOnlyHint: false, destructiveHint: false };
-}
-
-function slugToTitle(slug: string): string {
-  return slug.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function slugToToolName(integration: string, slug: string): string {
-  const combined = `${integration}_${slug}`;
-  return combined.replace(/[\s/-]/g, "_");
-}
-
-export function registerDynamicTools(
+export function registerMetaTools(
   server: McpServer,
   baseUrl: string,
   authHeader: string,
   scope?: string
 ): void {
-  const plugins = getAllIntegrations();
+  // Meta-tool 1: Search and discover available protocol actions
+  server.tool(
+    "search_protocol_actions",
+    "Search for available protocol actions across all supported DeFi protocols (Aave, Morpho, Chronicle, Chainlink, Uniswap, Compound, Lido, etc.). Call this first to discover what actions are available and what parameters they require, then use execute_protocol_action to run them.",
+    {
+      query: z
+        .string()
+        .optional()
+        .describe(
+          "Keyword search across action names and descriptions (e.g., 'ETH balance', 'borrow', 'swap')"
+        ),
+      protocol: z
+        .string()
+        .optional()
+        .describe(
+          "Filter by protocol name (e.g., 'chronicle', 'aave', 'morpho', 'uniswap', 'compound', 'lido', 'chainlink')"
+        ),
+    },
+    {
+      title: "Search Protocol Actions",
+      readOnlyHint: true,
+      destructiveHint: false,
+    },
+    withScopeCheck("search_protocol_actions", scope, async (args) =>
+      withToolLogging("search_protocol_actions", undefined, async () => {
+        const params = new URLSearchParams();
+        if (args.protocol) {
+          params.set("category", args.protocol);
+        }
+        params.set("includeChains", "false");
+        const path = `/api/mcp/schemas${params.toString() ? `?${params.toString()}` : ""}`;
+        const data = (await callApi(
+          baseUrl,
+          authHeader,
+          path,
+          "GET"
+        )) as Record<string, unknown>;
 
-  for (const plugin of plugins) {
-    for (const action of plugin.actions) {
-      const toolName = slugToToolName(plugin.type, action.slug);
-      const flatFields = flattenConfigFields(action.configFields);
+        const actions = (data.actions ?? {}) as Record<
+          string,
+          {
+            actionType?: string;
+            label?: string;
+            description?: string;
+            requiredFields?: Record<string, string>;
+            optionalFields?: Record<string, string>;
+            requiresCredentials?: boolean;
+          }
+        >;
 
-      const inputSchema: Record<string, z.ZodTypeAny> = {
-        organizationId: z
-          .string()
-          .optional()
-          .describe(
-            "Optional organization ID to override the API key's default org."
-          ),
-      };
+        let results = Object.values(actions);
 
-      for (const field of flatFields) {
-        const fieldSchema = field.required
-          ? z.string().describe(field.label)
-          : z.string().optional().describe(field.label);
-        inputSchema[field.key] = fieldSchema;
-      }
+        // Client-side keyword filtering
+        if (args.query) {
+          const q = args.query.toLowerCase();
+          results = results.filter(
+            (a) =>
+              a.label?.toLowerCase().includes(q) ||
+              a.description?.toLowerCase().includes(q) ||
+              a.actionType?.toLowerCase().includes(q)
+          );
+        }
 
-      const integration = plugin.type;
-      const slug = action.slug;
-      const description = action.description;
-      const annotations: ToolAnnotations = {
-        title: slugToTitle(slug),
-        ...deriveAnnotations(slug),
-      };
+        // Return compact results
+        const compact = results.map((a) => ({
+          actionType: a.actionType,
+          label: a.label,
+          description: a.description,
+          requiredFields: a.requiredFields,
+          optionalFields: a.optionalFields,
+          requiresCredentials: a.requiresCredentials,
+        }));
 
-      server.tool(
-        toolName,
-        description,
-        inputSchema,
-        annotations,
-        withScopeCheck(toolName, scope, async (args) => {
-          const { organizationId, ...fieldArgs } = args as Record<
-            string,
-            string | undefined
-          >;
-          return await withToolLogging(toolName, organizationId, async () => {
-            const data = await callApi(
-              baseUrl,
-              authHeader,
-              `/api/execute/${integration}/${slug}`,
-              "POST",
-              fieldArgs,
-              organizationId
-            );
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                { count: compact.length, actions: compact },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      })
+    )
+  );
+
+  // Meta-tool 2: Execute any protocol action by actionType
+  server.tool(
+    "execute_protocol_action",
+    "Execute a DeFi protocol action directly. Use search_protocol_actions first to discover available actions and their required parameters. The actionType follows the format 'protocol/action-slug' (e.g., 'chronicle/eth-usd-read', 'aave/supply', 'morpho/get-position'). Pass all required parameters in the params object.",
+    {
+      actionType: z
+        .string()
+        .describe(
+          "The action identifier in 'protocol/action-slug' format (e.g., 'chronicle/eth-usd-read', 'aave/get-user-account-data')"
+        ),
+      params: z
+        .record(z.string(), z.unknown())
+        .describe(
+          "Action parameters as key-value pairs (e.g., {network: '1', address: '0x...'}). Use search_protocol_actions to discover required params."
+        ),
+      organizationId: z
+        .string()
+        .optional()
+        .describe(
+          "Optional organization ID to override the API key's default org."
+        ),
+    },
+    {
+      title: "Execute Protocol Action",
+      readOnlyHint: false,
+      destructiveHint: false,
+    },
+    withScopeCheck("execute_protocol_action", scope, async (args) =>
+      withToolLogging(
+        "execute_protocol_action",
+        args.organizationId,
+        async () => {
+          const parts = args.actionType.split("/");
+          if (parts.length < 2) {
             return {
-              content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify({
+                    error: "Invalid actionType format",
+                    message:
+                      "actionType must be in 'protocol/action-slug' format (e.g., 'chronicle/eth-usd-read')",
+                  }),
+                },
+              ],
+              isError: true,
             };
-          });
-        })
-      );
-    }
-  }
+          }
+
+          const integration = parts[0];
+          const slug = parts.slice(1).join("/");
+
+          const data = await callApi(
+            baseUrl,
+            authHeader,
+            `/api/execute/${integration}/${slug}`,
+            "POST",
+            args.params as Record<string, unknown>,
+            args.organizationId
+          );
+
+          return {
+            content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+          };
+        }
+      )
+    )
+  );
 }
