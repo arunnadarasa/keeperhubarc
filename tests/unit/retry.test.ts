@@ -24,7 +24,7 @@ describe("executeWithRetry", () => {
 
       expect(result.outcome).toBe("success");
       expect(result.retryCount).toBe(0);
-      if (result.outcome === "success") {
+      if (result.outcome === "success" && result.result.success) {
         expect(result.result.transactionHash).toBe("0xabc");
       }
     });

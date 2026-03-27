@@ -49,8 +49,10 @@ function withTimeout<T>(
 }
 
 export type RetryResult<T> =
-  | { outcome: "success" | "failed"; result: T; retryCount: number }
-  | { outcome: "timeout" | "exhausted"; error: string; retryCount: number };
+  | { outcome: "success"; result: T; retryCount: number }
+  | { outcome: "failed"; result: T; retryCount: number }
+  | { outcome: "timeout"; error: string; retryCount: number }
+  | { outcome: "exhausted"; error: string; retryCount: number };
 
 type RetryOptions<T> = {
   isSuccess: SuccessPredicate<T>;
