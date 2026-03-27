@@ -91,7 +91,7 @@ function initializeTurnkeySigner(
 }
 
 async function initializeParaMpcSigner(
-  wallet: { userShare: string | null },
+  wallet: { userShare: string | null; paraSession: string | null },
   provider: ethers.Provider
 ): Promise<ethers.Signer> {
   const PARA_API_KEY = process.env.PARA_API_KEY;
@@ -107,17 +107,31 @@ async function initializeParaMpcSigner(
     throw new Error("PARA_API_KEY not configured");
   }
 
-  if (!wallet.userShare) {
-    throw new Error("Para wallet missing user share");
-  }
-
   const paraClient = new ParaServer(
     PARA_ENV === "prod" ? Environment.PROD : Environment.BETA,
     PARA_API_KEY
   );
 
-  const decryptedShare = decryptUserShare(wallet.userShare);
-  await paraClient.setUserShare(decryptedShare);
+  if (wallet.paraSession) {
+    // Post-claim: import session for signing (session includes auth + signers)
+    const decryptedSession = decryptUserShare(wallet.paraSession);
+    // biome-ignore lint/suspicious/noExplicitAny: importSession is on ParaCore but not exposed in server SDK types
+    await (paraClient as any).importSession(decryptedSession);
+
+    // biome-ignore lint/suspicious/noExplicitAny: keepSessionAlive is on ParaCore but not exposed in server SDK types
+    const isActive: boolean = await (paraClient as any).keepSessionAlive();
+    if (!isActive) {
+      throw new Error(
+        "Para session expired. User must re-export from wallet settings."
+      );
+    }
+  } else if (wallet.userShare) {
+    // Pre-claim: use stored userShare
+    const decryptedShare = decryptUserShare(wallet.userShare);
+    await paraClient.setUserShare(decryptedShare);
+  } else {
+    throw new Error("Para wallet missing both session and user share");
+  }
 
   const signer = new ParaEthersSigner(
     // biome-ignore lint/suspicious/noExplicitAny: Para server-sdk type incompatibility with core-sdk ParaCore

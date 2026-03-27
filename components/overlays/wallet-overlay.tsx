@@ -50,6 +50,8 @@ import type {
   WalletData,
 } from "@/lib/wallet/types";
 import { useWalletBalances } from "@/lib/wallet/use-wallet-balances";
+import { ParaExportKeyButton } from "@/components/wallet/para-export-key-dynamic";
+import type { WalletProvider } from "@/lib/wallet/types";
 import { type WithdrawableAsset, WithdrawModal } from "./withdraw-modal";
 
 type WalletOverlayProps = {
@@ -1033,12 +1035,14 @@ function AccountDetailsSection({
   walletAddress,
   isAdmin,
   canExportKey,
+  provider,
   onEmailUpdated,
 }: {
   email: string;
   walletAddress: string;
   isAdmin: boolean;
   canExportKey: boolean;
+  provider: WalletProvider;
   onEmailUpdated: () => void;
 }) {
   const [isEditingEmail, setIsEditingEmail] = useState(false);
@@ -1167,7 +1171,11 @@ function AccountDetailsSection({
 
       {isAdmin && canExportKey && (
         <div className="mt-3">
-          <ExportPrivateKeyButton />
+          {provider === "para" ? (
+            <ParaExportKeyButton />
+          ) : (
+            <ExportPrivateKeyButton />
+          )}
         </div>
       )}
     </div>
@@ -1515,6 +1523,7 @@ export function WalletOverlay({ overlayId }: WalletOverlayProps) {
               email={walletData.email}
               isAdmin={isAdmin}
               onEmailUpdated={loadWallet}
+              provider={walletData.provider ?? "para"}
               walletAddress={walletData.walletAddress}
             />
           )}
