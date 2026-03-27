@@ -3,11 +3,30 @@ import { authenticateApiKey } from "@/lib/api-key-auth";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { member } from "@/lib/db/schema";
+import { authenticateOAuthToken } from "@/lib/mcp/oauth-auth";
 import { getOrgContext } from "@/lib/middleware/org-context";
 
 export type DualAuthContext =
   | { userId: string | null; organizationId: string | null }
   | { error: string; status: number };
+
+/**
+ * Check for MCP OAuth JWT token authentication.
+ * These tokens are issued by the MCP OAuth flow and forwarded
+ * by the MCP server when calling downstream API endpoints.
+ */
+function resolveOAuthToken(
+  request: Request
+): { userId: string | null; organizationId: string | null } | null {
+  const result = authenticateOAuthToken(request);
+  if (!result.authenticated) {
+    return null;
+  }
+  return {
+    userId: result.userId ?? null,
+    organizationId: result.organizationId ?? null,
+  };
+}
 
 /**
  * Resolves user and organization context from either API key or session auth.
@@ -21,6 +40,11 @@ export async function getDualAuthContext(
   options?: { required?: boolean }
 ): Promise<DualAuthContext> {
   const required = options?.required ?? true;
+
+  const oauthAuth = resolveOAuthToken(request);
+  if (oauthAuth) {
+    return oauthAuth;
+  }
 
   const apiKeyAuth = await authenticateApiKey(request);
   if (apiKeyAuth.authenticated) {
@@ -65,6 +89,11 @@ export async function getDualAuthContext(
 export async function resolveOrganizationId(
   request: Request
 ): Promise<{ organizationId: string } | { error: string; status: number }> {
+  const oauthAuth = resolveOAuthToken(request);
+  if (oauthAuth?.organizationId) {
+    return { organizationId: oauthAuth.organizationId };
+  }
+
   const apiKeyAuth = await authenticateApiKey(request);
 
   if (apiKeyAuth.authenticated) {
@@ -98,7 +127,7 @@ export async function resolveOrganizationId(
 }
 
 /**
- * Resolves both organization ID and user ID from either an API key or session.
+ * Resolves both organization ID and user ID from either OAuth, API key, or session.
  * Used by POST routes that need to track the creator.
  */
 export async function resolveCreatorContext(
@@ -106,29 +135,14 @@ export async function resolveCreatorContext(
 ): Promise<
   { organizationId: string; userId: string } | { error: string; status: number }
 > {
+  const oauthAuth = resolveOAuthToken(request);
+  if (oauthAuth) {
+    return validateCreatorFields(oauthAuth.organizationId, oauthAuth.userId);
+  }
+
   const apiKeyAuth = await authenticateApiKey(request);
   if (apiKeyAuth.authenticated) {
-    const defaultOrgId = apiKeyAuth.organizationId || null;
-    const userId = apiKeyAuth.userId || null;
-    if (!defaultOrgId) {
-      return { error: "No active organization", status: 400 };
-    }
-    if (!userId) {
-      return {
-        error: "API key has no associated user. Please recreate the API key.",
-        status: 400,
-      };
-    }
-
-    const overrideResult = await resolveOrganizationOverride(
-      request,
-      defaultOrgId,
-      userId
-    );
-    if ("error" in overrideResult) {
-      return { error: overrideResult.error, status: overrideResult.status };
-    }
-    return { organizationId: overrideResult.organizationId, userId };
+    return resolveCreatorFromApiKey(request, apiKeyAuth);
   }
 
   const session = await auth.api.getSession({ headers: request.headers });
@@ -137,11 +151,56 @@ export async function resolveCreatorContext(
   }
 
   const context = await getOrgContext();
-  const organizationId = context.organization?.id || null;
+  const organizationId = context.organization?.id ?? null;
   if (!organizationId) {
     return { error: "No active organization", status: 400 };
   }
   return { organizationId, userId: session.user.id };
+}
+
+function validateCreatorFields(
+  organizationId: string | null | undefined,
+  userId: string | null | undefined
+):
+  | { organizationId: string; userId: string }
+  | { error: string; status: number } {
+  if (!organizationId) {
+    return { error: "No active organization", status: 400 };
+  }
+  if (!userId) {
+    return {
+      error: "Auth context missing user. Please recreate the API key.",
+      status: 400,
+    };
+  }
+  return { organizationId, userId };
+}
+
+async function resolveCreatorFromApiKey(
+  request: Request,
+  apiKeyAuth: Awaited<ReturnType<typeof authenticateApiKey>>
+): Promise<
+  { organizationId: string; userId: string } | { error: string; status: number }
+> {
+  const defaultOrgId = apiKeyAuth.organizationId ?? null;
+  const userId = apiKeyAuth.userId ?? null;
+  const validated = validateCreatorFields(defaultOrgId, userId);
+  if ("error" in validated) {
+    return validated;
+  }
+
+  const overrideResult = await resolveOrganizationOverride(
+    request,
+    validated.organizationId,
+    validated.userId
+  );
+  if ("error" in overrideResult) {
+    return { error: overrideResult.error, status: overrideResult.status };
+  }
+  return {
+    organizationId: overrideResult.organizationId,
+    userId: validated.userId,
+  };
 }
 
 /**
