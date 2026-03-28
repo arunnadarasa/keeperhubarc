@@ -1,0 +1,1 @@
+Threshold boundary fixture. 2 of 3 autonomous criteria pass with threshold 0.67. Tests threshold math: 2/3 = 0.666 which is below 0.67, so approved: false. A threshold of 0.66 would pass. Not runnable -- synthetic test paths.

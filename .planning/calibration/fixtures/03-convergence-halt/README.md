@@ -1,0 +1,1 @@
+Convergence halt fixture. Round 2 failures are identical to round 1. Tests that evaluator writes status: convergence_halt and approved: false without consuming another round. Not runnable -- synthetic test paths.

@@ -1,0 +1,34 @@
+# CALIBRATION ONLY -- not runnable. Synthetic paths for evaluator regression testing.
+# Fixture 01: clean-pass
+# Scenario: All 3 autonomous criteria pass. Evaluator must write approved: true.
+
+threshold: 0.85
+max_rounds: 3
+server_port: 3099
+
+seed_scripts:
+  - scripts/evaluate/fixtures/hypothetical-seed.ts
+
+criteria:
+  - id: API-01
+    type: api_assertion
+    description: "GET /api/health returns 200 with ok field"
+    method: GET
+    url: "/api/health"
+    body: null
+    auth: "none"
+    expected_status: 200
+    expected_body_contains: "ok"
+
+  - id: UI-01
+    type: ui_behavior
+    description: "Dashboard renders for authenticated user"
+    playwright_test: "tests/evaluate/fixtures/hypothetical.test.ts"
+    grep_pattern: "dashboard renders @autonomous"
+
+  - id: DS-01
+    type: design_token
+    description: "No hardcoded colors in hypothetical component"
+    token_audit: true
+    files:
+      - components/hypothetical/hypothetical.tsx
