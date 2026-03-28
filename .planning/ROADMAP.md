@@ -60,7 +60,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 26-01-PLAN.md -- portless devDependency install and scripts/evaluate/seed-eval.ts per-round seed wrapper
+- [x] 26-01-PLAN.md -- portless devDependency install and scripts/evaluate/seed-eval.ts per-round seed wrapper
 - [ ] 26-02-PLAN.md -- playwright.evaluate.config.ts with webServer lifecycle, JSON reporter, portless integration
 - [ ] 26-03-PLAN.md -- eval-harness.test.ts with @autonomous smoke tests and 26-EVAL-CONFIG.yml
 
@@ -105,7 +105,7 @@ Phases execute in numeric order: 25 -> 26 -> 27 -> 28 -> 29
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 25. Loop Architecture and Evaluator Agent | v1.6 | 2/2 | Complete   | 2026-03-28 |
-| 26. Dev Server Lifecycle and Evaluation Harness | v1.6 | 0/3 | Not started | - |
+| 26. Dev Server Lifecycle and Evaluation Harness | v1.6 | 1/3 | In Progress|  |
 | 27. Scoring, Output, and Gap Closure | v1.6 | 0/TBD | Not started | - |
 | 28. execute-phase Integration | v1.6 | 0/TBD | Not started | - |
 | 29. Build-Evaluate Command and Calibration | v1.6 | 0/TBD | Not started | - |

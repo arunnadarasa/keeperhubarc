@@ -3,9 +3,9 @@
 ## Evaluation Infrastructure (INFRA)
 
 - [ ] **INFRA-01**: Dev server can be started, health-checked, and torn down programmatically without orphaned processes
-- [ ] **INFRA-02**: Portless (vercel-labs/portless) manages dev server URLs with named `.localhost` subdomains, eliminating port conflicts
-- [ ] **INFRA-03**: Worktree-based evaluation gets automatic unique URLs via portless git worktree detection
-- [ ] **INFRA-04**: Existing seed scripts (user, workflow, wallet, API keys) run before each evaluation round producing deterministic test state
+- [x] **INFRA-02**: Portless (vercel-labs/portless) manages dev server URLs with named `.localhost` subdomains, eliminating port conflicts
+- [x] **INFRA-03**: Worktree-based evaluation gets automatic unique URLs via portless git worktree detection
+- [x] **INFRA-04**: Existing seed scripts (user, workflow, wallet, API keys) run before each evaluation round producing deterministic test state
 
 ## Runtime Evaluation (EVAL)
 
@@ -40,9 +40,9 @@
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
 | INFRA-01 | Phase 26 | Pending |
-| INFRA-02 | Phase 26 | Pending |
-| INFRA-03 | Phase 26 | Pending |
-| INFRA-04 | Phase 26 | Pending |
+| INFRA-02 | Phase 26 | Complete |
+| INFRA-03 | Phase 26 | Complete |
+| INFRA-04 | Phase 26 | Complete |
 | EVAL-01 | Phase 26 | Pending |
 | EVAL-02 | Phase 26 | Pending |
 | EVAL-03 | Phase 27 | Pending |
