@@ -4,7 +4,7 @@ import { expand } from "dotenv-expand";
 
 expand(dotenv.config());
 
-const evalPort = parseInt(process.env.EVAL_PORT ?? "3099", 10);
+const evalPort = Number.parseInt(process.env.EVAL_PORT ?? "3099", 10);
 const baseURL = process.env.PORTLESS_URL ?? `http://localhost:${evalPort}`;
 
 const DEFAULT_DB_URL =

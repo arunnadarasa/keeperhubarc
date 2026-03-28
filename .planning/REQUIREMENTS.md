@@ -11,8 +11,8 @@
 
 - [x] **EVAL-01**: HTTP assertions verify API endpoints against running server (status codes, response shapes, DB side effects)
 - [x] **EVAL-02**: Playwright UI evaluation runs targeted scenario scripts using existing auth/workflow helpers
-- [ ] **EVAL-03**: UI evaluation grades screenshots against specs/design-system/ tokens via LLM rubric
-- [ ] **EVAL-04**: Each success criterion from PLAN.md is independently scored PASS/FAIL with evidence
+- [x] **EVAL-03**: UI evaluation grades screenshots against specs/design-system/ tokens via LLM rubric
+- [x] **EVAL-04**: Each success criterion from PLAN.md is independently scored PASS/FAIL with evidence
 - [x] **EVAL-05**: Deterministic checks (HTTP status, console errors, token-audit.js) run before LLM grading
 
 ## Loop Orchestration (LOOP)
@@ -45,8 +45,8 @@
 | INFRA-04 | Phase 26 | Complete |
 | EVAL-01 | Phase 26 | Complete |
 | EVAL-02 | Phase 26 | Complete |
-| EVAL-03 | Phase 27 | Pending |
-| EVAL-04 | Phase 27 | Pending |
+| EVAL-03 | Phase 27 | Complete |
+| EVAL-04 | Phase 27 | Complete |
 | EVAL-05 | Phase 26 | Complete |
 | LOOP-01 | Phase 25 | Complete |
 | LOOP-02 | Phase 25 | Complete |

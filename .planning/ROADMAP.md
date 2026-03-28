@@ -73,7 +73,12 @@ Plans:
   2. scripts/evaluate/criteria-scorer.ts grades UI screenshots against specs/design-system/ tokens via LLM rubric, invoked only after all deterministic checks pass
   3. EVAL.md is written with YAML frontmatter (APPROVED boolean, score, round, gaps array) and per-criterion results table including evidence and fix hints
   4. execute-phase gains an evaluate-after-build step that fires automatically when PLAN.md has evaluate: true and EVAL-CONFIG.yml is present
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [x] 27-01-PLAN.md -- score.ts (deterministic Playwright JSON scoring) and criteria-scorer.ts (AI SDK v5 LLM rubric)
+- [ ] 27-02-PLAN.md -- runtime_evaluation_gate step in execute-phase.md (LOOP-06)
+- [ ] 27-03-PLAN.md -- --eval-gaps flag in plan-phase.md for EVAL.md-driven gap closure planning (LOOP-02)
 
 ### Phase 28: execute-phase Integration
 **Goal**: The evaluate-after-build gate is wired into execute-phase and the autonomous workflow so the full build-evaluate-fix loop runs without human intervention for phases that declare evaluation
@@ -106,6 +111,6 @@ Phases execute in numeric order: 25 -> 26 -> 27 -> 28 -> 29
 |-------|-----------|----------------|--------|-----------|
 | 25. Loop Architecture and Evaluator Agent | v1.6 | 2/2 | Complete   | 2026-03-28 |
 | 26. Dev Server Lifecycle and Evaluation Harness | v1.6 | 3/3 | Complete   | 2026-03-28 |
-| 27. Scoring, Output, and Gap Closure | v1.6 | 0/TBD | Not started | - |
+| 27. Scoring, Output, and Gap Closure | v1.6 | 1/3 | In Progress|  |
 | 28. execute-phase Integration | v1.6 | 0/TBD | Not started | - |
 | 29. Build-Evaluate Command and Calibration | v1.6 | 0/TBD | Not started | - |

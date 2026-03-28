@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Autonomous Build-Evaluate Loop
 status: executing
-stopped_at: Completed 26-03-PLAN.md
-last_updated: "2026-03-28T20:34:14.397Z"
+stopped_at: Completed 27-01-PLAN.md
+last_updated: "2026-03-28T20:59:18.174Z"
 last_activity: 2026-03-28
 progress:
   total_phases: 5
-  completed_phases: 1
-  total_plans: 3
-  completed_plans: 5
+  completed_phases: 2
+  total_plans: 8
+  completed_plans: 6
   percent: 0
 ---
 
@@ -21,12 +21,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Users can build and deploy Web3 automation workflows through a visual builder without writing code.
-**Current focus:** Phase 26 — dev-server-lifecycle-and-evaluation-harness
+**Current focus:** Phase 27 — scoring-output-and-gap-closure
 
 ## Current Position
 
-Phase: 26 (dev-server-lifecycle-and-evaluation-harness) — EXECUTING
-Plan: 3 of 3
+Phase: 27 (scoring-output-and-gap-closure) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
 Last activity: 2026-03-28
 
@@ -55,6 +55,7 @@ Progress: [..........] 0%
 | Phase 25-loop-architecture-and-evaluator-agent P02 | 5 | 1 tasks | 1 files |
 | Phase 26 P01 | 2m | 2 tasks | 3 files |
 | Phase 26-dev-server-lifecycle-and-evaluation-harness P03 | 15m | 2 tasks | 2 files |
+| Phase 27-scoring-output-and-gap-closure P01 | 5m | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -79,6 +80,9 @@ Recent decisions affecting current work:
 - [Phase 26-dev-server-lifecycle-and-evaluation-harness]: @autonomous is a literal test name substring for Playwright --grep filtering, not a metadata annotation system
 - [Phase 26-dev-server-lifecycle-and-evaluation-harness]: DS-01 files field in EVAL-CONFIG.yml is documentation-only; Phase 27 evaluator runs 'node scripts/token-audit.js --quiet' with no file arguments
 - [Phase 26-dev-server-lifecycle-and-evaluation-harness]: seed_scripts in EVAL-CONFIG.yml uses scripts/evaluate/seed-eval.ts (globalSetup wrapper), not tests/e2e/playwright/utils/seed.ts
+- [Phase 27-scoring-output-and-gap-closure]: score.ts is purely deterministic -- no LLM; only flattenSpecs + spec.ok matching
+- [Phase 27-scoring-output-and-gap-closure]: criteria-scorer.ts uses experimental_output (AI SDK v5 param), not output (v4 name)
+- [Phase 27-scoring-output-and-gap-closure]: manual_review criteria excluded from total_autonomous count in score_fraction
 
 ### Pending Todos
 
@@ -91,6 +95,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T20:34:14.394Z
-Stopped at: Completed 26-03-PLAN.md
+Last session: 2026-03-28T20:59:18.172Z
+Stopped at: Completed 27-01-PLAN.md
 Resume file: None
