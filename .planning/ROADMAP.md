@@ -27,7 +27,7 @@ Phases 1-24.1 completed. See MILESTONES.md for details.
 - [x] **Phase 26: Dev Server Lifecycle and Evaluation Harness** - Reliable server startup, seed isolation, and evaluation script infrastructure (completed 2026-03-28)
 - [x] **Phase 27: Scoring, Output, and Gap Closure** - Per-criterion scoring, EVAL.md report, and gap-to-fix-plan pipeline (completed 2026-03-28)
 - [ ] **Phase 28: execute-phase Integration** - Conditional evaluate-after-build gate wired into existing execute-phase and autonomous workflows
-- [ ] **Phase 29: Build-Evaluate Command and Calibration** - Standalone /gsd:build-evaluate command with calibration fixtures and quality gates
+- [x] **Phase 29: Build-Evaluate Command and Calibration** - Standalone /gsd:build-evaluate command with calibration fixtures and quality gates (completed 2026-03-28)
 
 ## Phase Details
 
@@ -107,9 +107,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 29-01-PLAN.md -- /gsd:build-evaluate command file with code-review gate, portless detection, evaluator/gap-fix spawns
-- [ ] 29-02-PLAN.md -- EVAL-CONFIG.yml authoring note added to plan-phase.md quality_gate checklist
-- [ ] 29-03-PLAN.md -- 5 calibration fixture pairs in .planning/calibration/fixtures/
+- [x] 29-01-PLAN.md -- /gsd:build-evaluate command file with code-review gate, portless detection, evaluator/gap-fix spawns
+- [x] 29-02-PLAN.md -- EVAL-CONFIG.yml authoring note added to plan-phase.md quality_gate checklist
+- [x] 29-03-PLAN.md -- 5 calibration fixture pairs in .planning/calibration/fixtures/
 
 ## Progress
 
@@ -122,4 +122,4 @@ Phases execute in numeric order: 25 -> 26 -> 27 -> 28 -> 29
 | 26. Dev Server Lifecycle and Evaluation Harness | v1.6 | 3/3 | Complete   | 2026-03-28 |
 | 27. Scoring, Output, and Gap Closure | v1.6 | 3/3 | Complete   | 2026-03-28 |
 | 28. execute-phase Integration | v1.6 | 1/2 | In Progress|  |
-| 29. Build-Evaluate Command and Calibration | v1.6 | 0/3 | Not started | - |
+| 29. Build-Evaluate Command and Calibration | v1.6 | 3/3 | Complete   | 2026-03-28 |

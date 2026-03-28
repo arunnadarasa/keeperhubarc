@@ -26,10 +26,10 @@
 
 ## Commands and Integration (CMD)
 
-- [ ] **CMD-01**: `/gsd:build-evaluate` slash command orchestrates full autonomous build-evaluate-iterate cycle with `--max-rounds N`
-- [ ] **CMD-02**: /code-review runs as pre-evaluation gate before runtime testing
+- [x] **CMD-01**: `/gsd:build-evaluate` slash command orchestrates full autonomous build-evaluate-iterate cycle with `--max-rounds N`
+- [x] **CMD-02**: /code-review runs as pre-evaluation gate before runtime testing
 - [x] **CMD-03**: Worktree isolation for build/evaluate with portless providing unique URLs per worktree
-- [ ] **CMD-04**: Each new feature goes through /gsd:new-milestone flow as the standard development process
+- [x] **CMD-04**: Each new feature goes through /gsd:new-milestone flow as the standard development process
 
 ## Process (PROC)
 
@@ -54,10 +54,10 @@
 | LOOP-04 | Phase 25 | Complete |
 | LOOP-05 | Phase 25 | Complete |
 | LOOP-06 | Phase 27 | Complete |
-| CMD-01 | Phase 29 | Pending |
-| CMD-02 | Phase 29 | Pending |
+| CMD-01 | Phase 29 | Complete |
+| CMD-02 | Phase 29 | Complete |
 | CMD-03 | Phase 28 | Complete |
-| CMD-04 | Phase 29 | Pending |
+| CMD-04 | Phase 29 | Complete |
 | PROC-01 | Phase 28 | Pending |
 
 ## Future Requirements (deferred)

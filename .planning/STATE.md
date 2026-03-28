@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Autonomous Build-Evaluate Loop
-status: executing
-stopped_at: Completed 28-01-PLAN.md
-last_updated: "2026-03-28T21:27:31.918Z"
+status: verifying
+stopped_at: Completed 29-01-PLAN.md
+last_updated: "2026-03-28T22:19:11.109Z"
 last_activity: 2026-03-28
 progress:
   total_phases: 5
-  completed_phases: 3
-  total_plans: 10
-  completed_plans: 9
+  completed_phases: 5
+  total_plans: 13
+  completed_plans: 13
   percent: 0
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Users can build and deploy Web3 automation workflows through a visual builder without writing code.
-**Current focus:** Phase 28 — execute-phase-integration
+**Current focus:** Phase 29 — build-evaluate-command-and-calibration
 
 ## Current Position
 
-Phase: 28 (execute-phase-integration) — EXECUTING
-Plan: 2 of 2
-Status: Ready to execute
+Phase: 29 (build-evaluate-command-and-calibration) — EXECUTING
+Plan: 3 of 3
+Status: Phase complete — ready for verification
 Last activity: 2026-03-28
 
 Progress: [..........] 0%
@@ -59,6 +59,9 @@ Progress: [..........] 0%
 | Phase 27-scoring-output-and-gap-closure P03 | 10m | 1 tasks | 1 files |
 | Phase 27-scoring-output-and-gap-closure P02 | 8m | 1 tasks | 2 files |
 | Phase 28-execute-phase-integration P01 | 4m | 2 tasks | 1 files |
+| Phase 29-build-evaluate-command-and-calibration P02 | 3m | 1 tasks | 1 files |
+| Phase 29-build-evaluate-command-and-calibration P01 | 3m | 1 tasks | 1 files |
+| Phase 29-build-evaluate-command-and-calibration P03 | 10 | 1 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -92,6 +95,12 @@ Recent decisions affecting current work:
 - [Phase 28-execute-phase-integration]: isolation=worktree on evaluator Task() and gap-fix executor prevents parallel evaluation URL collisions (CMD-03)
 - [Phase 28-execute-phase-integration]: Portless detection block placed after EVAL_CONFIG gate -- only runs when evaluation is needed, with correct fallback PORTLESS_AVAILABLE=0
 - [Phase 28-execute-phase-integration]: FAILING_CRITERIA re-extracted in Step 6 for consistency even when arriving via max_rounds (harmless re-extraction ensures STATE.md always updated before escalation)
+- [Phase 29-build-evaluate-command-and-calibration]: CMD-04: EVAL-CONFIG.yml authoring item added to quality_gate in plan-phase.md Step 8 planner prompt -- gsd-planner now explicitly checks for EVAL-CONFIG.yml when phases have runtime-verifiable success criteria
+- [Phase 29-build-evaluate-command-and-calibration]: build-evaluate directly spawns gsd-executor/gsd-evaluator via Task(); does not invoke execute-phase as sub-skill
+- [Phase 29-build-evaluate-command-and-calibration]: Calibration fixtures use synthetic paths (tests/evaluate/fixtures/) not real test file paths
+- [Phase 29-build-evaluate-command-and-calibration]: approved field in all calibration expected-EVAL.md files is bare YAML boolean per spec
+- [Phase 29-build-evaluate-command-and-calibration]: Fixture 04 threshold 0.67 tests exact boundary: 2/3 = 0.666 < 0.67 = rejected (threshold 0.66 would pass)
+- [Phase 29]: max-rounds caps evaluation loop, not EVAL-CONFIG
 
 ### Pending Todos
 
@@ -104,6 +113,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T21:27:31.915Z
-Stopped at: Completed 28-01-PLAN.md
+Last session: 2026-03-28T22:19:11.106Z
+Stopped at: Completed 29-01-PLAN.md
 Resume file: None
