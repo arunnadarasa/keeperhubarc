@@ -3,7 +3,7 @@ import type { WebStandardStreamableHTTPServerTransport } from "@modelcontextprot
 import type { McpEventStore } from "@/lib/mcp/event-store";
 import { logMcpEvent } from "@/lib/mcp/logging";
 
-const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+export const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 export type SessionEntry = {

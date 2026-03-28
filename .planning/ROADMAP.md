@@ -8,7 +8,7 @@
 - v1.3 Direct Execution API - Phases 10-12 (shipped 2026-02-20)
 - v1.4 Agent Team - Phases 13-18 (shipped 2026-03-01)
 - v1.5 KeeperHub CLI - Phases 19-24.1 (shipped 2026-03-14)
-- v1.6 Autonomous Build-Evaluate Loop - Phases 25-29 (in progress)
+- v1.6 Autonomous Build-Evaluate Loop - Phases 25-29.1 (in progress)
 
 ## Phases
 
@@ -28,6 +28,7 @@ Phases 1-24.1 completed. See MILESTONES.md for details.
 - [x] **Phase 27: Scoring, Output, and Gap Closure** - Per-criterion scoring, EVAL.md report, and gap-to-fix-plan pipeline (completed 2026-03-28)
 - [ ] **Phase 28: execute-phase Integration** - Conditional evaluate-after-build gate wired into existing execute-phase and autonomous workflows
 - [x] **Phase 29: Build-Evaluate Command and Calibration** - Standalone /gsd:build-evaluate command with calibration fixtures and quality gates (completed 2026-03-28)
+- [ ] **Phase 29.1: MCP Session Longevity** - Extend session JWT/cache TTL to 24h, sliding renewal, distinct error codes (KEEP-196)
 
 ## Phase Details
 
@@ -123,3 +124,4 @@ Phases execute in numeric order: 25 -> 26 -> 27 -> 28 -> 29
 | 27. Scoring, Output, and Gap Closure | v1.6 | 3/3 | Complete   | 2026-03-28 |
 | 28. execute-phase Integration | v1.6 | 1/2 | In Progress|  |
 | 29. Build-Evaluate Command and Calibration | v1.6 | 3/3 | Complete   | 2026-03-28 |
+| 29.1 MCP Session Longevity | v1.6 | 0/1 | In Progress |  |

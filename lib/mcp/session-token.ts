@@ -8,7 +8,7 @@ export type SessionPayload = {
   exp: number;
 };
 
-const SESSION_TTL_SECONDS = 30 * 60; // 30 minutes
+export const SESSION_TTL_SECONDS = 24 * 60 * 60; // 24 hours
 
 function getSessionSecret(): string {
   const secret =
@@ -67,29 +67,57 @@ export function createSessionToken(
   return `${signingInput}.${signature}`;
 }
 
-export function verifySessionToken(token: string): SessionPayload | null {
+export type VerifyOptions = {
+  allowExpired?: boolean;
+};
+
+export type VerifyResult =
+  | { payload: SessionPayload; expired: false }
+  | { payload: SessionPayload; expired: true }
+  | {
+      payload: null;
+      expired: false;
+      reason: "invalid_signature" | "malformed";
+    };
+
+export function verifySessionToken(
+  token: string,
+  options?: VerifyOptions
+): SessionPayload | null {
+  const result = verifySessionTokenDetailed(token);
+  if (!result.payload) {
+    return null;
+  }
+  if (result.expired && !options?.allowExpired) {
+    return null;
+  }
+  return result.payload;
+}
+
+export function verifySessionTokenDetailed(token: string): VerifyResult {
   try {
     const secret = getSessionSecret();
     const parts = token.split(".");
     if (parts.length !== 3) {
-      return null;
+      return { payload: null, expired: false, reason: "malformed" };
     }
     const [header, body, signature] = parts;
     const signingInput = `${header}.${body}`;
     const expectedSignature = hmacSign(secret, signingInput);
 
     if (signature !== expectedSignature) {
-      return null;
+      return { payload: null, expired: false, reason: "invalid_signature" };
     }
 
     const payload = JSON.parse(base64UrlDecode(body)) as SessionPayload;
     const now = Math.floor(Date.now() / 1000);
+
     if (payload.exp < now) {
-      return null;
+      return { payload, expired: true };
     }
 
-    return payload;
+    return { payload, expired: false };
   } catch {
-    return null;
+    return { payload: null, expired: false, reason: "malformed" };
   }
 }

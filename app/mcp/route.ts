@@ -10,6 +10,7 @@ import { createMcpServer } from "@/lib/mcp/server";
 import {
   createSessionToken,
   verifySessionToken,
+  verifySessionTokenDetailed,
 } from "@/lib/mcp/session-token";
 import {
   deleteSession,
@@ -176,25 +177,45 @@ function buildSession(
   return { transport, entry };
 }
 
+type ResolveSessionOk = {
+  ok: true;
+  transport: WebStandardStreamableHTTPServerTransport;
+  renewedSessionId?: string;
+};
+
+type ResolveSessionError = {
+  ok: false;
+  code: "session_not_found" | "session_expired";
+};
+
+type ResolveSessionResult = ResolveSessionOk | ResolveSessionError;
+
 async function resolveSession(
   sessionId: string,
   organizationId: string,
   request: Request
-): Promise<WebStandardStreamableHTTPServerTransport | null> {
+): Promise<ResolveSessionResult> {
   // Fast path: same-pod cache hit.
   const cached = getSession(sessionId);
   if (cached) {
     if (cached.organizationId !== organizationId) {
-      return null;
+      return { ok: false, code: "session_not_found" };
     }
     touchSession(sessionId);
-    return cached.transport;
+    return { ok: true, transport: cached.transport };
   }
 
   // Slow path: verify JWT and reconstruct transport+server (different pod or restart).
-  const payload = verifySessionToken(sessionId);
-  if (!payload || payload.org !== organizationId) {
-    return null;
+  // Accept expired-but-valid-signature JWTs so sessions survive pod restarts
+  // and idle periods within the 24h sliding window.
+  const result = verifySessionTokenDetailed(sessionId);
+
+  if (!result.payload) {
+    return { ok: false, code: "session_not_found" };
+  }
+
+  if (result.payload.org !== organizationId) {
+    return { ok: false, code: "session_not_found" };
   }
 
   logMcpEvent("mcp.session.reconstructed", {
@@ -209,8 +230,8 @@ async function resolveSession(
   const { transport, entry } = buildSession(
     sessionId,
     organizationId,
-    payload.key,
-    payload.scope,
+    result.payload.key,
+    result.payload.scope,
     baseUrl,
     authHeader
   );
@@ -232,7 +253,41 @@ async function resolveSession(
   // Cache locally for subsequent same-pod requests.
   setSession(sessionId, entry);
 
-  return transport;
+  // If the JWT was expired, mint a fresh one with a new 24h window (sliding renewal).
+  // The client adopts the new session ID from the Mcp-Session-Id response header.
+  let renewedSessionId: string | undefined;
+  if (result.expired) {
+    renewedSessionId = createSessionToken({
+      org: result.payload.org,
+      key: result.payload.key,
+      scope: result.payload.scope,
+    });
+
+    logMcpEvent("mcp.session.renewed", {
+      oldSessionId: sessionId,
+      newSessionId: renewedSessionId,
+      orgId: organizationId,
+    });
+  }
+
+  return { ok: true, transport, renewedSessionId };
+}
+
+function withRenewedSessionHeader(
+  response: Response,
+  renewedSessionId: string | undefined
+): Response {
+  if (!renewedSessionId) {
+    return response;
+  }
+
+  const headers = new Headers(response.headers);
+  headers.set("Mcp-Session-Id", renewedSessionId);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -259,18 +314,17 @@ export async function POST(request: Request): Promise<Response> {
   const sessionId = request.headers.get("mcp-session-id");
 
   if (sessionId) {
-    const existingTransport = await resolveSession(
-      sessionId,
-      organizationId,
-      request
-    );
-    if (!existingTransport) {
-      return new Response(JSON.stringify({ error: "Session not found" }), {
+    const resolved = await resolveSession(sessionId, organizationId, request);
+    if (!resolved.ok) {
+      return new Response(JSON.stringify({ error: resolved.code }), {
         status: 404,
         headers: { "Content-Type": "application/json", ...CORS_HEADERS },
       });
     }
-    return existingTransport.handleRequest(ensureMcpAcceptHeader(request));
+    const response = await resolved.transport.handleRequest(
+      ensureMcpAcceptHeader(request)
+    );
+    return withRenewedSessionHeader(response, resolved.renewedSessionId);
   }
 
   // No session ID: must be an initialize request.
@@ -363,15 +417,18 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const organizationId = auth.organizationId ?? "";
-  const transport = await resolveSession(sessionId, organizationId, request);
-  if (!transport) {
-    return new Response(JSON.stringify({ error: "Session not found" }), {
+  const resolved = await resolveSession(sessionId, organizationId, request);
+  if (!resolved.ok) {
+    return new Response(JSON.stringify({ error: resolved.code }), {
       status: 404,
       headers: { "Content-Type": "application/json", ...CORS_HEADERS },
     });
   }
 
-  return transport.handleRequest(ensureMcpAcceptHeader(request));
+  const response = await resolved.transport.handleRequest(
+    ensureMcpAcceptHeader(request)
+  );
+  return withRenewedSessionHeader(response, resolved.renewedSessionId);
 }
 
 export async function DELETE(request: Request): Promise<Response> {
@@ -401,9 +458,10 @@ export async function DELETE(request: Request): Promise<Response> {
   const organizationId = auth.organizationId ?? "";
 
   // Verify ownership via JWT before touching anything in the local cache.
-  const payload = verifySessionToken(sessionId);
+  // Accept expired JWTs so clients can clean up old sessions.
+  const payload = verifySessionToken(sessionId, { allowExpired: true });
   if (!payload || payload.org !== organizationId) {
-    return new Response(JSON.stringify({ error: "Session not found" }), {
+    return new Response(JSON.stringify({ error: "session_not_found" }), {
       status: 404,
       headers: { "Content-Type": "application/json", ...CORS_HEADERS },
     });
