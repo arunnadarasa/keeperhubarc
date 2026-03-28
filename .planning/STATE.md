@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Autonomous Build-Evaluate Loop
-status: executing
-stopped_at: Completed 27-01-PLAN.md
-last_updated: "2026-03-28T20:59:18.174Z"
+status: verifying
+stopped_at: Completed 27-02-PLAN.md
+last_updated: "2026-03-28T21:05:38.959Z"
 last_activity: 2026-03-28
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 8
-  completed_plans: 6
+  completed_plans: 8
   percent: 0
 ---
 
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 ## Current Position
 
 Phase: 27 (scoring-output-and-gap-closure) — EXECUTING
-Plan: 2 of 3
-Status: Ready to execute
+Plan: 3 of 3
+Status: Phase complete — ready for verification
 Last activity: 2026-03-28
 
 Progress: [..........] 0%
@@ -56,6 +56,8 @@ Progress: [..........] 0%
 | Phase 26 P01 | 2m | 2 tasks | 3 files |
 | Phase 26-dev-server-lifecycle-and-evaluation-harness P03 | 15m | 2 tasks | 2 files |
 | Phase 27-scoring-output-and-gap-closure P01 | 5m | 2 tasks | 3 files |
+| Phase 27-scoring-output-and-gap-closure P03 | 10m | 1 tasks | 1 files |
+| Phase 27-scoring-output-and-gap-closure P02 | 8m | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -83,6 +85,9 @@ Recent decisions affecting current work:
 - [Phase 27-scoring-output-and-gap-closure]: score.ts is purely deterministic -- no LLM; only flattenSpecs + spec.ok matching
 - [Phase 27-scoring-output-and-gap-closure]: criteria-scorer.ts uses experimental_output (AI SDK v5 param), not output (v4 name)
 - [Phase 27-scoring-output-and-gap-closure]: manual_review criteria excluded from total_autonomous count in score_fraction
+- [Phase 27-scoring-output-and-gap-closure]: eval_gap_closure mode skips research (same as gap_closure) -- EVAL.md already contains findings
+- [Phase 27-scoring-output-and-gap-closure]: EVAL-CONFIG.yml file presence detection (not PLAN.md evaluate: field) gates evaluation in runtime_evaluation_gate step -- full backward compatibility
+- [Phase 27-scoring-output-and-gap-closure]: gsd-evaluator profile: sonnet/sonnet/haiku/inherit in model-profiles.md -- same tier as gsd-verifier
 
 ### Pending Todos
 
@@ -95,6 +100,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T20:59:18.172Z
-Stopped at: Completed 27-01-PLAN.md
+Last session: 2026-03-28T21:05:38.956Z
+Stopped at: Completed 27-02-PLAN.md
 Resume file: None

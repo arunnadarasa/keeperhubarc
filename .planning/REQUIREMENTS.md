@@ -22,7 +22,7 @@
 - [x] **LOOP-03**: Build-QA loop capped at configurable max rounds (default 3), with convergence check (same failures in round N and N-1 halt immediately)
 - [x] **LOOP-04**: SAFE-02 coordination: evaluation rounds tracked separately from implement-verify rounds
 - [x] **LOOP-05**: Sprint contract negotiation: evaluator reviews PLAN.md criteria pre-build and proposes testable scenarios
-- [ ] **LOOP-06**: execute-phase gains automatic evaluate-after-build step when PLAN.md has `evaluate: true`
+- [x] **LOOP-06**: execute-phase gains automatic evaluate-after-build step when PLAN.md has `evaluate: true`
 
 ## Commands and Integration (CMD)
 
@@ -53,7 +53,7 @@
 | LOOP-03 | Phase 25 | Complete |
 | LOOP-04 | Phase 25 | Complete |
 | LOOP-05 | Phase 25 | Complete |
-| LOOP-06 | Phase 27 | Pending |
+| LOOP-06 | Phase 27 | Complete |
 | CMD-01 | Phase 29 | Pending |
 | CMD-02 | Phase 29 | Pending |
 | CMD-03 | Phase 28 | Pending |

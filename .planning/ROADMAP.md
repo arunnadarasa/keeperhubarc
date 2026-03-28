@@ -25,7 +25,7 @@ Phases 1-24.1 completed. See MILESTONES.md for details.
 
 - [x] **Phase 25: Loop Architecture and Evaluator Agent** - Define the evaluator agent, file formats, and loop termination contracts before any code runs (completed 2026-03-28)
 - [x] **Phase 26: Dev Server Lifecycle and Evaluation Harness** - Reliable server startup, seed isolation, and evaluation script infrastructure (completed 2026-03-28)
-- [ ] **Phase 27: Scoring, Output, and Gap Closure** - Per-criterion scoring, EVAL.md report, and gap-to-fix-plan pipeline
+- [x] **Phase 27: Scoring, Output, and Gap Closure** - Per-criterion scoring, EVAL.md report, and gap-to-fix-plan pipeline (completed 2026-03-28)
 - [ ] **Phase 28: execute-phase Integration** - Conditional evaluate-after-build gate wired into existing execute-phase and autonomous workflows
 - [ ] **Phase 29: Build-Evaluate Command and Calibration** - Standalone /gsd:build-evaluate command with calibration fixtures and quality gates
 
@@ -77,8 +77,8 @@ Plans:
 
 Plans:
 - [x] 27-01-PLAN.md -- score.ts (deterministic Playwright JSON scoring) and criteria-scorer.ts (AI SDK v5 LLM rubric)
-- [ ] 27-02-PLAN.md -- runtime_evaluation_gate step in execute-phase.md (LOOP-06)
-- [ ] 27-03-PLAN.md -- --eval-gaps flag in plan-phase.md for EVAL.md-driven gap closure planning (LOOP-02)
+- [x] 27-02-PLAN.md -- runtime_evaluation_gate step in execute-phase.md (LOOP-06)
+- [x] 27-03-PLAN.md -- --eval-gaps flag in plan-phase.md for EVAL.md-driven gap closure planning (LOOP-02)
 
 ### Phase 28: execute-phase Integration
 **Goal**: The evaluate-after-build gate is wired into execute-phase and the autonomous workflow so the full build-evaluate-fix loop runs without human intervention for phases that declare evaluation
@@ -111,6 +111,6 @@ Phases execute in numeric order: 25 -> 26 -> 27 -> 28 -> 29
 |-------|-----------|----------------|--------|-----------|
 | 25. Loop Architecture and Evaluator Agent | v1.6 | 2/2 | Complete   | 2026-03-28 |
 | 26. Dev Server Lifecycle and Evaluation Harness | v1.6 | 3/3 | Complete   | 2026-03-28 |
-| 27. Scoring, Output, and Gap Closure | v1.6 | 1/3 | In Progress|  |
+| 27. Scoring, Output, and Gap Closure | v1.6 | 3/3 | Complete   | 2026-03-28 |
 | 28. execute-phase Integration | v1.6 | 0/TBD | Not started | - |
 | 29. Build-Evaluate Command and Calibration | v1.6 | 0/TBD | Not started | - |
