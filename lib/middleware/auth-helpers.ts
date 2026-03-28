@@ -3,10 +3,15 @@ import { authenticateApiKey } from "@/lib/api-key-auth";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { member } from "@/lib/db/schema";
+import { authenticateOAuthToken } from "@/lib/mcp/oauth-auth";
 import { getOrgContext } from "@/lib/middleware/org-context";
 
 export type DualAuthContext =
-  | { userId: string | null; organizationId: string | null }
+  | {
+      userId: string | null;
+      organizationId: string | null;
+      authMethod: "oauth" | "api-key" | "session";
+    }
   | { error: string; status: number };
 
 /**
@@ -22,40 +27,60 @@ export async function getDualAuthContext(
 ): Promise<DualAuthContext> {
   const required = options?.required ?? true;
 
+  const oauthAuth = authenticateOAuthToken(request);
+  if (oauthAuth.authenticated) {
+    return {
+      userId: oauthAuth.userId ?? null,
+      organizationId: oauthAuth.organizationId ?? null,
+      authMethod: "oauth",
+    };
+  }
+
   const apiKeyAuth = await authenticateApiKey(request);
   if (apiKeyAuth.authenticated) {
-    const defaultOrgId = apiKeyAuth.organizationId || null;
-    const userId = apiKeyAuth.userId || null;
-
-    // Check for X-Organization-Id override
-    if (defaultOrgId) {
-      const overrideResult = await resolveOrganizationOverride(
-        request,
-        defaultOrgId,
-        userId
-      );
-      if ("error" in overrideResult) {
-        return { error: overrideResult.error, status: overrideResult.status };
-      }
-      return { userId, organizationId: overrideResult.organizationId };
-    }
-
-    return { userId, organizationId: defaultOrgId };
+    return resolveApiKeyContext(request, apiKeyAuth);
   }
 
   const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user && required) {
+    return { error: "Unauthorized", status: 401 };
+  }
   if (!session?.user) {
-    if (required) {
-      return { error: "Unauthorized", status: 401 };
-    }
-    return { userId: null, organizationId: null };
+    return { userId: null, organizationId: null, authMethod: "session" };
   }
 
   const orgContext = await getOrgContext();
   return {
     userId: session.user.id,
     organizationId: orgContext.organization?.id || null,
+    authMethod: "session",
   };
+}
+
+async function resolveApiKeyContext(
+  request: Request,
+  apiKeyAuth: { organizationId?: string; userId?: string }
+): Promise<DualAuthContext> {
+  const defaultOrgId = apiKeyAuth.organizationId || null;
+  const userId = apiKeyAuth.userId || null;
+
+  if (defaultOrgId) {
+    const overrideResult = await resolveOrganizationOverride(
+      request,
+      defaultOrgId,
+      userId
+    );
+    if ("error" in overrideResult) {
+      return { error: overrideResult.error, status: overrideResult.status };
+    }
+    return {
+      userId,
+      organizationId: overrideResult.organizationId,
+      authMethod: "api-key",
+    };
+  }
+
+  return { userId, organizationId: defaultOrgId, authMethod: "api-key" };
 }
 
 /**
