@@ -17,10 +17,10 @@
 
 ## Loop Orchestration (LOOP)
 
-- [ ] **LOOP-01**: gsd-evaluator agent exists as a read-only, independent agent separate from Builder and Verifier
+- [x] **LOOP-01**: gsd-evaluator agent exists as a read-only, independent agent separate from Builder and Verifier
 - [x] **LOOP-02**: Structured EVAL.md report with per-criterion scores, evidence, and APPROVED boolean gate
-- [ ] **LOOP-03**: Build-QA loop capped at configurable max rounds (default 3), with convergence check (same failures in round N and N-1 halt immediately)
-- [ ] **LOOP-04**: SAFE-02 coordination: evaluation rounds tracked separately from implement-verify rounds
+- [x] **LOOP-03**: Build-QA loop capped at configurable max rounds (default 3), with convergence check (same failures in round N and N-1 halt immediately)
+- [x] **LOOP-04**: SAFE-02 coordination: evaluation rounds tracked separately from implement-verify rounds
 - [x] **LOOP-05**: Sprint contract negotiation: evaluator reviews PLAN.md criteria pre-build and proposes testable scenarios
 - [ ] **LOOP-06**: execute-phase gains automatic evaluate-after-build step when PLAN.md has `evaluate: true`
 
@@ -48,10 +48,10 @@
 | EVAL-03 | Phase 27 | Pending |
 | EVAL-04 | Phase 27 | Pending |
 | EVAL-05 | Phase 26 | Pending |
-| LOOP-01 | Phase 25 | Pending |
+| LOOP-01 | Phase 25 | Complete |
 | LOOP-02 | Phase 25 | Complete |
-| LOOP-03 | Phase 25 | Pending |
-| LOOP-04 | Phase 25 | Pending |
+| LOOP-03 | Phase 25 | Complete |
+| LOOP-04 | Phase 25 | Complete |
 | LOOP-05 | Phase 25 | Complete |
 | LOOP-06 | Phase 27 | Pending |
 | CMD-01 | Phase 29 | Pending |

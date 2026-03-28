@@ -23,7 +23,7 @@ Phases 1-24.1 completed. See MILESTONES.md for details.
 
 **Milestone Goal:** Wire runtime evaluation into the KeeperHub development pipeline so features can be built, tested against a live app, and iterated fully autonomously.
 
-- [ ] **Phase 25: Loop Architecture and Evaluator Agent** - Define the evaluator agent, file formats, and loop termination contracts before any code runs
+- [x] **Phase 25: Loop Architecture and Evaluator Agent** - Define the evaluator agent, file formats, and loop termination contracts before any code runs (completed 2026-03-28)
 - [ ] **Phase 26: Dev Server Lifecycle and Evaluation Harness** - Reliable server startup, seed isolation, and evaluation script infrastructure
 - [ ] **Phase 27: Scoring, Output, and Gap Closure** - Per-criterion scoring, EVAL.md report, and gap-to-fix-plan pipeline
 - [ ] **Phase 28: execute-phase Integration** - Conditional evaluate-after-build gate wired into existing execute-phase and autonomous workflows
@@ -45,7 +45,7 @@ Phases 1-24.1 completed. See MILESTONES.md for details.
 
 Plans:
 - [x] 25-01-PLAN.md -- EVAL.md format spec, EVAL-CONFIG.yml format spec, SPRINT-CONTRACT.md format spec
-- [ ] 25-02-PLAN.md -- gsd-evaluator agent definition with evaluation flow, SAFE-02 coordination, convergence check, criterion locking
+- [x] 25-02-PLAN.md -- gsd-evaluator agent definition with evaluation flow, SAFE-02 coordination, convergence check, criterion locking
 
 ### Phase 26: Dev Server Lifecycle and Evaluation Harness
 **Goal**: A dev server can be started, health-checked, seeded with deterministic test data, and torn down cleanly without zombie processes or port conflicts, enabling reliable evaluation runs
@@ -100,7 +100,7 @@ Phases execute in numeric order: 25 -> 26 -> 27 -> 28 -> 29
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 25. Loop Architecture and Evaluator Agent | v1.6 | 1/2 | In Progress|  |
+| 25. Loop Architecture and Evaluator Agent | v1.6 | 2/2 | Complete   | 2026-03-28 |
 | 26. Dev Server Lifecycle and Evaluation Harness | v1.6 | 0/TBD | Not started | - |
 | 27. Scoring, Output, and Gap Closure | v1.6 | 0/TBD | Not started | - |
 | 28. execute-phase Integration | v1.6 | 0/TBD | Not started | - |
