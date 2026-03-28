@@ -89,7 +89,11 @@ Plans:
   2. execute-phase detects EVAL-CONFIG.yml, spawns gsd-evaluator, reads EVAL.md status, and loops or escalates based on score and round count
   3. STATE.md is updated with round count and last failing criteria before any escalation, so the human reviewer has complete context
   4. /gsd:autonomous --auto runs a full build-evaluate-fix cycle for a phase with evaluate: true and exits without user input except at auth gates
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [x] 28-01-PLAN.md -- portless detection + isolation="worktree" on evaluator/gap-fix spawns, state patch commands in runtime_evaluation_gate
+- [ ] 28-02-PLAN.md -- eval status check and gap closure routing in autonomous.md step 3d
 
 ### Phase 29: Build-Evaluate Command and Calibration
 **Goal**: A standalone /gsd:build-evaluate command provides a simpler entry point for the full cycle, /code-review gates code quality before runtime testing, and calibration fixtures lock in evaluator quality
@@ -112,5 +116,5 @@ Phases execute in numeric order: 25 -> 26 -> 27 -> 28 -> 29
 | 25. Loop Architecture and Evaluator Agent | v1.6 | 2/2 | Complete   | 2026-03-28 |
 | 26. Dev Server Lifecycle and Evaluation Harness | v1.6 | 3/3 | Complete   | 2026-03-28 |
 | 27. Scoring, Output, and Gap Closure | v1.6 | 3/3 | Complete   | 2026-03-28 |
-| 28. execute-phase Integration | v1.6 | 0/TBD | Not started | - |
+| 28. execute-phase Integration | v1.6 | 1/2 | In Progress|  |
 | 29. Build-Evaluate Command and Calibration | v1.6 | 0/TBD | Not started | - |
