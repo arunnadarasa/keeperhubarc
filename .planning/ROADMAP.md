@@ -57,8 +57,12 @@ Plans:
   3. Running the evaluation harness twice in sequence produces identical seed state (deterministic test data, no contamination)
   4. HTTP assertions verify API endpoint status codes and response shapes against the running server
   5. Playwright UI scenarios execute using existing auth/workflow helpers and token-audit.js runs as a deterministic gate
-**Plans**: TBD
-**UI hint**: yes
+**Plans**: 3 plans
+
+Plans:
+- [ ] 26-01-PLAN.md -- portless devDependency install and scripts/evaluate/seed-eval.ts per-round seed wrapper
+- [ ] 26-02-PLAN.md -- playwright.evaluate.config.ts with webServer lifecycle, JSON reporter, portless integration
+- [ ] 26-03-PLAN.md -- eval-harness.test.ts with @autonomous smoke tests and 26-EVAL-CONFIG.yml
 
 ### Phase 27: Scoring, Output, and Gap Closure
 **Goal**: Each success criterion from PLAN.md is independently scored PASS/FAIL with evidence, written to a structured EVAL.md report, and failing criteria generate actionable fix plans
@@ -101,7 +105,7 @@ Phases execute in numeric order: 25 -> 26 -> 27 -> 28 -> 29
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 25. Loop Architecture and Evaluator Agent | v1.6 | 2/2 | Complete   | 2026-03-28 |
-| 26. Dev Server Lifecycle and Evaluation Harness | v1.6 | 0/TBD | Not started | - |
+| 26. Dev Server Lifecycle and Evaluation Harness | v1.6 | 0/3 | Not started | - |
 | 27. Scoring, Output, and Gap Closure | v1.6 | 0/TBD | Not started | - |
 | 28. execute-phase Integration | v1.6 | 0/TBD | Not started | - |
 | 29. Build-Evaluate Command and Calibration | v1.6 | 0/TBD | Not started | - |
