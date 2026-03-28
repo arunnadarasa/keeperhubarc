@@ -1,0 +1,76 @@
+# 26-EVAL-CONFIG.yml
+# Evaluation configuration for Phase 26: dev-server-lifecycle-and-evaluation-harness
+# Written by gsd-planner during plan-phase for Phase 26.
+#
+# This file serves as the canonical reference implementation of the EVAL-CONFIG format.
+# It evaluates Phase 26 itself -- the evaluation harness infrastructure.
+
+# Fraction of autonomous criteria that must pass.
+# 85% threshold: API-01, UI-01, DS-01 are autonomous (3 criteria).
+# All 3 must pass (3/3 = 100% > 0.85).
+threshold: 0.85
+
+# Maximum evaluate-fix cycles before SAFE-02 escalation.
+max_rounds: 3
+
+# Evaluation dev server port. Uses 3099 to avoid collision with the
+# developer's running instance on 3000 and test instance on 3001.
+server_port: 3099
+
+# Seed scripts run in order before each evaluation round.
+# seed-eval.ts is the Playwright globalSetup wrapper that runs the full
+# cleanup+seed cycle. gsd-evaluator calls this directly (not via globalSetup).
+seed_scripts:
+  - scripts/evaluate/seed-eval.ts
+
+criteria:
+  # ------------------------------------------------------------------
+  # API-01: Health endpoint responds
+  # Verifies the dev server started correctly and the app is reachable.
+  # ------------------------------------------------------------------
+  - id: API-01
+    type: api_assertion
+    description: "GET /api/health returns 200 with status field"
+    method: GET
+    url: "/api/health"
+    body: null
+    auth: "none"
+    expected_status: 200
+    expected_body_contains: "ok"
+
+  # ------------------------------------------------------------------
+  # UI-01: Dashboard renders for authenticated user
+  # Verifies auth session is valid and the dashboard is reachable.
+  # References eval-harness.test.ts which establishes the @autonomous
+  # tagging convention (EVAL-02).
+  # ------------------------------------------------------------------
+  - id: UI-01
+    type: ui_behavior
+    description: "Dashboard renders org switcher for authenticated user"
+    playwright_test: "tests/e2e/playwright/eval-harness.test.ts"
+    grep_pattern: "dashboard renders for authenticated user @autonomous"
+
+  # ------------------------------------------------------------------
+  # DS-01: No hardcoded colors in Phase 26 evaluation harness files
+  # token_audit: true activates the token-audit.js gate.
+  #
+  # files: # documentation-only: token-audit.js scans SCAN_DIRS unconditionally; Phase 27 evaluator runs 'node scripts/token-audit.js --quiet' with no file arguments
+  # ------------------------------------------------------------------
+  - id: DS-01
+    type: design_token
+    description: "No hardcoded colors in Phase 26 evaluation harness files"
+    token_audit: true
+    files: # documentation-only: token-audit.js scans SCAN_DIRS unconditionally; Phase 27 evaluator runs 'node scripts/token-audit.js --quiet' with no file arguments
+      - scripts/evaluate/seed-eval.ts
+      - tests/e2e/playwright/playwright.evaluate.config.ts
+      - tests/e2e/playwright/eval-harness.test.ts
+
+  # ------------------------------------------------------------------
+  # MANUAL-01: Server lifecycle manual check
+  # Non-autonomous: requires human to verify the server starts and stops
+  # cleanly without zombie processes.
+  # ------------------------------------------------------------------
+  - id: MANUAL-01
+    type: manual_review
+    description: "Dev server starts cleanly and stops without zombie processes"
+    review_guidance: "Run `npx playwright test --config tests/e2e/playwright/playwright.evaluate.config.ts --grep '@autonomous'` against a running database. Check that the server starts (port 3099 appears in output), tests run, and the server stops after tests complete. Verify no node processes remain with `ps aux | grep 'next-server' | grep -v grep`."
