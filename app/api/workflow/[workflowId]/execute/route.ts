@@ -110,10 +110,6 @@ export async function POST(
         );
       }
 
-      if (!authContext.userId) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-
       workflow = await db.query.workflows.findFirst({
         where: eq(workflows.id, workflowId),
       });
@@ -125,7 +121,7 @@ export async function POST(
         );
       }
 
-      const isOwner = workflow.userId === authContext.userId;
+      const isOwner = authContext.authMethod === "session" && workflow.userId === authContext.userId;
       const isSameOrg =
         !workflow.isAnonymous &&
         workflow.organizationId &&
@@ -135,7 +131,7 @@ export async function POST(
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
 
-      userId = authContext.userId;
+      userId = authContext.userId ?? workflow.userId;
     }
 
     // Validate that all integrationIds in workflow nodes belong to the user or org

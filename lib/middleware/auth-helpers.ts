@@ -1,13 +1,14 @@
-import { and, eq } from "drizzle-orm";
 import { authenticateApiKey } from "@/lib/api-key-auth";
 import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { member } from "@/lib/db/schema";
 import { authenticateOAuthToken } from "@/lib/mcp/oauth-auth";
 import { getOrgContext } from "@/lib/middleware/org-context";
 
 export type DualAuthContext =
-  | { userId: string | null; organizationId: string | null }
+  | {
+      userId: string | null;
+      organizationId: string | null;
+      authMethod: "oauth" | "api-key" | "session";
+    }
   | { error: string; status: number };
 
 /**
@@ -29,10 +30,11 @@ function resolveOAuthToken(
 }
 
 /**
- * Resolves user and organization context from either API key or session auth.
+ * Resolves user and organization context from OAuth token, API key, or session auth.
  * For API key auth, userId is the key creator (if available).
+ * API keys are hard-scoped to their creation org (no cross-org override).
  *
- * @param required - If true (default), returns 401 when neither auth method succeeds.
+ * @param required - If true (default), returns 401 when no auth method succeeds.
  *   Set to false for routes that allow unauthenticated access (e.g. public workflows).
  */
 export async function getDualAuthContext(
@@ -43,47 +45,46 @@ export async function getDualAuthContext(
 
   const oauthAuth = resolveOAuthToken(request);
   if (oauthAuth) {
-    return oauthAuth;
+    return {
+      ...oauthAuth,
+      authMethod: "oauth",
+    };
   }
 
   const apiKeyAuth = await authenticateApiKey(request);
   if (apiKeyAuth.authenticated) {
-    const defaultOrgId = apiKeyAuth.organizationId || null;
-    const userId = apiKeyAuth.userId || null;
-
-    // Check for X-Organization-Id override
-    if (defaultOrgId) {
-      const overrideResult = await resolveOrganizationOverride(
-        request,
-        defaultOrgId,
-        userId
-      );
-      if ("error" in overrideResult) {
-        return { error: overrideResult.error, status: overrideResult.status };
-      }
-      return { userId, organizationId: overrideResult.organizationId };
-    }
-
-    return { userId, organizationId: defaultOrgId };
+    return resolveApiKeyContext(apiKeyAuth);
   }
 
   const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user && required) {
+    return { error: "Unauthorized", status: 401 };
+  }
   if (!session?.user) {
-    if (required) {
-      return { error: "Unauthorized", status: 401 };
-    }
-    return { userId: null, organizationId: null };
+    return { userId: null, organizationId: null, authMethod: "session" };
   }
 
   const orgContext = await getOrgContext();
   return {
     userId: session.user.id,
-    organizationId: orgContext.organization?.id || null,
+    organizationId: orgContext.organization?.id ?? null,
+    authMethod: "session",
+  };
+}
+
+function resolveApiKeyContext(apiKeyAuth: {
+  organizationId?: string;
+  userId?: string;
+}): DualAuthContext {
+  return {
+    userId: apiKeyAuth.userId ?? null,
+    organizationId: apiKeyAuth.organizationId ?? null,
+    authMethod: "api-key",
   };
 }
 
 /**
- * Resolves the organization ID from either an API key or session.
+ * Resolves the organization ID from OAuth, API key, or session.
  * Used by PATCH/DELETE routes that only need org-level authorization.
  */
 export async function resolveOrganizationId(
@@ -97,20 +98,11 @@ export async function resolveOrganizationId(
   const apiKeyAuth = await authenticateApiKey(request);
 
   if (apiKeyAuth.authenticated) {
-    const defaultOrgId = apiKeyAuth.organizationId;
-    if (!defaultOrgId) {
+    const organizationId = apiKeyAuth.organizationId;
+    if (!organizationId) {
       return { error: "No active organization", status: 400 };
     }
-
-    const overrideResult = await resolveOrganizationOverride(
-      request,
-      defaultOrgId,
-      apiKeyAuth.userId || null
-    );
-    if ("error" in overrideResult) {
-      return { error: overrideResult.error, status: overrideResult.status };
-    }
-    return { organizationId: overrideResult.organizationId };
+    return { organizationId };
   }
 
   const session = await auth.api.getSession({ headers: request.headers });
@@ -142,7 +134,10 @@ export async function resolveCreatorContext(
 
   const apiKeyAuth = await authenticateApiKey(request);
   if (apiKeyAuth.authenticated) {
-    return resolveCreatorFromApiKey(request, apiKeyAuth);
+    return validateCreatorFields(
+      apiKeyAuth.organizationId ?? null,
+      apiKeyAuth.userId ?? null
+    );
   }
 
   const session = await auth.api.getSession({ headers: request.headers });
@@ -174,79 +169,4 @@ function validateCreatorFields(
     };
   }
   return { organizationId, userId };
-}
-
-async function resolveCreatorFromApiKey(
-  request: Request,
-  apiKeyAuth: Awaited<ReturnType<typeof authenticateApiKey>>
-): Promise<
-  { organizationId: string; userId: string } | { error: string; status: number }
-> {
-  const defaultOrgId = apiKeyAuth.organizationId ?? null;
-  const userId = apiKeyAuth.userId ?? null;
-  const validated = validateCreatorFields(defaultOrgId, userId);
-  if ("error" in validated) {
-    return validated;
-  }
-
-  const overrideResult = await resolveOrganizationOverride(
-    request,
-    validated.organizationId,
-    validated.userId
-  );
-  if ("error" in overrideResult) {
-    return { error: overrideResult.error, status: overrideResult.status };
-  }
-  return {
-    organizationId: overrideResult.organizationId,
-    userId: validated.userId,
-  };
-}
-
-/**
- * Resolves an optional organization override from the X-Organization-Id header.
- * If the header is present, validates that the given userId is a member of
- * the target organization. Returns the override org ID if valid, or the
- * default org ID if no override is requested.
- *
- * @param request - The incoming HTTP request (checks X-Organization-Id header)
- * @param defaultOrgId - The organization ID from auth (API key or session)
- * @param userId - The user ID to verify membership for
- * @returns The resolved organization ID, or an error
- */
-export async function resolveOrganizationOverride(
-  request: Request,
-  defaultOrgId: string,
-  userId: string | null
-): Promise<{ organizationId: string } | { error: string; status: number }> {
-  const overrideOrgId = request.headers.get("x-organization-id");
-
-  if (!overrideOrgId || overrideOrgId === defaultOrgId) {
-    return { organizationId: defaultOrgId };
-  }
-
-  if (!userId) {
-    return {
-      error:
-        "Organization override requires an API key with an associated user. Recreate the API key from the web app.",
-      status: 400,
-    };
-  }
-
-  const [membership] = await db
-    .select({ id: member.id })
-    .from(member)
-    .where(
-      and(eq(member.organizationId, overrideOrgId), eq(member.userId, userId))
-    )
-    .limit(1);
-
-  if (!membership) {
-    return {
-      error: `User is not a member of organization ${overrideOrgId}`,
-      status: 403,
-    };
-  }
-
-  return { organizationId: overrideOrgId };
 }

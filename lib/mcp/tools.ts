@@ -44,18 +44,13 @@ async function callApi(
   authHeader: string,
   path: string,
   method: string,
-  body?: unknown,
-  organizationId?: string
+  body?: unknown
 ): Promise<ApiResponse> {
   const url = `${baseUrl}${path}`;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: authHeader,
   };
-
-  if (organizationId) {
-    headers["X-Organization-Id"] = organizationId;
-  }
 
   const response = await fetch(url, {
     method,
@@ -100,16 +95,10 @@ export function registerTools(
         .string()
         .optional()
         .describe("Optional tag ID to filter workflows"),
-      organizationId: z
-        .string()
-        .optional()
-        .describe(
-          "Optional organization ID to override the API key's default org. The API key creator must be a member of the target org."
-        ),
     },
     { title: "List Workflows", readOnlyHint: true, destructiveHint: false },
     withScopeCheck("list_workflows", scope, async (args) =>
-      withToolLogging("list_workflows", args.organizationId, async () => {
+      withToolLogging("list_workflows", undefined, async () => {
         const params = new URLSearchParams();
         if (args.projectId) {
           params.set("projectId", args.projectId);
@@ -119,14 +108,7 @@ export function registerTools(
         }
         const query = params.toString();
         const path = `/api/workflows${query ? `?${query}` : ""}`;
-        const data = await callApi(
-          baseUrl,
-          authHeader,
-          path,
-          "GET",
-          undefined,
-          args.organizationId
-        );
+        const data = await callApi(baseUrl, authHeader, path, "GET");
         return {
           content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
         };
@@ -139,23 +121,15 @@ export function registerTools(
     "Get a single workflow by ID, including its nodes, edges, and configuration.",
     {
       workflowId: z.string().describe("The workflow ID"),
-      organizationId: z
-        .string()
-        .optional()
-        .describe(
-          "Optional organization ID to override the API key's default org."
-        ),
     },
     { title: "Get Workflow", readOnlyHint: true, destructiveHint: false },
     withScopeCheck("get_workflow", scope, async (args) =>
-      withToolLogging("get_workflow", args.organizationId, async () => {
+      withToolLogging("get_workflow", undefined, async () => {
         const data = await callApi(
           baseUrl,
           authHeader,
           `/api/workflows/${args.workflowId}`,
-          "GET",
-          undefined,
-          args.organizationId
+          "GET"
         );
         return {
           content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -187,16 +161,10 @@ export function registerTools(
         .string()
         .optional()
         .describe("Optional tag ID to label the workflow"),
-      organizationId: z
-        .string()
-        .optional()
-        .describe(
-          "Optional organization ID to override the API key's default org."
-        ),
     },
     { title: "Create Workflow", readOnlyHint: false, destructiveHint: false },
     withScopeCheck("create_workflow", scope, async (args) =>
-      withToolLogging("create_workflow", args.organizationId, async () => {
+      withToolLogging("create_workflow", undefined, async () => {
         const data = await callApi(
           baseUrl,
           authHeader,
@@ -209,8 +177,7 @@ export function registerTools(
             edges: args.edges,
             projectId: args.projectId,
             tagId: args.tagId,
-          },
-          args.organizationId
+          }
         );
         return {
           content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -244,24 +211,17 @@ export function registerTools(
         .nullable()
         .optional()
         .describe("Tag ID to assign (null to unassign)"),
-      organizationId: z
-        .string()
-        .optional()
-        .describe(
-          "Optional organization ID to override the API key's default org."
-        ),
     },
     { title: "Update Workflow", readOnlyHint: false, destructiveHint: false },
     withScopeCheck("update_workflow", scope, async (args) =>
-      withToolLogging("update_workflow", args.organizationId, async () => {
-        const { workflowId, organizationId, ...body } = args;
+      withToolLogging("update_workflow", undefined, async () => {
+        const { workflowId, ...body } = args;
         const data = await callApi(
           baseUrl,
           authHeader,
           `/api/workflows/${workflowId}`,
           "PATCH",
-          body,
-          organizationId
+          body
         );
         return {
           content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -275,23 +235,15 @@ export function registerTools(
     "Delete a workflow by ID. This action is irreversible.",
     {
       workflowId: z.string().describe("The workflow ID to delete"),
-      organizationId: z
-        .string()
-        .optional()
-        .describe(
-          "Optional organization ID to override the API key's default org."
-        ),
     },
     { title: "Delete Workflow", readOnlyHint: false, destructiveHint: true },
     withScopeCheck("delete_workflow", scope, async (args) =>
-      withToolLogging("delete_workflow", args.organizationId, async () => {
+      withToolLogging("delete_workflow", undefined, async () => {
         const data = await callApi(
           baseUrl,
           authHeader,
           `/api/workflows/${args.workflowId}`,
-          "DELETE",
-          undefined,
-          args.organizationId
+          "DELETE"
         );
         return {
           content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -313,23 +265,16 @@ export function registerTools(
         .record(z.string(), z.unknown())
         .optional()
         .describe("Optional input data to pass to the workflow trigger"),
-      organizationId: z
-        .string()
-        .optional()
-        .describe(
-          "Optional organization ID to override the API key's default org. Use this to execute workflows under a different org's context (wallet, settings)."
-        ),
     },
     { title: "Execute Workflow", readOnlyHint: false, destructiveHint: false },
     withScopeCheck("execute_workflow", scope, async (args) =>
-      withToolLogging("execute_workflow", args.organizationId, async () => {
+      withToolLogging("execute_workflow", undefined, async () => {
         const data = await callApi(
           baseUrl,
           authHeader,
           `/api/workflow/${args.workflowId}/execute`,
           "POST",
-          { input: args.input ?? {} },
-          args.organizationId
+          { input: args.input ?? {} }
         );
         return {
           content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -529,24 +474,15 @@ export function registerTools(
   server.tool(
     "list_integrations",
     "List all configured integrations (credentials) for the organization. These are required for actions like Discord notifications or Sendgrid emails.",
-    {
-      organizationId: z
-        .string()
-        .optional()
-        .describe(
-          "Optional organization ID to override the API key's default org."
-        ),
-    },
+    {},
     { title: "List Integrations", readOnlyHint: true, destructiveHint: false },
-    withScopeCheck("list_integrations", scope, async (args) =>
-      withToolLogging("list_integrations", args.organizationId, async () => {
+    withScopeCheck("list_integrations", scope, async (_args) =>
+      withToolLogging("list_integrations", undefined, async () => {
         const data = await callApi(
           baseUrl,
           authHeader,
           "/api/integrations",
-          "GET",
-          undefined,
-          args.organizationId
+          "GET"
         );
         return {
           content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -560,12 +496,6 @@ export function registerTools(
     "Get details for a specific wallet integration. Required for web3 write actions like fund transfers and contract writes.",
     {
       integrationId: z.string().describe("The integration (wallet) ID"),
-      organizationId: z
-        .string()
-        .optional()
-        .describe(
-          "Optional organization ID to override the API key's default org."
-        ),
     },
     {
       title: "Get Wallet Integration",
@@ -573,23 +503,17 @@ export function registerTools(
       destructiveHint: false,
     },
     withScopeCheck("get_wallet_integration", scope, async (args) =>
-      withToolLogging(
-        "get_wallet_integration",
-        args.organizationId,
-        async () => {
-          const data = await callApi(
-            baseUrl,
-            authHeader,
-            `/api/integrations/${args.integrationId}`,
-            "GET",
-            undefined,
-            args.organizationId
-          );
-          return {
-            content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-          };
-        }
-      )
+      withToolLogging("get_wallet_integration", undefined, async () => {
+        const data = await callApi(
+          baseUrl,
+          authHeader,
+          `/api/integrations/${args.integrationId}`,
+          "GET"
+        );
+        return {
+          content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+        };
+      })
     )
   );
 
@@ -1056,12 +980,6 @@ export function registerMetaTools(
         .describe(
           "Action parameters as key-value pairs (e.g., {network: '1', address: '0x...'}). Use search_protocol_actions to discover required params."
         ),
-      organizationId: z
-        .string()
-        .optional()
-        .describe(
-          "Optional organization ID to override the API key's default org."
-        ),
     },
     {
       title: "Execute Protocol Action",
@@ -1069,44 +987,39 @@ export function registerMetaTools(
       destructiveHint: false,
     },
     withScopeCheck("execute_protocol_action", scope, async (args) =>
-      withToolLogging(
-        "execute_protocol_action",
-        args.organizationId,
-        async () => {
-          const parts = args.actionType.split("/");
-          if (parts.length < 2) {
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: JSON.stringify({
-                    error: "Invalid actionType format",
-                    message:
-                      "actionType must be in 'protocol/action-slug' format (e.g., 'chronicle/eth-usd-read')",
-                  }),
-                },
-              ],
-              isError: true,
-            };
-          }
-
-          const integration = parts[0];
-          const slug = parts.slice(1).join("/");
-
-          const data = await callApi(
-            baseUrl,
-            authHeader,
-            `/api/execute/${integration}/${slug}`,
-            "POST",
-            args.params as Record<string, unknown>,
-            args.organizationId
-          );
-
+      withToolLogging("execute_protocol_action", undefined, async () => {
+        const parts = args.actionType.split("/");
+        if (parts.length < 2) {
           return {
-            content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  error: "Invalid actionType format",
+                  message:
+                    "actionType must be in 'protocol/action-slug' format (e.g., 'chronicle/eth-usd-read')",
+                }),
+              },
+            ],
+            isError: true,
           };
         }
-      )
+
+        const integration = parts[0];
+        const slug = parts.slice(1).join("/");
+
+        const data = await callApi(
+          baseUrl,
+          authHeader,
+          `/api/execute/${integration}/${slug}`,
+          "POST",
+          args.params as Record<string, unknown>
+        );
+
+        return {
+          content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+        };
+      })
     )
   );
 }
