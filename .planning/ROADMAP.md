@@ -24,7 +24,7 @@ Phases 1-24.1 completed. See MILESTONES.md for details.
 **Milestone Goal:** Wire runtime evaluation into the KeeperHub development pipeline so features can be built, tested against a live app, and iterated fully autonomously.
 
 - [x] **Phase 25: Loop Architecture and Evaluator Agent** - Define the evaluator agent, file formats, and loop termination contracts before any code runs (completed 2026-03-28)
-- [ ] **Phase 26: Dev Server Lifecycle and Evaluation Harness** - Reliable server startup, seed isolation, and evaluation script infrastructure
+- [x] **Phase 26: Dev Server Lifecycle and Evaluation Harness** - Reliable server startup, seed isolation, and evaluation script infrastructure (completed 2026-03-28)
 - [ ] **Phase 27: Scoring, Output, and Gap Closure** - Per-criterion scoring, EVAL.md report, and gap-to-fix-plan pipeline
 - [ ] **Phase 28: execute-phase Integration** - Conditional evaluate-after-build gate wired into existing execute-phase and autonomous workflows
 - [ ] **Phase 29: Build-Evaluate Command and Calibration** - Standalone /gsd:build-evaluate command with calibration fixtures and quality gates
@@ -61,8 +61,8 @@ Plans:
 
 Plans:
 - [x] 26-01-PLAN.md -- portless devDependency install and scripts/evaluate/seed-eval.ts per-round seed wrapper
-- [ ] 26-02-PLAN.md -- playwright.evaluate.config.ts with webServer lifecycle, JSON reporter, portless integration
-- [ ] 26-03-PLAN.md -- eval-harness.test.ts with @autonomous smoke tests and 26-EVAL-CONFIG.yml
+- [x] 26-02-PLAN.md -- playwright.evaluate.config.ts with webServer lifecycle, JSON reporter, portless integration
+- [x] 26-03-PLAN.md -- eval-harness.test.ts with @autonomous smoke tests and 26-EVAL-CONFIG.yml
 
 ### Phase 27: Scoring, Output, and Gap Closure
 **Goal**: Each success criterion from PLAN.md is independently scored PASS/FAIL with evidence, written to a structured EVAL.md report, and failing criteria generate actionable fix plans
@@ -105,7 +105,7 @@ Phases execute in numeric order: 25 -> 26 -> 27 -> 28 -> 29
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 25. Loop Architecture and Evaluator Agent | v1.6 | 2/2 | Complete   | 2026-03-28 |
-| 26. Dev Server Lifecycle and Evaluation Harness | v1.6 | 1/3 | In Progress|  |
+| 26. Dev Server Lifecycle and Evaluation Harness | v1.6 | 3/3 | Complete   | 2026-03-28 |
 | 27. Scoring, Output, and Gap Closure | v1.6 | 0/TBD | Not started | - |
 | 28. execute-phase Integration | v1.6 | 0/TBD | Not started | - |
 | 29. Build-Evaluate Command and Calibration | v1.6 | 0/TBD | Not started | - |
