@@ -1,1 +1,0 @@
-Seed failure fixture. Seed script exits non-zero. Tests that evaluator sets seed_ran: false in EVAL.md and continues to evaluate criteria (seeds are best-effort per spec). Not runnable -- synthetic test paths.
