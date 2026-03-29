@@ -263,6 +263,10 @@ async function resolveSession(
       scope: result.payload.scope,
     });
 
+    // Cache under the renewed ID so the client's next request hits the fast path.
+    setSession(renewedSessionId, entry);
+    deleteSession(sessionId);
+
     logMcpEvent("mcp.session.renewed", {
       oldSessionId: sessionId,
       newSessionId: renewedSessionId,
