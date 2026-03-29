@@ -9,21 +9,16 @@
  * - A new system credential is introduced
  */
 export const RUNNER_SYSTEM_ENV_VARS = [
-  // Web3 plugin (ETHERSCAN_API_KEY is in CONFIG, passed explicitly in k8s-job.ts)
-  "OPENAI_API_KEY",
-
-  // SendGrid plugin
-  "SENDGRID_API_KEY",
-  "FROM_ADDRESS",
-
-  // Credentials (lib/steps/credentials.ts)
-  "LINEAR_API_KEY",
-  "LINEAR_TEAM_ID",
-  "RESEND_API_KEY",
-  "RESEND_FROM_EMAIL",
-  "SLACK_API_KEY",
   "AI_GATEWAY_API_KEY",
   "FIRECRAWL_API_KEY",
+  "FROM_ADDRESS",
+  "LINEAR_API_KEY",
+  "LINEAR_TEAM_ID",
+  "OPENAI_API_KEY",
+  "RESEND_API_KEY",
+  "RESEND_FROM_EMAIL",
+  "SENDGRID_API_KEY",
+  "SLACK_API_KEY",
 ] as const;
 
 /**
