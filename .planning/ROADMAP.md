@@ -123,3 +123,13 @@ Phases execute in numeric order: 25 -> 26 -> 27 -> 28 -> 29
 | 27. Scoring, Output, and Gap Closure | v1.6 | 3/3 | Complete   | 2026-03-28 |
 | 28. execute-phase Integration | v1.6 | 1/2 | In Progress|  |
 | 29. Build-Evaluate Command and Calibration | v1.6 | 3/3 | Complete   | 2026-03-28 |
+
+### Phase 29.2: Fix nonce DB conflict on sequential direct executions (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 29
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 29.2 to break down)

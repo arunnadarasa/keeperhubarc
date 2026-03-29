@@ -102,6 +102,10 @@ Recent decisions affecting current work:
 - [Phase 29-build-evaluate-command-and-calibration]: Fixture 04 threshold 0.67 tests exact boundary: 2/3 = 0.666 < 0.67 = rejected (threshold 0.66 would pass)
 - [Phase 29]: max-rounds caps evaluation loop, not EVAL-CONFIG
 
+### Roadmap Evolution
+
+- Phase 29.2 inserted after Phase 29: Fix nonce DB conflict on sequential direct executions (URGENT)
+
 ### Pending Todos
 
 None yet.
