@@ -1,5 +1,6 @@
 import { BatchV1Api, KubeConfig, type V1Job } from "@kubernetes/client-node";
 import { CONFIG } from "./config";
+import { getRunnerSystemEnvVars } from "./runner-env";
 
 const kc = new KubeConfig();
 kc.loadFromDefault();
@@ -57,6 +58,8 @@ export async function createWorkflowJob(params: {
     { name: "PARA_ENVIRONMENT", value: CONFIG.paraEnvironment },
     { name: "WALLET_ENCRYPTION_KEY", value: CONFIG.walletEncryptionKey },
     { name: "CHAIN_RPC_CONFIG", value: CONFIG.chainRpcConfig },
+    { name: "ETHERSCAN_API_KEY", value: CONFIG.etherscanApiKey },
+    ...getRunnerSystemEnvVars(),
   ];
 
   if (scheduleId) {
