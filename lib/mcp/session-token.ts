@@ -6,10 +6,12 @@ export type SessionPayload = {
   scope?: string;
   iat: number;
   exp: number;
+  original_iat?: number;
 };
 
 export const SESSION_TTL_SECONDS = 24 * 60 * 60; // 24 hours
 export const MAX_RENEWAL_GRACE_SECONDS = 48 * 60 * 60; // 48 hours
+export const MAX_SESSION_LIFETIME_SECONDS = 30 * 24 * 60 * 60; // 30 days
 
 function getSessionSecret(): string {
   const secret =
@@ -61,6 +63,7 @@ export function createSessionToken(
     scope: payload.scope,
     iat: now,
     exp: now + SESSION_TTL_SECONDS,
+    original_iat: payload.original_iat ?? now,
   };
   const body = base64UrlEncode(JSON.stringify(claims));
   const signingInput = `${header}.${body}`;
@@ -78,7 +81,7 @@ export type VerifyResult =
   | {
       payload: null;
       expired: false;
-      reason: "invalid_signature" | "malformed" | "too_old";
+      reason: "invalid_signature" | "malformed" | "too_old" | "max_lifetime_exceeded";
     };
 
 export function verifySessionToken(
@@ -112,6 +115,11 @@ export function verifySessionTokenDetailed(token: string): VerifyResult {
 
     const payload = JSON.parse(base64UrlDecode(body)) as SessionPayload;
     const now = Math.floor(Date.now() / 1000);
+
+    const sessionOrigin = payload.original_iat ?? payload.iat;
+    if (now - sessionOrigin > MAX_SESSION_LIFETIME_SECONDS) {
+      return { payload: null, expired: false, reason: "max_lifetime_exceeded" };
+    }
 
     if (payload.exp < now) {
       if (now - payload.exp > MAX_RENEWAL_GRACE_SECONDS) {

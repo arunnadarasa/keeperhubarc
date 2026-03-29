@@ -261,6 +261,7 @@ async function resolveSession(
       org: result.payload.org,
       key: result.payload.key,
       scope: result.payload.scope,
+      original_iat: result.payload.original_iat ?? result.payload.iat,
     });
 
     // Cache under the renewed ID so the client's next request hits the fast path.

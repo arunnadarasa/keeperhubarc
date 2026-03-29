@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   createSessionToken,
   MAX_RENEWAL_GRACE_SECONDS,
+  MAX_SESSION_LIFETIME_SECONDS,
   SESSION_TTL_SECONDS,
   verifySessionToken,
   verifySessionTokenDetailed,
@@ -49,10 +50,12 @@ describe("createSessionToken produces 24-hour expiry", () => {
 });
 
 /**
- * Creates a token with exp set to `hoursAgo` hours in the past.
- * Re-signs with TEST_SECRET so the signature remains valid.
+ * Creates a token then re-signs it with modified claims.
+ * `overrides` is merged into the decoded JWT body before re-signing.
  */
-function createTokenExpiredAgo(hoursAgo: number): string {
+function createTokenWithOverrides(
+  overrides: Record<string, unknown>,
+): string {
   const token = createSessionToken({
     org: "org-1",
     key: "key-1",
@@ -68,7 +71,14 @@ function createTokenExpiredAgo(hoursAgo: number): string {
     ).toString("utf8"),
   );
 
-  body.exp = Math.floor(Date.now() / 1000) - hoursAgo * 60 * 60;
+  for (const [k, v] of Object.entries(overrides)) {
+    if (v === null) {
+      // biome-ignore lint/performance/noDelete: explicit removal of JWT claims for testing
+      delete body[k];
+    } else {
+      body[k] = v;
+    }
+  }
 
   const newBody = Buffer.from(JSON.stringify(body))
     .toString("base64")
@@ -76,7 +86,6 @@ function createTokenExpiredAgo(hoursAgo: number): string {
     .replace(/\//g, "_")
     .replace(/=/g, "");
 
-  // biome-ignore lint/style/noCommaOperator: re-sign requires inline import in test context
   const { createHmac } =
     require("node:crypto") as typeof import("node:crypto");
   const signingInput = `${header}.${newBody}`;
@@ -88,6 +97,12 @@ function createTokenExpiredAgo(hoursAgo: number): string {
     .replace(/=/g, "");
 
   return `${signingInput}.${signature}`;
+}
+
+function createTokenExpiredAgo(hoursAgo: number): string {
+  return createTokenWithOverrides({
+    exp: Math.floor(Date.now() / 1000) - hoursAgo * 60 * 60,
+  });
 }
 
 describe("verifySessionToken with expired but valid signature", () => {
@@ -175,6 +190,65 @@ describe("verifySessionToken rejects invalid signature", () => {
     expect(result.payload).toBeNull();
     if (!result.payload) {
       expect(result.reason).toBe("malformed");
+    }
+  });
+});
+
+describe("absolute max session lifetime", () => {
+  it("MAX_SESSION_LIFETIME_SECONDS is 2592000 (30 days)", () => {
+    expect(MAX_SESSION_LIFETIME_SECONDS).toBe(2_592_000);
+  });
+
+  it("accepts token with original_iat within 30 days", () => {
+    const twentyNineDaysAgo =
+      Math.floor(Date.now() / 1000) - 29 * 24 * 60 * 60;
+    const token = createTokenWithOverrides({
+      original_iat: twentyNineDaysAgo,
+    });
+    const result = verifySessionTokenDetailed(token);
+    expect(result.payload).not.toBeNull();
+    expect(result.expired).toBe(false);
+  });
+
+  it("rejects token with original_iat beyond 30 days", () => {
+    const thirtyOneDaysAgo =
+      Math.floor(Date.now() / 1000) - 31 * 24 * 60 * 60;
+    const token = createTokenWithOverrides({
+      original_iat: thirtyOneDaysAgo,
+    });
+    const result = verifySessionTokenDetailed(token);
+    expect(result.payload).toBeNull();
+    if (!result.payload) {
+      expect(result.reason).toBe("max_lifetime_exceeded");
+    }
+  });
+
+  it("falls back to iat when original_iat is absent", () => {
+    const thirtyOneDaysAgo =
+      Math.floor(Date.now() / 1000) - 31 * 24 * 60 * 60;
+    const token = createTokenWithOverrides({
+      iat: thirtyOneDaysAgo,
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      original_iat: null,
+    });
+    const result = verifySessionTokenDetailed(token);
+    expect(result.payload).toBeNull();
+    if (!result.payload) {
+      expect(result.reason).toBe("max_lifetime_exceeded");
+    }
+  });
+
+  it("propagates original_iat through createSessionToken", () => {
+    const originalIat = Math.floor(Date.now() / 1000) - 86400;
+    const token = createSessionToken({
+      org: "org-1",
+      key: "key-1",
+      original_iat: originalIat,
+    });
+    const result = verifySessionTokenDetailed(token);
+    expect(result.payload).not.toBeNull();
+    if (result.payload) {
+      expect(result.payload.original_iat).toBe(originalIat);
     }
   });
 });
