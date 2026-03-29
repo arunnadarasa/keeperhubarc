@@ -211,7 +211,13 @@ async function resolveSession(
   const result = verifySessionTokenDetailed(sessionId);
 
   if (!result.payload) {
-    return { ok: false, code: "session_not_found" };
+    const isExpiredBeyondRenewal =
+      "reason" in result &&
+      (result.reason === "too_old" || result.reason === "max_lifetime_exceeded");
+    return {
+      ok: false,
+      code: isExpiredBeyondRenewal ? "session_expired" : "session_not_found",
+    };
   }
 
   if (result.payload.org !== organizationId) {
