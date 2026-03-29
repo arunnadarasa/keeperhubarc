@@ -225,7 +225,8 @@ async function resolveSession(
   if (!result.payload) {
     const isExpiredBeyondRenewal =
       "reason" in result &&
-      (result.reason === "too_old" || result.reason === "max_lifetime_exceeded");
+      (result.reason === "too_old" ||
+        result.reason === "max_lifetime_exceeded");
     return {
       ok: false,
       code: isExpiredBeyondRenewal ? "session_expired" : "session_not_found",

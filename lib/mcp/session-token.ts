@@ -81,7 +81,11 @@ export type VerifyResult =
   | {
       payload: null;
       expired: false;
-      reason: "invalid_signature" | "malformed" | "too_old" | "max_lifetime_exceeded";
+      reason:
+        | "invalid_signature"
+        | "malformed"
+        | "too_old"
+        | "max_lifetime_exceeded";
     };
 
 export function verifySessionToken(

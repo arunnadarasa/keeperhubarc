@@ -53,9 +53,7 @@ describe("createSessionToken produces 24-hour expiry", () => {
  * Creates a token then re-signs it with modified claims.
  * `overrides` is merged into the decoded JWT body before re-signing.
  */
-function createTokenWithOverrides(
-  overrides: Record<string, unknown>,
-): string {
+function createTokenWithOverrides(overrides: Record<string, unknown>): string {
   const token = createSessionToken({
     org: "org-1",
     key: "key-1",
@@ -67,13 +65,12 @@ function createTokenWithOverrides(
   const body = JSON.parse(
     Buffer.from(
       parts[1].replace(/-/g, "+").replace(/_/g, "/"),
-      "base64",
-    ).toString("utf8"),
+      "base64"
+    ).toString("utf8")
   );
 
   for (const [k, v] of Object.entries(overrides)) {
     if (v === null) {
-      // biome-ignore lint/performance/noDelete: explicit removal of JWT claims for testing
       delete body[k];
     } else {
       body[k] = v;
@@ -86,8 +83,7 @@ function createTokenWithOverrides(
     .replace(/\//g, "_")
     .replace(/=/g, "");
 
-  const { createHmac } =
-    require("node:crypto") as typeof import("node:crypto");
+  const { createHmac } = require("node:crypto") as typeof import("node:crypto");
   const signingInput = `${header}.${newBody}`;
   const signature = createHmac("sha256", TEST_SECRET)
     .update(signingInput)
@@ -200,8 +196,7 @@ describe("absolute max session lifetime", () => {
   });
 
   it("accepts token with original_iat within 30 days", () => {
-    const twentyNineDaysAgo =
-      Math.floor(Date.now() / 1000) - 29 * 24 * 60 * 60;
+    const twentyNineDaysAgo = Math.floor(Date.now() / 1000) - 29 * 24 * 60 * 60;
     const token = createTokenWithOverrides({
       original_iat: twentyNineDaysAgo,
     });
@@ -211,8 +206,7 @@ describe("absolute max session lifetime", () => {
   });
 
   it("rejects token with original_iat beyond 30 days", () => {
-    const thirtyOneDaysAgo =
-      Math.floor(Date.now() / 1000) - 31 * 24 * 60 * 60;
+    const thirtyOneDaysAgo = Math.floor(Date.now() / 1000) - 31 * 24 * 60 * 60;
     const token = createTokenWithOverrides({
       original_iat: thirtyOneDaysAgo,
     });
@@ -224,8 +218,7 @@ describe("absolute max session lifetime", () => {
   });
 
   it("falls back to iat when original_iat is absent", () => {
-    const thirtyOneDaysAgo =
-      Math.floor(Date.now() / 1000) - 31 * 24 * 60 * 60;
+    const thirtyOneDaysAgo = Math.floor(Date.now() / 1000) - 31 * 24 * 60 * 60;
     const token = createTokenWithOverrides({
       iat: thirtyOneDaysAgo,
       exp: Math.floor(Date.now() / 1000) + 3600,
@@ -239,7 +232,7 @@ describe("absolute max session lifetime", () => {
   });
 
   it("propagates original_iat through createSessionToken", () => {
-    const originalIat = Math.floor(Date.now() / 1000) - 86400;
+    const originalIat = Math.floor(Date.now() / 1000) - 86_400;
     const token = createSessionToken({
       org: "org-1",
       key: "key-1",
