@@ -61,8 +61,14 @@ export async function createWorkflowJob(params: {
     ...(CONFIG.etherscanApiKey
       ? [{ name: "ETHERSCAN_API_KEY", value: CONFIG.etherscanApiKey }]
       : []),
-    ...getRunnerSystemEnvVars(),
   ];
+
+  const explicitNames = new Set(envVars.map((v) => v.name));
+  for (const systemVar of getRunnerSystemEnvVars()) {
+    if (!explicitNames.has(systemVar.name)) {
+      envVars.push(systemVar);
+    }
+  }
 
   if (scheduleId) {
     envVars.push({ name: "SCHEDULE_ID", value: scheduleId });
