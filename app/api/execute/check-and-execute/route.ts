@@ -216,9 +216,19 @@ export async function POST(request: Request): Promise<NextResponse> {
     stateMutability?: string;
   }>;
   const actionFn = actionAbiParsed.find((f) => f.name === action.functionName);
+
+  if (!actionFn) {
+    return NextResponse.json(
+      {
+        error: `Function "${action.functionName}" not found in action ABI`,
+        field: "action.functionName",
+      },
+      { status: 400 }
+    );
+  }
+
   const isReadOnly =
-    actionFn?.stateMutability === "view" ||
-    actionFn?.stateMutability === "pure";
+    actionFn.stateMutability === "view" || actionFn.stateMutability === "pure";
 
   if (isReadOnly) {
     return executeConditionalRead(

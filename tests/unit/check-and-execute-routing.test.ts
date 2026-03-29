@@ -193,4 +193,20 @@ describe("check-and-execute routing", () => {
     // readContractCore called exactly once (the condition check only, not the action)
     expect(mockReadContractCore).toHaveBeenCalledTimes(1);
   });
+
+  it("should return 400 when action function name is not found in ABI", async () => {
+    const body = makeBody("nonpayable");
+    // Set a function name that doesn't exist in the action ABI
+    (body.action as Record<string, unknown>).functionName =
+      "nonExistentFunction";
+    const req = createRequest(body);
+    const res = await POST(req);
+
+    expect(res.status).toBe(400);
+    const json = (await res.json()) as { error: string; field: string };
+    expect(json.error).toContain("nonExistentFunction");
+    expect(json.field).toBe("action.functionName");
+    expect(mockWriteContractCore).not.toHaveBeenCalled();
+    expect(mockReadContractCore).toHaveBeenCalledTimes(1);
+  });
 });
