@@ -1,8 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  RUNNER_SYSTEM_ENV_VARS,
-  getRunnerSystemEnvVars,
-} from "./runner-env";
+import { getRunnerSystemEnvVars, RUNNER_SYSTEM_ENV_VARS } from "./runner-env";
 
 describe("runner-env", () => {
   const originalEnv = process.env;

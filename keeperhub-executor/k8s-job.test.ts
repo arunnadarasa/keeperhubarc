@@ -1,13 +1,5 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-  type Mock,
-} from "vitest";
 import type { V1Job } from "@kubernetes/client-node";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 let mockCreateNamespacedJob: Mock;
 
@@ -17,7 +9,9 @@ vi.mock("@kubernetes/client-node", () => {
   } as V1Job);
 
   class MockKubeConfig {
-    loadFromDefault(): void {}
+    loadFromDefault(): void {
+      // no-op for test mock
+    }
     makeApiClient(): { createNamespacedJob: Mock } {
       return { createNamespacedJob: mockCreateNamespacedJob };
     }
@@ -179,7 +173,9 @@ describe("createWorkflowJob", () => {
     expect(getEnvVar(envVars, "WORKFLOW_ID")).toBe("wf-1");
     expect(getEnvVar(envVars, "EXECUTION_ID")).toBe("exec-1234abcd");
     expect(getEnvVar(envVars, "WORKFLOW_INPUT")).toBe('{"test":true}');
-    expect(getEnvVar(envVars, "DATABASE_URL")).toBe("postgres://localhost/test");
+    expect(getEnvVar(envVars, "DATABASE_URL")).toBe(
+      "postgres://localhost/test"
+    );
     expect(getEnvVar(envVars, "INTEGRATION_ENCRYPTION_KEY")).toBe(
       "test-enc-key"
     );
