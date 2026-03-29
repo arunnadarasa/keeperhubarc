@@ -177,6 +177,18 @@ function buildSession(
   return { transport, entry };
 }
 
+const SESSION_ERROR_MESSAGES: Record<string, string> = {
+  session_not_found: "Session not found",
+  session_expired: "Session expired",
+};
+
+function sessionErrorBody(code: string): string {
+  return JSON.stringify({
+    error: code,
+    message: SESSION_ERROR_MESSAGES[code] ?? code,
+  });
+}
+
 type ResolveSessionOk = {
   ok: true;
   transport: WebStandardStreamableHTTPServerTransport;
@@ -327,7 +339,7 @@ export async function POST(request: Request): Promise<Response> {
   if (sessionId) {
     const resolved = await resolveSession(sessionId, organizationId, request);
     if (!resolved.ok) {
-      return new Response(JSON.stringify({ error: resolved.code }), {
+      return new Response(sessionErrorBody(resolved.code), {
         status: 404,
         headers: { "Content-Type": "application/json", ...CORS_HEADERS },
       });
@@ -430,7 +442,7 @@ export async function GET(request: Request): Promise<Response> {
   const organizationId = auth.organizationId ?? "";
   const resolved = await resolveSession(sessionId, organizationId, request);
   if (!resolved.ok) {
-    return new Response(JSON.stringify({ error: resolved.code }), {
+    return new Response(sessionErrorBody(resolved.code), {
       status: 404,
       headers: { "Content-Type": "application/json", ...CORS_HEADERS },
     });
@@ -472,7 +484,7 @@ export async function DELETE(request: Request): Promise<Response> {
   // Accept expired JWTs so clients can clean up old sessions.
   const payload = verifySessionToken(sessionId, { allowExpired: true });
   if (!payload || payload.org !== organizationId) {
-    return new Response(JSON.stringify({ error: "session_not_found" }), {
+    return new Response(sessionErrorBody("session_not_found"), {
       status: 404,
       headers: { "Content-Type": "application/json", ...CORS_HEADERS },
     });
