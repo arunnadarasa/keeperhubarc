@@ -9,6 +9,7 @@ export type SessionPayload = {
 };
 
 export const SESSION_TTL_SECONDS = 24 * 60 * 60; // 24 hours
+export const MAX_RENEWAL_GRACE_SECONDS = 48 * 60 * 60; // 48 hours
 
 function getSessionSecret(): string {
   const secret =
@@ -77,7 +78,7 @@ export type VerifyResult =
   | {
       payload: null;
       expired: false;
-      reason: "invalid_signature" | "malformed";
+      reason: "invalid_signature" | "malformed" | "too_old";
     };
 
 export function verifySessionToken(
@@ -113,6 +114,9 @@ export function verifySessionTokenDetailed(token: string): VerifyResult {
     const now = Math.floor(Date.now() / 1000);
 
     if (payload.exp < now) {
+      if (now - payload.exp > MAX_RENEWAL_GRACE_SECONDS) {
+        return { payload: null, expired: false, reason: "too_old" };
+      }
       return { payload, expired: true };
     }
 
