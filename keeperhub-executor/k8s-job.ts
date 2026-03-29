@@ -58,7 +58,9 @@ export async function createWorkflowJob(params: {
     { name: "PARA_ENVIRONMENT", value: CONFIG.paraEnvironment },
     { name: "WALLET_ENCRYPTION_KEY", value: CONFIG.walletEncryptionKey },
     { name: "CHAIN_RPC_CONFIG", value: CONFIG.chainRpcConfig },
-    { name: "ETHERSCAN_API_KEY", value: CONFIG.etherscanApiKey },
+    ...(CONFIG.etherscanApiKey
+      ? [{ name: "ETHERSCAN_API_KEY", value: CONFIG.etherscanApiKey }]
+      : []),
     ...getRunnerSystemEnvVars(),
   ];
 
