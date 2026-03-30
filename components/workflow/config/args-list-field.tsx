@@ -97,7 +97,10 @@ export function serializeArgsList(entries: ArgSetEntry[]): string {
         if (typeof v === "string") {
           return v.trim() !== "";
         }
-        return Array.isArray(v) && v.length > 0;
+        if (Array.isArray(v)) {
+          return v.length > 0;
+        }
+        return typeof v === "object" && v !== null;
       })
     )
     .map((e) => e.values);

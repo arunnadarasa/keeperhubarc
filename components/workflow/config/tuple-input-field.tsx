@@ -59,11 +59,9 @@ export function TupleInputField({
     <div className="space-y-2 rounded-md border border-border/50 p-2.5">
       {components.map((comp) => {
         const isArray = comp.type.endsWith("[]");
-        const isTuple =
-          comp.type === "tuple" ||
-          (isArray && comp.type === "tuple[]");
         const hasSubs =
           comp.components !== undefined && comp.components.length > 0;
+        const isTuple = comp.type === "tuple" && hasSubs;
 
         return (
           <div className="space-y-1" key={`${fieldKey}-${comp.name}`}>
@@ -80,11 +78,11 @@ export function TupleInputField({
                 components={hasSubs ? comp.components : undefined}
                 disabled={disabled}
                 fieldKey={`${fieldKey}-${comp.name}`}
-                itemType={isArray ? comp.type.slice(0, -2) : comp.type}
+                itemType={comp.type.slice(0, -2)}
                 onChange={(val) => handleFieldChange(comp.name, val)}
                 value={obj[comp.name]}
               />
-            ) : isTuple && hasSubs ? (
+            ) : isTuple ? (
               <TupleInputField
                 components={comp.components ?? []}
                 disabled={disabled}
