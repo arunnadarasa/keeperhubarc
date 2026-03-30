@@ -18,6 +18,8 @@ type SponsoredTransactionResult = {
   success: true;
   transactionHash: string;
   gasUsed: string;
+  gasUsedUnits: string;
+  effectiveGasPrice: string;
   sponsored: true;
 } | null;
 
@@ -255,6 +257,8 @@ async function finalizeSponsoredTx(
     success: true,
     transactionHash: txHash,
     gasUsed: gasUsed.toString(),
+    gasUsedUnits: gasUsed.toString(),
+    effectiveGasPrice: effectiveGasPrice.toString(),
     sponsored: true,
   };
 }

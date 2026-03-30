@@ -21,6 +21,7 @@ import {
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
 import { getErrorMessage } from "@/lib/utils";
+import { generateId } from "@/lib/utils/id";
 import { getChainAdapter } from "@/lib/web3/chain-adapter";
 import { formatContractError } from "@/lib/web3/decode-revert-error";
 import { resolveGasLimitOverrides } from "@/lib/web3/gas-defaults";
@@ -53,6 +54,8 @@ export type ApproveTokenResult =
       transactionHash: string;
       transactionLink: string;
       gasUsed: string;
+      gasUsedUnits: string;
+      effectiveGasPrice: string;
       approvedAmount: string;
       spender: string;
       symbol: string;
@@ -184,7 +187,7 @@ export async function approveTokenCore(
   // Build transaction context
   const txContext: TransactionContext = {
     organizationId,
-    executionId: _context.executionId ?? "direct-execution",
+    executionId: _context.executionId ?? `direct-${generateId()}`,
     workflowId,
     chainId,
     rpcUrl,
@@ -237,6 +240,8 @@ export async function approveTokenCore(
           transactionHash: sponsoredResult.transactionHash,
           transactionLink,
           gasUsed: sponsoredResult.gasUsed,
+          gasUsedUnits: sponsoredResult.gasUsedUnits,
+          effectiveGasPrice: sponsoredResult.effectiveGasPrice,
           approvedAmount: approvedAmountDisplay,
           spender: spenderAddress,
           symbol,
@@ -323,6 +328,8 @@ export async function approveTokenCore(
         workflowId,
       });
 
+      const gasUsedUnits = receipt.gasUsed.toString();
+      const effectiveGasPrice = receipt.effectiveGasPrice.toString();
       const gasCostWei = (receipt.gasUsed * receipt.effectiveGasPrice).toString();
       const transactionLink = await adapter.getTransactionUrl(receipt.hash);
 
@@ -331,6 +338,8 @@ export async function approveTokenCore(
         transactionHash: receipt.hash,
         transactionLink,
         gasUsed: gasCostWei,
+        gasUsedUnits,
+        effectiveGasPrice,
         approvedAmount: approvedAmountDisplay,
         spender: spenderAddress,
         symbol,
