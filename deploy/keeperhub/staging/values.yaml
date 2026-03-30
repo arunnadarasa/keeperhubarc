@@ -332,8 +332,9 @@ env:
     name: pimlico-api-key
     parameter_name: /eks/techops-staging/keeperhub/pimlico-api-key
   PIMLICO_BASE_URL:
-    type: kv
-    value: "https://api.pimlico.io/v2"
+    type: parameterStore
+    name: pimlico-base-url
+    parameter_name: /eks/techops-staging/keeperhub/pimlico-base-url
   SIMPLE_ACCOUNT_7702_ADDRESS:
     type: parameterStore
     name: simple-account-7702-address
