@@ -10,6 +10,7 @@ import { createMcpServer } from "@/lib/mcp/server";
 import {
   createSessionToken,
   verifySessionToken,
+  verifySessionTokenDetailed,
 } from "@/lib/mcp/session-token";
 import {
   deleteSession,
@@ -34,6 +35,40 @@ const CORS_HEADERS = {
 startCleanupInterval();
 
 const TRAILING_SLASH = /\/$/;
+
+/**
+ * Ensure the request carries the Accept header the MCP SDK requires.
+ * Some MCP clients (e.g. Claude Code) omit `text/event-stream` from Accept,
+ * which causes the SDK to return 406 even when `enableJsonResponse` is true.
+ * We patch the header here so the transport's strict check passes.
+ */
+function ensureMcpAcceptHeader(request: Request): Request {
+  const accept = request.headers.get("accept") ?? "";
+  const hasJson = accept.includes("application/json");
+  const hasSse = accept.includes("text/event-stream");
+
+  if (hasJson && hasSse) {
+    return request;
+  }
+
+  const parts = accept ? [accept] : [];
+  if (!hasJson) {
+    parts.push("application/json");
+  }
+  if (!hasSse) {
+    parts.push("text/event-stream");
+  }
+
+  const headers = new Headers(request.headers);
+  headers.set("accept", parts.join(", "));
+  return new Request(request.url, {
+    method: request.method,
+    headers,
+    body: request.body,
+    // @ts-expect-error -- duplex is required for streaming bodies in Node
+    duplex: "half",
+  });
+}
 
 function getBaseUrl(request: Request): string {
   const envUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.BETTER_AUTH_URL;
@@ -142,25 +177,64 @@ function buildSession(
   return { transport, entry };
 }
 
+const SESSION_ERROR_MESSAGES: Record<string, string> = {
+  session_not_found: "Session not found",
+  session_expired: "Session expired",
+};
+
+function sessionErrorBody(code: string): string {
+  return JSON.stringify({
+    error: code,
+    message: SESSION_ERROR_MESSAGES[code] ?? code,
+  });
+}
+
+type ResolveSessionOk = {
+  ok: true;
+  transport: WebStandardStreamableHTTPServerTransport;
+  renewedSessionId?: string;
+};
+
+type ResolveSessionError = {
+  ok: false;
+  code: "session_not_found" | "session_expired";
+};
+
+type ResolveSessionResult = ResolveSessionOk | ResolveSessionError;
+
 async function resolveSession(
   sessionId: string,
   organizationId: string,
   request: Request
-): Promise<WebStandardStreamableHTTPServerTransport | null> {
+): Promise<ResolveSessionResult> {
   // Fast path: same-pod cache hit.
   const cached = getSession(sessionId);
   if (cached) {
     if (cached.organizationId !== organizationId) {
-      return null;
+      return { ok: false, code: "session_not_found" };
     }
     touchSession(sessionId);
-    return cached.transport;
+    return { ok: true, transport: cached.transport };
   }
 
   // Slow path: verify JWT and reconstruct transport+server (different pod or restart).
-  const payload = verifySessionToken(sessionId);
-  if (!payload || payload.org !== organizationId) {
-    return null;
+  // Accept expired-but-valid-signature JWTs so sessions survive pod restarts
+  // and idle periods within the 24h sliding window.
+  const result = verifySessionTokenDetailed(sessionId);
+
+  if (!result.payload) {
+    const isExpiredBeyondRenewal =
+      "reason" in result &&
+      (result.reason === "too_old" ||
+        result.reason === "max_lifetime_exceeded");
+    return {
+      ok: false,
+      code: isExpiredBeyondRenewal ? "session_expired" : "session_not_found",
+    };
+  }
+
+  if (result.payload.org !== organizationId) {
+    return { ok: false, code: "session_not_found" };
   }
 
   logMcpEvent("mcp.session.reconstructed", {
@@ -175,18 +249,69 @@ async function resolveSession(
   const { transport, entry } = buildSession(
     sessionId,
     organizationId,
-    payload.key,
-    payload.scope,
+    result.payload.key,
+    result.payload.scope,
     baseUrl,
     authHeader
   );
 
   await entry.server.connect(transport);
 
+  // The SDK's transport tracks an `_initialized` flag that is only set when it
+  // processes an actual `initialize` JSON-RPC message.  Reconstructed sessions
+  // skip that step, so the flag stays false and every subsequent request is
+  // rejected with "Server not initialized".  The valid JWT proves the client
+  // already completed initialization, so we mark both fields directly.
+  const reconstructed = transport as unknown as {
+    _initialized: boolean;
+    sessionId: string;
+  };
+  reconstructed._initialized = true;
+  reconstructed.sessionId = sessionId;
+
   // Cache locally for subsequent same-pod requests.
   setSession(sessionId, entry);
 
-  return transport;
+  // If the JWT was expired, mint a fresh one with a new 24h window (sliding renewal).
+  // The client adopts the new session ID from the Mcp-Session-Id response header.
+  let renewedSessionId: string | undefined;
+  if (result.expired) {
+    renewedSessionId = createSessionToken({
+      org: result.payload.org,
+      key: result.payload.key,
+      scope: result.payload.scope,
+      original_iat: result.payload.original_iat ?? result.payload.iat,
+    });
+
+    // Cache under the renewed ID so the client's next request hits the fast path.
+    setSession(renewedSessionId, entry);
+    deleteSession(sessionId);
+
+    logMcpEvent("mcp.session.renewed", {
+      oldSessionId: sessionId,
+      newSessionId: renewedSessionId,
+      orgId: organizationId,
+    });
+  }
+
+  return { ok: true, transport, renewedSessionId };
+}
+
+function withRenewedSessionHeader(
+  response: Response,
+  renewedSessionId: string | undefined
+): Response {
+  if (!renewedSessionId) {
+    return response;
+  }
+
+  const headers = new Headers(response.headers);
+  headers.set("Mcp-Session-Id", renewedSessionId);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -213,18 +338,17 @@ export async function POST(request: Request): Promise<Response> {
   const sessionId = request.headers.get("mcp-session-id");
 
   if (sessionId) {
-    const existingTransport = await resolveSession(
-      sessionId,
-      organizationId,
-      request
-    );
-    if (!existingTransport) {
-      return new Response(JSON.stringify({ error: "Session not found" }), {
+    const resolved = await resolveSession(sessionId, organizationId, request);
+    if (!resolved.ok) {
+      return new Response(sessionErrorBody(resolved.code), {
         status: 404,
         headers: { "Content-Type": "application/json", ...CORS_HEADERS },
       });
     }
-    return existingTransport.handleRequest(request);
+    const response = await resolved.transport.handleRequest(
+      ensureMcpAcceptHeader(request)
+    );
+    return withRenewedSessionHeader(response, resolved.renewedSessionId);
   }
 
   // No session ID: must be an initialize request.
@@ -287,7 +411,9 @@ export async function POST(request: Request): Promise<Response> {
 
   await entry.server.connect(transport);
 
-  return transport.handleRequest(request, { parsedBody: body });
+  return transport.handleRequest(ensureMcpAcceptHeader(request), {
+    parsedBody: body,
+  });
 }
 
 export async function GET(request: Request): Promise<Response> {
@@ -315,15 +441,18 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const organizationId = auth.organizationId ?? "";
-  const transport = await resolveSession(sessionId, organizationId, request);
-  if (!transport) {
-    return new Response(JSON.stringify({ error: "Session not found" }), {
+  const resolved = await resolveSession(sessionId, organizationId, request);
+  if (!resolved.ok) {
+    return new Response(sessionErrorBody(resolved.code), {
       status: 404,
       headers: { "Content-Type": "application/json", ...CORS_HEADERS },
     });
   }
 
-  return transport.handleRequest(request);
+  const response = await resolved.transport.handleRequest(
+    ensureMcpAcceptHeader(request)
+  );
+  return withRenewedSessionHeader(response, resolved.renewedSessionId);
 }
 
 export async function DELETE(request: Request): Promise<Response> {
@@ -353,9 +482,10 @@ export async function DELETE(request: Request): Promise<Response> {
   const organizationId = auth.organizationId ?? "";
 
   // Verify ownership via JWT before touching anything in the local cache.
-  const payload = verifySessionToken(sessionId);
+  // Accept expired JWTs so clients can clean up old sessions.
+  const payload = verifySessionToken(sessionId, { allowExpired: true });
   if (!payload || payload.org !== organizationId) {
-    return new Response(JSON.stringify({ error: "Session not found" }), {
+    return new Response(sessionErrorBody("session_not_found"), {
       status: 404,
       headers: { "Content-Type": "application/json", ...CORS_HEADERS },
     });

@@ -5,6 +5,7 @@ import {
   Eye,
   EyeOff,
   ExternalLink,
+  Info,
   KeyRound,
   Plus,
   RefreshCw,
@@ -36,6 +37,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { toChecksumAddress, truncateAddress } from "@/lib/address-utils";
 import { useSession } from "@/lib/auth-client";
 import { useActiveMember } from "@/lib/hooks/use-organization";
@@ -520,11 +527,9 @@ type WalletProviderOption = "para" | "turnkey";
 
 function CreateWalletForm({
   initialEmail,
-  onCancel,
   onSubmit,
 }: {
   initialEmail: string;
-  onCancel: () => void;
   onSubmit: (email: string, provider: WalletProviderOption) => Promise<void>;
 }) {
   const [email, setEmail] = useState(initialEmail);
@@ -577,6 +582,35 @@ function CreateWalletForm({
               <div className="flex items-center gap-1.5">
                 <ShieldCheck className="h-3.5 w-3.5 text-primary" />
                 <span className="font-medium text-xs">Turnkey</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger
+                      asChild
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Info className="size-3 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent className="text-xs" side="top">
+                      <a
+                        className="underline"
+                        href="https://www.turnkey.com"
+                        rel="noopener noreferrer"
+                        target="_blank"
+                      >
+                        Website
+                      </a>
+                      {" · "}
+                      <a
+                        className="underline"
+                        href="https://docs.keeperhub.com/wallet-management/turnkey"
+                        rel="noopener noreferrer"
+                        target="_blank"
+                      >
+                        Docs
+                      </a>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               <span className="text-muted-foreground text-[10px] leading-tight">
                 Secure enclave. Supports private key export.
@@ -595,6 +629,35 @@ function CreateWalletForm({
               <div className="flex items-center gap-1.5">
                 <Shield className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="font-medium text-xs">Para</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger
+                      asChild
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Info className="size-3 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent className="text-xs" side="top">
+                      <a
+                        className="underline"
+                        href="https://www.getpara.com"
+                        rel="noopener noreferrer"
+                        target="_blank"
+                      >
+                        Website
+                      </a>
+                      {" · "}
+                      <a
+                        className="underline"
+                        href="https://docs.keeperhub.com/wallet-management/para"
+                        rel="noopener noreferrer"
+                        target="_blank"
+                      >
+                        Docs
+                      </a>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               <span className="text-muted-foreground text-[10px] leading-tight">
                 MPC-based signing. No key export.
@@ -620,14 +683,6 @@ function CreateWalletForm({
         </div>
       </div>
       <div className="flex gap-2">
-        <Button
-          className="flex-1"
-          disabled={creating}
-          onClick={onCancel}
-          variant="outline"
-        >
-          Cancel
-        </Button>
         <Button
           className="flex-1"
           disabled={creating || !email}
@@ -778,8 +833,6 @@ function NoWalletSection({
   initialEmail: string;
   onCreateWallet: (email: string, provider: WalletProviderOption) => Promise<void>;
 }) {
-  const [showCreateForm, setShowCreateForm] = useState(false);
-
   if (!isAdmin) {
     return (
       <div className="rounded-lg border bg-muted/50 p-4">
@@ -791,28 +844,11 @@ function NoWalletSection({
     );
   }
 
-  if (showCreateForm) {
-    return (
-      <CreateWalletForm
-        initialEmail={initialEmail}
-        onCancel={() => setShowCreateForm(false)}
-        onSubmit={onCreateWallet}
-      />
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      <div className="rounded-lg border bg-muted/50 p-4">
-        <p className="text-muted-foreground text-sm">
-          No wallet found for this organization. Create a wallet to use Web3
-          features in your workflows.
-        </p>
-      </div>
-      <Button className="w-full" onClick={() => setShowCreateForm(true)}>
-        Create Organization Wallet
-      </Button>
-    </div>
+    <CreateWalletForm
+      initialEmail={initialEmail}
+      onSubmit={onCreateWallet}
+    />
   );
 }
 
