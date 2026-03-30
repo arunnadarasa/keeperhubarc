@@ -342,12 +342,14 @@ const DEFAULT_CHAINS: NewChain[] = [
 ];
 
 // Explorer configuration template for each chain (KEEP-1154)
+// All Etherscan-family chains use the unified V2 API (api.etherscan.io/v2/api)
+// with chainid param - one API key covers all chains.
 // Note: chainIds are resolved dynamically from DEFAULT_CHAINS to ensure consistency
 const EXPLORER_CONFIG_TEMPLATES: Record<
   number,
   Omit<NewExplorerConfig, "chainId">
 > = {
-  // Ethereum Mainnet - Etherscan
+  // Ethereum Mainnet - Etherscan V2
   1: {
     chainType: "evm",
     explorerUrl: "https://etherscan.io",
@@ -357,7 +359,7 @@ const EXPLORER_CONFIG_TEMPLATES: Record<
     explorerAddressPath: "/address/{address}",
     explorerContractPath: "/address/{address}#code",
   },
-  // Sepolia Testnet - Etherscan (uses unified V2 API with chainid param)
+  // Sepolia Testnet - Etherscan V2
   11155111: {
     chainType: "evm",
     explorerUrl: "https://sepolia.etherscan.io",
@@ -367,22 +369,22 @@ const EXPLORER_CONFIG_TEMPLATES: Record<
     explorerAddressPath: "/address/{address}",
     explorerContractPath: "/address/{address}#code",
   },
-  // Base - Etherscan (Basescan)
+  // Base Mainnet - Etherscan V2 (Basescan)
   8453: {
     chainType: "evm",
     explorerUrl: "https://basescan.org",
     explorerApiType: "etherscan",
-    explorerApiUrl: "https://api.basescan.org/api",
+    explorerApiUrl: "https://api.etherscan.io/v2/api",
     explorerTxPath: "/tx/{hash}",
     explorerAddressPath: "/address/{address}",
     explorerContractPath: "/address/{address}#code",
   },
-  // Base Sepolia - Etherscan
+  // Base Sepolia - Etherscan V2 (Basescan)
   84532: {
     chainType: "evm",
     explorerUrl: "https://sepolia.basescan.org",
     explorerApiType: "etherscan",
-    explorerApiUrl: "https://api-sepolia.basescan.org/api",
+    explorerApiUrl: "https://api.etherscan.io/v2/api",
     explorerTxPath: "/tx/{hash}",
     explorerAddressPath: "/address/{address}",
     explorerContractPath: "/address/{address}#code",
@@ -407,62 +409,62 @@ const EXPLORER_CONFIG_TEMPLATES: Record<
     explorerAddressPath: "/address/{address}",
     explorerContractPath: "/address/{address}?tab=contract",
   },
-  // BNB Chain Mainnet - BscScan
+  // BNB Chain Mainnet - Etherscan V2 (BscScan)
   56: {
     chainType: "evm",
     explorerUrl: "https://bscscan.com",
     explorerApiType: "etherscan",
-    explorerApiUrl: "https://api.bscscan.com/api",
+    explorerApiUrl: "https://api.etherscan.io/v2/api",
     explorerTxPath: "/tx/{hash}",
     explorerAddressPath: "/address/{address}",
     explorerContractPath: "/address/{address}#code",
   },
-  // BNB Chain Testnet - BscScan
+  // BNB Chain Testnet - Etherscan V2 (BscScan)
   97: {
     chainType: "evm",
     explorerUrl: "https://testnet.bscscan.com",
     explorerApiType: "etherscan",
-    explorerApiUrl: "https://api-testnet.bscscan.com/api",
+    explorerApiUrl: "https://api.etherscan.io/v2/api",
     explorerTxPath: "/tx/{hash}",
     explorerAddressPath: "/address/{address}",
     explorerContractPath: "/address/{address}#code",
   },
-  // Polygon Mainnet - Polygonscan
+  // Polygon Mainnet - Etherscan V2 (Polygonscan)
   137: {
     chainType: "evm",
     explorerUrl: "https://polygonscan.com",
     explorerApiType: "etherscan",
-    explorerApiUrl: "https://api.polygonscan.com/api",
+    explorerApiUrl: "https://api.etherscan.io/v2/api",
     explorerTxPath: "/tx/{hash}",
     explorerAddressPath: "/address/{address}",
     explorerContractPath: "/address/{address}#code",
   },
-  // Arbitrum One - Arbiscan
+  // Arbitrum One - Etherscan V2 (Arbiscan)
   42161: {
     chainType: "evm",
     explorerUrl: "https://arbiscan.io",
     explorerApiType: "etherscan",
-    explorerApiUrl: "https://api.arbiscan.io/api",
+    explorerApiUrl: "https://api.etherscan.io/v2/api",
     explorerTxPath: "/tx/{hash}",
     explorerAddressPath: "/address/{address}",
     explorerContractPath: "/address/{address}#code",
   },
-  // Polygon Amoy - Polygonscan
+  // Polygon Amoy - Etherscan V2 (Polygonscan)
   80002: {
     chainType: "evm",
     explorerUrl: "https://amoy.polygonscan.com",
     explorerApiType: "etherscan",
-    explorerApiUrl: "https://api-amoy.polygonscan.com/api",
+    explorerApiUrl: "https://api.etherscan.io/v2/api",
     explorerTxPath: "/tx/{hash}",
     explorerAddressPath: "/address/{address}",
     explorerContractPath: "/address/{address}#code",
   },
-  // Arbitrum Sepolia - Arbiscan
+  // Arbitrum Sepolia - Etherscan V2 (Arbiscan)
   421614: {
     chainType: "evm",
     explorerUrl: "https://sepolia.arbiscan.io",
     explorerApiType: "etherscan",
-    explorerApiUrl: "https://api-sepolia.arbiscan.io/api",
+    explorerApiUrl: "https://api.etherscan.io/v2/api",
     explorerTxPath: "/tx/{hash}",
     explorerAddressPath: "/address/{address}",
     explorerContractPath: "/address/{address}#code",
