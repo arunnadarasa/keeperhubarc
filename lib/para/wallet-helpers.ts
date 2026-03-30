@@ -7,7 +7,7 @@ import type { ethers } from "ethers";
 import { toChecksumAddress } from "@/lib/address-utils";
 import { db } from "@/lib/db";
 import { type OrganizationWallet, organizationWallets } from "@/lib/db/schema";
-import { decryptUserShare } from "@/lib/encryption";
+import { decryptUserShare, encryptUserShare } from "@/lib/encryption";
 import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { getRpcProviderFromUrls } from "@/lib/rpc/provider-factory";
 import { getTurnkeySignerConfig } from "@/lib/turnkey/turnkey-client";
@@ -91,7 +91,11 @@ function initializeTurnkeySigner(
 }
 
 async function initializeParaMpcSigner(
-  wallet: { userShare: string | null; paraSession: string | null },
+  wallet: {
+    organizationId: string | null;
+    userShare: string | null;
+    paraSession: string | null;
+  },
   provider: ethers.Provider
 ): Promise<ethers.Signer> {
   const PARA_API_KEY = process.env.PARA_API_KEY;
@@ -115,15 +119,27 @@ async function initializeParaMpcSigner(
   if (wallet.paraSession) {
     // Post-claim: import session for signing (session includes auth + signers)
     const decryptedSession = decryptUserShare(wallet.paraSession);
-    // biome-ignore lint/suspicious/noExplicitAny: importSession is on ParaCore but not exposed in server SDK types
-    await (paraClient as any).importSession(decryptedSession);
+    await paraClient.importSession(decryptedSession);
 
-    // biome-ignore lint/suspicious/noExplicitAny: keepSessionAlive is on ParaCore but not exposed in server SDK types
-    const isActive: boolean = await (paraClient as any).keepSessionAlive();
+    const isActive: boolean = await paraClient.keepSessionAlive();
     if (!isActive) {
       throw new Error(
         "Para session expired. User must re-export from wallet settings."
       );
+    }
+
+    // Re-export the session blob after keepSessionAlive extends the server-side TTL.
+    // The old blob is stale -- waitAndExportSession produces a new one with refreshed state.
+    const refreshedBlob: string = await paraClient.waitAndExportSession();
+    const encryptedRefreshed = encryptUserShare(refreshedBlob);
+
+    const orgId = wallet.organizationId;
+
+    if (orgId) {
+      await db
+        .update(organizationWallets)
+        .set({ paraSession: encryptedRefreshed })
+        .where(eq(organizationWallets.organizationId, orgId));
     }
   } else if (wallet.userShare) {
     // Pre-claim: use stored userShare
