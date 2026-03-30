@@ -71,9 +71,19 @@ export function reshapeArgsForAbi(
 
   for (const input of functionAbi.inputs ?? []) {
     if (isTupleInput(input)) {
-      const result = buildTupleArg(input.components ?? [], args, cursor);
-      reshaped.push(result.value);
-      cursor = result.nextCursor;
+      const currentArg = cursor < args.length ? args[cursor] : undefined;
+      if (
+        currentArg !== null &&
+        typeof currentArg === "object" &&
+        !Array.isArray(currentArg)
+      ) {
+        reshaped.push(currentArg);
+        cursor++;
+      } else {
+        const result = buildTupleArg(input.components ?? [], args, cursor);
+        reshaped.push(result.value);
+        cursor = result.nextCursor;
+      }
     } else {
       reshaped.push(cursor < args.length ? args[cursor] : undefined);
       cursor++;
