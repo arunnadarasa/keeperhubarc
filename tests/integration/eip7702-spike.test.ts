@@ -148,7 +148,6 @@ describe.skipIf(!HAS_PARA)("Scenario B: Para signer accepts type-4 RLP", () => {
       const provider = new ethers.JsonRpcProvider(
         "https://base-sepolia-rpc.publicnode.com"
       );
-      // biome-ignore lint/suspicious/noExplicitAny: Para server-sdk ParaServer vs ParaCore type mismatch across SDK versions
       const paraSigner = new ParaEthersSigner(paraClient as any, provider);
       const signerAddress = await paraSigner.getAddress();
 
