@@ -93,6 +93,7 @@ describe("RpcProviderManager", () => {
       recordFallbackAttempt: vi.fn(),
       recordFallbackFailure: vi.fn(),
       recordFailoverEvent: vi.fn(),
+      recordBothFailed: vi.fn(),
     };
   });
 

@@ -13,6 +13,7 @@ export type SolanaRpcMetricsCollector = {
   recordFallbackAttempt(chainName: string): void;
   recordFallbackFailure(chainName: string): void;
   recordFailoverEvent(chainName: string): void;
+  recordBothFailed(chainName: string): void;
 };
 
 export type SolanaFailoverStateChangeCallback = (
@@ -37,6 +38,9 @@ export const noopSolanaMetricsCollector: SolanaRpcMetricsCollector = {
   recordFailoverEvent: () => {
     /* noop */
   },
+  recordBothFailed: () => {
+    /* noop */
+  },
 };
 
 export const consoleSolanaMetricsCollector: SolanaRpcMetricsCollector = {
@@ -50,6 +54,8 @@ export const consoleSolanaMetricsCollector: SolanaRpcMetricsCollector = {
     console.debug(`[Solana RPC Metrics] Fallback failure: ${chain}`),
   recordFailoverEvent: (chain) =>
     console.debug(`[Solana RPC Metrics] Failover event: ${chain}`),
+  recordBothFailed: (chain) =>
+    console.debug(`[Solana RPC Metrics] Both endpoints failed: ${chain}`),
 };
 
 export type SolanaProviderConfig = {
@@ -244,6 +250,7 @@ export class SolanaProviderManager {
         return fallbackResult.result as T;
       }
 
+      this.metricsCollector.recordBothFailed(this.config.chainName);
       console.error(
         JSON.stringify({
           level: "error",
