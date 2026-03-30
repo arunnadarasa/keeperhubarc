@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, Info } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -391,22 +391,63 @@ const FIELD_RENDERERS: Partial<
   "schema-builder": SchemaBuilderField,
 };
 
+function deriveStateMutability(
+  abiJson: string,
+  funcName: string
+): string {
+  try {
+    const abi: unknown = JSON.parse(abiJson);
+    if (Array.isArray(abi)) {
+      const func = abi.find(
+        (item: { type: string; name: string }) =>
+          item.type === "function" && item.name === funcName
+      );
+      return (func?.stateMutability as string) ?? "nonpayable";
+    }
+  } catch {
+    // invalid ABI
+  }
+  return "nonpayable";
+}
+
 /**
- * Helper: Render abi-function-select field
+ * Abi-function-select field component.
+ * Derives _abiStateMutability on mount (for saved workflows) and on change.
  */
-function renderAbiFunctionSelect(
-  field: ActionConfigFieldBase,
-  config: Record<string, unknown>,
-  onUpdateConfig: (key: string, value: unknown) => void,
-  disabled?: boolean
-) {
+function AbiFunctionSelectFieldWrapper({
+  field,
+  config,
+  onUpdateConfig,
+  disabled,
+}: {
+  field: ActionConfigFieldBase;
+  config: Record<string, unknown>;
+  onUpdateConfig: (key: string, value: unknown) => void;
+  disabled?: boolean;
+}): React.ReactElement {
   const abiField = field.abiField || "abi";
   const abiValue = (config[abiField] as string | undefined) || "";
   const value =
     (config[field.key] as string | undefined) || field.defaultValue || "";
 
+  useEffect(() => {
+    if (value && config._abiStateMutability === undefined) {
+      const mutability = deriveStateMutability(abiValue, value);
+      onUpdateConfig("_abiStateMutability", mutability);
+    }
+  }, [value, abiValue, config._abiStateMutability, onUpdateConfig]);
+
+  const handleFunctionChange = (val: unknown): void => {
+    onUpdateConfig(field.key, val);
+    const funcName = typeof val === "string" ? val : "";
+    onUpdateConfig(
+      "_abiStateMutability",
+      deriveStateMutability(abiValue, funcName)
+    );
+  };
+
   return (
-    <div className="space-y-2" key={field.key}>
+    <div className="space-y-2">
       <Label className="ml-1" htmlFor={field.key}>
         {field.label}
       </Label>
@@ -415,7 +456,7 @@ function renderAbiFunctionSelect(
         disabled={disabled}
         field={field}
         functionFilter={field.functionFilter}
-        onChange={(val) => onUpdateConfig(field.key, val)}
+        onChange={handleFunctionChange}
         value={value}
       />
     </div>
@@ -499,7 +540,15 @@ function renderField(
 
   // Special handling for abi-function-select
   if (field.type === "abi-function-select") {
-    return renderAbiFunctionSelect(field, config, onUpdateConfig, disabled);
+    return (
+      <AbiFunctionSelectFieldWrapper
+        config={config}
+        disabled={disabled}
+        field={field}
+        key={field.key}
+        onUpdateConfig={onUpdateConfig}
+      />
+    );
   }
 
   // Special handling for abi-function-args

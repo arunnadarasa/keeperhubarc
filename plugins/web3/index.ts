@@ -1187,6 +1187,15 @@ const web3Plugin: IntegrationPlugin = {
           abiFunctionField: "abiFunction",
         },
         {
+          key: "ethValue",
+          label: "Payable Value",
+          type: "template-input",
+          placeholder: "0.0",
+          helpTip:
+            "Amount of native token (e.g. ETH, MATIC) to send with this payable function call. Specified in whole units, not wei.",
+          showWhen: { field: "_abiStateMutability", equals: "payable" },
+        },
+        {
           type: "group",
           label: "Advanced",
           defaultExpanded: false,

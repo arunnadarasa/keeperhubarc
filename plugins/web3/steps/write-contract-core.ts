@@ -222,7 +222,7 @@ export async function writeContractCore(
     } catch {
       return {
         success: false,
-        error: `Invalid ETH value "${ethValue}" -- expected a decimal string like "0.1" or "1.5"`,
+        error: `Invalid payable value "${ethValue}" -- expected a decimal string like "0.1" or "1.5"`,
       };
     }
   }
