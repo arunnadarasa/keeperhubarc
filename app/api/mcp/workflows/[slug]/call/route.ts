@@ -1,0 +1,370 @@
+import { withX402 } from "@x402/next";
+import { and, eq } from "drizzle-orm";
+import { type NextRequest, NextResponse } from "next/server";
+import { start } from "workflow/api";
+import { checkConcurrencyLimit } from "@/app/api/execute/_lib/concurrency-limit";
+import { enforceExecutionLimit } from "@/lib/billing/execution-guard";
+import { db } from "@/lib/db";
+import { workflowExecutions, workflows } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
+import { executeWorkflow } from "@/lib/workflow-executor.workflow";
+import type { WorkflowEdge, WorkflowNode } from "@/lib/workflow-store";
+import {
+  buildPaymentConfig,
+  findExistingPayment,
+  hashPaymentSignature,
+  recordPayment,
+  resolveCreatorWallet,
+} from "@/lib/x402/payment-gate";
+import {
+  isTimeoutError,
+  pollForPaymentConfirmation,
+} from "@/lib/x402/reconcile";
+import { server } from "@/lib/x402/server";
+import { CALL_ROUTE_COLUMNS, type CallRouteWorkflow } from "@/lib/x402/types";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers":
+    "Content-Type, Authorization, PAYMENT-SIGNATURE",
+} as const;
+
+export function OPTIONS(): NextResponse {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
+/**
+ * Validates required fields from a JSON Schema object against the request body.
+ * Only checks that required fields are present -- does not strictly validate types
+ * or reject extra fields (callers may include metadata).
+ */
+function validateInputSchema(
+  inputSchema: Record<string, unknown>,
+  body: Record<string, unknown>
+): { valid: true } | { valid: false; error: string } {
+  if (!("properties" in inputSchema)) {
+    return { valid: true };
+  }
+
+  const required = inputSchema.required;
+  if (!Array.isArray(required)) {
+    return { valid: true };
+  }
+
+  for (const field of required) {
+    if (typeof field === "string" && !(field in body)) {
+      return { valid: false, error: `Missing required field: ${field}` };
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Creates a workflow execution record and starts the workflow in the background.
+ * Returns { executionId, status: "running" } immediately (fire-and-forget pattern).
+ */
+async function executeAndRespond(
+  workflow: CallRouteWorkflow,
+  body: Record<string, unknown>
+): Promise<NextResponse> {
+  const executionGuard = await enforceExecutionLimit(workflow.organizationId);
+  if (executionGuard.blocked) {
+    const guardBody = await executionGuard.response.json();
+    return NextResponse.json(guardBody, { status: 429, headers: corsHeaders });
+  }
+
+  const concurrencyCheck = await checkConcurrencyLimit();
+  if (!concurrencyCheck.allowed) {
+    return NextResponse.json(
+      {
+        error: "Too many concurrent workflow executions",
+        running: concurrencyCheck.running,
+        limit: concurrencyCheck.limit,
+      },
+      { status: 429, headers: { ...corsHeaders, "Retry-After": "30" } }
+    );
+  }
+
+  const [execution] = await db
+    .insert(workflowExecutions)
+    .values({
+      workflowId: workflow.id,
+      userId: workflow.userId,
+      status: "running",
+      input: body,
+    })
+    .returning();
+
+  const executionId = execution.id;
+
+  // Fire-and-forget: return immediately, workflow runs in background
+  start(executeWorkflow, [
+    {
+      nodes: workflow.nodes as WorkflowNode[],
+      edges: workflow.edges as WorkflowEdge[],
+      triggerInput: body,
+      executionId,
+      workflowId: workflow.id,
+      organizationId: workflow.organizationId ?? undefined,
+    },
+  ]).catch((err: unknown) => {
+    logSystemError(
+      ErrorCategory.WORKFLOW_ENGINE,
+      "[x402/call] Error starting workflow execution",
+      err,
+      { endpoint: "/api/mcp/workflows/[slug]/call", workflowId: workflow.id }
+    );
+  });
+
+  return NextResponse.json(
+    { executionId, status: "running" },
+    { headers: corsHeaders }
+  );
+}
+
+async function lookupWorkflow(slug: string): Promise<CallRouteWorkflow | null> {
+  const rows = await db
+    .select(CALL_ROUTE_COLUMNS)
+    .from(workflows)
+    .where(and(eq(workflows.listedSlug, slug), eq(workflows.isListed, true)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+function validateBody(
+  workflow: CallRouteWorkflow,
+  body: Record<string, unknown>
+): NextResponse | null {
+  if (workflow.inputSchema !== null && "properties" in workflow.inputSchema) {
+    const validation = validateInputSchema(workflow.inputSchema, body);
+    if (!validation.valid) {
+      return NextResponse.json(
+        { error: validation.error },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+  }
+  return null;
+}
+
+async function checkIdempotency(
+  paymentSig: string | null
+): Promise<NextResponse | null> {
+  if (!paymentSig) {
+    return null;
+  }
+  const hash = hashPaymentSignature(paymentSig);
+  const existing = await findExistingPayment(hash);
+  if (existing) {
+    return NextResponse.json(
+      { executionId: existing.executionId },
+      { headers: corsHeaders }
+    );
+  }
+  return null;
+}
+
+async function handleTimeoutReconciliation(
+  gateErr: unknown,
+  request: Request,
+  innerHandler: (req: NextRequest) => Promise<NextResponse>
+): Promise<NextResponse> {
+  const msg = gateErr instanceof Error ? gateErr.message : String(gateErr);
+  if (isTimeoutError(msg)) {
+    const payerAddr = request.headers.get("X-PAYER-ADDRESS");
+    const nonce = request.headers.get("X-PAYMENT-NONCE");
+    if (payerAddr && nonce) {
+      const confirmed = await pollForPaymentConfirmation({
+        payerAddress: payerAddr,
+        nonce,
+      });
+      if (confirmed) {
+        return innerHandler(request as NextRequest);
+      }
+    }
+  }
+  throw gateErr;
+}
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ slug: string }> }
+): Promise<NextResponse> {
+  try {
+    const { slug } = await params;
+
+    const workflow = await lookupWorkflow(slug);
+    if (!workflow) {
+      return NextResponse.json(
+        { error: "Workflow not found" },
+        { status: 404, headers: corsHeaders }
+      );
+    }
+
+    if (workflow.workflowType === "write") {
+      const writeBody = (await request.json().catch(() => ({}))) as Record<
+        string,
+        unknown
+      >;
+      const writeBodyError = validateBody(workflow, writeBody);
+      if (writeBodyError) {
+        return writeBodyError;
+      }
+      const { generateCalldataForWorkflow } = await import(
+        "@/lib/mcp/calldata"
+      );
+      const result = generateCalldataForWorkflow(workflow.nodes, writeBody);
+      if (!result.success) {
+        return NextResponse.json(
+          { error: result.error },
+          { status: 400, headers: corsHeaders }
+        );
+      }
+      return NextResponse.json(
+        {
+          type: "calldata",
+          to: result.to,
+          data: result.data,
+          value: result.value,
+        },
+        { headers: corsHeaders }
+      );
+    }
+
+    const body = (await request.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >;
+
+    const bodyError = validateBody(workflow, body);
+    if (bodyError) {
+      return bodyError;
+    }
+
+    const price = Number(workflow.priceUsdcPerCall ?? "0");
+    if (price <= 0) {
+      return executeAndRespond(workflow, body);
+    }
+
+    const creatorWalletAddress = await resolveCreatorWallet(
+      workflow.organizationId
+    );
+    if (!creatorWalletAddress) {
+      return NextResponse.json(
+        { error: "Workflow creator has no payment wallet configured" },
+        { status: 503, headers: corsHeaders }
+      );
+    }
+
+    const paymentSig = request.headers.get("PAYMENT-SIGNATURE");
+    const idempotent = await checkIdempotency(paymentSig);
+    if (idempotent) {
+      return idempotent;
+    }
+
+    const paymentConfig = buildPaymentConfig(workflow, creatorWalletAddress);
+
+    const innerHandler = async (req: NextRequest): Promise<NextResponse> =>
+      executePaidWorkflow(req, workflow, paymentSig, creatorWalletAddress);
+
+    const gatedHandler = withX402(innerHandler, paymentConfig, server);
+    try {
+      return (await gatedHandler(request as NextRequest)) as NextResponse;
+    } catch (gateErr) {
+      return handleTimeoutReconciliation(gateErr, request, innerHandler);
+    }
+  } catch (err) {
+    logSystemError(
+      ErrorCategory.WORKFLOW_ENGINE,
+      "[x402/call] Unexpected error in call route",
+      err,
+      { endpoint: "/api/mcp/workflows/[slug]/call" }
+    );
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Internal server error" },
+      { status: 500, headers: corsHeaders }
+    );
+  }
+}
+
+async function executePaidWorkflow(
+  req: NextRequest,
+  workflow: CallRouteWorkflow,
+  paymentSig: string | null,
+  creatorWalletAddress: string
+): Promise<NextResponse> {
+  const innerBody = (await req.json().catch(() => ({}))) as Record<
+    string,
+    unknown
+  >;
+
+  const executionGuard = await enforceExecutionLimit(workflow.organizationId);
+  if (executionGuard.blocked) {
+    const guardBody = await executionGuard.response.json();
+    return NextResponse.json(guardBody, {
+      status: 429,
+      headers: corsHeaders,
+    });
+  }
+
+  const concurrencyCheck = await checkConcurrencyLimit();
+  if (!concurrencyCheck.allowed) {
+    return NextResponse.json(
+      {
+        error: "Too many concurrent workflow executions",
+        running: concurrencyCheck.running,
+        limit: concurrencyCheck.limit,
+      },
+      { status: 429, headers: { ...corsHeaders, "Retry-After": "30" } }
+    );
+  }
+
+  const [execution] = await db
+    .insert(workflowExecutions)
+    .values({
+      workflowId: workflow.id,
+      userId: workflow.userId,
+      status: "running",
+      input: innerBody,
+    })
+    .returning();
+
+  const executionId = execution.id;
+
+  await recordPayment({
+    workflowId: workflow.id,
+    paymentHash: paymentSig ? hashPaymentSignature(paymentSig) : executionId,
+    executionId,
+    amountUsdc: workflow.priceUsdcPerCall ?? "0",
+    payerAddress: null,
+    creatorWalletAddress,
+  });
+
+  start(executeWorkflow, [
+    {
+      nodes: workflow.nodes as WorkflowNode[],
+      edges: workflow.edges as WorkflowEdge[],
+      triggerInput: innerBody,
+      executionId,
+      workflowId: workflow.id,
+      organizationId: workflow.organizationId ?? undefined,
+    },
+  ]).catch((err: unknown) => {
+    logSystemError(
+      ErrorCategory.WORKFLOW_ENGINE,
+      "[x402/call] Error starting paid workflow execution",
+      err,
+      {
+        endpoint: "/api/mcp/workflows/[slug]/call",
+        workflowId: workflow.id,
+      }
+    );
+  });
+
+  return NextResponse.json(
+    { executionId, status: "running" },
+    { headers: corsHeaders }
+  );
+}

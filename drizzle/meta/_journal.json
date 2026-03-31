@@ -281,6 +281,34 @@
       "when": 1774900000002,
       "tag": "0039_burly_sinister_six",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1774900000003,
+      "tag": "0040_cool_expediter",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1774900000004,
+      "tag": "0041_agent_registrations",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1774900000005,
+      "tag": "0042_workflow_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1774900000006,
+      "tag": "0043_burly_reavers",
+      "breakpoints": true
     }
   ]
 }
