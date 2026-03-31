@@ -15,10 +15,10 @@ import type { SolanaRpcMetricsCollector } from "@/lib/rpc-provider/solana";
 import { rpcMetrics } from "./collectors/prometheus";
 
 /**
- * Prometheus-backed RPC metrics collector for EVM chains.
- * Records primary/fallback attempts, failures, and failover events.
+ * Prometheus-backed RPC metrics collector shared by EVM and Solana providers.
+ * Both interfaces are structurally identical, so a single implementation serves both.
  */
-export const prometheusRpcMetricsCollector: RpcMetricsCollector = {
+const prometheusCollector: RpcMetricsCollector & SolanaRpcMetricsCollector = {
   recordPrimaryAttempt(chain: string): void {
     rpcMetrics.primaryAttempts.inc({ chain });
   },
@@ -40,31 +40,10 @@ export const prometheusRpcMetricsCollector: RpcMetricsCollector = {
   },
 };
 
-/**
- * Prometheus-backed RPC metrics collector for Solana chains.
- * Uses the same underlying Prometheus counters as EVM (shared metric names).
- */
-export const prometheusSolanaRpcMetricsCollector: SolanaRpcMetricsCollector = {
-  recordPrimaryAttempt(chain: string): void {
-    rpcMetrics.primaryAttempts.inc({ chain });
-  },
-  recordPrimaryFailure(chain: string): void {
-    rpcMetrics.primaryFailures.inc({ chain });
-  },
-  recordFallbackAttempt(chain: string): void {
-    rpcMetrics.fallbackAttempts.inc({ chain });
-  },
-  recordFallbackFailure(chain: string): void {
-    rpcMetrics.fallbackFailures.inc({ chain });
-  },
-  recordFailoverEvent(chain: string): void {
-    rpcMetrics.failoverEvents.inc({ chain });
-  },
-  recordBothFailed(chain: string): void {
-    rpcMetrics.bothFailedEvents.inc({ chain });
-    rpcMetrics.healthState.set({ chain }, 2);
-  },
-};
+export const prometheusRpcMetricsCollector: RpcMetricsCollector =
+  prometheusCollector;
+export const prometheusSolanaRpcMetricsCollector: SolanaRpcMetricsCollector =
+  prometheusCollector;
 
 /**
  * Failover state change callback that updates Prometheus gauge and counters.
