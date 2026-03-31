@@ -141,7 +141,11 @@ export async function getRpcProvider(
     chainName: config.chainName,
     metricsCollector,
     onFailoverStateChange: (chain, isUsingFallback, reason) => {
-      failoverCallback(chain, isUsingFallback, reason);
+      try {
+        failoverCallback(chain, isUsingFallback, reason);
+      } catch (error) {
+        console.error("Metrics failover callback error:", error);
+      }
       onFailoverStateChange?.(chain, isUsingFallback, reason);
     },
   });
@@ -182,7 +186,11 @@ export async function getSolanaProvider(
     chainName: config.chainName,
     metricsCollector,
     onFailoverStateChange: (chain, isUsingFallback, reason) => {
-      failoverCallback(chain, isUsingFallback, reason);
+      try {
+        failoverCallback(chain, isUsingFallback, reason);
+      } catch (error) {
+        console.error("Metrics failover callback error:", error);
+      }
       onFailoverStateChange?.(chain, isUsingFallback, reason);
     },
   });
