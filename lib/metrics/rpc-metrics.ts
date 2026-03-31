@@ -34,6 +34,9 @@ const prometheusCollector: RpcMetricsCollector & SolanaRpcMetricsCollector = {
   recordFailoverEvent(chain: string): void {
     rpcMetrics.failoverEvents.inc({ chain });
   },
+  recordRecoveryEvent(chain: string): void {
+    rpcMetrics.recoveryEvents.inc({ chain });
+  },
   recordBothFailed(chain: string): void {
     rpcMetrics.bothFailedEvents.inc({ chain });
     rpcMetrics.healthState.set({ chain }, 2);
@@ -55,12 +58,7 @@ export const prometheusSolanaRpcMetricsCollector: SolanaRpcMetricsCollector =
 export function onRpcFailoverStateChange(
   chain: string,
   isUsingFallback: boolean,
-  reason: "failover" | "recovery"
+  _reason: "failover" | "recovery"
 ): void {
   rpcMetrics.currentProvider.set({ chain }, isUsingFallback ? 1 : 0);
-  rpcMetrics.healthState.set({ chain }, isUsingFallback ? 1 : 0);
-
-  if (reason === "recovery") {
-    rpcMetrics.recoveryEvents.inc({ chain });
-  }
 }

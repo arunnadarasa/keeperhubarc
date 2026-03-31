@@ -13,6 +13,7 @@ export type SolanaRpcMetricsCollector = {
   recordFallbackAttempt(chainName: string): void;
   recordFallbackFailure(chainName: string): void;
   recordFailoverEvent(chainName: string): void;
+  recordRecoveryEvent(chainName: string): void;
   recordBothFailed(chainName: string): void;
   recordSuccess(chainName: string, provider: "primary" | "fallback"): void;
 };
@@ -39,6 +40,9 @@ export const noopSolanaMetricsCollector: SolanaRpcMetricsCollector = {
   recordFailoverEvent: () => {
     /* noop */
   },
+  recordRecoveryEvent: () => {
+    /* noop */
+  },
   recordBothFailed: () => {
     /* noop */
   },
@@ -58,6 +62,8 @@ export const consoleSolanaMetricsCollector: SolanaRpcMetricsCollector = {
     console.debug(`[Solana RPC Metrics] Fallback failure: ${chain}`),
   recordFailoverEvent: (chain) =>
     console.debug(`[Solana RPC Metrics] Failover event: ${chain}`),
+  recordRecoveryEvent: (chain) =>
+    console.debug(`[Solana RPC Metrics] Recovery event: ${chain}`),
   recordBothFailed: (chain) =>
     console.debug(`[Solana RPC Metrics] Both endpoints failed: ${chain}`),
   recordSuccess: (chain, provider) =>
@@ -224,6 +230,7 @@ export class SolanaProviderManager {
           })
         );
         this.isUsingFallback = false;
+        this.metricsCollector.recordRecoveryEvent(this.config.chainName);
         this.onFailoverStateChange?.(this.config.chainName, false, "recovery");
       }
       return primaryResult.result as T;
