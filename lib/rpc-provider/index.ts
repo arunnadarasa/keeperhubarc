@@ -17,6 +17,7 @@ export type RpcMetricsCollector = {
   recordFallbackFailure(chainName: string): void;
   recordFailoverEvent(chainName: string): void;
   recordBothFailed(chainName: string): void;
+  recordSuccess(chainName: string, provider: "primary" | "fallback"): void;
 };
 
 /**
@@ -50,6 +51,9 @@ export const noopMetricsCollector: RpcMetricsCollector = {
   recordBothFailed: () => {
     /* noop */
   },
+  recordSuccess: () => {
+    /* noop */
+  },
 };
 
 /**
@@ -68,6 +72,8 @@ export const consoleMetricsCollector: RpcMetricsCollector = {
     console.debug(`[RPC Metrics] Failover event: ${chain}`),
   recordBothFailed: (chain) =>
     console.debug(`[RPC Metrics] Both endpoints failed: ${chain}`),
+  recordSuccess: (chain, provider) =>
+    console.debug(`[RPC Metrics] Success on ${provider}: ${chain}`),
 };
 
 export type RpcProviderConfig = {
@@ -194,6 +200,10 @@ export class RpcProviderManager {
         );
 
         if (fallbackResult.success) {
+          this.metricsCollector.recordSuccess(
+            this.config.chainName,
+            "fallback"
+          );
           return fallbackResult.result as T;
         }
 
@@ -266,6 +276,7 @@ export class RpcProviderManager {
     );
 
     if (primaryResult.success) {
+      this.metricsCollector.recordSuccess(this.config.chainName, "primary");
       return primaryResult.result as T;
     }
 

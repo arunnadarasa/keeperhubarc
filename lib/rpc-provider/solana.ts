@@ -14,6 +14,7 @@ export type SolanaRpcMetricsCollector = {
   recordFallbackFailure(chainName: string): void;
   recordFailoverEvent(chainName: string): void;
   recordBothFailed(chainName: string): void;
+  recordSuccess(chainName: string, provider: "primary" | "fallback"): void;
 };
 
 export type SolanaFailoverStateChangeCallback = (
@@ -41,6 +42,9 @@ export const noopSolanaMetricsCollector: SolanaRpcMetricsCollector = {
   recordBothFailed: () => {
     /* noop */
   },
+  recordSuccess: () => {
+    /* noop */
+  },
 };
 
 export const consoleSolanaMetricsCollector: SolanaRpcMetricsCollector = {
@@ -56,6 +60,8 @@ export const consoleSolanaMetricsCollector: SolanaRpcMetricsCollector = {
     console.debug(`[Solana RPC Metrics] Failover event: ${chain}`),
   recordBothFailed: (chain) =>
     console.debug(`[Solana RPC Metrics] Both endpoints failed: ${chain}`),
+  recordSuccess: (chain, provider) =>
+    console.debug(`[Solana RPC Metrics] Success on ${provider}: ${chain}`),
 };
 
 export type SolanaProviderConfig = {
@@ -176,6 +182,10 @@ export class SolanaProviderManager {
         );
 
         if (fallbackResult.success) {
+          this.metricsCollector.recordSuccess(
+            this.config.chainName,
+            "fallback"
+          );
           return fallbackResult.result as T;
         }
 
@@ -200,6 +210,7 @@ export class SolanaProviderManager {
     );
 
     if (primaryResult.success) {
+      this.metricsCollector.recordSuccess(this.config.chainName, "primary");
       if (this.isUsingFallback) {
         console.info(
           JSON.stringify({
@@ -231,6 +242,7 @@ export class SolanaProviderManager {
       );
 
       if (fallbackResult.success) {
+        this.metricsCollector.recordSuccess(this.config.chainName, "fallback");
         if (!this.isUsingFallback) {
           console.warn(
             JSON.stringify({

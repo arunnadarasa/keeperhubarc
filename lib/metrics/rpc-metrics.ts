@@ -38,6 +38,9 @@ const prometheusCollector: RpcMetricsCollector & SolanaRpcMetricsCollector = {
     rpcMetrics.bothFailedEvents.inc({ chain });
     rpcMetrics.healthState.set({ chain }, 2);
   },
+  recordSuccess(chain: string, provider: "primary" | "fallback"): void {
+    rpcMetrics.healthState.set({ chain }, provider === "primary" ? 0 : 1);
+  },
 };
 
 export const prometheusRpcMetricsCollector: RpcMetricsCollector =
