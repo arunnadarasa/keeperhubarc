@@ -186,6 +186,13 @@ async function handleTimeoutReconciliation(
         nonce,
       });
       if (confirmed) {
+        // Re-check idempotency before executing. A client retry may have
+        // already created an execution while we were polling on-chain state.
+        const paymentSig = request.headers.get("PAYMENT-SIGNATURE");
+        const idempotent = await checkIdempotency(paymentSig);
+        if (idempotent) {
+          return idempotent;
+        }
         return innerHandler(request as NextRequest);
       }
     }
