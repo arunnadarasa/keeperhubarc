@@ -24,6 +24,7 @@ async function refreshWalletSession(
   paraApiKey: string,
   paraEnv: string
 ): Promise<RefreshResult> {
+  // New instance per wallet: importSession mutates internal client state
   const paraClient = new ParaServer(
     paraEnv === "prod" ? Environment.PROD : Environment.BETA,
     paraApiKey
