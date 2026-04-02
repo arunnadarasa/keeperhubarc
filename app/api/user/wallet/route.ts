@@ -313,7 +313,7 @@ export async function GET(request: Request) {
 
     const wallets = allWallets.map((w) => ({
       provider: w.provider,
-      canExportKey: true,
+      canExportKey: w.provider === "para" || w.provider === "turnkey",
       walletAddress: w.walletAddress,
       walletId: w.paraWalletId ?? w.turnkeyWalletId,
       email: w.email,
