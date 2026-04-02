@@ -334,6 +334,42 @@ describe("sanitizeWorkflowData", () => {
       expect(group).not.toBeInstanceOf(Array);
     });
 
+    it("handles object-shaped operators with key property", () => {
+      const { nodes } = sanitizeWorkflowData(
+        [
+          {
+            id: "c1",
+            type: "action",
+            data: {
+              label: "Condition",
+              type: "action",
+              config: {
+                actionType: "Condition",
+                conditionConfig: {
+                  group: {
+                    rules: [
+                      { leftOperand: "a", operator: { key: "equals", label: "Equals" }, rightOperand: "1" },
+                      { leftOperand: "b", operator: { key: "less_than", label: "Less Than" }, rightOperand: "2" },
+                    ],
+                    logic: "AND",
+                  },
+                },
+              },
+            },
+          },
+        ],
+        []
+      );
+
+      const data = nodes[0].data as Record<string, unknown>;
+      const config = data.config as Record<string, unknown>;
+      const conditionConfig = config.conditionConfig as Record<string, unknown>;
+      const group = conditionConfig.group as Record<string, unknown>;
+      const rules = group.rules as Record<string, unknown>[];
+      expect(rules[0].operator).toBe("===");
+      expect(rules[1].operator).toBe("<");
+    });
+
     it("preserves already valid operators without mutation", () => {
       const { nodes } = sanitizeWorkflowData(
         [

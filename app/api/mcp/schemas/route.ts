@@ -608,7 +608,7 @@ export async function GET(request: Request) {
       "Use tagId to label a workflow with a single tag (e.g., 'production', 'monitoring'). Each workflow supports one tag. Fetch available tags from GET /api/tags first.",
       `Use {{@${BUILTIN_NODE_ID}:${BUILTIN_NODE_LABEL}.unixTimestamp}} for current time comparisons in conditions (e.g., checking if a contract timestamp has passed)`,
       "All trigger types expose a 'triggeredAt' output field (ISO timestamp). Reference it with {{@triggerId:TriggerLabel.data.triggeredAt}} to include when the workflow fired.",
-      "Database Query: use inline {{@nodeId:Label.field}} template refs directly in the SQL string. Do NOT use parameterized $1/$2 placeholders with a separate dbParams array -- the UI does not support that format.",
+      "Database Query: use inline {{@nodeId:Label.field}} template refs directly in the SQL string. Do NOT use parameterized $1/$2 placeholders with a separate dbParams array. The UI does not support that format.",
       "Condition conditionConfig: every group and rule MUST have a unique 'id' field (use nanoid or UUID). Operators must be exact symbols: '===' not 'equals', '<' not 'less_than', '>' not 'greater_than'. Rule fields are 'leftOperand' and 'rightOperand', NOT 'field' and 'value'.",
     ],
   };
