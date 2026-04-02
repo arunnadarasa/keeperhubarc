@@ -1091,11 +1091,12 @@ export function registerMetaTools(
             isError: true,
           };
         }
+        const orgSlug = args.identifier.slice(0, slashIdx);
         const workflowSlug = args.identifier.slice(slashIdx + 1);
         const data = await callApi(
           baseUrl,
           authHeader,
-          `/api/mcp/workflows/${workflowSlug}/call`,
+          `/api/mcp/workflows/${workflowSlug}/call?org=${encodeURIComponent(orgSlug)}`,
           "POST",
           args.inputs
         );

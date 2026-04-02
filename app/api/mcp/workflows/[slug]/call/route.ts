@@ -5,7 +5,7 @@ import { start } from "workflow/api";
 import { checkConcurrencyLimit } from "@/app/api/execute/_lib/concurrency-limit";
 import { enforceExecutionLimit } from "@/lib/billing/execution-guard";
 import { db } from "@/lib/db";
-import { workflowExecutions, workflows } from "@/lib/db/schema";
+import { organization, workflowExecutions, workflows } from "@/lib/db/schema";
 import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { checkIpRateLimit, getClientIp } from "@/lib/mcp/rate-limit";
 import { executeWorkflow } from "@/lib/workflow-executor.workflow";
@@ -130,11 +130,29 @@ async function createAndStartExecution(
   );
 }
 
-async function lookupWorkflow(slug: string): Promise<CallRouteWorkflow | null> {
+async function lookupWorkflow(
+  slug: string,
+  orgSlug?: string
+): Promise<CallRouteWorkflow | null> {
+  const filters = [
+    eq(workflows.listedSlug, slug),
+    eq(workflows.isListed, true),
+  ];
+
+  if (orgSlug) {
+    const rows = await db
+      .select(CALL_ROUTE_COLUMNS)
+      .from(workflows)
+      .innerJoin(organization, eq(workflows.organizationId, organization.id))
+      .where(and(...filters, eq(organization.slug, orgSlug)))
+      .limit(1);
+    return rows[0]?.workflows ?? null;
+  }
+
   const rows = await db
     .select(CALL_ROUTE_COLUMNS)
     .from(workflows)
-    .where(and(eq(workflows.listedSlug, slug), eq(workflows.isListed, true)))
+    .where(and(...filters))
     .limit(1);
   return rows[0] ?? null;
 }
@@ -271,8 +289,9 @@ export async function POST(
     }
 
     const { slug } = await params;
+    const orgSlug = new URL(request.url).searchParams.get("org") ?? undefined;
 
-    const workflow = await lookupWorkflow(slug);
+    const workflow = await lookupWorkflow(slug, orgSlug);
     if (!workflow) {
       return NextResponse.json(
         { error: "Workflow not found" },
