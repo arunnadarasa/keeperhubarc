@@ -11,6 +11,28 @@ import {
 import type { CallRouteWorkflow } from "./types";
 
 /**
+ * Extracts the payer wallet address from a base64-encoded PAYMENT-SIGNATURE
+ * header. The x402 protocol encodes the payment payload as base64 JSON with
+ * a nested `payload.authorization.from` field (EIP-3009 exact scheme).
+ *
+ * Returns null when the header is missing or cannot be decoded - payment
+ * recording should still succeed, just without the payer address.
+ */
+export function extractPayerAddress(paymentSig: string | null): string | null {
+  if (!paymentSig) {
+    return null;
+  }
+  try {
+    const decoded = JSON.parse(
+      Buffer.from(paymentSig, "base64").toString("utf-8")
+    ) as { payload?: { authorization?: { from?: string } } };
+    return decoded?.payload?.authorization?.from ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Builds the RouteConfig object for withX402().
  * Sets scheme "exact", network Base mainnet, and payTo as the creator wallet.
  * Price is formatted as "$N.NN" -- the dollar sign prefix is required by @x402/evm

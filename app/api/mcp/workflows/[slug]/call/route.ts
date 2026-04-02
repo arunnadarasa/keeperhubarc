@@ -11,6 +11,7 @@ import { executeWorkflow } from "@/lib/workflow-executor.workflow";
 import type { WorkflowEdge, WorkflowNode } from "@/lib/workflow-store";
 import {
   buildPaymentConfig,
+  extractPayerAddress,
   findExistingPayment,
   hashPaymentSignature,
   recordPayment,
@@ -268,6 +269,7 @@ export async function POST(
       return idempotent;
     }
 
+    const payerAddress = extractPayerAddress(paymentSig);
     const paymentConfig = buildPaymentConfig(workflow, creatorWalletAddress);
 
     // innerHandler closes over the already-parsed body so we never call
@@ -285,7 +287,7 @@ export async function POST(
             : (result.executionId as string),
           executionId: result.executionId as string,
           amountUsdc: workflow.priceUsdcPerCall ?? "0",
-          payerAddress: null,
+          payerAddress,
           creatorWalletAddress,
         });
       }
