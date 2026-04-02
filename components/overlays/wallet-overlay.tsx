@@ -1559,7 +1559,7 @@ export function WalletOverlay({ overlayId }: WalletOverlayProps) {
               email={walletData.email}
               isAdmin={isAdmin}
               onEmailUpdated={loadWallet}
-              provider={walletData.provider ?? "para"}
+              provider={walletData.provider ?? "turnkey"}
               walletAddress={walletData.walletAddress}
             />
           )}
