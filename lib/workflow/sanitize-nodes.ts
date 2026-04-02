@@ -4,7 +4,7 @@
  * Handles two classes of issues:
  * 1. React Flow UI state leaking into stored data (dragging, measured, selected, etc.)
  * 2. MCP/AI producing inconsistent node formats (wrong type separators, config at wrong level)
- * 3. Missing positions -- applies auto-layout when all nodes are at origin
+ * 3. Missing positions. Applies auto-layout when all nodes are at origin
  * 4. Condition config normalization (missing ids, wrong operator formats, field name aliases)
  *
  * Canonical node format expected by the workflow executor:
