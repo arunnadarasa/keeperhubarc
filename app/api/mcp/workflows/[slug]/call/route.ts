@@ -7,6 +7,7 @@ import { enforceExecutionLimit } from "@/lib/billing/execution-guard";
 import { db } from "@/lib/db";
 import { workflowExecutions, workflows } from "@/lib/db/schema";
 import { ErrorCategory, logSystemError } from "@/lib/logging";
+import { checkIpRateLimit, getClientIp } from "@/lib/mcp/rate-limit";
 import { executeWorkflow } from "@/lib/workflow-executor.workflow";
 import type { WorkflowEdge, WorkflowNode } from "@/lib/workflow-store";
 import {
@@ -200,11 +201,75 @@ async function handleTimeoutReconciliation(
   throw gateErr;
 }
 
+// 30 requests per minute per IP - prevents a single caller from exhausting
+// the workflow owner's execution quota. In-memory, per-pod; effective limit
+// is LIMIT * num_replicas. Replace with Redis when replica count grows.
+const CALL_RATE_LIMIT = 30;
+const CALL_RATE_WINDOW_MS = 60_000;
+
+function checkCallRateLimit(request: Request): NextResponse | null {
+  const clientIp = getClientIp(request);
+  const rateCheck = checkIpRateLimit(
+    clientIp,
+    CALL_RATE_LIMIT,
+    CALL_RATE_WINDOW_MS
+  );
+  if (!rateCheck.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests" },
+      {
+        status: 429,
+        headers: {
+          ...corsHeaders,
+          "Retry-After": String(rateCheck.retryAfter),
+        },
+      }
+    );
+  }
+  return null;
+}
+
+async function handleWriteWorkflow(
+  request: Request,
+  workflow: CallRouteWorkflow
+): Promise<NextResponse> {
+  const writeBody = (await request.json().catch(() => ({}))) as Record<
+    string,
+    unknown
+  >;
+  const writeBodyError = validateBody(workflow, writeBody);
+  if (writeBodyError) {
+    return writeBodyError;
+  }
+  const { generateCalldataForWorkflow } = await import("@/lib/mcp/calldata");
+  const result = generateCalldataForWorkflow(workflow.nodes, writeBody);
+  if (!result.success) {
+    return NextResponse.json(
+      { error: result.error },
+      { status: 400, headers: corsHeaders }
+    );
+  }
+  return NextResponse.json(
+    {
+      type: "calldata",
+      to: result.to,
+      data: result.data,
+      value: result.value,
+    },
+    { headers: corsHeaders }
+  );
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ slug: string }> }
 ): Promise<NextResponse> {
   try {
+    const rateLimited = checkCallRateLimit(request);
+    if (rateLimited) {
+      return rateLimited;
+    }
+
     const { slug } = await params;
 
     const workflow = await lookupWorkflow(slug);
@@ -216,33 +281,7 @@ export async function POST(
     }
 
     if (workflow.workflowType === "write") {
-      const writeBody = (await request.json().catch(() => ({}))) as Record<
-        string,
-        unknown
-      >;
-      const writeBodyError = validateBody(workflow, writeBody);
-      if (writeBodyError) {
-        return writeBodyError;
-      }
-      const { generateCalldataForWorkflow } = await import(
-        "@/lib/mcp/calldata"
-      );
-      const result = generateCalldataForWorkflow(workflow.nodes, writeBody);
-      if (!result.success) {
-        return NextResponse.json(
-          { error: result.error },
-          { status: 400, headers: corsHeaders }
-        );
-      }
-      return NextResponse.json(
-        {
-          type: "calldata",
-          to: result.to,
-          data: result.data,
-          value: result.value,
-        },
-        { headers: corsHeaders }
-      );
+      return handleWriteWorkflow(request, workflow);
     }
 
     const body = (await request.json().catch(() => ({}))) as Record<

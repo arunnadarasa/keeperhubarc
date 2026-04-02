@@ -2,6 +2,7 @@ import { and, count, desc, eq, ilike, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { workflows } from "@/lib/db/schema";
+import { checkIpRateLimit, getClientIp } from "@/lib/mcp/rate-limit";
 import { sanitizeDescription } from "@/lib/sanitize-description";
 
 const MAX_LIMIT = 100;
@@ -26,8 +27,27 @@ const LISTED_WORKFLOW_COLUMNS = {
   chain: workflows.chain,
 };
 
+const CATALOG_RATE_LIMIT = 60;
+const CATALOG_RATE_WINDOW_MS = 60_000;
+
 export async function GET(request: Request): Promise<NextResponse> {
   try {
+    const clientIp = getClientIp(request);
+    const rateCheck = checkIpRateLimit(
+      clientIp,
+      CATALOG_RATE_LIMIT,
+      CATALOG_RATE_WINDOW_MS
+    );
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests" },
+        {
+          status: 429,
+          headers: { "Retry-After": String(rateCheck.retryAfter) },
+        }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const q = searchParams.get("q") ?? undefined;
     const category = searchParams.get("category") ?? undefined;
