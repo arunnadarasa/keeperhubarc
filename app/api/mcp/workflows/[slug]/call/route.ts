@@ -62,10 +62,14 @@ function validateInputSchema(
 }
 
 /**
- * Creates a workflow execution record and starts the workflow in the background.
- * Returns { executionId, status: "running" } immediately (fire-and-forget pattern).
+ * Runs execution guards, creates a workflow execution record, and starts the
+ * workflow in the background. Returns { executionId, status: "running" }
+ * immediately (fire-and-forget pattern).
+ *
+ * Shared by both free and paid call paths to avoid duplicating the
+ * guard/insert/start sequence.
  */
-async function executeAndRespond(
+async function createAndStartExecution(
   workflow: CallRouteWorkflow,
   body: Record<string, unknown>
 ): Promise<NextResponse> {
@@ -245,7 +249,7 @@ export async function POST(
 
     const price = Number(workflow.priceUsdcPerCall ?? "0");
     if (price <= 0) {
-      return executeAndRespond(workflow, body);
+      return createAndStartExecution(workflow, body);
     }
 
     const creatorWalletAddress = await resolveCreatorWallet(
@@ -266,8 +270,28 @@ export async function POST(
 
     const paymentConfig = buildPaymentConfig(workflow, creatorWalletAddress);
 
-    const innerHandler = async (req: NextRequest): Promise<NextResponse> =>
-      executePaidWorkflow(req, workflow, paymentSig, creatorWalletAddress);
+    // innerHandler closes over the already-parsed body so we never call
+    // request.json() a second time (ReadableStream is single-consume).
+    const innerHandler = async (_req: NextRequest): Promise<NextResponse> => {
+      const response = await createAndStartExecution(workflow, body);
+
+      // Record payment after execution is created so we have the executionId
+      const result = (await response.clone().json()) as Record<string, unknown>;
+      if (result.executionId) {
+        await recordPayment({
+          workflowId: workflow.id,
+          paymentHash: paymentSig
+            ? hashPaymentSignature(paymentSig)
+            : (result.executionId as string),
+          executionId: result.executionId as string,
+          amountUsdc: workflow.priceUsdcPerCall ?? "0",
+          payerAddress: null,
+          creatorWalletAddress,
+        });
+      }
+
+      return response;
+    };
 
     const gatedHandler = withX402(innerHandler, paymentConfig, server);
     try {
@@ -287,84 +311,4 @@ export async function POST(
       { status: 500, headers: corsHeaders }
     );
   }
-}
-
-async function executePaidWorkflow(
-  req: NextRequest,
-  workflow: CallRouteWorkflow,
-  paymentSig: string | null,
-  creatorWalletAddress: string
-): Promise<NextResponse> {
-  const innerBody = (await req.json().catch(() => ({}))) as Record<
-    string,
-    unknown
-  >;
-
-  const executionGuard = await enforceExecutionLimit(workflow.organizationId);
-  if (executionGuard.blocked) {
-    const guardBody = await executionGuard.response.json();
-    return NextResponse.json(guardBody, {
-      status: 429,
-      headers: corsHeaders,
-    });
-  }
-
-  const concurrencyCheck = await checkConcurrencyLimit();
-  if (!concurrencyCheck.allowed) {
-    return NextResponse.json(
-      {
-        error: "Too many concurrent workflow executions",
-        running: concurrencyCheck.running,
-        limit: concurrencyCheck.limit,
-      },
-      { status: 429, headers: { ...corsHeaders, "Retry-After": "30" } }
-    );
-  }
-
-  const [execution] = await db
-    .insert(workflowExecutions)
-    .values({
-      workflowId: workflow.id,
-      userId: workflow.userId,
-      status: "running",
-      input: innerBody,
-    })
-    .returning();
-
-  const executionId = execution.id;
-
-  await recordPayment({
-    workflowId: workflow.id,
-    paymentHash: paymentSig ? hashPaymentSignature(paymentSig) : executionId,
-    executionId,
-    amountUsdc: workflow.priceUsdcPerCall ?? "0",
-    payerAddress: null,
-    creatorWalletAddress,
-  });
-
-  start(executeWorkflow, [
-    {
-      nodes: workflow.nodes as WorkflowNode[],
-      edges: workflow.edges as WorkflowEdge[],
-      triggerInput: innerBody,
-      executionId,
-      workflowId: workflow.id,
-      organizationId: workflow.organizationId ?? undefined,
-    },
-  ]).catch((err: unknown) => {
-    logSystemError(
-      ErrorCategory.WORKFLOW_ENGINE,
-      "[x402/call] Error starting paid workflow execution",
-      err,
-      {
-        endpoint: "/api/mcp/workflows/[slug]/call",
-        workflowId: workflow.id,
-      }
-    );
-  });
-
-  return NextResponse.json(
-    { executionId, status: "running" },
-    { headers: corsHeaders }
-  );
 }
