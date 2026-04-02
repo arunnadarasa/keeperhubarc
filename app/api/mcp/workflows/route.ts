@@ -9,6 +9,10 @@ const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 20;
 const DEFAULT_PAGE = 1;
 
+function escapeLikePattern(value: string): string {
+  return value.replace(/[%_\\]/g, "\\$&");
+}
+
 const LISTED_WORKFLOW_COLUMNS = {
   id: workflows.id,
   name: workflows.name,
@@ -72,16 +76,16 @@ export async function GET(request: Request): Promise<NextResponse> {
     const baseFilter = eq(workflows.isListed, true);
     const textFilter = q
       ? or(
-          ilike(workflows.name, `%${q}%`),
-          ilike(workflows.description, `%${q}%`),
-          ilike(workflows.listedSlug, `%${q}%`)
+          ilike(workflows.name, `%${escapeLikePattern(q)}%`),
+          ilike(workflows.description, `%${escapeLikePattern(q)}%`),
+          ilike(workflows.listedSlug, `%${escapeLikePattern(q)}%`)
         )
       : undefined;
     const categoryFilter = category
-      ? ilike(workflows.category, `%${category}%`)
+      ? ilike(workflows.category, `%${escapeLikePattern(category)}%`)
       : undefined;
     const chainFilter = chain
-      ? ilike(workflows.chain, `%${chain}%`)
+      ? ilike(workflows.chain, `%${escapeLikePattern(chain)}%`)
       : undefined;
 
     const whereClause = and(
