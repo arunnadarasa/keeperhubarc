@@ -167,7 +167,7 @@ export async function POST(
     // Sanitize nodes/edges: strip React Flow UI state and normalize formats
     const sanitized = sanitizeWorkflowData(
       duplicatedNodes as Record<string, unknown>[],
-      duplicatedEdges as Record<string, unknown>[],
+      duplicatedEdges as Record<string, unknown>[]
     );
     const newNodes = sanitized.nodes;
     const newEdges = sanitized.edges;

@@ -38,22 +38,6 @@ const OPERATOR_ALIASES: Record<string, ConditionOperator> = {
   is_not_empty: "isNotEmpty",
   does_not_exist: "doesNotExist",
   matches_regex: "matchesRegex",
-  "==": "==",
-  "===": "===",
-  "!=": "!=",
-  "!==": "!==",
-  ">": ">",
-  ">=": ">=",
-  "<": "<",
-  "<=": "<=",
-  contains: "contains",
-  startsWith: "startsWith",
-  endsWith: "endsWith",
-  isEmpty: "isEmpty",
-  isNotEmpty: "isNotEmpty",
-  exists: "exists",
-  doesNotExist: "doesNotExist",
-  matchesRegex: "matchesRegex",
 };
 
 const KNOWN_DATA_FIELDS = new Set([
@@ -65,14 +49,23 @@ const KNOWN_DATA_FIELDS = new Set([
   "enabled",
 ]);
 
-
 // ---------------------------------------------------------------------------
 // Condition config normalization
 // ---------------------------------------------------------------------------
 
+/** The set of valid canonical operators for fast lookup */
+const VALID_OPERATORS = new Set<string>([
+  "==", "===", "!=", "!==", ">", ">=", "<", "<=",
+  "contains", "startsWith", "endsWith",
+  "isEmpty", "isNotEmpty", "exists", "doesNotExist", "matchesRegex",
+]);
+
 /** Normalize a condition operator string to a canonical ConditionOperator value */
 function normalizeOperator(op: unknown): ConditionOperator {
   if (typeof op === "string") {
+    if (VALID_OPERATORS.has(op)) {
+      return op as ConditionOperator;
+    }
     return OPERATOR_ALIASES[op] ?? "===";
   }
   // Handle object-shaped operators (e.g. { key: "equals", label: "Equals" })
@@ -333,7 +326,7 @@ export function sanitizeWorkflowData(
   if (needsAutoLayout(sanitizedNodes)) {
     const positions = computeAutoLayout(
       sanitizedNodes as Node[],
-      sanitizedEdges as Edge[],
+      sanitizedEdges as Edge[]
     );
     for (const node of sanitizedNodes) {
       const pos = positions.get(node.id as string);
