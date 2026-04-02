@@ -74,21 +74,18 @@ export async function getEarningsSummary(
   );
   const creatorSharePercent = 100 - platformFeePercent;
 
-  const listedWorkflows = await db
-    .select({
-      id: workflows.id,
-      name: workflows.name,
-      listedSlug: workflows.listedSlug,
-    })
-    .from(workflows)
-    .where(
-      and(
-        eq(workflows.organizationId, organizationId),
-        eq(workflows.isListed, true)
-      )
-    );
+  const orgFilter = and(
+    eq(workflows.organizationId, organizationId),
+    eq(workflows.isListed, true)
+  );
 
-  if (listedWorkflows.length === 0) {
+  const [countResult] = await db
+    .select({ count: count() })
+    .from(workflows)
+    .where(orgFilter);
+  const total = Number(countResult?.count ?? 0);
+
+  if (total === 0) {
     return {
       totalGrossRevenue: formatUsdc(0),
       totalCreatorEarnings: formatUsdc(0),
@@ -104,8 +101,42 @@ export async function getEarningsSummary(
     };
   }
 
-  const orgWorkflowIds = listedWorkflows.map((w) => w.id);
+  const offset = (page - 1) * pageSize;
 
+  const listedWorkflows = await db
+    .select({
+      id: workflows.id,
+      name: workflows.name,
+      listedSlug: workflows.listedSlug,
+    })
+    .from(workflows)
+    .where(orgFilter)
+    .orderBy(desc(workflows.listedAt))
+    .limit(pageSize)
+    .offset(offset);
+
+  // All org workflow IDs needed for aggregate totals
+  const allOrgWorkflowIds = await db
+    .select({ id: workflows.id })
+    .from(workflows)
+    .where(orgFilter);
+  const orgWorkflowIds = allOrgWorkflowIds.map((w) => w.id);
+
+  const pageWorkflowIds = listedWorkflows.map((w) => w.id);
+
+  // Aggregate totals across all org workflows (for KPI cards)
+  const [orgTotals] = await db
+    .select({
+      grossRevenue: sum(workflowPayments.amountUsdc),
+      invocationCount: count(workflowPayments.id),
+    })
+    .from(workflowPayments)
+    .where(inArray(workflowPayments.workflowId, orgWorkflowIds));
+
+  const totalGross = Number(orgTotals?.grossRevenue ?? "0");
+  const totalInvocations = orgTotals?.invocationCount ?? 0;
+
+  // Per-workflow revenue for the current page only
   const revenueRows = await db
     .select({
       workflowId: workflowPayments.workflowId,
@@ -113,7 +144,7 @@ export async function getEarningsSummary(
       invocationCount: count(workflowPayments.id),
     })
     .from(workflowPayments)
-    .where(inArray(workflowPayments.workflowId, orgWorkflowIds))
+    .where(inArray(workflowPayments.workflowId, pageWorkflowIds))
     .groupBy(workflowPayments.workflowId)
     .orderBy(desc(sum(workflowPayments.amountUsdc)));
 
@@ -126,7 +157,7 @@ export async function getEarningsSummary(
     .from(workflowPayments)
     .where(
       and(
-        inArray(workflowPayments.workflowId, orgWorkflowIds),
+        inArray(workflowPayments.workflowId, pageWorkflowIds),
         isNotNull(workflowPayments.payerAddress)
       )
     )
@@ -149,37 +180,29 @@ export async function getEarningsSummary(
     revenueRows.map((r) => [r.workflowId, r])
   );
 
-  let totalGross = 0;
-  let totalInvocations = 0;
+  const paginatedRows: WorkflowEarningsRow[] = listedWorkflows.map(
+    (workflow) => {
+      const revenue = revenueByWorkflowId.get(workflow.id);
+      const gross = Number(revenue?.grossRevenue ?? "0");
+      const invocationCount = revenue?.invocationCount ?? 0;
+      const { creatorShare, platformFee } = computeRevenueSplit(
+        gross,
+        platformFeePercent
+      );
 
-  const allRows: WorkflowEarningsRow[] = listedWorkflows.map((workflow) => {
-    const revenue = revenueByWorkflowId.get(workflow.id);
-    const gross = Number(revenue?.grossRevenue ?? "0");
-    const invocationCount = revenue?.invocationCount ?? 0;
-    const { creatorShare, platformFee } = computeRevenueSplit(
-      gross,
-      platformFeePercent
-    );
-
-    totalGross += gross;
-    totalInvocations += invocationCount;
-
-    return {
-      workflowId: workflow.id,
-      workflowName: workflow.name,
-      listedSlug: workflow.listedSlug,
-      grossRevenue: formatUsdc(gross),
-      creatorShare: formatUsdc(creatorShare),
-      platformFee: formatUsdc(platformFee),
-      invocationCount,
-      topCallers: topCallersMap.get(workflow.id) ?? [],
-      settlementStatus: deriveSettlementStatus(invocationCount),
-    };
-  });
-
-  const total = allRows.length;
-  const offset = (page - 1) * pageSize;
-  const paginatedRows = allRows.slice(offset, offset + pageSize);
+      return {
+        workflowId: workflow.id,
+        workflowName: workflow.name,
+        listedSlug: workflow.listedSlug,
+        grossRevenue: formatUsdc(gross),
+        creatorShare: formatUsdc(creatorShare),
+        platformFee: formatUsdc(platformFee),
+        invocationCount,
+        topCallers: topCallersMap.get(workflow.id) ?? [],
+        settlementStatus: deriveSettlementStatus(invocationCount),
+      };
+    }
+  );
 
   const { creatorShare: totalCreatorEarnings, platformFee: totalPlatformFees } =
     computeRevenueSplit(totalGross, platformFeePercent);
