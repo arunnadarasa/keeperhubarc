@@ -30,7 +30,7 @@ function HubPageContent(): React.ReactElement {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTagSlugs, setSelectedTagSlugs] = useState<string[]>([]);
-  const [sortBy, setSortBy] = useState<"recent" | "stars">("recent");
+  const [sortBy, setSortBy] = useState<"recent" | "votes">("recent");
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   const [protocols, setProtocols] = useState<ProtocolDefinition[]>([]);
@@ -78,7 +78,7 @@ function HubPageContent(): React.ReactElement {
         merged.push(w);
       }
     }
-    if (sortBy === "stars") {
+    if (sortBy === "votes") {
       merged.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
     }
     return merged;
@@ -222,8 +222,8 @@ function HubPageContent(): React.ReactElement {
                       Recent
                     </button>
                     <button
-                      className={`rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors ${sortBy === "stars" ? "bg-[var(--color-hub-icon-bg)] text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                      onClick={() => setSortBy("stars")}
+                      className={`rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors ${sortBy === "votes" ? "bg-[var(--color-hub-icon-bg)] text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                      onClick={() => setSortBy("votes")}
                       type="button"
                     >
                       Top voted

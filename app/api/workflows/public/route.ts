@@ -140,7 +140,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     const isFeaturedRequest = searchParams.get("featured") === "true";
     const featuredProtocol = searchParams.get("featuredProtocol");
     const tagSlug = searchParams.get("tag");
-    const sortByRating = searchParams.get("sort") === "stars";
+    const sortByVotes = searchParams.get("sort") === "votes";
 
     let workflowIdFilter: string[] | null = null;
 
@@ -232,7 +232,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       updatedAt: workflow.updatedAt.toISOString(),
     }));
 
-    if (sortByRating) {
+    if (sortByVotes) {
       mappedWorkflows.sort((a, b) => b.score - a.score);
     }
 
