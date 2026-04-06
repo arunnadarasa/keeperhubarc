@@ -16,10 +16,6 @@ function isValidDirection(value: unknown): value is VoteDirection {
   return typeof value === "string" && VALID_DIRECTIONS.has(value);
 }
 
-function storedToDirection(stored: number): VoteDirection {
-  return stored === 1 ? "upvote" : "downvote";
-}
-
 async function getScore(workflowId: string): Promise<number> {
   const [result] = await db
     .select({

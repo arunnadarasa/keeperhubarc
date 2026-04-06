@@ -1,3 +1,4 @@
+import type { VoteDirection } from "@/app/api/workflows/[workflowId]/rate/route";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
@@ -81,8 +82,6 @@ async function fetchScores(
   }
   return result;
 }
-
-type VoteDirection = "upvote" | "downvote";
 
 async function fetchUserVotes(
   userId: string,
