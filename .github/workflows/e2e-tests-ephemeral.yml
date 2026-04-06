@@ -49,6 +49,7 @@ on:
 jobs:
   should-run:
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
     outputs:
       run-e2e: ${{ steps.check.outputs.run-e2e }}
     steps:
@@ -64,6 +65,12 @@ jobs:
           EFFECTIVE_EVENT: ${{ inputs.caller_event || github.event_name }}
         run: |
           echo "run-e2e=false" >> "$GITHUB_OUTPUT"
+
+          # Check environment-level kill switch
+          if [[ "${{ vars.ENABLE_E2E_EPHEMERAL_TESTS }}" != "true" ]]; then
+            echo "E2E tests disabled for this environment (ENABLE_E2E_EPHEMERAL_TESTS=${{ vars.ENABLE_E2E_EPHEMERAL_TESTS }})"
+            exit 0
+          fi
 
           # Check for [skip e2e] flag in commit message (push events only)
           if [[ "$EFFECTIVE_EVENT" == "push" ]]; then
@@ -86,7 +93,7 @@ jobs:
   # DISABLED: ephemeral E2E tests temporarily disabled while KEEP-1351 stabilises auth/rate-limit infrastructure
   e2e-vitest-ephemeral:
     needs: should-run
-    if: ${{ needs.should-run.outputs.run-e2e == 'true' && vars.ENABLE_E2E_EPHEMERAL_TESTS == 'true' }}
+    if: ${{ needs.should-run.outputs.run-e2e == 'true' }}
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
 
@@ -223,7 +230,7 @@ jobs:
 
       - name: Upload test results
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: vitest-e2e-results
           path: |
@@ -236,7 +243,7 @@ jobs:
   # DISABLED: ephemeral E2E tests temporarily disabled while KEEP-1351 stabilises auth/rate-limit infrastructure
   e2e-playwright-ephemeral:
     needs: [should-run, e2e-vitest-ephemeral]
-    if: ${{ always() && needs.should-run.outputs.run-e2e == 'true' && !failure() && vars.ENABLE_E2E_EPHEMERAL_TESTS == 'true' }}
+    if: ${{ always() && needs.should-run.outputs.run-e2e == 'true' && !failure() }}
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
 
@@ -318,7 +325,7 @@ jobs:
 
       - name: Upload Playwright report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-ephemeral
           path: |
@@ -328,7 +335,7 @@ jobs:
 
       - name: Upload screenshots
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-screenshots-ephemeral
           path: test-results/**/*.png

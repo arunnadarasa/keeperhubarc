@@ -1,16 +1,16 @@
 import "server-only";
 
 import { and, count, desc, eq, gte, lt, sql } from "drizzle-orm";
-import {
-  directExecutions,
-  organizationSpendCaps,
-} from "@/db/schema-extensions";
 import { db } from "@/lib/db";
 import {
   workflowExecutionLogs,
   workflowExecutions,
   workflows,
 } from "@/lib/db/schema";
+import {
+  directExecutions,
+  organizationSpendCaps,
+} from "@/lib/db/schema-extensions";
 import {
   getBucketInterval,
   getPreviousPeriodStart,
@@ -582,8 +582,9 @@ export async function getNetworkBreakdown(
   const networkMap = new Map<string, NetworkBreakdown>();
 
   for (const row of directResult) {
-    networkMap.set(row.network, {
-      network: row.network,
+    const networkKey = row.network ?? "unknown";
+    networkMap.set(networkKey, {
+      network: networkKey,
       totalGasWei: row.totalGasWei,
       executionCount: Number(row.executionCount),
       successCount: Number(row.successCount),
@@ -629,14 +630,16 @@ export async function getNetworkBreakdown(
 }
 
 /**
- * Fetch unified runs with cursor-based pagination.
- * Runs fetch + count in parallel to avoid sequential blocking.
+ * Fetch unified runs with page-based or cursor-based pagination.
+ * Merges workflow and direct runs, sorts by time, then applies
+ * offset for the requested page. Runs fetch + count in parallel.
  */
 export async function getUnifiedRuns(
   organizationId: string,
   range: TimeRange,
   options: {
     cursor?: string;
+    page?: number;
     limit?: number;
     status?: NormalizedStatus;
     source?: RunSource;
@@ -644,9 +647,16 @@ export async function getUnifiedRuns(
     customEnd?: string;
     projectId?: string;
   } = {}
-): Promise<{ runs: UnifiedRun[]; nextCursor: string | null; total: number }> {
+): Promise<{
+  runs: UnifiedRun[];
+  nextCursor: string | null;
+  total: number;
+  page: number;
+  pageSize: number;
+}> {
   const {
     cursor,
+    page = 1,
     limit = 50,
     status,
     source,
@@ -658,6 +668,12 @@ export async function getUnifiedRuns(
   const rangeEnd = customEnd ? new Date(customEnd) : new Date();
   const pageLimit = Math.min(limit, 100);
   const skipDirect = Boolean(projectId) || source === "direct";
+  const offset = cursor ? 0 : (page - 1) * pageLimit;
+
+  // Fetch enough rows from each source to fill the requested page after merging.
+  // We need offset + pageLimit + 1 rows from each source to correctly paginate
+  // the merged, sorted result set.
+  const fetchLimit = cursor ? pageLimit + 1 : offset + pageLimit + 1;
 
   // Fire run fetches and count queries in parallel
   const [workflowRuns, directRuns, total] = await Promise.all([
@@ -669,7 +685,7 @@ export async function getUnifiedRuns(
           rangeEnd,
           status,
           cursor,
-          pageLimit + 1,
+          fetchLimit,
           projectId
         ),
     skipDirect || source === "workflow"
@@ -680,7 +696,7 @@ export async function getUnifiedRuns(
           rangeEnd,
           status,
           cursor,
-          pageLimit + 1
+          fetchLimit
         ),
     getUnifiedRunsTotal(
       organizationId,
@@ -692,15 +708,18 @@ export async function getUnifiedRuns(
     ),
   ]);
 
+  // Merge both sources, sort by time, then apply offset for the requested page
   const allRuns = [...workflowRuns, ...directRuns].sort(
     (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
   );
 
-  const hasMore = allRuns.length > pageLimit;
-  const pagedRuns = allRuns.slice(0, pageLimit);
+  const sliceStart = cursor ? 0 : offset;
+  const sliced = allRuns.slice(sliceStart, sliceStart + pageLimit + 1);
+  const hasMore = sliced.length > pageLimit;
+  const pagedRuns = sliced.slice(0, pageLimit);
   const nextCursor = hasMore ? (pagedRuns.at(-1)?.startedAt ?? null) : null;
 
-  return { runs: pagedRuns, nextCursor, total };
+  return { runs: pagedRuns, nextCursor, total, page, pageSize: pageLimit };
 }
 
 async function fetchWorkflowRuns(

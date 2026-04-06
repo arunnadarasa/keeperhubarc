@@ -82,16 +82,6 @@ jobs:
             tag_prefix: migrator
             build_args: false
             cache_key: cache-migrator
-          - name: scheduler
-            target: scheduler
-            tag_prefix: scheduler
-            build_args: false
-            cache_key: cache-scheduler
-          - name: workflow-runner
-            target: workflow-runner
-            tag_prefix: workflow-runner
-            build_args: false
-            cache_key: cache-workflow-runner
     env:
       PR_NUMBER: ${{ github.event.pull_request.number }}
       REGION: ${{ vars.TO_REGION }}
@@ -103,7 +93,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.TO_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.TO_AWS_SECRET_ACCESS_KEY }}
@@ -170,7 +160,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.TO_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.TO_AWS_SECRET_ACCESS_KEY }}
@@ -288,10 +278,9 @@ jobs:
           TEST_PARA_USER_SHARE: ${{ secrets.TEST_PARA_USER_SHARE }}
         run: |
           envsubst < deploy/pr-environment/values.template.yaml > ${{ github.workspace }}/values-pr-${{ env.PR_NUMBER }}.yaml
-          envsubst < deploy/pr-environment/scheduler-dispatcher.template.yaml > ${{ github.workspace }}/scheduler-dispatcher-pr-${{ env.PR_NUMBER }}.yaml
-          envsubst < deploy/pr-environment/scheduler-executor.template.yaml > ${{ github.workspace }}/scheduler-executor-pr-${{ env.PR_NUMBER }}.yaml
-          envsubst < deploy/pr-environment/sc-event-tracker.template.yaml > ${{ github.workspace }}/sc-event-tracker-pr-${{ env.PR_NUMBER }}.yaml
-          envsubst < deploy/pr-environment/sc-event-worker.template.yaml > ${{ github.workspace }}/sc-event-worker-pr-${{ env.PR_NUMBER }}.yaml
+          envsubst < deploy/pr-environment/scheduler-dispatcher.template.yaml > ${{ github.workspace }}/schedule-pr-${{ env.PR_NUMBER }}.yaml
+          envsubst < deploy/pr-environment/block-dispatcher.template.yaml > ${{ github.workspace }}/block-pr-${{ env.PR_NUMBER }}.yaml
+          envsubst < deploy/pr-environment/event-tracker.template.yaml > ${{ github.workspace }}/event-pr-${{ env.PR_NUMBER }}.yaml
 
       - name: Clean up stale Helm releases
         run: |
@@ -320,39 +309,31 @@ jobs:
           LOGDIR=$(mktemp -d)
 
           (
-            helm upgrade --install scheduler-dispatcher-pr-${PR_NUMBER} \
+            helm upgrade --install schedule-pr-${PR_NUMBER} \
               techops-services/common \
-              -f ${GITHUB_WORKSPACE}/scheduler-dispatcher-pr-${PR_NUMBER}.yaml \
+              -f ${GITHUB_WORKSPACE}/schedule-pr-${PR_NUMBER}.yaml \
               "${COMMON_ARGS[@]}"
-          ) > "${LOGDIR}/scheduler-dispatcher.log" 2>&1 &
+          ) > "${LOGDIR}/schedule.log" 2>&1 &
           PID1=$!
 
           (
-            helm upgrade --install scheduler-executor-pr-${PR_NUMBER} \
+            helm upgrade --install block-pr-${PR_NUMBER} \
               techops-services/common \
-              -f ${GITHUB_WORKSPACE}/scheduler-executor-pr-${PR_NUMBER}.yaml \
+              -f ${GITHUB_WORKSPACE}/block-pr-${PR_NUMBER}.yaml \
               "${COMMON_ARGS[@]}"
-          ) > "${LOGDIR}/scheduler-executor.log" 2>&1 &
+          ) > "${LOGDIR}/block.log" 2>&1 &
           PID2=$!
 
           (
-            helm upgrade --install events-worker-pr-${PR_NUMBER} \
+            helm upgrade --install event-pr-${PR_NUMBER} \
               techops-services/common \
-              -f ${GITHUB_WORKSPACE}/sc-event-worker-pr-${PR_NUMBER}.yaml \
+              -f ${GITHUB_WORKSPACE}/event-pr-${PR_NUMBER}.yaml \
               "${COMMON_ARGS[@]}"
-          ) > "${LOGDIR}/events-worker.log" 2>&1 &
+          ) > "${LOGDIR}/event.log" 2>&1 &
           PID3=$!
 
-          (
-            helm upgrade --install events-tracker-pr-${PR_NUMBER} \
-              techops-services/common \
-              -f ${GITHUB_WORKSPACE}/sc-event-tracker-pr-${PR_NUMBER}.yaml \
-              "${COMMON_ARGS[@]}"
-          ) > "${LOGDIR}/events-tracker.log" 2>&1 &
-          PID4=$!
-
           FAILED=0
-          for COMPONENT in scheduler-dispatcher:$PID1 scheduler-executor:$PID2 events-worker:$PID3 events-tracker:$PID4; do
+          for COMPONENT in schedule:$PID1 block:$PID2 event:$PID3; do
             NAME="${COMPONENT%%:*}"
             PID="${COMPONENT##*:}"
             if wait "$PID"; then
@@ -384,7 +365,7 @@ jobs:
 
       - name: Comment on PR
         if: success()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const prNumber = context.payload.pull_request.number;
@@ -407,10 +388,9 @@ jobs:
             - PostgreSQL Database (isolated instance)
             - LocalStack (SQS emulation)
             - Redis (isolated instance)
-            - Scheduler Dispatcher (staging image)
-            - Scheduler Executor (staging image)
-            - SC Event Tracker (staging image)
-            - SC Event Worker (staging image)
+            - Schedule Dispatcher (staging image)
+            - Block Dispatcher (staging image)
+            - Event Tracker (staging image)
 
             The environment will be automatically cleaned up when this PR is closed or merged.
             `;
@@ -424,7 +404,7 @@ jobs:
 
       - name: Comment on PR (failure)
         if: failure()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const prNumber = context.payload.pull_request.number;
@@ -479,7 +459,7 @@ jobs:
           discover-plugins: "true"
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.TO_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.TO_AWS_SECRET_ACCESS_KEY }}
@@ -572,7 +552,7 @@ jobs:
 
       - name: Upload test results
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: vitest-e2e-remote-results-pr-${{ env.PR_NUMBER }}
           path: |
@@ -609,7 +589,7 @@ jobs:
           install-playwright: "true"
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.TO_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.TO_AWS_SECRET_ACCESS_KEY }}
@@ -702,7 +682,7 @@ jobs:
 
       - name: Upload Playwright report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-deployed-report-pr-${{ env.PR_NUMBER }}
           path: |
@@ -712,7 +692,7 @@ jobs:
 
       - name: Comment test results on PR
         if: always()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const prNumber = context.payload.pull_request.number;

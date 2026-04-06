@@ -201,7 +201,7 @@ export function WorkflowTemplateCard({
           )}
         </div>
 
-        <div className="pointer-events-none my-auto shrink opacity-30">
+        <div className="pointer-events-none my-auto shrink opacity-30 transition-opacity duration-200 group-hover:opacity-50">
           <WorkflowMiniMap
             edges={workflow.edges}
             height={160}

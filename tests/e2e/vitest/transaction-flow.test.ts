@@ -31,7 +31,8 @@ import {
 vi.unmock("@/lib/db");
 vi.mock("server-only", () => ({}));
 
-import { pendingTransactions, walletLocks } from "@/db/schema-extensions";
+import { pendingTransactions, walletLocks } from "@/lib/db/schema-extensions";
+import { getRpcUrlByChainId } from "@/lib/rpc/rpc-config";
 import { AdaptiveGasStrategy, resetGasStrategy } from "@/lib/web3/gas-strategy";
 import { NonceManager, resetNonceManager } from "@/lib/web3/nonce-manager";
 
@@ -43,7 +44,7 @@ const shouldSkip =
 const TEST_WALLET = "0xTestWallet1234567890123456789012345678";
 const TEST_WALLET_NORMALIZED = TEST_WALLET.toLowerCase();
 const TEST_CHAIN_ID = 11_155_111; // Sepolia
-const SEPOLIA_RPC = "https://chain.techops.services/eth-sepolia";
+const SEPOLIA_RPC = getRpcUrlByChainId(11_155_111, "primary");
 
 describe.skipIf(shouldSkip)("Transaction Flow E2E", () => {
   let client: ReturnType<typeof postgres>;
@@ -538,7 +539,8 @@ describe.skipIf(shouldSkip)("Transaction Flow E2E", () => {
         mockProvider as any
       );
 
-      expect(session2.currentNonce).toBe(40);
+      // DB-aware nonce selection: max(chainNonce=40, maxPendingDbNonce=40 + 1) = 41
+      expect(session2.currentNonce).toBe(41);
 
       await manager2.endSession(session2);
     }, 15_000);
@@ -571,6 +573,8 @@ describe.skipIf(shouldSkip)("Transaction Flow with Real RPC", () => {
     await client.end();
   });
 
+  const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
   beforeEach(async () => {
     resetNonceManager();
     resetGasStrategy();
@@ -582,17 +586,17 @@ describe.skipIf(shouldSkip)("Transaction Flow with Real RPC", () => {
     await db
       .delete(walletLocks)
       .where(eq(walletLocks.walletAddress, TEST_WALLET_NORMALIZED));
+    await db
+      .delete(walletLocks)
+      .where(eq(walletLocks.walletAddress, ZERO_ADDRESS));
   });
 
   it("should get real chain nonce and gas prices", async () => {
     const nonceManager = new NonceManager();
     const gasStrategy = new AdaptiveGasStrategy();
 
-    // Use a real address with known nonce (zero address has nonce 0)
-    const zeroAddress = "0x0000000000000000000000000000000000000000";
-
     const { session, validation } = await nonceManager.startSession(
-      zeroAddress,
+      ZERO_ADDRESS,
       TEST_CHAIN_ID,
       testExecutionId,
       sepoliaProvider as any
@@ -622,7 +626,7 @@ describe.skipIf(shouldSkip)("Transaction Flow with Real RPC", () => {
     // Cleanup
     await db
       .delete(walletLocks)
-      .where(eq(walletLocks.walletAddress, zeroAddress));
+      .where(eq(walletLocks.walletAddress, ZERO_ADDRESS));
   }, 30_000);
 });
 
@@ -701,15 +705,14 @@ describe.skipIf(skipRealTx)("Real Transaction Tests (Sepolia)", () => {
       process.env.PARA_API_KEY ?? ""
     );
 
+    if (!paraWallet.userShare) {
+      throw new Error("Test wallet missing userShare");
+    }
     const decryptedShare = decryptUserShare(paraWallet.userShare);
     await paraClient.setUserShare(decryptedShare);
 
     sepoliaProvider = new ethers.JsonRpcProvider(SEPOLIA_RPC);
-    wallet = new ParaEthersSigner(
-      // biome-ignore lint/suspicious/noExplicitAny: Para server-sdk type incompatibility with core-sdk ParaCore
-      paraClient as any,
-      sepoliaProvider
-    );
+    wallet = new ParaEthersSigner(paraClient as any, sepoliaProvider);
 
     console.log(`Test wallet (Para): ${walletAddress}`);
 
