@@ -14,6 +14,7 @@ const CONFIRM_OR_YES_RE = /confirm|yes/i;
 test.use({ storageState: { cookies: [], origins: [] } });
 
 test.describe
+  // biome-ignore lint/suspicious/noSkippedTests: WIP test suite
   .skip("Billing", () => {
     test.describe.configure({ mode: "serial" });
 
