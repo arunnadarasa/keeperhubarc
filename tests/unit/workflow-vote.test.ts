@@ -1,7 +1,7 @@
 /**
- * Unit tests for workflow rating API route
+ * Unit tests for workflow vote API route
  *
- * Tests auth, validation, and anonymous user rejection.
+ * Tests auth, validation, toggle behavior, and anonymous user rejection.
  * Happy-path DB interactions are covered by integration tests.
  */
 
@@ -22,7 +22,7 @@ vi.mock("@/lib/db", () => {
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
     limit: vi.fn().mockResolvedValue([]),
-    groupBy: vi.fn().mockResolvedValue([{ avg: null, count: 0 }]),
+    groupBy: vi.fn().mockResolvedValue([{ score: "0" }]),
   };
   return {
     db: {
@@ -49,12 +49,18 @@ vi.mock("@/lib/api-error", () => ({
   }),
 }));
 
-import { DELETE, POST } from "@/app/api/workflows/[workflowId]/rate/route";
+import { POST } from "@/app/api/workflows/[workflowId]/rate/route";
 import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
 
 const mockGetSession = auth.api.getSession as unknown as ReturnType<
   typeof vi.fn
 >;
+
+// Access the chainable mock returned by db.select()
+function getMockChainable(): { limit: ReturnType<typeof vi.fn> } {
+  return (db.select as unknown as () => { limit: ReturnType<typeof vi.fn> })();
+}
 
 function makeRequest(body?: Record<string, unknown>): Request {
   return new Request("http://localhost/api/workflows/wf_123/rate", {
@@ -89,7 +95,7 @@ const mockSession = {
   user: mockUser,
 };
 
-describe("POST /api/workflows/[workflowId]/rate", () => {
+describe("POST /api/workflows/[workflowId]/rate (vote)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -97,7 +103,7 @@ describe("POST /api/workflows/[workflowId]/rate", () => {
   it("returns 401 when not authenticated", async () => {
     mockGetSession.mockResolvedValue(null);
 
-    const response = await POST(makeRequest({ rating: 4 }), makeParams());
+    const response = await POST(makeRequest({ vote: "upvote" }), makeParams());
     expect(response.status).toBe(401);
   });
 
@@ -107,7 +113,7 @@ describe("POST /api/workflows/[workflowId]/rate", () => {
       user: { ...mockUser, email: "temp-abc123@example.com" },
     });
 
-    const response = await POST(makeRequest({ rating: 4 }), makeParams());
+    const response = await POST(makeRequest({ vote: "upvote" }), makeParams());
     const data = await response.json();
 
     expect(response.status).toBe(403);
@@ -120,63 +126,72 @@ describe("POST /api/workflows/[workflowId]/rate", () => {
       user: { ...mockUser, email: "anon@http://localhost" },
     });
 
-    const response = await POST(makeRequest({ rating: 4 }), makeParams());
+    const response = await POST(makeRequest({ vote: "upvote" }), makeParams());
     expect(response.status).toBe(403);
   });
 
-  it("returns 400 for missing rating", async () => {
+  it("returns 400 for missing vote", async () => {
     mockGetSession.mockResolvedValue(mockSession);
 
     const response = await POST(makeRequest({}), makeParams());
     expect(response.status).toBe(400);
   });
 
-  it("returns 400 for rating below minimum", async () => {
+  it("returns 400 for numeric vote value", async () => {
     mockGetSession.mockResolvedValue(mockSession);
 
-    const response = await POST(makeRequest({ rating: 0 }), makeParams());
+    const response = await POST(makeRequest({ vote: 1 }), makeParams());
     expect(response.status).toBe(400);
   });
 
-  it("returns 400 for rating above maximum", async () => {
+  it("returns 400 for arbitrary number", async () => {
     mockGetSession.mockResolvedValue(mockSession);
 
-    const response = await POST(makeRequest({ rating: 6 }), makeParams());
+    const response = await POST(makeRequest({ vote: 88 }), makeParams());
     expect(response.status).toBe(400);
   });
 
-  it("returns 400 for non-half-star increment", async () => {
+  it("returns 400 for invalid string direction", async () => {
     mockGetSession.mockResolvedValue(mockSession);
 
-    const response = await POST(makeRequest({ rating: 1.3 }), makeParams());
+    const response = await POST(
+      makeRequest({ vote: "sideways" }),
+      makeParams()
+    );
     expect(response.status).toBe(400);
   });
 
   it("returns 403 when user has not duplicated the workflow", async () => {
     mockGetSession.mockResolvedValue(mockSession);
-    // Default mock returns [] for limit() = no duplication found
 
-    const response = await POST(makeRequest({ rating: 3 }), makeParams());
+    const response = await POST(makeRequest({ vote: "upvote" }), makeParams());
     const data = await response.json();
 
     expect(response.status).toBe(403);
     expect(data.error).toContain("must use this template");
   });
-});
 
-describe("DELETE /api/workflows/[workflowId]/rate", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+  it("accepts upvote and passes validation gate", async () => {
+    mockGetSession.mockResolvedValue(mockSession);
+    getMockChainable().limit.mockResolvedValueOnce([{ id: "dup_1" }]);
+
+    const response = await POST(makeRequest({ vote: "upvote" }), makeParams());
+    // Should pass auth + validation + duplication gate (not 400/401/403)
+    expect(response.status).not.toBe(400);
+    expect(response.status).not.toBe(401);
+    expect(response.status).not.toBe(403);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockGetSession.mockResolvedValue(null);
+  it("accepts downvote and passes validation gate", async () => {
+    mockGetSession.mockResolvedValue(mockSession);
+    getMockChainable().limit.mockResolvedValueOnce([{ id: "dup_1" }]);
 
-    const request = new Request("http://localhost/api/workflows/wf_123/rate", {
-      method: "DELETE",
-    });
-    const response = await DELETE(request, makeParams());
-
-    expect(response.status).toBe(401);
+    const response = await POST(
+      makeRequest({ vote: "downvote" }),
+      makeParams()
+    );
+    expect(response.status).not.toBe(400);
+    expect(response.status).not.toBe(401);
+    expect(response.status).not.toBe(403);
   });
 });

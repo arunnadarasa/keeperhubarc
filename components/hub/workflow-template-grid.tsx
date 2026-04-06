@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { type MouseEvent, useCallback, useState } from "react";
 import { toast } from "sonner";
-import { api, type RatingResponse, type SavedWorkflow } from "@/lib/api-client";
+import type { VoteDirection } from "@/app/api/workflows/[workflowId]/rate/route";
+import { api, type SavedWorkflow, type VoteResponse } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
 import { refetchSidebar } from "@/lib/refetch-sidebar";
 import { WorkflowTemplateCard } from "./workflow-template-card";
@@ -13,11 +14,34 @@ type WorkflowTemplateGridProps = {
   featuredIds?: Set<string>;
 };
 
-type RatingOverride = {
-  averageRating: number;
-  ratingCount: number;
-  userRating: number | null;
+type VoteOverride = {
+  score: number;
+  userVote: VoteDirection | null;
 };
+
+function voteValue(direction: VoteDirection): number {
+  return direction === "upvote" ? 1 : -1;
+}
+
+function computeOptimisticVote(
+  currentScore: number,
+  currentVote: VoteDirection | null,
+  direction: VoteDirection
+): VoteOverride {
+  if (currentVote === direction) {
+    // Toggle off
+    return { score: currentScore - voteValue(direction), userVote: null };
+  }
+  if (currentVote === null) {
+    // New vote
+    return { score: currentScore + voteValue(direction), userVote: direction };
+  }
+  // Switch direction
+  return {
+    score: currentScore - voteValue(currentVote) + voteValue(direction),
+    userVote: direction,
+  };
+}
 
 export function WorkflowTemplateGrid({
   workflows,
@@ -26,8 +50,8 @@ export function WorkflowTemplateGrid({
   const router = useRouter();
   const { data: session } = useSession();
   const [duplicatingIds, setDuplicatingIds] = useState<Set<string>>(new Set());
-  const [ratingOverrides, setRatingOverrides] = useState<
-    Record<string, RatingOverride>
+  const [voteOverrides, setVoteOverrides] = useState<
+    Record<string, VoteOverride>
   >({});
 
   const handleDuplicate = async (
@@ -70,57 +94,49 @@ export function WorkflowTemplateGrid({
     router.push(`/workflows/${workflowId}`);
   };
 
-  const applyRatingResponse = useCallback(
-    (
-      workflowId: string,
-      result: RatingResponse,
-      userRating: number | null
-    ): void => {
-      setRatingOverrides((prev) => ({
-        ...prev,
-        [workflowId]: {
-          averageRating: result.averageRating,
-          ratingCount: result.ratingCount,
-          userRating,
-        },
-      }));
-    },
-    []
-  );
-
-  const handleRate = useCallback(
-    async (workflowId: string, rating: number): Promise<void> => {
+  const handleVote = useCallback(
+    async (workflowId: string, direction: VoteDirection): Promise<void> => {
       if (!session?.user) {
-        toast.error("Sign in to rate workflows");
+        toast.error("Sign in to vote on workflows");
         return;
       }
 
-      try {
-        const result = await api.workflow.rateWorkflow(workflowId, rating);
-        applyRatingResponse(workflowId, result, rating);
-        toast.success("Rating submitted");
-      } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "Failed to rate workflow"
-        );
-      }
-    },
-    [session, applyRatingResponse]
-  );
+      const workflow = workflows.find((w) => w.id === workflowId);
+      const override = voteOverrides[workflowId];
+      const currentVote = override?.userVote ?? workflow?.userVote ?? null;
+      const currentScore = override?.score ?? workflow?.score ?? 0;
 
-  const handleRemoveRating = useCallback(
-    async (workflowId: string): Promise<void> => {
+      const optimistic = computeOptimisticVote(
+        currentScore,
+        currentVote,
+        direction
+      );
+
+      setVoteOverrides((prev) => ({
+        ...prev,
+        [workflowId]: optimistic,
+      }));
+
       try {
-        const result = await api.workflow.removeRating(workflowId);
-        applyRatingResponse(workflowId, result, null);
-        toast.success("Rating removed");
-      } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "Failed to remove rating"
+        const result: VoteResponse = await api.workflow.voteWorkflow(
+          workflowId,
+          direction
         );
+        // Apply server response (corrects if optimistic was wrong)
+        setVoteOverrides((prev) => ({
+          ...prev,
+          [workflowId]: { score: result.score, userVote: result.userVote },
+        }));
+      } catch (error) {
+        // Revert on error
+        setVoteOverrides((prev) => ({
+          ...prev,
+          [workflowId]: { score: currentScore, userVote: currentVote },
+        }));
+        toast.error(error instanceof Error ? error.message : "Failed to vote");
       }
     },
-    [applyRatingResponse]
+    [session, workflows, voteOverrides]
   );
 
   if (workflows.length === 0) {
@@ -130,23 +146,19 @@ export function WorkflowTemplateGrid({
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {workflows.map((workflow) => {
-        const override = ratingOverrides[workflow.id];
+        const override = voteOverrides[workflow.id];
         return (
           <WorkflowTemplateCard
-            averageRating={
-              override?.averageRating ?? workflow.averageRating ?? 0
-            }
-            canRate={workflow.canRate ?? false}
+            canVote={workflow.canVote ?? false}
             isDuplicating={duplicatingIds.has(workflow.id)}
             isFeatured={featuredIds?.has(workflow.id) ?? false}
             key={workflow.id}
             onDuplicate={(e) => handleDuplicate(e, workflow.id)}
             onPreview={(e) => handlePreview(e, workflow.id)}
-            onRate={(rating) => handleRate(workflow.id, rating)}
-            onRemoveRating={() => handleRemoveRating(workflow.id)}
-            ratingCount={override?.ratingCount ?? workflow.ratingCount ?? 0}
-            userRating={
-              override ? override.userRating : (workflow.userRating ?? null)
+            onVote={(direction) => handleVote(workflow.id, direction)}
+            score={override?.score ?? workflow.score ?? 0}
+            userVote={
+              override ? override.userVote : (workflow.userVote ?? null)
             }
             workflow={workflow}
           />

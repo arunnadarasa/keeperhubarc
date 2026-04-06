@@ -3,6 +3,7 @@
  * Replaces server actions with API endpoints
  */
 
+import type { VoteDirection } from "@/app/api/workflows/[workflowId]/rate/route";
 import type { IntegrationConfig, IntegrationType } from "./types/integration";
 import type { WorkflowEdge, WorkflowNode } from "./workflow-store";
 
@@ -44,16 +45,14 @@ export type SavedWorkflow = WorkflowData & {
   featuredProtocol?: string | null;
   featuredProtocolOrder?: number;
   publicTags?: PublicTag[];
-  averageRating?: number;
-  ratingCount?: number;
-  userRating?: number | null;
-  canRate?: boolean;
+  score?: number;
+  userVote?: VoteDirection | null;
+  canVote?: boolean;
 };
 
-export type RatingResponse = {
-  rating?: number;
-  averageRating: number;
-  ratingCount: number;
+export type VoteResponse = {
+  userVote: VoteDirection | null;
+  score: number;
 };
 
 // API error class
@@ -537,17 +536,11 @@ export const workflowApi = {
       `/api/workflows/public?featuredProtocol=${encodeURIComponent(slug)}`
     ),
 
-  // Rate a workflow (1-5, half-star increments)
-  rateWorkflow: (id: string, rating: number) =>
-    apiCall<RatingResponse>(`/api/workflows/${id}/rate`, {
+  // Vote on a workflow (upvote/downvote toggle)
+  voteWorkflow: (id: string, vote: VoteDirection) =>
+    apiCall<VoteResponse>(`/api/workflows/${id}/rate`, {
       method: "POST",
-      body: JSON.stringify({ rating }),
-    }),
-
-  // Remove user's rating from a workflow
-  removeRating: (id: string) =>
-    apiCall<RatingResponse>(`/api/workflows/${id}/rate`, {
-      method: "DELETE",
+      body: JSON.stringify({ vote }),
     }),
 
   // Get a specific workflow

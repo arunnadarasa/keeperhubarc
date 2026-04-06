@@ -382,6 +382,35 @@ const sessionActive = getOrCreateGauge(
   []
 );
 
+// Hub vote metrics (DB-sourced)
+const hubVotesTotal = getOrCreateGauge(
+  dbRegistry,
+  "keeperhub_hub_votes_total",
+  "Total hub workflow votes by direction",
+  ["direction"]
+);
+
+const hubWorkflowScore = getOrCreateGauge(
+  dbRegistry,
+  "keeperhub_hub_workflow_score",
+  "Top hub workflow scores",
+  ["workflow_id", "workflow_name"]
+);
+
+const hubWorkflowClones = getOrCreateGauge(
+  dbRegistry,
+  "keeperhub_hub_workflow_clones",
+  "Top cloned hub workflows",
+  ["workflow_id", "workflow_name"]
+);
+
+const hubUserVotesTotal = getOrCreateGauge(
+  dbRegistry,
+  "keeperhub_hub_user_votes_total",
+  "Top voters by vote count",
+  ["user_id", "user_email"]
+);
+
 // RPC failover metrics → apiRegistry (per-pod in-memory, scrape all pods)
 const RPC_LABELS = ["chain"];
 
@@ -785,6 +814,7 @@ const STEP_DURATION_BUCKETS = [50, 100, 250, 500, 1000, 2000, 5000];
  * Called before each metrics scrape to ensure fresh data from the database.
  * This is necessary because workflow runner jobs exit before Prometheus can scrape them.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: metric population is inherently sequential
 export async function updateDbMetrics(): Promise<void> {
   try {
     // Dynamic import to avoid circular dependencies
@@ -800,6 +830,7 @@ export async function updateDbMetrics(): Promise<void> {
       getInfraStatsFromDb,
       getUserListFromDb,
       getOrgListFromDb,
+      getVoteStatsFromDb,
     } = await import("../db-metrics");
     const [
       workflowStats,
@@ -813,6 +844,7 @@ export async function updateDbMetrics(): Promise<void> {
       infraStats,
       userList,
       orgList,
+      voteStats,
     ] = await Promise.all([
       getWorkflowStatsFromDb(),
       getStepStatsFromDb(),
@@ -825,6 +857,7 @@ export async function updateDbMetrics(): Promise<void> {
       getInfraStatsFromDb(),
       getUserListFromDb(),
       getOrgListFromDb(),
+      getVoteStatsFromDb(),
     ]);
 
     // Update workflow execution counts by status (gauges - point-in-time snapshots)
@@ -978,6 +1011,34 @@ export async function updateDbMetrics(): Promise<void> {
     chainEnabled.set(infraStats.chainsEnabled);
     paraWalletTotal.set(infraStats.paraWalletsTotal);
     sessionActive.set(infraStats.sessionsActive);
+
+    // Update hub vote metrics from DB
+    hubVotesTotal.set({ direction: "upvote" }, voteStats.totalUpvotes);
+    hubVotesTotal.set({ direction: "downvote" }, voteStats.totalDownvotes);
+
+    hubWorkflowScore.reset();
+    for (const wf of voteStats.topWorkflows) {
+      hubWorkflowScore.set(
+        { workflow_id: wf.workflowId, workflow_name: wf.name },
+        wf.score
+      );
+    }
+
+    hubWorkflowClones.reset();
+    for (const wf of voteStats.mostClonedWorkflows) {
+      hubWorkflowClones.set(
+        { workflow_id: wf.workflowId, workflow_name: wf.name },
+        wf.cloneCount
+      );
+    }
+
+    hubUserVotesTotal.reset();
+    for (const voter of voteStats.topVoters) {
+      hubUserVotesTotal.set(
+        { user_id: voter.userId, user_email: voter.email },
+        voter.voteCount
+      );
+    }
   } catch (error) {
     console.error("[Prometheus] Failed to update DB metrics:", error);
     // Don't throw - allow other metrics to still be returned

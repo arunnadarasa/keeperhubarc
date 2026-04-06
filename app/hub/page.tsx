@@ -79,7 +79,7 @@ function HubPageContent(): React.ReactElement {
       }
     }
     if (sortBy === "stars") {
-      merged.sort((a, b) => (b.averageRating ?? 0) - (a.averageRating ?? 0));
+      merged.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
     }
     return merged;
   }, [featuredWorkflows, communityWorkflows, sortBy]);
@@ -226,7 +226,7 @@ function HubPageContent(): React.ReactElement {
                       onClick={() => setSortBy("stars")}
                       type="button"
                     >
-                      Top rated
+                      Top voted
                     </button>
                   </div>
                 </div>

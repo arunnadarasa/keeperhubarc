@@ -1,4 +1,4 @@
-import { and, asc, avg, count, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -61,37 +61,33 @@ async function fetchTagsByWorkflow(
   return result;
 }
 
-async function fetchRatingAggregates(
+async function fetchScores(
   workflowIds: string[]
-): Promise<Record<string, { averageRating: number; ratingCount: number }>> {
+): Promise<Record<string, number>> {
   if (workflowIds.length === 0) return {};
 
   const rows = await db
     .select({
       workflowId: workflowRatings.workflowId,
-      avg: avg(workflowRatings.rating),
-      count: count(),
+      score: sql<string>`COALESCE(SUM(${workflowRatings.rating}), 0)`,
     })
     .from(workflowRatings)
     .where(inArray(workflowRatings.workflowId, workflowIds))
     .groupBy(workflowRatings.workflowId);
 
-  const result: Record<string, { averageRating: number; ratingCount: number }> =
-    {};
+  const result: Record<string, number> = {};
   for (const row of rows) {
-    const rawAvg = row.avg ? Number.parseFloat(row.avg) : 0;
-    result[row.workflowId] = {
-      averageRating: rawAvg > 0 ? rawAvg / 2 : 0, // stored as 2x, convert back
-      ratingCount: row.count,
-    };
+    result[row.workflowId] = Number(row.score);
   }
   return result;
 }
 
-async function fetchUserRatings(
+type VoteDirection = "upvote" | "downvote";
+
+async function fetchUserVotes(
   userId: string,
   workflowIds: string[]
-): Promise<Record<string, number>> {
+): Promise<Record<string, VoteDirection>> {
   if (workflowIds.length === 0) return {};
 
   const rows = await db
@@ -107,9 +103,9 @@ async function fetchUserRatings(
       )
     );
 
-  const result: Record<string, number> = {};
+  const result: Record<string, VoteDirection> = {};
   for (const row of rows) {
-    result[row.workflowId] = row.rating / 2; // stored as 2x, convert back
+    result[row.workflowId] = row.rating === 1 ? "upvote" : "downvote";
   }
   return result;
 }
@@ -212,37 +208,33 @@ export async function GET(request: Request): Promise<NextResponse> {
       .catch(() => null);
     const userId = session?.user?.id;
 
-    const emptyRecord = {} as Record<string, number>;
+    const emptyVotes = {} as Record<string, VoteDirection>;
     const emptySet = new Set<string>();
 
-    const [tagsByWorkflow, ratingAggregates, userRatings, userDuplications] =
+    const [tagsByWorkflow, scores, userVotes, userDuplications] =
       await Promise.all([
         fetchTagsByWorkflow(workflowIds),
-        fetchRatingAggregates(workflowIds),
+        fetchScores(workflowIds),
         userId
-          ? fetchUserRatings(userId, workflowIds)
-          : Promise.resolve(emptyRecord),
+          ? fetchUserVotes(userId, workflowIds)
+          : Promise.resolve(emptyVotes),
         userId
           ? fetchUserDuplications(userId, workflowIds)
           : Promise.resolve(emptySet),
       ]);
 
-    const mappedWorkflows = publicWorkflows.map((workflow) => {
-      const agg = ratingAggregates[workflow.id];
-      return {
-        ...workflow,
-        publicTags: tagsByWorkflow[workflow.id] ?? [],
-        averageRating: agg?.averageRating ?? 0,
-        ratingCount: agg?.ratingCount ?? 0,
-        userRating: userRatings[workflow.id] ?? null,
-        canRate: userDuplications.has(workflow.id),
-        createdAt: workflow.createdAt.toISOString(),
-        updatedAt: workflow.updatedAt.toISOString(),
-      };
-    });
+    const mappedWorkflows = publicWorkflows.map((workflow) => ({
+      ...workflow,
+      publicTags: tagsByWorkflow[workflow.id] ?? [],
+      score: scores[workflow.id] ?? 0,
+      userVote: userVotes[workflow.id] ?? null,
+      canVote: userDuplications.has(workflow.id),
+      createdAt: workflow.createdAt.toISOString(),
+      updatedAt: workflow.updatedAt.toISOString(),
+    }));
 
     if (sortByRating) {
-      mappedWorkflows.sort((a, b) => b.averageRating - a.averageRating);
+      mappedWorkflows.sort((a, b) => b.score - a.score);
     }
 
     return NextResponse.json(mappedWorkflows);

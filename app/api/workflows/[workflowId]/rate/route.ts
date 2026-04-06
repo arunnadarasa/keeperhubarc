@@ -1,4 +1,4 @@
-import { and, avg, count, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api-error";
 import { auth } from "@/lib/auth";
@@ -7,42 +7,28 @@ import { workflowRatings, workflows } from "@/lib/db/schema";
 
 type RouteParams = { params: Promise<{ workflowId: string }> };
 
-const MIN_RATING = 1;
-const MAX_RATING = 5;
-const RATING_STEP = 0.5;
+export const VOTE_DIRECTIONS = { upvote: 1, downvote: -1 } as const;
+export type VoteDirection = keyof typeof VOTE_DIRECTIONS;
 
-function isValidRating(value: number): boolean {
-  return (
-    value >= MIN_RATING &&
-    value <= MAX_RATING &&
-    value % RATING_STEP === 0
-  );
+const VALID_DIRECTIONS = new Set<string>(Object.keys(VOTE_DIRECTIONS));
+
+function isValidDirection(value: unknown): value is VoteDirection {
+  return typeof value === "string" && VALID_DIRECTIONS.has(value);
 }
 
-function toStoredRating(value: number): number {
-  return Math.round(value * 2);
+function storedToDirection(stored: number): VoteDirection {
+  return stored === 1 ? "upvote" : "downvote";
 }
 
-function fromStoredRating(stored: number): number {
-  return stored / 2;
-}
-
-async function getAggregates(
-  workflowId: string
-): Promise<{ averageRating: number; ratingCount: number }> {
+async function getScore(workflowId: string): Promise<number> {
   const [result] = await db
     .select({
-      avg: avg(workflowRatings.rating),
-      count: count(),
+      score: sql<string>`COALESCE(SUM(${workflowRatings.rating}), 0)`,
     })
     .from(workflowRatings)
     .where(eq(workflowRatings.workflowId, workflowId));
 
-  const rawAvg = result.avg ? Number.parseFloat(result.avg) : 0;
-  return {
-    averageRating: rawAvg > 0 ? fromStoredRating(rawAvg) : 0,
-    ratingCount: result.count,
-  };
+  return Number(result.score);
 }
 
 async function userHasDuplicated(
@@ -78,44 +64,41 @@ export async function POST(
 
     const { id: userId, email } = session.user;
 
-    // Reject anonymous users
     if (
       email?.includes("@http://") ||
       email?.includes("@https://") ||
       email?.startsWith("temp-")
     ) {
       return NextResponse.json(
-        { error: "Sign in with a real account to rate workflows" },
+        { error: "Sign in with a real account to vote on workflows" },
         { status: 403 }
       );
     }
 
     const { workflowId } = await params;
 
-    const body: { rating?: number } = await request.json();
-    const { rating } = body;
+    const body: { vote?: unknown } = await request.json();
+    const { vote } = body;
 
-    if (rating === undefined || rating === null || !isValidRating(rating)) {
+    if (!isValidDirection(vote)) {
       return NextResponse.json(
-        { error: `Rating must be ${MIN_RATING}-${MAX_RATING} in ${RATING_STEP} increments` },
+        { error: "Vote must be \"upvote\" or \"downvote\"" },
         { status: 400 }
       );
     }
 
-    // Verify user has duplicated this workflow
     const hasDuplicated = await userHasDuplicated(userId, workflowId);
     if (!hasDuplicated) {
       return NextResponse.json(
-        { error: "You must use this template before rating it" },
+        { error: "You must use this template before voting" },
         { status: 403 }
       );
     }
 
-    const storedRating = toStoredRating(rating);
+    const storedValue = VOTE_DIRECTIONS[vote];
 
-    // Upsert: insert or update existing rating
     const existing = await db
-      .select({ id: workflowRatings.id })
+      .select({ id: workflowRatings.id, rating: workflowRatings.rating })
       .from(workflowRatings)
       .where(
         and(
@@ -126,57 +109,34 @@ export async function POST(
       .limit(1);
 
     if (existing.length > 0) {
+      const current = existing[0];
+      if (current.rating === storedValue) {
+        // Same direction: toggle off (remove vote)
+        await db
+          .delete(workflowRatings)
+          .where(eq(workflowRatings.id, current.id));
+
+        const score = await getScore(workflowId);
+        return NextResponse.json({ userVote: null, score });
+      }
+
+      // Opposite direction: switch vote
       await db
         .update(workflowRatings)
-        .set({ rating: storedRating, updatedAt: new Date() })
-        .where(eq(workflowRatings.id, existing[0].id));
+        .set({ rating: storedValue, updatedAt: new Date() })
+        .where(eq(workflowRatings.id, current.id));
     } else {
+      // No existing vote: insert
       await db.insert(workflowRatings).values({
         workflowId,
         userId,
-        rating: storedRating,
+        rating: storedValue,
       });
     }
 
-    const aggregates = await getAggregates(workflowId);
-
-    return NextResponse.json({
-      rating,
-      ...aggregates,
-    });
+    const score = await getScore(workflowId);
+    return NextResponse.json({ userVote: vote, score });
   } catch (error) {
-    return apiError(error, "Failed to rate workflow");
-  }
-}
-
-export async function DELETE(
-  request: Request,
-  { params }: RouteParams
-): Promise<NextResponse> {
-  try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { workflowId } = await params;
-
-    await db
-      .delete(workflowRatings)
-      .where(
-        and(
-          eq(workflowRatings.workflowId, workflowId),
-          eq(workflowRatings.userId, session.user.id)
-        )
-      );
-
-    const aggregates = await getAggregates(workflowId);
-
-    return NextResponse.json(aggregates);
-  } catch (error) {
-    return apiError(error, "Failed to remove rating");
+    return apiError(error, "Failed to vote on workflow");
   }
 }
