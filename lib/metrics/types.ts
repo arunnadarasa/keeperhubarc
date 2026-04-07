@@ -138,6 +138,11 @@ export const MetricNames = {
 export const LabelKeys = {
   WORKFLOW_ID: "workflow_id",
   EXECUTION_ID: "execution_id",
+  ORG_ID: "org_id",
+  ORG_SLUG: "org_slug",
+  OWNER_ID: "owner_id",
+  PLUGIN_ID: "plugin_id",
+  INTEGRATION_ID: "integration_id",
   STEP_TYPE: "step_type",
   PLUGIN_NAME: "plugin_name",
   ACTION_NAME: "action_name",
