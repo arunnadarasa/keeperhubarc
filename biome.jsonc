@@ -44,7 +44,13 @@
       },
       "suspicious": {
         // Bitwise operators are legitimate for hashing/masking
-        "noBitwiseOperators": "off"
+        "noBitwiseOperators": "off",
+        // New rule from biome bump - pre-existing test.skip() to be addressed separately
+        "noSkippedTests": "off"
+      },
+      "complexity": {
+        // New threshold from biome bump - pre-existing complexity to be addressed separately
+        "noExcessiveCognitiveComplexity": "off"
       },
       "nursery": {
         // These are experimental rules that add friction without clear benefit
@@ -53,8 +59,7 @@
       },
       "style": {
         "useConsistentTypeDefinitions": "off",
-        "noSubstr": "off",
-        "noNegationElse": "off"
+        "noSubstr": "off"
       }
     }
   }

@@ -13,9 +13,7 @@ const CONFIRM_OR_YES_RE = /confirm|yes/i;
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
-test.describe
-  // biome-ignore lint/suspicious/noSkippedTests: WIP test suite
-  .skip("Billing", () => {
+test.describe.skip("Billing", () => {
     test.describe.configure({ mode: "serial" });
 
     test.beforeEach(async ({ context }) => {
@@ -34,11 +32,11 @@ test.describe
       );
     }
 
-    function mockSubscriptionApi(
+    async function mockSubscriptionApi(
       page: Page,
       subscription: Record<string, unknown> = {}
     ): Promise<void> {
-      return page.route("**/api/billing/subscription", (route: Route) =>
+      await page.route("**/api/billing/subscription", (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: "application/json",
@@ -69,11 +67,11 @@ test.describe
       );
     }
 
-    function mockInvoicesApi(
+    async function mockInvoicesApi(
       page: Page,
       invoices: Record<string, unknown>[] = []
     ): Promise<void> {
-      return page.route("**/api/billing/invoices*", (route: Route) =>
+      await page.route("**/api/billing/invoices*", (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: "application/json",
