@@ -22,7 +22,6 @@ const PARA_API_KEY = process.env.PARA_API_KEY ?? "";
 const PARA_ENV = process.env.PARA_ENVIRONMENT ?? "beta";
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VALID_PROVIDERS: WalletProvider[] = ["para", "turnkey"];
-const EXPORTABLE_PROVIDERS: WalletProvider[] = ["para", "turnkey"];
 
 // Helper: Validate user authentication, organization membership, and admin permissions
 async function validateUserAndOrganization(request: Request) {
@@ -314,7 +313,7 @@ export async function GET(request: Request) {
 
     const wallets = allWallets.map((w) => ({
       provider: w.provider,
-      canExportKey: EXPORTABLE_PROVIDERS.includes(w.provider),
+      canExportKey: w.provider === "turnkey",
       walletAddress: w.walletAddress,
       walletId: w.paraWalletId ?? w.turnkeyWalletId,
       email: w.email,
