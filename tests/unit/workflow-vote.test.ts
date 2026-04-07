@@ -107,11 +107,10 @@ describe("POST /api/workflows/[workflowId]/rate (vote)", () => {
     expect(response.status).toBe(401);
   });
 
-  it("returns 403 for anonymous users with temp email", async () => {
-    mockGetSession.mockResolvedValue({
-      ...mockSession,
-      user: { ...mockUser, email: "temp-abc123@example.com" },
-    });
+  it("returns 403 for anonymous users", async () => {
+    mockGetSession.mockResolvedValue(mockSession);
+    // First db.select().limit() returns the user record with isAnonymous: true
+    getMockChainable().limit.mockResolvedValueOnce([{ isAnonymous: true }]);
 
     const response = await POST(makeRequest({ vote: "upvote" }), makeParams());
     const data = await response.json();
@@ -120,18 +119,9 @@ describe("POST /api/workflows/[workflowId]/rate (vote)", () => {
     expect(data.error).toContain("Sign in with a real account");
   });
 
-  it("returns 403 for anonymous users with http email", async () => {
-    mockGetSession.mockResolvedValue({
-      ...mockSession,
-      user: { ...mockUser, email: "anon@http://localhost" },
-    });
-
-    const response = await POST(makeRequest({ vote: "upvote" }), makeParams());
-    expect(response.status).toBe(403);
-  });
-
   it("returns 400 for missing vote", async () => {
     mockGetSession.mockResolvedValue(mockSession);
+    getMockChainable().limit.mockResolvedValueOnce([{ isAnonymous: false }]);
 
     const response = await POST(makeRequest({}), makeParams());
     expect(response.status).toBe(400);
@@ -139,6 +129,7 @@ describe("POST /api/workflows/[workflowId]/rate (vote)", () => {
 
   it("returns 400 for numeric vote value", async () => {
     mockGetSession.mockResolvedValue(mockSession);
+    getMockChainable().limit.mockResolvedValueOnce([{ isAnonymous: false }]);
 
     const response = await POST(makeRequest({ vote: 1 }), makeParams());
     expect(response.status).toBe(400);
@@ -146,6 +137,7 @@ describe("POST /api/workflows/[workflowId]/rate (vote)", () => {
 
   it("returns 400 for arbitrary number", async () => {
     mockGetSession.mockResolvedValue(mockSession);
+    getMockChainable().limit.mockResolvedValueOnce([{ isAnonymous: false }]);
 
     const response = await POST(makeRequest({ vote: 88 }), makeParams());
     expect(response.status).toBe(400);
@@ -153,6 +145,7 @@ describe("POST /api/workflows/[workflowId]/rate (vote)", () => {
 
   it("returns 400 for invalid string direction", async () => {
     mockGetSession.mockResolvedValue(mockSession);
+    getMockChainable().limit.mockResolvedValueOnce([{ isAnonymous: false }]);
 
     const response = await POST(
       makeRequest({ vote: "sideways" }),
@@ -163,6 +156,8 @@ describe("POST /api/workflows/[workflowId]/rate (vote)", () => {
 
   it("returns 403 when user has not duplicated the workflow", async () => {
     mockGetSession.mockResolvedValue(mockSession);
+    // First limit() = user record (not anonymous), second limit() = no duplication (default [])
+    getMockChainable().limit.mockResolvedValueOnce([{ isAnonymous: false }]);
 
     const response = await POST(makeRequest({ vote: "upvote" }), makeParams());
     const data = await response.json();
@@ -173,10 +168,11 @@ describe("POST /api/workflows/[workflowId]/rate (vote)", () => {
 
   it("accepts upvote and passes validation gate", async () => {
     mockGetSession.mockResolvedValue(mockSession);
+    // First limit() = user record, second limit() = duplication found
+    getMockChainable().limit.mockResolvedValueOnce([{ isAnonymous: false }]);
     getMockChainable().limit.mockResolvedValueOnce([{ id: "dup_1" }]);
 
     const response = await POST(makeRequest({ vote: "upvote" }), makeParams());
-    // Should pass auth + validation + duplication gate (not 400/401/403)
     expect(response.status).not.toBe(400);
     expect(response.status).not.toBe(401);
     expect(response.status).not.toBe(403);
@@ -184,6 +180,7 @@ describe("POST /api/workflows/[workflowId]/rate (vote)", () => {
 
   it("accepts downvote and passes validation gate", async () => {
     mockGetSession.mockResolvedValue(mockSession);
+    getMockChainable().limit.mockResolvedValueOnce([{ isAnonymous: false }]);
     getMockChainable().limit.mockResolvedValueOnce([{ id: "dup_1" }]);
 
     const response = await POST(

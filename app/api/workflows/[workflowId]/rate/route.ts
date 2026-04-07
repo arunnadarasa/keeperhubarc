@@ -3,18 +3,10 @@ import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api-error";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { workflowRatings, workflows } from "@/lib/db/schema";
+import { users, workflowRatings, workflows } from "@/lib/db/schema";
+import { VOTE_DIRECTIONS, isValidDirection } from "@/lib/workflow/votes";
 
 type RouteParams = { params: Promise<{ workflowId: string }> };
-
-export const VOTE_DIRECTIONS = { upvote: 1, downvote: -1 } as const;
-export type VoteDirection = keyof typeof VOTE_DIRECTIONS;
-
-const VALID_DIRECTIONS = new Set<string>(Object.keys(VOTE_DIRECTIONS));
-
-function isValidDirection(value: unknown): value is VoteDirection {
-  return typeof value === "string" && VALID_DIRECTIONS.has(value);
-}
 
 async function getScore(workflowId: string): Promise<number> {
   const [result] = await db
@@ -58,13 +50,15 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: userId, email } = session.user;
+    const { id: userId } = session.user;
 
-    if (
-      email?.includes("@http://") ||
-      email?.includes("@https://") ||
-      email?.startsWith("temp-")
-    ) {
+    const [userRecord] = await db
+      .select({ isAnonymous: users.isAnonymous })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (userRecord?.isAnonymous) {
       return NextResponse.json(
         { error: "Sign in with a real account to vote on workflows" },
         { status: 403 }
@@ -122,12 +116,14 @@ export async function POST(
         .set({ rating: storedValue, updatedAt: new Date() })
         .where(eq(workflowRatings.id, current.id));
     } else {
-      // No existing vote: insert
-      await db.insert(workflowRatings).values({
-        workflowId,
-        userId,
-        rating: storedValue,
-      });
+      // No existing vote: upsert to handle concurrent requests against unique constraint
+      await db
+        .insert(workflowRatings)
+        .values({ workflowId, userId, rating: storedValue })
+        .onConflictDoUpdate({
+          target: [workflowRatings.workflowId, workflowRatings.userId],
+          set: { rating: storedValue, updatedAt: new Date() },
+        });
     }
 
     const score = await getScore(workflowId);
