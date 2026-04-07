@@ -281,13 +281,6 @@
       "when": 1774900000002,
       "tag": "0039_burly_sinister_six",
       "breakpoints": true
-    },
-    {
-      "idx": 40,
-      "version": "7",
-      "when": 1775486810765,
-      "tag": "0040_curious_titania",
-      "breakpoints": true
     }
   ]
 }
