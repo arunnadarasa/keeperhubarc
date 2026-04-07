@@ -124,14 +124,20 @@ export async function registerAgent(deps?: RegisterDeps): Promise<RegisterResult
     const transferLog = receipt.logs.find(
       (log) =>
         log.topics[0] === TRANSFER_TOPIC &&
+        log.topics.length === 4 &&
         log.address.toLowerCase() === IDENTITY_REGISTRY_ADDRESS.toLowerCase()
     );
 
     if (!transferLog) {
-      throw new Error("Transfer event not found in transaction receipt");
+      throw new Error("ERC-721 Transfer event not found in transaction receipt");
     }
 
-    const agentId = BigInt(transferLog.topics[3]).toString();
+    const tokenIdTopic = transferLog.topics[3];
+    if (!tokenIdTopic) {
+      throw new Error("Transfer event missing tokenId topic");
+    }
+
+    const agentId = BigInt(tokenIdTopic).toString();
 
     await db.insert(agentRegistrations).values({
       agentId,
