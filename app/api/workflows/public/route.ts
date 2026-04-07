@@ -1,4 +1,3 @@
-import type { VoteDirection } from "@/app/api/workflows/[workflowId]/rate/route";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
@@ -10,6 +9,7 @@ import {
   workflows,
 } from "@/lib/db/schema";
 import { ErrorCategory, logSystemError } from "@/lib/logging";
+import type { VoteDirection } from "@/lib/workflow/votes";
 type TagInfo = { id: string; name: string; slug: string };
 
 async function resolveTagFilter(tagSlug: string): Promise<string[] | "empty"> {
@@ -140,8 +140,6 @@ export async function GET(request: Request): Promise<NextResponse> {
     const isFeaturedRequest = searchParams.get("featured") === "true";
     const featuredProtocol = searchParams.get("featuredProtocol");
     const tagSlug = searchParams.get("tag");
-    const sortByVotes = searchParams.get("sort") === "votes";
-
     let workflowIdFilter: string[] | null = null;
 
     if (tagSlug) {
@@ -231,10 +229,6 @@ export async function GET(request: Request): Promise<NextResponse> {
       createdAt: workflow.createdAt.toISOString(),
       updatedAt: workflow.updatedAt.toISOString(),
     }));
-
-    if (sortByVotes) {
-      mappedWorkflows.sort((a, b) => b.score - a.score);
-    }
 
     return NextResponse.json(mappedWorkflows);
   } catch (error) {

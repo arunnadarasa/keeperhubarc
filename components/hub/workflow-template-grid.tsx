@@ -3,10 +3,10 @@
 import { useRouter } from "next/navigation";
 import { type MouseEvent, useCallback, useState } from "react";
 import { toast } from "sonner";
-import type { VoteDirection } from "@/app/api/workflows/[workflowId]/rate/route";
 import { api, type SavedWorkflow, type VoteResponse } from "@/lib/api-client";
 import { authClient, useSession } from "@/lib/auth-client";
 import { refetchSidebar } from "@/lib/refetch-sidebar";
+import type { VoteDirection } from "@/lib/workflow/votes";
 import { WorkflowTemplateCard } from "./workflow-template-card";
 
 type WorkflowTemplateGridProps = {
@@ -102,41 +102,43 @@ export function WorkflowTemplateGrid({
       }
 
       const workflow = workflows.find((w) => w.id === workflowId);
-      const override = voteOverrides[workflowId];
-      const currentVote = override?.userVote ?? workflow?.userVote ?? null;
-      const currentScore = override?.score ?? workflow?.score ?? 0;
 
-      const optimistic = computeOptimisticVote(
-        currentScore,
-        currentVote,
-        direction
-      );
+      // Capture pre-optimistic state for revert
+      let snapshotVote: VoteDirection | null = null;
+      let snapshotScore = 0;
 
-      setVoteOverrides((prev) => ({
-        ...prev,
-        [workflowId]: optimistic,
-      }));
+      setVoteOverrides((prev) => {
+        const override = prev[workflowId];
+        snapshotVote = override?.userVote ?? workflow?.userVote ?? null;
+        snapshotScore = override?.score ?? workflow?.score ?? 0;
+        return {
+          ...prev,
+          [workflowId]: computeOptimisticVote(
+            snapshotScore,
+            snapshotVote,
+            direction
+          ),
+        };
+      });
 
       try {
         const result: VoteResponse = await api.workflow.voteWorkflow(
           workflowId,
           direction
         );
-        // Apply server response (corrects if optimistic was wrong)
         setVoteOverrides((prev) => ({
           ...prev,
           [workflowId]: { score: result.score, userVote: result.userVote },
         }));
       } catch (error) {
-        // Revert on error
         setVoteOverrides((prev) => ({
           ...prev,
-          [workflowId]: { score: currentScore, userVote: currentVote },
+          [workflowId]: { score: snapshotScore, userVote: snapshotVote },
         }));
         toast.error(error instanceof Error ? error.message : "Failed to vote");
       }
     },
-    [session, workflows, voteOverrides]
+    [session, workflows]
   );
 
   if (workflows.length === 0) {
