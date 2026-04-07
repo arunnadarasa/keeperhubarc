@@ -1,8 +1,6 @@
 /**
  * Helpers for resolving organization metadata used in error logs.
  */
-import "server-only";
-
 import { eq } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/lib/db";
