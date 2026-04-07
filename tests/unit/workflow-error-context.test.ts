@@ -2,7 +2,16 @@
  * Tests for workflow error context (ALS) and the high-cardinality label
  * strip in lib/logging.ts.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AsyncLocalStorage } from "node:async_hooks";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 vi.mock("server-only", () => ({}));
 
@@ -22,7 +31,13 @@ import {
   enterWorkflowErrorContext,
   getWorkflowErrorContext,
   runWithWorkflowErrorContext,
+  setWorkflowErrorContextStorage,
 } from "@/lib/workflow-error-context";
+
+beforeAll(() => {
+  // Mirrors what instrumentation.ts does at server startup.
+  setWorkflowErrorContextStorage(new AsyncLocalStorage());
+});
 
 describe("workflow error context", () => {
   beforeEach(() => {
