@@ -13,7 +13,8 @@ const CONFIRM_OR_YES_RE = /confirm|yes/i;
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
-test.describe.skip("Billing", () => {
+test.describe
+  .skip("Billing", () => {
     test.describe.configure({ mode: "serial" });
 
     test.beforeEach(async ({ context }) => {

@@ -829,6 +829,36 @@ export const prometheusMetricsCollector: MetricsCollector = {
   },
 };
 
+/**
+ * Update hub vote gauges from database stats.
+ * Extracted from updateDbMetrics to reduce cognitive complexity.
+ */
+function updateHubVoteMetrics(voteStats: {
+  totalUpvotes: number;
+  totalDownvotes: number;
+  topWorkflows: { workflowId: string; score: number }[];
+  mostClonedWorkflows: { workflowId: string; cloneCount: number }[];
+  topVoters: { userId: string; voteCount: number }[];
+}): void {
+  hubVotesTotal.set({ direction: "upvote" }, voteStats.totalUpvotes);
+  hubVotesTotal.set({ direction: "downvote" }, voteStats.totalDownvotes);
+
+  hubWorkflowScore.reset();
+  for (const wf of voteStats.topWorkflows) {
+    hubWorkflowScore.set({ workflow_id: wf.workflowId }, wf.score);
+  }
+
+  hubWorkflowClones.reset();
+  for (const wf of voteStats.mostClonedWorkflows) {
+    hubWorkflowClones.set({ workflow_id: wf.workflowId }, wf.cloneCount);
+  }
+
+  hubUserVotesTotal.reset();
+  for (const voter of voteStats.topVoters) {
+    hubUserVotesTotal.set({ user_id: voter.userId }, voter.voteCount);
+  }
+}
+
 // Duration histogram bucket boundaries in milliseconds
 const WORKFLOW_DURATION_BUCKETS = [
   100, 250, 500, 1000, 2000, 5000, 10_000, 30_000,
@@ -841,7 +871,6 @@ const STEP_DURATION_BUCKETS = [50, 100, 250, 500, 1000, 2000, 5000];
  * Called before each metrics scrape to ensure fresh data from the database.
  * This is necessary because workflow runner jobs exit before Prometheus can scrape them.
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: metric population is inherently sequential
 export async function updateDbMetrics(): Promise<void> {
   try {
     // Dynamic import to avoid circular dependencies
@@ -1039,24 +1068,7 @@ export async function updateDbMetrics(): Promise<void> {
     paraWalletTotal.set(infraStats.paraWalletsTotal);
     sessionActive.set(infraStats.sessionsActive);
 
-    // Update hub vote metrics from DB
-    hubVotesTotal.set({ direction: "upvote" }, voteStats.totalUpvotes);
-    hubVotesTotal.set({ direction: "downvote" }, voteStats.totalDownvotes);
-
-    hubWorkflowScore.reset();
-    for (const wf of voteStats.topWorkflows) {
-      hubWorkflowScore.set({ workflow_id: wf.workflowId }, wf.score);
-    }
-
-    hubWorkflowClones.reset();
-    for (const wf of voteStats.mostClonedWorkflows) {
-      hubWorkflowClones.set({ workflow_id: wf.workflowId }, wf.cloneCount);
-    }
-
-    hubUserVotesTotal.reset();
-    for (const voter of voteStats.topVoters) {
-      hubUserVotesTotal.set({ user_id: voter.userId }, voter.voteCount);
-    }
+    updateHubVoteMetrics(voteStats);
   } catch (error) {
     console.error("[Prometheus] Failed to update DB metrics:", error);
     // Don't throw - allow other metrics to still be returned

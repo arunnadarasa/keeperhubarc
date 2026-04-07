@@ -36,7 +36,9 @@
     "rules": {
       "complexity": {
         "useMaxParams": "off",
-        "noUselessUndefined": "off"
+        "noUselessUndefined": "off",
+        // New threshold from biome bump - pre-existing complexity to be addressed separately
+        "noExcessiveCognitiveComplexity": "off"
       },
       "performance": {
         // Barrel files are a standard pattern for module exports
@@ -47,10 +49,6 @@
         "noBitwiseOperators": "off",
         // New rule from biome bump - pre-existing test.skip() to be addressed separately
         "noSkippedTests": "off"
-      },
-      "complexity": {
-        // New threshold from biome bump - pre-existing complexity to be addressed separately
-        "noExcessiveCognitiveComplexity": "off"
       },
       "nursery": {
         // These are experimental rules that add friction without clear benefit
