@@ -394,21 +394,21 @@ const hubWorkflowScore = getOrCreateGauge(
   dbRegistry,
   "keeperhub_hub_workflow_score",
   "Top hub workflow scores",
-  ["workflow_id", "workflow_name"]
+  ["workflow_id"]
 );
 
 const hubWorkflowClones = getOrCreateGauge(
   dbRegistry,
   "keeperhub_hub_workflow_clones",
   "Top cloned hub workflows",
-  ["workflow_id", "workflow_name"]
+  ["workflow_id"]
 );
 
 const hubUserVotesTotal = getOrCreateGauge(
   dbRegistry,
   "keeperhub_hub_user_votes_total",
   "Top voters by vote count",
-  ["user_id", "user_email"]
+  ["user_id"]
 );
 
 // RPC failover metrics → apiRegistry (per-pod in-memory, scrape all pods)
@@ -1018,26 +1018,17 @@ export async function updateDbMetrics(): Promise<void> {
 
     hubWorkflowScore.reset();
     for (const wf of voteStats.topWorkflows) {
-      hubWorkflowScore.set(
-        { workflow_id: wf.workflowId, workflow_name: wf.name },
-        wf.score
-      );
+      hubWorkflowScore.set({ workflow_id: wf.workflowId }, wf.score);
     }
 
     hubWorkflowClones.reset();
     for (const wf of voteStats.mostClonedWorkflows) {
-      hubWorkflowClones.set(
-        { workflow_id: wf.workflowId, workflow_name: wf.name },
-        wf.cloneCount
-      );
+      hubWorkflowClones.set({ workflow_id: wf.workflowId }, wf.cloneCount);
     }
 
     hubUserVotesTotal.reset();
     for (const voter of voteStats.topVoters) {
-      hubUserVotesTotal.set(
-        { user_id: voter.userId, user_email: voter.email },
-        voter.voteCount
-      );
+      hubUserVotesTotal.set({ user_id: voter.userId }, voter.voteCount);
     }
   } catch (error) {
     console.error("[Prometheus] Failed to update DB metrics:", error);

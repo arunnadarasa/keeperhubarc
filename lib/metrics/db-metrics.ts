@@ -695,13 +695,12 @@ export type VoteStats = {
   totalVotes: number;
   totalUpvotes: number;
   totalDownvotes: number;
-  topWorkflows: { workflowId: string; name: string; score: number }[];
+  topWorkflows: { workflowId: string; score: number }[];
   mostClonedWorkflows: {
     workflowId: string;
-    name: string;
     cloneCount: number;
   }[];
-  topVoters: { userId: string; email: string; voteCount: number }[];
+  topVoters: { userId: string; voteCount: number }[];
 };
 
 export async function getVoteStatsFromDb(): Promise<VoteStats> {
@@ -715,25 +714,22 @@ export async function getVoteStatsFromDb(): Promise<VoteStats> {
       db
         .select({
           totalVotes: count(),
-          totalUpvotes: sql<number>`COUNT(*) FILTER (WHERE ${workflowRatings.rating} = 1)`,
-          totalDownvotes: sql<number>`COUNT(*) FILTER (WHERE ${workflowRatings.rating} = -1)`,
+          totalUpvotes: sql<string>`COUNT(*) FILTER (WHERE ${workflowRatings.rating} = 1)`,
+          totalDownvotes: sql<string>`COUNT(*) FILTER (WHERE ${workflowRatings.rating} = -1)`,
         })
         .from(workflowRatings),
       db
         .select({
           workflowId: workflowRatings.workflowId,
-          name: workflows.name,
-          score: sql<number>`COALESCE(SUM(${workflowRatings.rating}), 0)`,
+          score: sql<string>`COALESCE(SUM(${workflowRatings.rating}), 0)`,
         })
         .from(workflowRatings)
-        .innerJoin(workflows, eq(workflows.id, workflowRatings.workflowId))
-        .groupBy(workflowRatings.workflowId, workflows.name)
+        .groupBy(workflowRatings.workflowId)
         .orderBy(sql`SUM(${workflowRatings.rating}) DESC`)
         .limit(10),
       db
         .select({
           workflowId: workflows.sourceWorkflowId,
-          name: sql<string>`(SELECT name FROM workflows w2 WHERE w2.id = ${workflows.sourceWorkflowId})`,
           cloneCount: count(),
         })
         .from(workflows)
@@ -744,12 +740,10 @@ export async function getVoteStatsFromDb(): Promise<VoteStats> {
       db
         .select({
           userId: workflowRatings.userId,
-          email: users.email,
           voteCount: count(),
         })
         .from(workflowRatings)
-        .innerJoin(users, eq(users.id, workflowRatings.userId))
-        .groupBy(workflowRatings.userId, users.email)
+        .groupBy(workflowRatings.userId)
         .orderBy(sql`COUNT(*) DESC`)
         .limit(10),
     ]);
@@ -757,25 +751,22 @@ export async function getVoteStatsFromDb(): Promise<VoteStats> {
     const totals = totalsResult[0];
 
     return {
-      totalVotes: totals?.totalVotes ?? 0,
-      totalUpvotes: totals?.totalUpvotes ?? 0,
-      totalDownvotes: totals?.totalDownvotes ?? 0,
+      totalVotes: Number(totals?.totalVotes) || 0,
+      totalUpvotes: Number(totals?.totalUpvotes) || 0,
+      totalDownvotes: Number(totals?.totalDownvotes) || 0,
       topWorkflows: topWorkflowsResult.map((r) => ({
         workflowId: r.workflowId,
-        name: r.name,
         score: Number(r.score),
       })),
       mostClonedWorkflows: mostClonedResult
         .filter((r) => r.workflowId !== null)
         .map((r) => ({
           workflowId: r.workflowId as string,
-          name: r.name ?? "Unknown",
-          cloneCount: r.cloneCount,
+          cloneCount: Number(r.cloneCount),
         })),
       topVoters: topVotersResult.map((r) => ({
         userId: r.userId,
-        email: r.email ?? "unknown",
-        voteCount: r.voteCount,
+        voteCount: Number(r.voteCount),
       })),
     };
   } catch (error) {
