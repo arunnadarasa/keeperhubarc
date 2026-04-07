@@ -4,6 +4,7 @@ import { apiError } from "@/lib/api-error";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, workflowRatings, workflows } from "@/lib/db/schema";
+import { checkVoteRateLimit } from "@/lib/workflow/vote-rate-limit";
 import { VOTE_DIRECTIONS, isValidDirection } from "@/lib/workflow/votes";
 
 type RouteParams = { params: Promise<{ workflowId: string }> };
@@ -62,6 +63,13 @@ export async function POST(
       return NextResponse.json(
         { error: "Sign in with a real account to vote on workflows" },
         { status: 403 }
+      );
+    }
+
+    if (!checkVoteRateLimit(userId)) {
+      return NextResponse.json(
+        { error: "Too many votes, please try again later" },
+        { status: 429 }
       );
     }
 
