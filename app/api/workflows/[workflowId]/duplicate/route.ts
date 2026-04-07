@@ -2,12 +2,12 @@ import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { NextResponse } from "next/server";
 import { ErrorCategory, logSystemError } from "@/lib/logging";
-import { getOrgContext } from "@/lib/middleware/org-context";
-import { auth } from "@/lib/auth";
+import { getDualAuthContext } from "@/lib/middleware/auth-helpers";
 import { db } from "@/lib/db";
 import { workflows } from "@/lib/db/schema";
 import { generateId } from "@/lib/utils/id";
 import { remapTemplateRefsInString } from "@/lib/utils/template";
+import { sanitizeWorkflowData } from "@/lib/workflow/sanitize-nodes";
 // Node type for type-safe node manipulation
 type WorkflowNodeLike = {
   id: string;
@@ -113,11 +113,17 @@ export async function POST(
 ) {
   try {
     const { workflowId } = await context.params;
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
+    const authContext = await getDualAuthContext(request);
+    if ("error" in authContext) {
+      return NextResponse.json(
+        { error: authContext.error },
+        { status: authContext.status }
+      );
+    }
 
-    if (!session?.user) {
+    const { userId, organizationId } = authContext;
+
+    if (!userId && !organizationId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -133,7 +139,7 @@ export async function POST(
       );
     }
 
-    const isOwner = session.user.id === sourceWorkflow.userId;
+    const isOwner = userId === sourceWorkflow.userId;
 
     // If not owner, check if workflow is public
     if (!isOwner && sourceWorkflow.visibility !== "public") {
@@ -143,10 +149,7 @@ export async function POST(
       );
     }
 
-    // Get organization context for the new workflow
-    const orgContext = await getOrgContext();
-    const organizationId = orgContext.organization?.id || null;
-    const isAnonymous = orgContext.isAnonymous || !orgContext.organization;
+    const isAnonymous = !organizationId;
 
     // Generate new IDs for nodes
     const oldNodes = sourceWorkflow.nodes as WorkflowNodeLike[];
@@ -154,18 +157,26 @@ export async function POST(
     for (const n of oldNodes) {
       idMap.set(n.id, nanoid());
     }
-    const newNodes = duplicateNodes(oldNodes, idMap);
-    const newEdges = updateEdgeReferences(
+    const duplicatedNodes = duplicateNodes(oldNodes, idMap);
+    const duplicatedEdges = updateEdgeReferences(
       sourceWorkflow.edges as WorkflowEdgeLike[],
       oldNodes,
-      newNodes
+      duplicatedNodes
     );
+
+    // Sanitize nodes/edges: strip React Flow UI state and normalize formats
+    const sanitized = sanitizeWorkflowData(
+      duplicatedNodes as Record<string, unknown>[],
+      duplicatedEdges as Record<string, unknown>[]
+    );
+    const newNodes = sanitized.nodes;
+    const newEdges = sanitized.edges;
 
     // Count workflows in current context (org or anonymous) to generate unique name
     const existingWorkflows = isAnonymous
       ? await db.query.workflows.findMany({
           where: and(
-            eq(workflows.userId, session.user.id),
+            eq(workflows.userId, userId ?? ""),
             eq(workflows.isAnonymous, true)
           ),
         })
@@ -199,7 +210,7 @@ export async function POST(
         description: sourceWorkflow.description,
         nodes: newNodes,
         edges: newEdges,
-        userId: session.user.id,
+        userId: userId ?? sourceWorkflow.userId,
         organizationId,
         isAnonymous,
         visibility: "private", // Duplicated workflows are always private

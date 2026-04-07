@@ -17,6 +17,7 @@ import { recordWebhookMetrics } from "@/lib/metrics/instrumentation/api";
 import { db } from "@/lib/db";
 import { validateWorkflowIntegrations } from "@/lib/db/integrations";
 import { apiKeys, workflowExecutions, workflows } from "@/lib/db/schema";
+import { getOrgSlug } from "@/lib/db/org-helpers";
 import { executeWorkflow } from "@/lib/workflow-executor.workflow";
 import type { WorkflowEdge, WorkflowNode } from "@/lib/workflow-store";
 // Validate API key and return the user ID if valid
@@ -84,7 +85,10 @@ async function executeWorkflowBackground(
   workflowId: string,
   nodes: WorkflowNode[],
   edges: WorkflowEdge[],
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
+  organizationId?: string | null,
+  ownerId?: string,
+  organizationSlug?: string
 ) {
   try {
     console.log("[Webhook] Starting execution:", executionId);
@@ -103,6 +107,9 @@ async function executeWorkflowBackground(
         triggerInput: input,
         executionId,
         workflowId,
+        organizationId: organizationId ?? undefined,
+        ownerId,
+        organizationSlug,
       },
     ]);
 
@@ -196,7 +203,8 @@ export async function POST(
     // Validate that all integrationIds in workflow nodes belong to the workflow owner
     const validation = await validateWorkflowIntegrations(
       workflow.nodes as WorkflowNode[],
-      workflow.userId
+      workflow.userId,
+      workflow.organizationId
     );
     if (!validation.valid) {
       logSystemError(ErrorCategory.WORKFLOW_ENGINE, "[Webhook] Invalid integration references", new Error(String(validation.invalidIds)), { endpoint: "/api/workflows/[workflowId]/webhook", operation: "validateIntegrations" });
@@ -268,13 +276,19 @@ export async function POST(
       [LabelKeys.WORKFLOW_ID]: workflowId,
     });
 
+    // Resolve org slug for log labels (cached per request)
+    const organizationSlug = await getOrgSlug(workflow.organizationId);
+
     // Execute the workflow in the background (don't await)
     executeWorkflowBackground(
       execution.id,
       workflowId,
       workflow.nodes as WorkflowNode[],
       workflow.edges as WorkflowEdge[],
-      body
+      body,
+      workflow.organizationId,
+      workflow.userId,
+      organizationSlug
     );
 
     recordWebhookMetrics({

@@ -1,16 +1,16 @@
 {
   "mcpServers": {
     "keeperhub-dev": {
-      "command": "kh",
-      "args": ["serve", "--mcp", "--host", "http://localhost:3000"]
+      "type": "http",
+      "url": "http://localhost:3000/mcp"
     },
     "keeperhub-staging": {
-      "command": "kh",
-      "args": ["serve", "--mcp", "--host", "https://app-staging.keeperhub.com"]
+      "type": "http",
+      "url": "https://app-staging.keeperhub.com/mcp"
     },
     "keeperhub": {
-      "command": "kh",
-      "args": ["serve", "--mcp"]
+      "type": "http",
+      "url": "https://app.keeperhub.com/mcp"
     },
     "playwright": {
       "command": "npx",

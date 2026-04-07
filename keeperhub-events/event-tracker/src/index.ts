@@ -7,6 +7,9 @@ logger.log(`Initializing container: ${os.hostname()}`);
 
 const initialize = async (): Promise<void> => {
   try {
+    await syncModule.removeAllContainers();
+    logger.log("Cleared stale Redis state from previous deploys");
+
     await syncModule.registerContainer();
     await synchronizeData();
 

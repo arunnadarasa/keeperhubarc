@@ -2,6 +2,7 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 import { resolveAbi } from "@/lib/abi-cache";
+import { enterApiExecuteErrorContext } from "@/lib/db/org-helpers";
 import { getErrorMessage } from "@/lib/utils";
 import { readContractCore } from "@/plugins/web3/steps/read-contract-core";
 import { writeContractCore } from "@/plugins/web3/steps/write-contract-core";
@@ -10,13 +11,12 @@ import type { ConditionInput, ConditionResult } from "../_lib/condition";
 import { evaluateCondition } from "../_lib/condition";
 import {
   completeExecution,
-  createExecution,
   failExecution,
   markRunning,
   redactInput,
 } from "../_lib/execution-service";
 import { checkRateLimit } from "../_lib/rate-limit";
-import { checkSpendingCap } from "../_lib/spending-cap";
+import { checkAndReserveExecution } from "../_lib/spending-cap";
 import { validateCheckAndExecuteInput } from "../_lib/validate";
 import { requireWallet } from "../_lib/wallet-check";
 
@@ -47,6 +47,32 @@ async function resolveAbiFromField(
   }
 }
 
+async function executeConditionalRead(
+  action: ActionBody,
+  network: string,
+  resolvedWriteAbi: string,
+  organizationId: string,
+  conditionResult: ConditionResult
+): Promise<NextResponse> {
+  const readResult = await readContractCore({
+    contractAddress: action.contractAddress,
+    network,
+    abi: resolvedWriteAbi,
+    abiFunction: action.functionName,
+    functionArgs: action.functionArgs,
+    _context: { organizationId },
+  });
+
+  if (!readResult.success) {
+    return NextResponse.json({ error: readResult.error }, { status: 400 });
+  }
+
+  return NextResponse.json(
+    { executed: true, conditionResult, result: readResult.result },
+    { status: 200 }
+  );
+}
+
 async function executeConditionalWrite(
   action: ActionBody,
   network: string,
@@ -61,19 +87,18 @@ async function executeConditionalWrite(
     return walletError;
   }
 
-  const spendCap = await checkSpendingCap(organizationId);
-  if (!spendCap.allowed) {
-    return NextResponse.json({ error: spendCap.reason }, { status: 403 });
-  }
-
   const redactedInput = redactInput(fullBody);
-  const { executionId } = await createExecution({
+  const reserve = await checkAndReserveExecution({
     organizationId,
     apiKeyId,
     type: "check-and-execute",
     network,
     input: redactedInput,
   });
+  if (!reserve.allowed) {
+    return NextResponse.json({ error: reserve.reason }, { status: 403 });
+  }
+  const { executionId } = reserve;
 
   await markRunning(executionId);
 
@@ -92,6 +117,7 @@ async function executeConditionalWrite(
       transactionHash: result.transactionHash,
       transactionLink: result.transactionLink,
       gasUsedWei: result.gasUsed,
+      gasPriceWei: result.effectiveGasPrice,
       output: result as unknown as Record<string, unknown>,
     });
   } else {
@@ -114,6 +140,9 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!apiKeyCtx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Enter ALS error context so plugin step errors carry org labels
+  await enterApiExecuteErrorContext(apiKeyCtx.organizationId);
 
   const rateLimit = checkRateLimit(apiKeyCtx.apiKeyId);
   if (!rateLimit.allowed) {
@@ -182,6 +211,36 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json(
       { error: writeAbiResult.error, field: "action.abi" },
       { status: 400 }
+    );
+  }
+
+  const actionAbiParsed = JSON.parse(writeAbiResult.abi) as Array<{
+    type?: string;
+    name?: string;
+    stateMutability?: string;
+  }>;
+  const actionFn = actionAbiParsed.find((f) => f.name === action.functionName);
+
+  if (!actionFn) {
+    return NextResponse.json(
+      {
+        error: `Function "${action.functionName}" not found in action ABI`,
+        field: "action.functionName",
+      },
+      { status: 400 }
+    );
+  }
+
+  const isReadOnly =
+    actionFn.stateMutability === "view" || actionFn.stateMutability === "pure";
+
+  if (isReadOnly) {
+    return executeConditionalRead(
+      action,
+      network,
+      writeAbiResult.abi,
+      apiKeyCtx.organizationId,
+      conditionResult
     );
   }
 

@@ -4,34 +4,29 @@ A Web3 workflow automation platform (forked from vercel-labs/workflow-builder-te
 
 ## Core Value
 
-Users and Agents can build and deploy Web3 automation workflows through a visual builder or with [KeeperHub MCP](https://github.com/KeeperHub/keeperhub-mcp) without writing code.
+Users and Agents can build and deploy Web3 automation workflows through a visual builder or via the [MCP server](https://docs.keeperhub.com/ai-tools/mcp-server) without writing code.
 
 ## Add KeeperHub to your Agent
 
-**1. Install the plugin**
+**Quick setup (no install needed):**
 
+```bash
+claude mcp add --transport http keeperhub https://app.keeperhub.com/mcp
 ```
+
+Then run `/mcp` inside Claude Code to authorize via browser. That's it.
+
+Try asking Claude to "create a workflow that monitors a wallet".
+
+**Alternative: install the Claude Code plugin** for skills and slash commands:
+
+```bash
 /plugin marketplace add KeeperHub/claude-plugins
-/plugin install keeperhub@techops-plugins
-```
-
-You can view the plugin source code here https://github.com/KeeperHub/claude-plugins/tree/main/plugins/keeperhub
-
-**2. Run setup**
-
-```
+/plugin install keeperhub@keeperhub-plugins
 /keeperhub:login
 ```
 
-This walks you through:
-
-- Creating an organization API key (`kh_` prefix) at app.keeperhub.com
-- Auto-installing the keeperhub-mcp server
-- Saving config to `~/.claude/keeperhub/config.json`
-
-**3. Restart Claude Code** for the MCP tools to become available.
-
-That's it. Try asking Claude to "create a workflow that monitors a wallet" or run `/keeperhub:status` to verify.
+Restart Claude Code after setup. [Plugin source code](https://github.com/KeeperHub/claude-plugins/tree/main/plugins/keeperhub).
 
 ## What KeeperHub Does
 

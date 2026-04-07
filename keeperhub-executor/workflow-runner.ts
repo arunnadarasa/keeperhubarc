@@ -20,6 +20,7 @@
  * Environment variables (optional):
  *   WORKFLOW_INPUT - JSON string of trigger input (default: {})
  *   SCHEDULE_ID - ID of the schedule (for scheduled executions)
+ *   + system credentials from runner-env.ts (ETHERSCAN_API_KEY, etc.)
  */
 
 import { eq } from "drizzle-orm";
@@ -205,7 +206,8 @@ async function main(): Promise<void> {
     const edges = workflow.edges as WorkflowEdge[];
     const validation = await validateWorkflowIntegrations(
       nodes,
-      workflow.userId
+      workflow.userId,
+      workflow.organizationId
     );
 
     if (!validation.valid) {

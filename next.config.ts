@@ -78,7 +78,6 @@ const nextConfig = {
     "parse-json",
     "path-type",
     "pg",
-    "pg-boss",
     "pg-cloudflare",
     "pg-connection-string",
     "pg-int8",
@@ -95,13 +94,11 @@ const nextConfig = {
     "require-directory",
     "resolve-from",
     "semver",
-    "serialize-error",
     "split2",
     "string-width",
     "strip-ansi",
     "supports-color",
     "tslib",
-    "type-fest",
     "ulid",
     "undici",
     "undici-types",
@@ -179,7 +176,6 @@ const nextConfig = {
       "./node_modules/parse-json/**/*",
       "./node_modules/path-type/**/*",
       "./node_modules/pg/**/*",
-      "./node_modules/pg-boss/**/*",
       "./node_modules/pg-cloudflare/**/*",
       "./node_modules/pg-connection-string/**/*",
       "./node_modules/pg-int8/**/*",
@@ -196,13 +192,11 @@ const nextConfig = {
       "./node_modules/require-directory/**/*",
       "./node_modules/resolve-from/**/*",
       "./node_modules/semver/**/*",
-      "./node_modules/serialize-error/**/*",
       "./node_modules/split2/**/*",
       "./node_modules/string-width/**/*",
       "./node_modules/strip-ansi/**/*",
       "./node_modules/supports-color/**/*",
       "./node_modules/tslib/**/*",
-      "./node_modules/type-fest/**/*",
       "./node_modules/ulid/**/*",
       "./node_modules/undici/**/*",
       "./node_modules/undici-types/**/*",
@@ -234,7 +228,7 @@ const nextConfig = {
   },
 } satisfies NextConfig & { eslint?: { ignoreDuringBuilds?: boolean } };
 
-const { SENTRY_ORG, SENTRY_PROJECT } = process.env;
+const { SENTRY_ORG, SENTRY_PROJECT, SENTRY_RELEASE } = process.env;
 
 export default withSentryConfig(withWorkflow(nextConfig), {
   // For all available options, see:
@@ -242,6 +236,7 @@ export default withSentryConfig(withWorkflow(nextConfig), {
 
   org: SENTRY_ORG,
   project: SENTRY_PROJECT,
+  release: SENTRY_RELEASE ? { name: SENTRY_RELEASE } : undefined,
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
@@ -251,6 +246,11 @@ export default withSentryConfig(withWorkflow(nextConfig), {
 
   // Upload a larger set of source maps for prettier stack traces (increases build time)
   widenClientFileUpload: true,
+
+  // Delete source maps after uploading to Sentry so they don't ship in the bundle
+  sourcemaps: {
+    deleteSourcemapsAfterUpload: true,
+  },
 
   // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
   // This can increase your server load as well as your hosting bill.

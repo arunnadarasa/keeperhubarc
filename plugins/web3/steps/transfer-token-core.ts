@@ -18,11 +18,12 @@ import {
 import { ErrorCategory, logUserError } from "@/lib/logging";
 import {
   getOrganizationWalletAddress,
-  initializeParaSigner,
+  initializeWalletSigner,
 } from "@/lib/para/wallet-helpers";
 import { getChainIdFromNetwork } from "@/lib/rpc/network-utils";
 import { getRpcProvider } from "@/lib/rpc/provider-factory";
 import { getErrorMessage } from "@/lib/utils";
+import { generateId } from "@/lib/utils/id";
 import { getChainAdapter } from "@/lib/web3/chain-adapter";
 import { formatContractError } from "@/lib/web3/decode-revert-error";
 import { resolveGasLimitOverrides } from "@/lib/web3/gas-defaults";
@@ -52,6 +53,8 @@ export type TransferTokenResult =
       transactionHash: string;
       transactionLink: string;
       gasUsed: string;
+      gasUsedUnits: string;
+      effectiveGasPrice: string;
       amount: string;
       symbol: string;
       recipient: string;
@@ -288,7 +291,7 @@ export async function transferTokenCore(
   // Build transaction context
   const txContext: TransactionContext = {
     organizationId,
-    executionId: _context.executionId ?? "direct-execution",
+    executionId: _context.executionId ?? `direct-${generateId()}`,
     workflowId,
     chainId,
     rpcUrl,
@@ -301,10 +304,10 @@ export async function transferTokenCore(
   // Execute transaction with nonce management
   return withNonceSession(txContext, walletAddress, async (session) => {
     // Initialize Para signer
-    let signer: Awaited<ReturnType<typeof initializeParaSigner>>;
+    let signer: Awaited<ReturnType<typeof initializeWalletSigner>>;
     let signerAddress: string;
     try {
-      signer = await initializeParaSigner(organizationId, rpcUrl);
+      signer = await initializeWalletSigner(organizationId, rpcUrl);
       signerAddress = await signer.getAddress();
     } catch (error) {
       return {
@@ -357,6 +360,8 @@ export async function transferTokenCore(
         workflowId,
       });
 
+      const gasUsedUnits = receipt.gasUsed.toString();
+      const effectiveGasPrice = receipt.effectiveGasPrice.toString();
       const gasCostWei = (receipt.gasUsed * receipt.effectiveGasPrice).toString();
       const transactionLink = await adapter.getTransactionUrl(receipt.hash);
 
@@ -365,6 +370,8 @@ export async function transferTokenCore(
         transactionHash: receipt.hash,
         transactionLink,
         gasUsed: gasCostWei,
+        gasUsedUnits,
+        effectiveGasPrice,
         amount,
         symbol,
         recipient: recipientAddress,
