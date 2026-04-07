@@ -157,6 +157,8 @@ export function WorkflowTemplateGrid({
             key={workflow.id}
             onDuplicate={(e) => handleDuplicate(e, workflow.id)}
             onPreview={(e) => handlePreview(e, workflow.id)}
+            // Vote arrows render for all users; canVote disables them for
+            // logged-out users and those who haven't duplicated the template.
             onVote={(direction) => handleVote(workflow.id, direction)}
             score={override?.score ?? workflow.score ?? 0}
             userVote={
