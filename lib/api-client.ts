@@ -3,7 +3,7 @@
  * Replaces server actions with API endpoints
  */
 
-import type { VoteDirection } from "@/app/api/workflows/[workflowId]/rate/route";
+import type { VoteDirection } from "@/lib/workflow/votes";
 import type { IntegrationConfig, IntegrationType } from "./types/integration";
 import type { WorkflowEdge, WorkflowNode } from "./workflow-store";
 

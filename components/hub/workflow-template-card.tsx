@@ -2,13 +2,13 @@
 
 import { ArrowBigDown, ArrowBigUp, Copy, Eye, Star } from "lucide-react";
 import type { MouseEvent } from "react";
-import type { VoteDirection } from "@/app/api/workflows/[workflowId]/rate/route";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { SavedWorkflow } from "@/lib/api-client";
+import type { VoteDirection } from "@/lib/workflow/votes";
 import { WorkflowMiniMap } from "./workflow-mini-map";
 
 type WorkflowTemplateCardProps = {
