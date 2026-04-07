@@ -18,12 +18,18 @@ export const getOrgSlug = cache(
     if (!orgId) {
       return undefined;
     }
-    const rows = await db
-      .select({ slug: organization.slug })
-      .from(organization)
-      .where(eq(organization.id, orgId))
-      .limit(1);
-    return rows[0]?.slug ?? undefined;
+    try {
+      const rows = await db
+        .select({ slug: organization.slug })
+        .from(organization)
+        .where(eq(organization.id, orgId))
+        .limit(1);
+      return rows[0]?.slug ?? undefined;
+    } catch {
+      // Slug is best-effort metadata for log labels - never let a failed
+      // lookup break the calling request.
+      return undefined;
+    }
   }
 );
 
