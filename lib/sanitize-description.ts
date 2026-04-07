@@ -1,12 +1,16 @@
+// High-signal prompt-injection markers. These target phrases that have no
+// legitimate use in a workflow description but are common in injection attempts.
+// Generic imperatives like "you must" or "always" are intentionally NOT stripped
+// because they appear in normal product copy ("You must provide an API key").
 const INSTRUCTION_PATTERNS = [
-  /\byou must\b/gi,
-  /\balways\b/gi,
-  /\bnever\b/gi,
-  /\byou should\b/gi,
-  /\bmake sure to\b/gi,
-  /\bensure that\b/gi,
-  /\bremember to\b/gi,
-  /\bdo not forget to\b/gi,
+  /\bignore (?:all |any |the )?(?:previous|prior|above|preceding) (?:instructions?|prompts?|messages?|rules?)\b/gi,
+  /\bdisregard (?:all |any |the )?(?:previous|prior|above|preceding) (?:instructions?|prompts?|messages?|rules?)\b/gi,
+  /\bforget (?:all |any |the )?(?:previous|prior|above|preceding) (?:instructions?|prompts?|messages?|rules?)\b/gi,
+  /<\/?(?:system|user|assistant|instructions?)>/gi,
+  /\[\/?(?:system|user|assistant|instructions?)\]/gi,
+  /\bsystem prompt\b/gi,
+  /\bnew instructions?:/gi,
+  /\boverride (?:previous |prior |all )?instructions?\b/gi,
 ] as const;
 
 export function sanitizeDescription(raw: string): string {
