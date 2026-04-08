@@ -448,6 +448,25 @@ const rpcHealthState = getOrCreateGauge(
   RPC_LABELS
 );
 
+const RPC_PROVIDER_LABELS = ["chain", "provider"];
+
+const rpcLatency = getOrCreateHistogram(
+  apiRegistry,
+  "keeperhub_rpc_latency_ms",
+  "RPC request latency in milliseconds per chain and provider",
+  RPC_PROVIDER_LABELS,
+  [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10_000, 30_000]
+);
+
+const RPC_ERROR_LABELS = ["chain", "provider", "error_type"];
+
+const rpcErrorsByType = getOrCreateCounter(
+  apiRegistry,
+  "keeperhub_rpc_errors_by_type_total",
+  "RPC errors broken down by type (timeout, rate_limit, connection, rpc_error)",
+  RPC_ERROR_LABELS
+);
+
 // API-process metrics → apiRegistry (per-pod in-memory, scrape all pods)
 const webhookLatency = getOrCreateHistogram(
   apiRegistry,
@@ -1027,9 +1046,31 @@ export async function getDbMetrics(): Promise<string> {
 }
 
 /**
+ * Initialize RPC health gauges for all enabled chains so they appear in
+ * Grafana immediately (with healthy/0 defaults) instead of only after
+ * first traffic. Called before each API metrics scrape.
+ */
+async function initRpcMetricsForAllChains(): Promise<void> {
+  try {
+    const { getEnabledChainNamesFromDb } = await import("../db-metrics");
+    const chainNames = await getEnabledChainNamesFromDb();
+
+    for (const chain of chainNames) {
+      // Initialize gauges with defaults; counters auto-appear once
+      // their gauge siblings exist for the same label set
+      rpcHealthState.labels({ chain }).inc(0);
+      rpcCurrentProvider.labels({ chain }).inc(0);
+    }
+  } catch {
+    // Non-fatal: metrics will still populate on first RPC traffic
+  }
+}
+
+/**
  * Get API-process metrics only (/api/metrics/api)
  */
 export async function getApiProcessMetrics(): Promise<string> {
+  await initRpcMetricsForAllChains();
   return await apiRegistry.metrics();
 }
 
@@ -1053,4 +1094,6 @@ export const rpcMetrics = {
   bothFailedEvents: rpcBothFailedEvents,
   currentProvider: rpcCurrentProvider,
   healthState: rpcHealthState,
+  latency: rpcLatency,
+  errorsByType: rpcErrorsByType,
 };
