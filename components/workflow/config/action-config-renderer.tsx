@@ -19,6 +19,9 @@ import {
 import { TemplateBadgeInput } from "@/components/ui/template-badge-input";
 import { TemplateBadgeTextarea } from "@/components/ui/template-badge-textarea";
 import { SaveAddressBookmark } from "@/components/address-book/save-address-bookmark";
+import type { AbiComponent } from "@/components/workflow/config/abi-types";
+import { ArrayInputField } from "@/components/workflow/config/array-input-field";
+import { TupleInputField } from "@/components/workflow/config/tuple-input-field";
 import { computeSelector } from "@/lib/abi-utils";
 import { evaluateShowWhen } from "@/lib/workflow/show-when";
 import { parseAddressBookSelection } from "@/lib/address-book-selection";
@@ -295,10 +298,13 @@ export function AbiFunctionArgsField({
         return [];
       }
 
-      return func.inputs.map((input: { name: string; type: string }) => ({
-        name: input.name || "unnamed",
-        type: input.type,
-      }));
+      return func.inputs.map(
+        (input: { name: string; type: string; components?: AbiComponent[] }) => ({
+          name: input.name || "unnamed",
+          type: input.type,
+          components: input.components,
+        })
+      );
     } catch {
       return [];
     }
@@ -335,7 +341,7 @@ export function AbiFunctionArgsField({
   }, [functionValue, value, parsePropValue]);
 
   // Handle individual arg change - update local state and propagate to parent
-  const handleArgChange = (index: number, newValue: string) => {
+  const handleArgChange = (index: number, newValue: unknown) => {
     const newArgs = [...localArgValues];
     // Ensure array is long enough
     while (newArgs.length <= index) {
@@ -361,21 +367,51 @@ export function AbiFunctionArgsField({
   return (
     <div className="space-y-3">
       {functionInputs.map(
-        (input: { name: string; type: string }, index: number) => (
-          <div className="space-y-1.5" key={`${field.key}-arg-${index}`}>
-            <Label className="ml-1 text-xs" htmlFor={`${field.key}-${index}`}>
-              {input.name}{" "}
-              <span className="text-muted-foreground">({input.type})</span>
-            </Label>
-            <TemplateBadgeInput
-              disabled={disabled}
-              id={`${field.key}-${index}`}
-              onChange={(val) => handleArgChange(index, val as string)}
-              placeholder={`Enter ${input.type} value or {{NodeName.value}}`}
-              value={(localArgValues[index] as string) || ""}
-            />
-          </div>
-        )
+        (
+          input: { name: string; type: string; components?: AbiComponent[] },
+          index: number,
+        ) => {
+          const isArray = input.type.endsWith("[]");
+          const baseType = isArray ? input.type.slice(0, -2) : input.type;
+          const hasTupleComponents =
+            input.components !== undefined && input.components.length > 0;
+          const isTuple = baseType === "tuple" && hasTupleComponents;
+
+          return (
+            <div className="space-y-1.5" key={`${field.key}-arg-${index}`}>
+              <Label className="ml-1 text-xs" htmlFor={`${field.key}-${index}`}>
+                {input.name}{" "}
+                <span className="text-muted-foreground">({input.type})</span>
+              </Label>
+              {isArray ? (
+                <ArrayInputField
+                  components={isTuple ? input.components : undefined}
+                  disabled={disabled}
+                  fieldKey={`${field.key}-${index}`}
+                  itemType={baseType}
+                  onChange={(val) => handleArgChange(index, val)}
+                  value={localArgValues[index]}
+                />
+              ) : isTuple ? (
+                <TupleInputField
+                  components={input.components ?? []}
+                  disabled={disabled}
+                  fieldKey={`${field.key}-${index}`}
+                  onChange={(val) => handleArgChange(index, val)}
+                  value={localArgValues[index]}
+                />
+              ) : (
+                <TemplateBadgeInput
+                  disabled={disabled}
+                  id={`${field.key}-${index}`}
+                  onChange={(val) => handleArgChange(index, val as string)}
+                  placeholder={`Enter ${input.type} value or {{NodeName.value}}`}
+                  value={(localArgValues[index] as string) || ""}
+                />
+              )}
+            </div>
+          );
+        }
       )}
     </div>
   );
