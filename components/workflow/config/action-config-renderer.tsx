@@ -20,6 +20,7 @@ import { TemplateBadgeInput } from "@/components/ui/template-badge-input";
 import { TemplateBadgeTextarea } from "@/components/ui/template-badge-textarea";
 import { SaveAddressBookmark } from "@/components/address-book/save-address-bookmark";
 import { computeSelector } from "@/lib/abi-utils";
+import { evaluateShowWhen } from "@/lib/workflow/show-when";
 import { parseAddressBookSelection } from "@/lib/address-book-selection";
 import { toChecksumAddress } from "@/lib/address-utils";
 import { getCustomFieldRenderer } from "@/lib/extension-registry";
@@ -391,8 +392,13 @@ const FIELD_RENDERERS: Partial<
   "schema-builder": SchemaBuilderField,
 };
 
+
 /**
- * Helper: Render abi-function-select field
+ * Helper: Render abi-function-select field.
+ *
+ * Mutability is not persisted; fields that want to gate on it use
+ * `showWhen: { computed: "abiFunctionMutability", ... }` which derives
+ * the value live from the ABI at render time.
  */
 function renderAbiFunctionSelect(
   field: ActionConfigFieldBase,
@@ -421,6 +427,7 @@ function renderAbiFunctionSelect(
     </div>
   );
 }
+
 
 /**
  * Helper: Render abi-function-args field
@@ -483,15 +490,8 @@ function renderField(
   nodeId?: string
 ) {
   // Check conditional rendering
-  if (field.showWhen) {
-    const dependentValue = config[field.showWhen.field];
-    if ("oneOf" in field.showWhen) {
-      if (!field.showWhen.oneOf.includes(dependentValue as string)) {
-        return null;
-      }
-    } else if (dependentValue !== field.showWhen.equals) {
-      return null;
-    }
+  if (!evaluateShowWhen(field.showWhen, config)) {
+    return null;
   }
 
   const value =

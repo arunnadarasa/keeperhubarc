@@ -123,6 +123,7 @@ async function handleWriteCall(
     abi: resolvedAbi,
     abiFunction: body.functionName as string,
     functionArgs: body.functionArgs as string | undefined,
+    ethValue: body.ethValue as string | undefined,
     gasLimitMultiplier: body.gasLimitMultiplier as string | undefined,
     _context: { organizationId },
   });
