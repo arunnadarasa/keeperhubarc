@@ -117,6 +117,34 @@ export const RPC_CONNECTION_ERROR_PATTERNS: ReadonlyArray<string> = [
   "fetch failed",
 ];
 
+/**
+ * Classify an RPC error into a category for metrics tracking.
+ * Standalone version for use outside of executeWithFailover
+ * (e.g., write transaction send paths).
+ */
+export function classifyRpcError(error: unknown): RpcErrorType {
+  if (error instanceof Error && error.message.startsWith("Timeout after ")) {
+    return "timeout";
+  }
+  if (isError(error, "SERVER_ERROR")) {
+    const serverErr = error as ethers.EthersError & {
+      response?: { statusCode?: number };
+    };
+    if (serverErr.response?.statusCode === 429) {
+      return "rate_limit";
+    }
+  }
+  if (
+    error instanceof Error &&
+    RPC_CONNECTION_ERROR_PATTERNS.some((pattern) =>
+      error.message.includes(pattern)
+    )
+  ) {
+    return "connection";
+  }
+  return "rpc_error";
+}
+
 export type RpcProviderConfig = {
   primaryRpcUrl: string;
   fallbackRpcUrl?: string;
@@ -440,26 +468,7 @@ export class RpcProviderManager {
   }
 
   private classifyError(error: unknown): RpcErrorType {
-    if (error instanceof Error && error.message.startsWith("Timeout after ")) {
-      return "timeout";
-    }
-    if (isError(error, "SERVER_ERROR")) {
-      const serverErr = error as ethers.EthersError & {
-        response?: { statusCode?: number };
-      };
-      if (serverErr.response?.statusCode === 429) {
-        return "rate_limit";
-      }
-    }
-    if (
-      error instanceof Error &&
-      RPC_CONNECTION_ERROR_PATTERNS.some((pattern) =>
-        error.message.includes(pattern)
-      )
-    ) {
-      return "connection";
-    }
-    return "rpc_error";
+    return classifyRpcError(error);
   }
 
   private async tryProvider<T>(
@@ -587,6 +596,10 @@ export class RpcProviderManager {
    */
   getChainName(): string {
     return this.config.chainName;
+  }
+
+  getMetricsCollector(): RpcMetricsCollector {
+    return this.metricsCollector;
   }
 }
 

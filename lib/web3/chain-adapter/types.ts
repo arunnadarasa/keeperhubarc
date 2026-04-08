@@ -81,4 +81,5 @@ export type TransactionOptions = {
   triggerType: TriggerType;
   gasOverrides: GasOverrides;
   workflowId?: string;
+  rpcManager?: RpcProviderManager;
 };

@@ -55,14 +55,21 @@ export class EvmChainAdapter implements ChainAdapter {
       data: request.data,
     };
 
-    await provider.call({ ...baseTx, from: walletAddress });
+    if (options.rpcManager) {
+      await options.rpcManager.executeWithFailover((p) =>
+        p.call({ ...baseTx, from: walletAddress })
+      );
+    } else {
+      await provider.call({ ...baseTx, from: walletAddress });
+    }
 
     const nonce = this.nonceManager.getNextNonce(session);
 
-    const estimatedGas = await provider.estimateGas({
-      ...baseTx,
-      from: walletAddress,
-    });
+    const estimatedGas = options.rpcManager
+      ? await options.rpcManager.executeWithFailover((p) =>
+          p.estimateGas({ ...baseTx, from: walletAddress })
+        )
+      : await provider.estimateGas({ ...baseTx, from: walletAddress });
 
     const gasConfig = await this.gasStrategy.getGasConfig(
       provider,
@@ -116,17 +123,43 @@ export class EvmChainAdapter implements ChainAdapter {
 
     const valueOverride = request.value ? { value: request.value } : {};
 
-    await contract[request.functionKey].staticCall(
-      ...request.args,
-      valueOverride
-    );
+    if (options.rpcManager) {
+      await options.rpcManager.executeWithFailover((p) => {
+        const readContract = new ethers.Contract(
+          request.contractAddress,
+          request.abi,
+          p
+        );
+        return readContract[request.functionKey].staticCall(
+          ...request.args,
+          valueOverride
+        );
+      });
+    } else {
+      await contract[request.functionKey].staticCall(
+        ...request.args,
+        valueOverride
+      );
+    }
 
     const nonce = this.nonceManager.getNextNonce(session);
 
-    const estimatedGas = await contract[request.functionKey].estimateGas(
-      ...request.args,
-      valueOverride
-    );
+    const estimatedGas = options.rpcManager
+      ? await options.rpcManager.executeWithFailover((p) => {
+          const readContract = new ethers.Contract(
+            request.contractAddress,
+            request.abi,
+            p
+          );
+          return readContract[request.functionKey].estimateGas(
+            ...request.args,
+            valueOverride
+          );
+        })
+      : await contract[request.functionKey].estimateGas(
+          ...request.args,
+          valueOverride
+        );
 
     const gasConfig = await this.gasStrategy.getGasConfig(
       provider,
