@@ -56,8 +56,8 @@ export class EvmChainAdapter implements ChainAdapter {
     };
 
     if (options.rpcManager) {
-      await options.rpcManager.executeWithFailover((p) =>
-        p.call({ ...baseTx, from: walletAddress })
+      await options.rpcManager.executeWithFailover((rpcProvider) =>
+        rpcProvider.call({ ...baseTx, from: walletAddress })
       );
     } else {
       await provider.call({ ...baseTx, from: walletAddress });
@@ -66,8 +66,8 @@ export class EvmChainAdapter implements ChainAdapter {
     const nonce = this.nonceManager.getNextNonce(session);
 
     const estimatedGas = options.rpcManager
-      ? await options.rpcManager.executeWithFailover((p) =>
-          p.estimateGas({ ...baseTx, from: walletAddress })
+      ? await options.rpcManager.executeWithFailover((rpcProvider) =>
+          rpcProvider.estimateGas({ ...baseTx, from: walletAddress })
         )
       : await provider.estimateGas({ ...baseTx, from: walletAddress });
 
@@ -124,11 +124,11 @@ export class EvmChainAdapter implements ChainAdapter {
     const valueOverride = request.value ? { value: request.value } : {};
 
     if (options.rpcManager) {
-      await options.rpcManager.executeWithFailover((p) => {
+      await options.rpcManager.executeWithFailover((rpcProvider) => {
         const readContract = new ethers.Contract(
           request.contractAddress,
           request.abi,
-          p
+          rpcProvider
         );
         return readContract[request.functionKey].staticCall(
           ...request.args,
@@ -145,11 +145,11 @@ export class EvmChainAdapter implements ChainAdapter {
     const nonce = this.nonceManager.getNextNonce(session);
 
     const estimatedGas = options.rpcManager
-      ? await options.rpcManager.executeWithFailover((p) => {
+      ? await options.rpcManager.executeWithFailover((rpcProvider) => {
           const readContract = new ethers.Contract(
             request.contractAddress,
             request.abi,
-            p
+            rpcProvider
           );
           return readContract[request.functionKey].estimateGas(
             ...request.args,

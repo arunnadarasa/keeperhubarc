@@ -308,10 +308,10 @@ export async function transferTokenCore(
     try {
       const [decimals, symbol] = await rpcManager.executeWithFailover(
         (p) => {
-          const c = new ethers.Contract(tokenAddress, ERC20_ABI, p);
+          const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, p);
           return Promise.all([
-            c.decimals() as Promise<bigint>,
-            c.symbol() as Promise<string>,
+            tokenContract.decimals() as Promise<bigint>,
+            tokenContract.symbol() as Promise<string>,
           ]);
         }
       );
@@ -398,11 +398,11 @@ export async function transferTokenCore(
       // Get token decimals, symbol, and balance via failover
       const [decimals, symbol, balance] =
         await rpcManager.executeWithFailover((p) => {
-          const c = new ethers.Contract(tokenAddress, ERC20_ABI, p);
+          const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, p);
           return Promise.all([
-            c.decimals() as Promise<bigint>,
-            c.symbol() as Promise<string>,
-            c.balanceOf(signerAddress) as Promise<bigint>,
+            tokenContract.decimals() as Promise<bigint>,
+            tokenContract.symbol() as Promise<string>,
+            tokenContract.balanceOf(signerAddress) as Promise<bigint>,
           ]);
         });
 

@@ -305,8 +305,8 @@ export async function executeTransaction(
     }
 
     const estimatedGas = context.rpcManager
-      ? await context.rpcManager.executeWithFailover((p) =>
-          p.estimateGas({ ...baseTx, from: walletAddress })
+      ? await context.rpcManager.executeWithFailover((rpcProvider) =>
+          rpcProvider.estimateGas({ ...baseTx, from: walletAddress })
         )
       : await provider.estimateGas({ ...baseTx, from: walletAddress });
 
@@ -387,8 +387,10 @@ export async function executeContractTransaction(
     }
 
     const estimatedGas = context.rpcManager
-      ? await context.rpcManager.executeWithFailover((p) =>
-          (contract.connect(p) as typeof contract)[method].estimateGas(...args)
+      ? await context.rpcManager.executeWithFailover((rpcProvider) =>
+          (contract.connect(rpcProvider) as typeof contract)[method].estimateGas(
+            ...args
+          )
         )
       : await contract[method].estimateGas(...args);
 
