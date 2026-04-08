@@ -1053,14 +1053,15 @@ const initializedChains = new Set<string>();
  * first traffic. Each chain is initialized at most once per pod lifetime.
  */
 async function initRpcMetricsForAllChains(): Promise<void> {
+  if (initializedChains.size > 0) {
+    return;
+  }
+
   try {
     const { getEnabledChainNamesFromDb } = await import("../db-metrics");
     const chainNames = await getEnabledChainNamesFromDb();
 
     for (const chain of chainNames) {
-      if (initializedChains.has(chain)) {
-        continue;
-      }
       rpcHealthState.labels({ chain }).inc(0);
       rpcCurrentProvider.labels({ chain }).inc(0);
       initializedChains.add(chain);
