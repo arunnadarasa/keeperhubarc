@@ -1193,7 +1193,12 @@ const web3Plugin: IntegrationPlugin = {
           placeholder: "0.0",
           helpTip:
             "Amount of native token (e.g. ETH, MATIC) to send with this payable function call. Specified in whole units, not wei.",
-          showWhen: { field: "_abiStateMutability", equals: "payable" },
+          showWhen: {
+            computed: "abiFunctionMutability",
+            abiField: "abi",
+            functionField: "abiFunction",
+            equals: "payable",
+          },
         },
         {
           type: "group",

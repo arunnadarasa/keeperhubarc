@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, Info } from "lucide-react";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -20,7 +20,7 @@ import { TemplateBadgeInput } from "@/components/ui/template-badge-input";
 import { TemplateBadgeTextarea } from "@/components/ui/template-badge-textarea";
 import { SaveAddressBookmark } from "@/components/address-book/save-address-bookmark";
 import { computeSelector } from "@/lib/abi-utils";
-import { deriveStateMutability } from "@/lib/web3/abi-mutability";
+import { evaluateShowWhen } from "@/lib/workflow/show-when";
 import { parseAddressBookSelection } from "@/lib/address-book-selection";
 import { toChecksumAddress } from "@/lib/address-utils";
 import { getCustomFieldRenderer } from "@/lib/extension-registry";
@@ -394,51 +394,25 @@ const FIELD_RENDERERS: Partial<
 
 
 /**
- * Abi-function-select field component.
- * Derives _abiStateMutability on mount (for saved workflows) and on change.
+ * Helper: Render abi-function-select field.
+ *
+ * Mutability is not persisted; fields that want to gate on it use
+ * `showWhen: { computed: "abiFunctionMutability", ... }` which derives
+ * the value live from the ABI at render time.
  */
-function AbiFunctionSelectFieldWrapper({
-  field,
-  config,
-  onUpdateConfig,
-  disabled,
-}: {
-  field: ActionConfigFieldBase;
-  config: Record<string, unknown>;
-  onUpdateConfig: (key: string, value: unknown) => void;
-  disabled?: boolean;
-}): React.ReactElement {
+function renderAbiFunctionSelect(
+  field: ActionConfigFieldBase,
+  config: Record<string, unknown>,
+  onUpdateConfig: (key: string, value: unknown) => void,
+  disabled?: boolean
+) {
   const abiField = field.abiField || "abi";
   const abiValue = (config[abiField] as string | undefined) || "";
   const value =
     (config[field.key] as string | undefined) || field.defaultValue || "";
-  const persistedMutability = config._abiStateMutability;
-
-  // Latest-ref pattern: parent passes a fresh onUpdateConfig every render
-  // (it's not memoized at the call site in action-config.tsx), so including
-  // it in the effect deps would re-run the effect every render. The ref lets
-  // us read the latest function without making it a dependency.
-  const onUpdateConfigRef = useRef(onUpdateConfig);
-  onUpdateConfigRef.current = onUpdateConfig;
-
-  useEffect(() => {
-    if (value && persistedMutability === undefined) {
-      const mutability = deriveStateMutability(abiValue, value);
-      onUpdateConfigRef.current("_abiStateMutability", mutability);
-    }
-  }, [value, abiValue, persistedMutability]);
-
-  const handleFunctionChange = (val: unknown): void => {
-    onUpdateConfig(field.key, val);
-    const funcName = typeof val === "string" ? val : "";
-    onUpdateConfig(
-      "_abiStateMutability",
-      deriveStateMutability(abiValue, funcName)
-    );
-  };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" key={field.key}>
       <Label className="ml-1" htmlFor={field.key}>
         {field.label}
       </Label>
@@ -447,12 +421,13 @@ function AbiFunctionSelectFieldWrapper({
         disabled={disabled}
         field={field}
         functionFilter={field.functionFilter}
-        onChange={handleFunctionChange}
+        onChange={(val) => onUpdateConfig(field.key, val)}
         value={value}
       />
     </div>
   );
 }
+
 
 /**
  * Helper: Render abi-function-args field
@@ -515,15 +490,8 @@ function renderField(
   nodeId?: string
 ) {
   // Check conditional rendering
-  if (field.showWhen) {
-    const dependentValue = config[field.showWhen.field];
-    if ("oneOf" in field.showWhen) {
-      if (!field.showWhen.oneOf.includes(dependentValue as string)) {
-        return null;
-      }
-    } else if (dependentValue !== field.showWhen.equals) {
-      return null;
-    }
+  if (!evaluateShowWhen(field.showWhen, config)) {
+    return null;
   }
 
   const value =
@@ -531,15 +499,7 @@ function renderField(
 
   // Special handling for abi-function-select
   if (field.type === "abi-function-select") {
-    return (
-      <AbiFunctionSelectFieldWrapper
-        config={config}
-        disabled={disabled}
-        field={field}
-        key={field.key}
-        onUpdateConfig={onUpdateConfig}
-      />
-    );
+    return renderAbiFunctionSelect(field, config, onUpdateConfig, disabled);
   }
 
   // Special handling for abi-function-args
