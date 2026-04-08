@@ -20,6 +20,7 @@ import { TemplateBadgeInput } from "@/components/ui/template-badge-input";
 import { TemplateBadgeTextarea } from "@/components/ui/template-badge-textarea";
 import { SaveAddressBookmark } from "@/components/address-book/save-address-bookmark";
 import { computeSelector } from "@/lib/abi-utils";
+import { deriveStateMutability } from "@/lib/web3/abi-mutability";
 import { parseAddressBookSelection } from "@/lib/address-book-selection";
 import { toChecksumAddress } from "@/lib/address-utils";
 import { getCustomFieldRenderer } from "@/lib/extension-registry";
@@ -391,44 +392,6 @@ const FIELD_RENDERERS: Partial<
   "schema-builder": SchemaBuilderField,
 };
 
-type AbiItem = {
-  type?: unknown;
-  name?: unknown;
-  stateMutability?: unknown;
-};
-
-/**
- * Derives the stateMutability of a named function from an ABI JSON string.
- * Fails closed: returns "nonpayable" on any parse/lookup failure so the
- * payable value field stays hidden when the ABI is malformed or the function
- * cannot be located. A genuinely payable function on a malformed ABI will
- * still revert at execution time with a clear chain error, rather than
- * silently sending value.
- */
-function deriveStateMutability(abiJson: string, funcName: string): string {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(abiJson);
-  } catch {
-    return "nonpayable";
-  }
-
-  if (!Array.isArray(parsed)) {
-    return "nonpayable";
-  }
-
-  const func = (parsed as AbiItem[]).find(
-    (item) =>
-      item != null &&
-      typeof item === "object" &&
-      item.type === "function" &&
-      item.name === funcName
-  );
-
-  return typeof func?.stateMutability === "string"
-    ? func.stateMutability
-    : "nonpayable";
-}
 
 /**
  * Abi-function-select field component.
