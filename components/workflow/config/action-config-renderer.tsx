@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, Info } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -449,13 +449,21 @@ function AbiFunctionSelectFieldWrapper({
   const abiValue = (config[abiField] as string | undefined) || "";
   const value =
     (config[field.key] as string | undefined) || field.defaultValue || "";
+  const persistedMutability = config._abiStateMutability;
+
+  // Latest-ref pattern: parent passes a fresh onUpdateConfig every render
+  // (it's not memoized at the call site in action-config.tsx), so including
+  // it in the effect deps would re-run the effect every render. The ref lets
+  // us read the latest function without making it a dependency.
+  const onUpdateConfigRef = useRef(onUpdateConfig);
+  onUpdateConfigRef.current = onUpdateConfig;
 
   useEffect(() => {
-    if (value && config._abiStateMutability === undefined) {
+    if (value && persistedMutability === undefined) {
       const mutability = deriveStateMutability(abiValue, value);
-      onUpdateConfig("_abiStateMutability", mutability);
+      onUpdateConfigRef.current("_abiStateMutability", mutability);
     }
-  }, [value, abiValue, config._abiStateMutability, onUpdateConfig]);
+  }, [value, abiValue, persistedMutability]);
 
   const handleFunctionChange = (val: unknown): void => {
     onUpdateConfig(field.key, val);
