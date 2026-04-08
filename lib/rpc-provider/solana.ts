@@ -1,4 +1,5 @@
 import { type Commitment, Connection } from "@solana/web3.js";
+import { type RpcErrorType, RPC_CONNECTION_ERROR_PATTERNS } from "./index";
 
 /**
  * Solana RPC Provider Manager
@@ -6,12 +7,6 @@ import { type Commitment, Connection } from "@solana/web3.js";
  * Similar to the EVM RpcProviderManager but uses @solana/web3.js Connection
  * instead of ethers.JsonRpcProvider.
  */
-
-export type SolanaRpcErrorType =
-  | "timeout"
-  | "rate_limit"
-  | "connection"
-  | "rpc_error";
 
 export type SolanaRpcMetricsCollector = {
   recordPrimaryAttempt(chainName: string): void;
@@ -30,7 +25,7 @@ export type SolanaRpcMetricsCollector = {
   recordErrorType(
     chainName: string,
     provider: "primary" | "fallback",
-    errorType: SolanaRpcErrorType
+    errorType: RpcErrorType
   ): void;
 };
 
@@ -321,7 +316,7 @@ export class SolanaProviderManager {
     );
   }
 
-  private classifyError(error: unknown): SolanaRpcErrorType {
+  private classifyError(error: unknown): RpcErrorType {
     if (error instanceof Error && error.message.startsWith("Timeout after ")) {
       return "timeout";
     }
@@ -334,10 +329,9 @@ export class SolanaProviderManager {
     }
     if (
       error instanceof Error &&
-      (error.message.includes("ECONNREFUSED") ||
-        error.message.includes("ENOTFOUND") ||
-        error.message.includes("ETIMEDOUT") ||
-        error.message.includes("fetch failed"))
+      RPC_CONNECTION_ERROR_PATTERNS.some((pattern) =>
+        error.message.includes(pattern)
+      )
     ) {
       return "connection";
     }

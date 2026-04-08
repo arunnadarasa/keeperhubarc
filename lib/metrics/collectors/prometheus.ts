@@ -1045,10 +1045,12 @@ export async function getDbMetrics(): Promise<string> {
   return await dbRegistry.metrics();
 }
 
+const initializedChains = new Set<string>();
+
 /**
  * Initialize RPC health gauges for all enabled chains so they appear in
  * Grafana immediately (with healthy/0 defaults) instead of only after
- * first traffic. Called before each API metrics scrape.
+ * first traffic. Each chain is initialized at most once per pod lifetime.
  */
 async function initRpcMetricsForAllChains(): Promise<void> {
   try {
@@ -1056,10 +1058,12 @@ async function initRpcMetricsForAllChains(): Promise<void> {
     const chainNames = await getEnabledChainNamesFromDb();
 
     for (const chain of chainNames) {
-      // Initialize gauges with defaults; counters auto-appear once
-      // their gauge siblings exist for the same label set
+      if (initializedChains.has(chain)) {
+        continue;
+      }
       rpcHealthState.labels({ chain }).inc(0);
       rpcCurrentProvider.labels({ chain }).inc(0);
+      initializedChains.add(chain);
     }
   } catch {
     // Non-fatal: metrics will still populate on first RPC traffic

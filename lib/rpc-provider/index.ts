@@ -110,6 +110,13 @@ export const consoleMetricsCollector: RpcMetricsCollector = {
     console.debug(`[RPC Metrics] Error ${errorType} on ${provider}: ${chain}`),
 };
 
+export const RPC_CONNECTION_ERROR_PATTERNS: ReadonlyArray<string> = [
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "ETIMEDOUT",
+  "fetch failed",
+];
+
 export type RpcProviderConfig = {
   primaryRpcUrl: string;
   fallbackRpcUrl?: string;
@@ -444,21 +451,14 @@ export class RpcProviderManager {
         return "rate_limit";
       }
     }
-
-    const CONNECTION_ERRORS = [
-      "ECONNREFUSED",
-      "ENOTFOUND",
-      "ETIMEDOUT",
-      "fetch failed",
-    ];
-
     if (
       error instanceof Error &&
-      CONNECTION_ERRORS.some((err) => error.message.includes(err))
+      RPC_CONNECTION_ERROR_PATTERNS.some((pattern) =>
+        error.message.includes(pattern)
+      )
     ) {
       return "connection";
     }
-
     return "rpc_error";
   }
 
