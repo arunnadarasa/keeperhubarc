@@ -43,16 +43,29 @@ describe("validateArgsForAbi", () => {
     expect(result).toEqual({ ok: true });
   });
 
-  it("allows empty string for bytes", () => {
+  it("rejects empty string for bytes with 0x hint", () => {
     const result = validateArgsForAbi([""], {
       inputs: [{ name: "data", type: "bytes" }],
     });
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({
+      ok: false,
+      error: 'data: bytes cannot be empty (use "0x" for empty bytes)',
+    });
   });
 
-  it("allows empty string for bytes32", () => {
+  it("rejects empty string for bytes32 with 0x hint", () => {
     const result = validateArgsForAbi([""], {
       inputs: [{ name: "hash", type: "bytes32" }],
+    });
+    expect(result).toEqual({
+      ok: false,
+      error: 'hash: bytes32 cannot be empty (use "0x" for empty bytes)',
+    });
+  });
+
+  it('accepts "0x" for empty bytes', () => {
+    const result = validateArgsForAbi(["0x"], {
+      inputs: [{ name: "data", type: "bytes" }],
     });
     expect(result).toEqual({ ok: true });
   });
@@ -102,7 +115,7 @@ describe("validateArgsForAbi", () => {
     });
   });
 
-  it("rejects tuple array element with empty field and reports indexed path", () => {
+  it("rejects tuple array element with empty bytes field and reports indexed path", () => {
     const result = validateArgsForAbi(
       [
         [
@@ -124,8 +137,11 @@ describe("validateArgsForAbi", () => {
         ],
       }
     );
-    // callData is bytes so empty is allowed -- this should pass
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({
+      ok: false,
+      error:
+        'calls[1].callData: bytes cannot be empty (use "0x" for empty bytes)',
+    });
   });
 
   it("rejects tuple array element with empty address and reports indexed path", () => {

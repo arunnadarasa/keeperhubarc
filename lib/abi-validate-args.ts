@@ -31,7 +31,7 @@ type FunctionAbiEntry = {
 export type ValidationResult = { ok: true } | { ok: false; error: string };
 
 const TEMPLATE_VARIABLE_RE = /^\{\{.+\}\}$/;
-const BYTES_N_RE = /^bytes\d+$/;
+const BYTES_TYPE_RE = /^bytes\d*$/;
 
 function isTemplateVariable(value: unknown): boolean {
   return typeof value === "string" && TEMPLATE_VARIABLE_RE.test(value.trim());
@@ -42,14 +42,17 @@ function stripArraySuffix(type: string): string {
 }
 
 /**
- * Types that may legitimately hold an empty string:
- * - `string`: empty string is a valid string value
- * - `bytes` / `bytesN`: empty bytes serialize as `0x`, valid
- *
- * Everything else (uint*, int*, address, bool, function, etc.) rejects "".
+ * Only `string` legitimately holds an empty string. Every other leaf type
+ * rejects "" -- including `bytes`/`bytesN`, because ethers BytesLike requires
+ * the literal "0x" for empty bytes and silently lets "" fall through to a
+ * cryptic encoder error otherwise.
  */
 function leafAllowsEmptyString(type: string): boolean {
-  return type === "string" || type === "bytes" || BYTES_N_RE.test(type);
+  return type === "string";
+}
+
+function isBytesType(type: string): boolean {
+  return BYTES_TYPE_RE.test(type);
 }
 
 function validateLeaf(
@@ -62,9 +65,10 @@ function validateLeaf(
   }
 
   if (value === "" && !leafAllowsEmptyString(type)) {
+    const hint = isBytesType(type) ? ' (use "0x" for empty bytes)' : "";
     return {
       ok: false,
-      error: `${path}: ${type} cannot be empty`,
+      error: `${path}: ${type} cannot be empty${hint}`,
     };
   }
 
