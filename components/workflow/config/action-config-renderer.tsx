@@ -391,23 +391,43 @@ const FIELD_RENDERERS: Partial<
   "schema-builder": SchemaBuilderField,
 };
 
-function deriveStateMutability(
-  abiJson: string,
-  funcName: string
-): string {
+type AbiItem = {
+  type?: unknown;
+  name?: unknown;
+  stateMutability?: unknown;
+};
+
+/**
+ * Derives the stateMutability of a named function from an ABI JSON string.
+ * Fails closed: returns "nonpayable" on any parse/lookup failure so the
+ * payable value field stays hidden when the ABI is malformed or the function
+ * cannot be located. A genuinely payable function on a malformed ABI will
+ * still revert at execution time with a clear chain error, rather than
+ * silently sending value.
+ */
+function deriveStateMutability(abiJson: string, funcName: string): string {
+  let parsed: unknown;
   try {
-    const abi: unknown = JSON.parse(abiJson);
-    if (Array.isArray(abi)) {
-      const func = abi.find(
-        (item: { type: string; name: string }) =>
-          item.type === "function" && item.name === funcName
-      );
-      return (func?.stateMutability as string) ?? "nonpayable";
-    }
+    parsed = JSON.parse(abiJson);
   } catch {
-    // invalid ABI
+    return "nonpayable";
   }
-  return "nonpayable";
+
+  if (!Array.isArray(parsed)) {
+    return "nonpayable";
+  }
+
+  const func = (parsed as AbiItem[]).find(
+    (item) =>
+      item != null &&
+      typeof item === "object" &&
+      item.type === "function" &&
+      item.name === funcName
+  );
+
+  return typeof func?.stateMutability === "string"
+    ? func.stateMutability
+    : "nonpayable";
 }
 
 /**
