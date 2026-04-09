@@ -1,10 +1,28 @@
+import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { agentRegistrations } from "@/lib/db/schema";
 
+// Must match TARGET_CHAIN_ID and IDENTITY_REGISTRY_ADDRESS in
+// scripts/register-agent.ts. The endpoint serves the public ERC-8004
+// discovery payload and must return the canonical mainnet registration
+// regardless of how many other (chain, registry) rows exist in the table.
+const MAINNET_CHAIN_ID = 1;
+const IDENTITY_REGISTRY_ADDRESS =
+  "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432";
+
 export async function GET(_request: Request): Promise<NextResponse> {
   try {
-    const rows = await db.select().from(agentRegistrations).limit(1);
+    const rows = await db
+      .select()
+      .from(agentRegistrations)
+      .where(
+        and(
+          eq(agentRegistrations.chainId, MAINNET_CHAIN_ID),
+          eq(agentRegistrations.registryAddress, IDENTITY_REGISTRY_ADDRESS)
+        )
+      )
+      .limit(1);
     const registration = rows[0] ?? null;
 
     const registrationJson = {

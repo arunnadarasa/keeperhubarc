@@ -11,7 +11,11 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/db/schema", () => ({
-  agentRegistrations: { id: "id" },
+  agentRegistrations: {
+    id: "id",
+    chainId: "chain_id",
+    registryAddress: "registry_address",
+  },
 }));
 
 vi.mock("@/lib/logging", () => ({
@@ -27,7 +31,9 @@ describe("GET /api/agent-registry", () => {
   function setupDbMock(rows: unknown[]) {
     mockDbSelect.mockReturnValue({
       from: vi.fn().mockReturnValue({
-        limit: vi.fn().mockResolvedValue(rows),
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue(rows),
+        }),
       }),
     });
   }
