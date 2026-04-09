@@ -45,6 +45,7 @@ export function startRpcHealthProbe(): void {
   globalForProbe.rpcProbeTimer = setInterval(() => {
     runProbeAllChains().catch(noop);
   }, PROBE_INTERVAL_MS);
+  globalForProbe.rpcProbeTimer.unref();
 }
 
 export function stopRpcHealthProbe(): void {
@@ -143,10 +144,16 @@ function extractHostname(url: string): string {
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
   return Promise.race([
-    promise.then((v) => {
-      clearTimeout(timer);
-      return v;
-    }),
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        return v;
+      },
+      (e: unknown) => {
+        clearTimeout(timer);
+        throw e;
+      }
+    ),
     new Promise<T>((_, reject) => {
       timer = setTimeout(
         () => reject(new Error(`Timeout after ${timeoutMs}ms`)),
