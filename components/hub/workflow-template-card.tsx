@@ -17,7 +17,6 @@ type WorkflowTemplateCardProps = {
   isFeatured?: boolean;
   score?: number;
   userVote?: VoteDirection | null;
-  canVote?: boolean;
   className?: string;
   onDuplicate: (e: MouseEvent) => void;
   onPreview: (e: MouseEvent) => void;
@@ -47,12 +46,10 @@ function scoreColorClass(score: number): string {
 function VoteButtons({
   score,
   userVote,
-  canVote,
   onVote,
 }: {
   score: number;
   userVote: VoteDirection | null;
-  canVote: boolean;
   onVote: (direction: VoteDirection) => void;
 }): React.ReactElement {
   return (
@@ -63,8 +60,7 @@ function VoteButtons({
           userVote === "upvote"
             ? "text-green-400"
             : "text-muted-foreground/50 hover:text-green-400"
-        } disabled:cursor-default disabled:opacity-30 disabled:hover:text-muted-foreground/50`}
-        disabled={!canVote}
+        }`}
         onClick={(e) => {
           e.stopPropagation();
           onVote("upvote");
@@ -86,8 +82,7 @@ function VoteButtons({
           userVote === "downvote"
             ? "text-red-400"
             : "text-muted-foreground/50 hover:text-red-400"
-        } disabled:cursor-default disabled:opacity-30 disabled:hover:text-muted-foreground/50`}
-        disabled={!canVote}
+        }`}
         onClick={(e) => {
           e.stopPropagation();
           onVote("downvote");
@@ -108,7 +103,6 @@ export function WorkflowTemplateCard({
   isFeatured = false,
   score = 0,
   userVote = null,
-  canVote = false,
   className,
   onDuplicate,
   onPreview,
@@ -212,7 +206,6 @@ export function WorkflowTemplateCard({
           </button>
           {onVote && (
             <VoteButtons
-              canVote={canVote}
               onVote={onVote}
               score={score}
               userVote={userVote}

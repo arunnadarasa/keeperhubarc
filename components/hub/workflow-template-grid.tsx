@@ -103,6 +103,11 @@ export function WorkflowTemplateGrid({
 
       const workflow = workflows.find((w) => w.id === workflowId);
 
+      if (!workflow?.canVote) {
+        toast.error("Use this template first to vote");
+        return;
+      }
+
       // Capture pre-optimistic state for revert
       let snapshotVote: VoteDirection | null = null;
       let snapshotScore = 0;
@@ -151,14 +156,11 @@ export function WorkflowTemplateGrid({
         const override = voteOverrides[workflow.id];
         return (
           <WorkflowTemplateCard
-            canVote={workflow.canVote ?? false}
             isDuplicating={duplicatingIds.has(workflow.id)}
             isFeatured={featuredIds?.has(workflow.id) ?? false}
             key={workflow.id}
             onDuplicate={(e) => handleDuplicate(e, workflow.id)}
             onPreview={(e) => handlePreview(e, workflow.id)}
-            // Vote arrows render for all users; canVote disables them for
-            // logged-out users and those who haven't duplicated the template.
             onVote={(direction) => handleVote(workflow.id, direction)}
             score={override?.score ?? workflow.score ?? 0}
             userVote={
