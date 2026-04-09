@@ -118,7 +118,7 @@ async function probeEndpoint(target: ProbeTarget): Promise<void> {
 }
 
 async function probeEvm(url: string): Promise<void> {
-  const provider = new ethers.JsonRpcProvider(url, undefined, {
+  const provider = new ethers.JsonRpcProvider(url, ethers.Network.from(1), {
     staticNetwork: true,
   });
   try {
