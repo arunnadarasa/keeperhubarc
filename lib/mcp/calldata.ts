@@ -59,7 +59,7 @@ export function resolveTriggerTemplates(
 ): string {
   return value.replace(TRIGGER_TEMPLATE_RE, (_match, fieldName: string) => {
     const resolved = triggerInputs[fieldName];
-    return resolved !== undefined ? String(resolved) : _match;
+    return resolved === undefined ? _match : String(resolved);
   });
 }
 
