@@ -38,6 +38,28 @@ export function parsePlatformFeePercent(envValue: string | undefined): number {
   return parsed;
 }
 
+/**
+ * IMPORTANT: this module computes revenue figures using JS numbers, not
+ * BigInt or a decimal library. That is intentional for the current scope --
+ * these values feed the earnings dashboard for DISPLAY ONLY, where
+ * formatUsdc() rounds to two decimals and float artifacts are invisible.
+ *
+ * Two assumptions hold this together:
+ *
+ *   1. amountUsdc is stored as human-readable USD (e.g. "1.50"), so the
+ *      Number() casts in getEarningsSummary() do not lose precision until
+ *      lifetime org revenue exceeds ~9 quadrillion dollars.
+ *   2. No code path uses these numbers to drive on-chain payouts, ACH
+ *      transfers, or any other money movement. They are read by the UI
+ *      and that is the end of their journey.
+ *
+ * If either assumption changes -- in particular, if these values are ever
+ * fed into a payout pipeline -- this module MUST switch to BigInt or a
+ * decimal library before that integration ships. Float arithmetic
+ * compounds error across multiplications and you will lose cents (or
+ * worse) at scale. computeRevenueSplit and getEarningsSummary are the
+ * places that need rewriting.
+ */
 export function computeRevenueSplit(
   gross: number,
   platformFeePercent: number
