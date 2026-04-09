@@ -1171,7 +1171,7 @@ async function initRpcMetricsForAllChains(): Promise<void> {
       rpcHealthState.labels({ chain }).inc(0);
       rpcCurrentProvider.labels({ chain }).inc(0);
       // Initialize per-operation counters so both read/write appear in Grafana
-      for (const operation of ["read", "write"]) {
+      for (const operation of ["read", "write", "preflight"]) {
         rpcPrimaryAttempts.labels({ chain, operation }).inc(0);
         rpcPrimaryFailures.labels({ chain, operation }).inc(0);
       }

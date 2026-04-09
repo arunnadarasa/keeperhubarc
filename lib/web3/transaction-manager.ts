@@ -308,7 +308,7 @@ export async function executeTransaction(
       ? await context.rpcManager.executeWithFailover(
           (rpcProvider) =>
             rpcProvider.estimateGas({ ...baseTx, from: walletAddress }),
-          "write"
+          "preflight"
         )
       : await provider.estimateGas({ ...baseTx, from: walletAddress });
 
@@ -394,7 +394,7 @@ export async function executeContractTransaction(
             (contract.connect(rpcProvider) as typeof contract)[
               method
             ].estimateGas(...args),
-          "write"
+          "preflight"
         )
       : await contract[method].estimateGas(...args);
 

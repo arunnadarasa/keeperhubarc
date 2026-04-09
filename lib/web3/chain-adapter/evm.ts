@@ -58,7 +58,7 @@ export class EvmChainAdapter implements ChainAdapter {
     if (options.rpcManager) {
       await options.rpcManager.executeWithFailover(
         (rpcProvider) => rpcProvider.call({ ...baseTx, from: walletAddress }),
-        "write"
+        "preflight"
       );
     } else {
       await provider.call({ ...baseTx, from: walletAddress });
@@ -70,7 +70,7 @@ export class EvmChainAdapter implements ChainAdapter {
       ? await options.rpcManager.executeWithFailover(
           (rpcProvider) =>
             rpcProvider.estimateGas({ ...baseTx, from: walletAddress }),
-          "write"
+          "preflight"
         )
       : await provider.estimateGas({ ...baseTx, from: walletAddress });
 
@@ -137,7 +137,7 @@ export class EvmChainAdapter implements ChainAdapter {
           ...request.args,
           valueOverride
         );
-      }, "write");
+      }, "preflight");
     } else {
       await contract[request.functionKey].staticCall(
         ...request.args,
@@ -158,7 +158,7 @@ export class EvmChainAdapter implements ChainAdapter {
             ...request.args,
             valueOverride
           );
-        }, "write")
+        }, "preflight")
       : await contract[request.functionKey].estimateGas(
           ...request.args,
           valueOverride
