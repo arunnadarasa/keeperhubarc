@@ -431,14 +431,35 @@ async function handlePaidWorkflow(
     }
     const { executionId } = prepared;
 
-    await recordPayment({
-      workflowId: workflow.id,
-      paymentHash: paymentSig ? hashPaymentSignature(paymentSig) : executionId,
-      executionId,
-      amountUsdc: workflow.priceUsdcPerCall ?? "0",
-      payerAddress,
-      creatorWalletAddress,
-    });
+    // If recordPayment throws, the execution row already exists with
+    // status="running" but the workflow has not been started. Mark it failed
+    // so monitoring sees a real failed run instead of a hung "running" row
+    // that nothing will ever transition. The recorded error is preserved in
+    // the execution row for reconciliation.
+    try {
+      await recordPayment({
+        workflowId: workflow.id,
+        paymentHash: paymentSig
+          ? hashPaymentSignature(paymentSig)
+          : executionId,
+        executionId,
+        amountUsdc: workflow.priceUsdcPerCall ?? "0",
+        payerAddress,
+        creatorWalletAddress,
+      });
+    } catch (err) {
+      await db
+        .update(workflowExecutions)
+        .set({
+          status: "failed",
+          error:
+            err instanceof Error
+              ? `recordPayment failed: ${err.message}`
+              : "recordPayment failed",
+        })
+        .where(eq(workflowExecutions.id, executionId));
+      throw err;
+    }
 
     startExecutionInBackground(workflow, body, executionId);
 

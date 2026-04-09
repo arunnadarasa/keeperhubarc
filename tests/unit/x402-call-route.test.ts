@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockDbSelect,
   mockDbInsert,
+  mockDbUpdate,
   mockBuildPaymentConfig,
   mockHashPaymentSignature,
   mockFindExistingPayment,
@@ -24,6 +25,7 @@ const {
 } = vi.hoisted(() => ({
   mockDbSelect: vi.fn(),
   mockDbInsert: vi.fn(),
+  mockDbUpdate: vi.fn(),
   mockBuildPaymentConfig: vi.fn(),
   mockHashPaymentSignature: vi.fn(),
   mockFindExistingPayment: vi.fn(),
@@ -48,6 +50,7 @@ vi.mock("@/lib/db", () => ({
   db: {
     select: mockDbSelect,
     insert: mockDbInsert,
+    update: mockDbUpdate,
   },
 }));
 
@@ -205,6 +208,12 @@ describe("POST /api/mcp/workflows/[slug]/call", () => {
     mockFindExistingPayment.mockResolvedValue(null);
     mockResolveCreatorWallet.mockResolvedValue(CREATOR_WALLET);
     mockExtractPayerAddress.mockReturnValue(null);
+    // Default no-op update chain: db.update(table).set(values).where(filter)
+    mockDbUpdate.mockReturnValue({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue(undefined),
+      }),
+    });
     // Default: caller is authenticated. Tests that exercise the unauthenticated
     // path must explicitly override these to return { authenticated: false }.
     mockAuthenticateOAuthToken.mockReturnValue({
@@ -449,5 +458,37 @@ describe("POST /api/mcp/workflows/[slug]/call", () => {
     expect(response.status).toBe(200);
     expect(mockAuthenticateApiKey).not.toHaveBeenCalled();
     expect(mockAuthenticateOAuthToken).not.toHaveBeenCalled();
+  });
+
+  it("Test 15: when recordPayment throws, marks the orphaned execution as failed and does not start the workflow", async () => {
+    setupDbSelectWorkflow(LISTED_WORKFLOW);
+    setupDbInsertExecution("exec-orphan-1");
+    makePassThroughWithX402();
+    mockRecordPayment.mockRejectedValue(new Error("db connection lost"));
+
+    const setMock = vi.fn().mockReturnValue({
+      where: vi.fn().mockResolvedValue(undefined),
+    });
+    mockDbUpdate.mockReturnValue({ set: setMock });
+
+    const { POST } = await import("@/app/api/mcp/workflows/[slug]/call/route");
+    const request = makeRequest("test-workflow", {
+      paymentSignature: "sig-orphan",
+    });
+    const params = Promise.resolve({ slug: "test-workflow" });
+    const response = await POST(request, { params });
+
+    // The error propagates through the outer POST try/catch as a 500.
+    expect(response.status).toBe(500);
+    // The execution row was marked failed before the error escaped.
+    expect(mockDbUpdate).toHaveBeenCalled();
+    expect(setMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "failed",
+        error: expect.stringContaining("recordPayment failed"),
+      })
+    );
+    // The workflow itself was never started.
+    expect(mockStart).not.toHaveBeenCalled();
   });
 });
