@@ -245,7 +245,6 @@ export class RpcProviderManager {
 
     const provider = new ethers.JsonRpcProvider(fetchRequest, "any", {
       cacheTimeout: -1,
-      staticNetwork: true,
       // Disable JSON-RPC batching: ethers v6 batches concurrent calls into one
       // HTTP request by default. When the RPC proxy returns an incomplete batch
       // response, ethers throws BAD_DATA "missing response for request". Sending
