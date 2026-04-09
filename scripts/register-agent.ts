@@ -51,6 +51,19 @@ type ContractLike = {
   register: (uri: string) => Promise<TransactionLike>;
 };
 
+type ProviderLike = {
+  getBalance: (address: string) => Promise<bigint>;
+};
+
+type WalletLike = {
+  address: string;
+};
+
+// Conservative floor for ERC-8004 register() on mainnet. Real cost is ~0.003
+// ETH; this guards against the script silently failing mid-tx on a wallet
+// that's nearly empty.
+const MIN_BALANCE_WEI = 5_000_000_000_000_000n; // 0.005 ETH
+
 type DbLike = {
   select: () => {
     from: (table: unknown) => {
@@ -65,8 +78,8 @@ const TARGET_CHAIN_ID = 1;
 export type RegisterDeps = {
   db: DbLike;
   buildContract: (address: string, abi: unknown, wallet: unknown) => ContractLike;
-  buildProvider: (rpcUrl: string) => unknown;
-  buildWallet: (privateKey: string, provider: unknown) => unknown;
+  buildProvider: (rpcUrl: string) => ProviderLike;
+  buildWallet: (privateKey: string, provider: unknown) => WalletLike;
 };
 
 export type RegisterResult =
@@ -133,6 +146,15 @@ export async function registerAgent(deps?: RegisterDeps): Promise<RegisterResult
       IDENTITY_REGISTRY_ABI,
       wallet
     );
+
+    // Preflight: fail fast on insufficient balance instead of bombing out
+    // halfway through the register() call with a confusing ethers error.
+    const balance = await provider.getBalance(wallet.address);
+    if (balance < MIN_BALANCE_WEI) {
+      throw new Error(
+        `Wallet ${wallet.address} has insufficient balance: ${balance} wei (minimum ${MIN_BALANCE_WEI} wei / 0.005 ETH required for gas)`
+      );
+    }
 
     console.log(`Registering KeeperHub agent at ${AGENT_URI}...`);
     const tx = await registry.register(AGENT_URI);

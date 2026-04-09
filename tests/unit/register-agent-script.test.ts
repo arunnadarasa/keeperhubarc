@@ -59,7 +59,11 @@ function makeDeps(overrides: Partial<RegisterDeps> = {}): RegisterDeps {
       }),
       insert: vi.fn().mockReturnValue({ values: mockInsertValues }),
     },
-    buildProvider: vi.fn().mockReturnValue({ _isProvider: true }),
+    buildProvider: vi.fn().mockReturnValue({
+      getBalance: vi
+        .fn()
+        .mockResolvedValue(BigInt("10000000000000000")), // 0.01 ETH, well above floor
+    }),
     buildWallet: vi.fn().mockReturnValue({ address: "0xTestWallet" }),
     buildContract: vi.fn().mockReturnValue({ register: mockContractRegister }),
     ...overrides,
@@ -193,5 +197,37 @@ describe("registerAgent", () => {
     expect(mockInsertValues).toHaveBeenCalledWith(
       expect.objectContaining({ agentId: AGENT_ID_12345.toString() })
     );
+  });
+
+  it("Test 5: throws and does not call register() when wallet balance is below the floor", async () => {
+    process.env.REGISTRATION_PRIVATE_KEY = "0xdeadbeef";
+
+    const mockContractRegister = vi.fn();
+    const mockInsertValues = vi.fn().mockResolvedValue(undefined);
+
+    const deps = makeDeps({
+      db: {
+        select: vi.fn().mockReturnValue({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([]),
+            }),
+          }),
+        }),
+        insert: vi.fn().mockReturnValue({ values: mockInsertValues }),
+      },
+      buildProvider: vi.fn().mockReturnValue({
+        getBalance: vi
+          .fn()
+          .mockResolvedValue(BigInt("1000000000000000")), // 0.001 ETH, below the 0.005 floor
+      }),
+      buildContract: vi
+        .fn()
+        .mockReturnValue({ register: mockContractRegister }),
+    });
+
+    await expect(registerAgent(deps)).rejects.toThrow(/insufficient balance/);
+    expect(mockContractRegister).not.toHaveBeenCalled();
+    expect(mockInsertValues).not.toHaveBeenCalled();
   });
 });
