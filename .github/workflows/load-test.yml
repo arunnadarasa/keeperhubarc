@@ -144,7 +144,7 @@ jobs:
             -e DURATION="${{ inputs.duration }}" \
             -e RAMP_INTERVAL="${{ inputs.ramp_interval }}" \
             --summary-export /tmp/k6-results/summary.json \
-            --no-usage-report || true
+            --no-usage-report
         env:
           TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
           SERVICE_KEY: ${{ secrets.SCHEDULER_SERVICE_API_KEY }}
@@ -161,7 +161,7 @@ jobs:
             "${{ inputs.threshold }}" \
             "${{ inputs.step_size }}" \
             "${{ inputs.step_duration }}" \
-            "${{ inputs.max_vus }}" || true
+            "${{ inputs.max_vus }}"
         env:
           TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.TO_CF_ACCESS_CLIENT_ID }}
