@@ -23,6 +23,7 @@ import {
   users,
   workflowExecutionLogs,
   workflowExecutions,
+  workflowRatings,
   workflowSchedules,
   workflows,
 } from "@/lib/db/schema";
@@ -686,6 +687,97 @@ export async function getInfraStatsFromDb(): Promise<InfraStats> {
       chainsEnabled: 0,
       paraWalletsTotal: 0,
       sessionsActive: 0,
+    };
+  }
+}
+
+export type VoteStats = {
+  totalVotes: number;
+  totalUpvotes: number;
+  totalDownvotes: number;
+  topWorkflows: { workflowId: string; score: number }[];
+  mostClonedWorkflows: {
+    workflowId: string;
+    cloneCount: number;
+  }[];
+  topVoters: { userId: string; voteCount: number }[];
+};
+
+export async function getVoteStatsFromDb(): Promise<VoteStats> {
+  try {
+    const [
+      totalsResult,
+      topWorkflowsResult,
+      mostClonedResult,
+      topVotersResult,
+    ] = await Promise.all([
+      db
+        .select({
+          totalVotes: count(),
+          totalUpvotes: sql<string>`COUNT(*) FILTER (WHERE ${workflowRatings.rating} = 1)`,
+          totalDownvotes: sql<string>`COUNT(*) FILTER (WHERE ${workflowRatings.rating} = -1)`,
+        })
+        .from(workflowRatings),
+      db
+        .select({
+          workflowId: workflowRatings.workflowId,
+          score: sql<string>`COALESCE(SUM(${workflowRatings.rating}), 0)`,
+        })
+        .from(workflowRatings)
+        .groupBy(workflowRatings.workflowId)
+        .orderBy(sql`SUM(${workflowRatings.rating}) DESC`)
+        .limit(10),
+      db
+        .select({
+          workflowId: workflows.sourceWorkflowId,
+          cloneCount: count(),
+        })
+        .from(workflows)
+        .where(sql`${workflows.sourceWorkflowId} IS NOT NULL`)
+        .groupBy(workflows.sourceWorkflowId)
+        .orderBy(sql`COUNT(*) DESC`)
+        .limit(10),
+      db
+        .select({
+          userId: workflowRatings.userId,
+          voteCount: count(),
+        })
+        .from(workflowRatings)
+        .groupBy(workflowRatings.userId)
+        .orderBy(sql`COUNT(*) DESC`)
+        .limit(10),
+    ]);
+
+    const totals = totalsResult[0];
+
+    return {
+      totalVotes: Number(totals?.totalVotes) || 0,
+      totalUpvotes: Number(totals?.totalUpvotes) || 0,
+      totalDownvotes: Number(totals?.totalDownvotes) || 0,
+      topWorkflows: topWorkflowsResult.map((r) => ({
+        workflowId: r.workflowId,
+        score: Number(r.score),
+      })),
+      mostClonedWorkflows: mostClonedResult
+        .filter((r) => r.workflowId !== null)
+        .map((r) => ({
+          workflowId: r.workflowId as string,
+          cloneCount: Number(r.cloneCount),
+        })),
+      topVoters: topVotersResult.map((r) => ({
+        userId: r.userId,
+        voteCount: Number(r.voteCount),
+      })),
+    };
+  } catch (error) {
+    console.error("[Metrics] Failed to query vote stats from DB:", error);
+    return {
+      totalVotes: 0,
+      totalUpvotes: 0,
+      totalDownvotes: 0,
+      topWorkflows: [],
+      mostClonedWorkflows: [],
+      topVoters: [],
     };
   }
 }
