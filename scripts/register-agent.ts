@@ -14,6 +14,7 @@
  */
 
 import "dotenv/config";
+import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { ethers } from "ethers";
 import postgres from "postgres";
@@ -51,9 +52,15 @@ type ContractLike = {
 };
 
 type DbLike = {
-  select: () => { from: (table: unknown) => { limit: (n: number) => Promise<unknown[]> } };
+  select: () => {
+    from: (table: unknown) => {
+      where: (filter: unknown) => { limit: (n: number) => Promise<unknown[]> };
+    };
+  };
   insert: (table: unknown) => { values: (data: unknown) => Promise<void> };
 };
+
+const TARGET_CHAIN_ID = 1;
 
 export type RegisterDeps = {
   db: DbLike;
@@ -96,7 +103,19 @@ export async function registerAgent(deps?: RegisterDeps): Promise<RegisterResult
   }
 
   try {
-    const rows = await db.select().from(agentRegistrations).limit(1);
+    // Idempotency is keyed on (chainId, registryAddress) so the script can be
+    // safely re-run for a different chain or a different registry contract
+    // without short-circuiting on an unrelated previous registration.
+    const rows = await db
+      .select()
+      .from(agentRegistrations)
+      .where(
+        and(
+          eq(agentRegistrations.chainId, TARGET_CHAIN_ID),
+          eq(agentRegistrations.registryAddress, IDENTITY_REGISTRY_ADDRESS)
+        )
+      )
+      .limit(1);
     const existing = (rows[0] as { agentId: string; txHash: string } | undefined) ?? null;
 
     if (existing) {
@@ -142,7 +161,7 @@ export async function registerAgent(deps?: RegisterDeps): Promise<RegisterResult
     await db.insert(agentRegistrations).values({
       agentId,
       txHash: tx.hash,
-      chainId: 1,
+      chainId: TARGET_CHAIN_ID,
       registryAddress: IDENTITY_REGISTRY_ADDRESS,
     });
 

@@ -13,7 +13,13 @@ vi.mock("ethers", () => ({ ethers: {} }));
 vi.mock("../../lib/db/connection-utils", () => ({
   getDatabaseUrl: vi.fn(() => "postgres://localhost:5432/test"),
 }));
-vi.mock("../../lib/db/schema", () => ({ agentRegistrations: { id: "id" } }));
+vi.mock("../../lib/db/schema", () => ({
+  agentRegistrations: {
+    id: "id",
+    chainId: "chain_id",
+    registryAddress: "registry_address",
+  },
+}));
 vi.mock("../../lib/rpc/rpc-config", () => ({
   getRpcUrlByChainId: vi.fn(() => "https://eth-mainnet.example.com"),
 }));
@@ -46,7 +52,9 @@ function makeDeps(overrides: Partial<RegisterDeps> = {}): RegisterDeps {
     db: {
       select: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue(mockSelectRows),
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue(mockSelectRows),
+          }),
         }),
       }),
       insert: vi.fn().mockReturnValue({ values: mockInsertValues }),
@@ -80,7 +88,9 @@ describe("registerAgent", () => {
       db: {
         select: vi.fn().mockReturnValue({
           from: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([existingRow]),
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([existingRow]),
+            }),
           }),
         }),
         insert: vi.fn().mockReturnValue({ values: vi.fn() }),
@@ -125,7 +135,9 @@ describe("registerAgent", () => {
       db: {
         select: vi.fn().mockReturnValue({
           from: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([]),
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([]),
+            }),
           }),
         }),
         insert: vi.fn().mockReturnValue({ values: mockInsertValues }),
@@ -160,7 +172,9 @@ describe("registerAgent", () => {
       db: {
         select: vi.fn().mockReturnValue({
           from: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([]),
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([]),
+            }),
           }),
         }),
         insert: vi.fn().mockReturnValue({ values: mockInsertValues }),
