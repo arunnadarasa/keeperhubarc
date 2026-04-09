@@ -22,8 +22,7 @@ function noop(): void {
 }
 
 const PROBE_INTERVAL_MS = Number(process.env.RPC_PROBE_INTERVAL_MS) || 30_000;
-const PROBE_TIMEOUT_MS =
-  Number(process.env.RPC_PROBE_TIMEOUT_MS) || 15_000;
+const PROBE_TIMEOUT_MS = Number(process.env.RPC_PROBE_TIMEOUT_MS) || 15_000;
 
 type ProbeTarget = {
   chain: string;
@@ -142,13 +141,17 @@ function extractHostname(url: string): string {
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
   return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(
+    promise.then((v) => {
+      clearTimeout(timer);
+      return v;
+    }),
+    new Promise<T>((_, reject) => {
+      timer = setTimeout(
         () => reject(new Error(`Timeout after ${timeoutMs}ms`)),
         timeoutMs
-      )
-    ),
+      );
+    }),
   ]);
 }
