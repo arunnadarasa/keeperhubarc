@@ -29,6 +29,7 @@ const AGENT_ID_12345 = BigInt(12_345);
 
 function makeReceipt(agentId: bigint) {
   return {
+    status: 1,
     logs: [
       {
         topics: [
@@ -228,6 +229,35 @@ describe("registerAgent", () => {
 
     await expect(registerAgent(deps)).rejects.toThrow(/insufficient balance/);
     expect(mockContractRegister).not.toHaveBeenCalled();
+    expect(mockInsertValues).not.toHaveBeenCalled();
+  });
+
+  it("Test 6: throws when transaction receipt has status 0 (reverted)", async () => {
+    process.env.REGISTRATION_PRIVATE_KEY = "0xdeadbeef";
+
+    const revertedReceipt = { ...makeReceipt(AGENT_ID_42), status: 0 };
+    const mockTxWait = vi.fn().mockResolvedValue(revertedReceipt);
+    const mockTx = { hash: "0xreverted", wait: mockTxWait };
+    const mockContractRegister = vi.fn().mockResolvedValue(mockTx);
+    const mockInsertValues = vi.fn().mockResolvedValue(undefined);
+
+    const deps = makeDeps({
+      db: {
+        select: vi.fn().mockReturnValue({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([]),
+            }),
+          }),
+        }),
+        insert: vi.fn().mockReturnValue({ values: mockInsertValues }),
+      },
+      buildContract: vi
+        .fn()
+        .mockReturnValue({ register: mockContractRegister }),
+    });
+
+    await expect(registerAgent(deps)).rejects.toThrow(/reverted on-chain/);
     expect(mockInsertValues).not.toHaveBeenCalled();
   });
 });

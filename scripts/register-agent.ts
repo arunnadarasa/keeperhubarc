@@ -44,6 +44,7 @@ type TransactionLike = {
 };
 
 type ReceiptLike = {
+  status: number | null;
   logs: Array<{ topics: string[]; address: string }>;
 };
 
@@ -161,6 +162,15 @@ export async function registerAgent(deps?: RegisterDeps): Promise<RegisterResult
     console.log(`Transaction sent: ${tx.hash}`);
 
     const receipt = await tx.wait();
+
+    // ethers v6 throws on revert in most cases, but explicitly assert receipt
+    // status so a status=0 receipt produces a clear "reverted" error instead
+    // of falling through to a misleading "Transfer event not found" message.
+    if (receipt.status !== 1) {
+      throw new Error(
+        `Transaction ${tx.hash} reverted on-chain (receipt status=${receipt.status})`
+      );
+    }
 
     const transferLog = receipt.logs.find(
       (log) =>
