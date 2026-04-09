@@ -687,7 +687,27 @@ export type NewWorkflow = typeof workflows.$inferInsert;
 // INFRA-03: Field projection type for public-facing listed workflow queries.
 // Excludes nodes, edges, and userId -- these must never reach external agents.
 // Uses Omit (not Pick) so new columns added to workflows are included automatically.
-export type ListedWorkflowView = Omit<Workflow, "nodes" | "edges" | "userId">;
+// Public-facing projection for the listed-workflow catalog. Uses Pick (not Omit)
+// so adding a new column to `workflows` does NOT auto-leak it to the public API.
+// Must stay in sync with LISTED_WORKFLOW_COLUMNS in app/api/mcp/workflows/route.ts.
+export type ListedWorkflowView = Pick<
+  Workflow,
+  | "id"
+  | "name"
+  | "description"
+  | "listedSlug"
+  | "listedAt"
+  | "inputSchema"
+  | "outputMapping"
+  | "priceUsdcPerCall"
+  | "organizationId"
+  | "createdAt"
+  | "updatedAt"
+  | "isListed"
+  | "workflowType"
+  | "category"
+  | "chain"
+>;
 export type Integration = typeof integrations.$inferSelect;
 export type NewIntegration = typeof integrations.$inferInsert;
 export type WorkflowExecution = typeof workflowExecutions.$inferSelect;

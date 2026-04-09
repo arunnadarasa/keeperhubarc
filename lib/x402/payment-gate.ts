@@ -49,7 +49,7 @@ export function buildPaymentConfig(
       scheme: "exact",
       network: "eip155:8453",
       payTo: creatorWalletAddress,
-      price: `$${price}`,
+      price: `$${price.toFixed(2)}`,
     },
     description: `Pay to run workflow: ${workflow.name}`,
   };

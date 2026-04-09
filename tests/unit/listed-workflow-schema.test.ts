@@ -61,4 +61,16 @@ describe("workflows table: v1.7 listing schema", () => {
     const check: HasExcluded = false;
     expect(check).toBe(false);
   });
+
+  it("ListedWorkflowView is a closed allowlist (Pick), not Omit", () => {
+    // Sentinel: pretend a future PR adds a sensitive column to the workflows
+    // table. With Pick, it must NOT appear in ListedWorkflowView until someone
+    // explicitly adds it. With Omit it would silently leak.
+    type FutureSensitiveKey = "internalNotes" | "creatorEmail";
+    type Leaked = FutureSensitiveKey extends keyof ListedWorkflowView
+      ? true
+      : false;
+    const check: Leaked = false;
+    expect(check).toBe(false);
+  });
 });

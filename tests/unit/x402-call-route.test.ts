@@ -12,12 +12,15 @@ const {
   mockFindExistingPayment,
   mockRecordPayment,
   mockResolveCreatorWallet,
+  mockExtractPayerAddress,
   mockWithX402,
   mockStart,
   mockExecuteWorkflow,
   mockEnforceExecutionLimit,
   mockCheckConcurrencyLimit,
   mockLogSystemError,
+  mockAuthenticateApiKey,
+  mockAuthenticateOAuthToken,
 } = vi.hoisted(() => ({
   mockDbSelect: vi.fn(),
   mockDbInsert: vi.fn(),
@@ -26,12 +29,15 @@ const {
   mockFindExistingPayment: vi.fn(),
   mockRecordPayment: vi.fn(),
   mockResolveCreatorWallet: vi.fn(),
+  mockExtractPayerAddress: vi.fn(),
   mockWithX402: vi.fn(),
   mockStart: vi.fn(),
   mockExecuteWorkflow: vi.fn(),
   mockEnforceExecutionLimit: vi.fn(),
   mockCheckConcurrencyLimit: vi.fn(),
   mockLogSystemError: vi.fn(),
+  mockAuthenticateApiKey: vi.fn(),
+  mockAuthenticateOAuthToken: vi.fn(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -60,6 +66,15 @@ vi.mock("@/lib/x402/payment-gate", () => ({
   findExistingPayment: mockFindExistingPayment,
   recordPayment: mockRecordPayment,
   resolveCreatorWallet: mockResolveCreatorWallet,
+  extractPayerAddress: mockExtractPayerAddress,
+}));
+
+vi.mock("@/lib/api-key-auth", () => ({
+  authenticateApiKey: mockAuthenticateApiKey,
+}));
+
+vi.mock("@/lib/mcp/oauth-auth", () => ({
+  authenticateOAuthToken: mockAuthenticateOAuthToken,
 }));
 
 vi.mock("@/lib/x402/reconcile", () => ({
@@ -189,7 +204,25 @@ describe("POST /api/mcp/workflows/[slug]/call", () => {
     mockHashPaymentSignature.mockReturnValue("hash-abc");
     mockFindExistingPayment.mockResolvedValue(null);
     mockResolveCreatorWallet.mockResolvedValue(CREATOR_WALLET);
+    mockExtractPayerAddress.mockReturnValue(null);
+    // Default: caller is authenticated. Tests that exercise the unauthenticated
+    // path must explicitly override these to return { authenticated: false }.
+    mockAuthenticateOAuthToken.mockReturnValue({
+      authenticated: true,
+      organizationId: "caller-org-1",
+      userId: "caller-user-1",
+    });
+    mockAuthenticateApiKey.mockResolvedValue({
+      authenticated: true,
+      organizationId: "caller-org-1",
+      apiKeyId: "key-1",
+    });
   });
+
+  function setUnauthenticated(): void {
+    mockAuthenticateOAuthToken.mockReturnValue({ authenticated: false });
+    mockAuthenticateApiKey.mockResolvedValue({ authenticated: false });
+  }
 
   it("Test 1: returns 404 for unknown slug", async () => {
     setupDbSelectWorkflow(null);
@@ -388,5 +421,33 @@ describe("POST /api/mcp/workflows/[slug]/call", () => {
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body.executionId).toBe("exec-schema-ok");
+  });
+
+  it("Test 13: free workflow without API key returns 401", async () => {
+    setUnauthenticated();
+    setupDbSelectWorkflow(FREE_WORKFLOW);
+    const { POST } = await import("@/app/api/mcp/workflows/[slug]/call/route");
+    const request = makeRequest("test-workflow");
+    const params = Promise.resolve({ slug: "test-workflow" });
+    const response = await POST(request, { params });
+    expect(response.status).toBe(401);
+    // The DB lookup happened, but no execution was created.
+    expect(mockDbInsert).not.toHaveBeenCalled();
+  });
+
+  it("Test 14: paid workflow does NOT require API key (x402 is the auth)", async () => {
+    setUnauthenticated();
+    setupDbSelectWorkflow(LISTED_WORKFLOW);
+    setupDbInsertExecution("exec-paid-noauth");
+    makePassThroughWithX402();
+    const { POST } = await import("@/app/api/mcp/workflows/[slug]/call/route");
+    const request = makeRequest("test-workflow", {
+      paymentSignature: "sig-noauth",
+    });
+    const params = Promise.resolve({ slug: "test-workflow" });
+    const response = await POST(request, { params });
+    expect(response.status).toBe(200);
+    expect(mockAuthenticateApiKey).not.toHaveBeenCalled();
+    expect(mockAuthenticateOAuthToken).not.toHaveBeenCalled();
   });
 });

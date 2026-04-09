@@ -3,11 +3,17 @@ import { and, eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 import { start } from "workflow/api";
 import { checkConcurrencyLimit } from "@/app/api/execute/_lib/concurrency-limit";
+import { authenticateApiKey } from "@/lib/api-key-auth";
 import { enforceExecutionLimit } from "@/lib/billing/execution-guard";
 import { db } from "@/lib/db";
 import { organization, workflowExecutions, workflows } from "@/lib/db/schema";
 import { ErrorCategory, logSystemError } from "@/lib/logging";
-import { checkIpRateLimit, getClientIp } from "@/lib/mcp/rate-limit";
+import { authenticateOAuthToken } from "@/lib/mcp/oauth-auth";
+import {
+  checkIpRateLimit,
+  checkMcpRateLimit,
+  getClientIp,
+} from "@/lib/mcp/rate-limit";
 import { executeWorkflow } from "@/lib/workflow-executor.workflow";
 import type { WorkflowEdge, WorkflowNode } from "@/lib/workflow-store";
 import {
@@ -71,26 +77,39 @@ function validateInputSchema(
  * Shared by both free and paid call paths to avoid duplicating the
  * guard/insert/start sequence.
  */
-async function createAndStartExecution(
+/**
+ * Runs guards (execution + concurrency) and inserts a workflow_executions row.
+ * Returns the new executionId on success, or a NextResponse to short-circuit
+ * the request on guard failure. Does NOT start the workflow -- callers do that
+ * separately so the paid path can record payment between insert and start.
+ */
+async function prepareExecution(
   workflow: CallRouteWorkflow,
   body: Record<string, unknown>
-): Promise<NextResponse> {
+): Promise<{ executionId: string } | { error: NextResponse }> {
   const executionGuard = await enforceExecutionLimit(workflow.organizationId);
   if (executionGuard.blocked) {
     const guardBody = await executionGuard.response.json();
-    return NextResponse.json(guardBody, { status: 429, headers: corsHeaders });
+    return {
+      error: NextResponse.json(guardBody, {
+        status: 429,
+        headers: corsHeaders,
+      }),
+    };
   }
 
   const concurrencyCheck = await checkConcurrencyLimit();
   if (!concurrencyCheck.allowed) {
-    return NextResponse.json(
-      {
-        error: "Too many concurrent workflow executions",
-        running: concurrencyCheck.running,
-        limit: concurrencyCheck.limit,
-      },
-      { status: 429, headers: { ...corsHeaders, "Retry-After": "30" } }
-    );
+    return {
+      error: NextResponse.json(
+        {
+          error: "Too many concurrent workflow executions",
+          running: concurrencyCheck.running,
+          limit: concurrencyCheck.limit,
+        },
+        { status: 429, headers: { ...corsHeaders, "Retry-After": "30" } }
+      ),
+    };
   }
 
   const [execution] = await db
@@ -103,9 +122,18 @@ async function createAndStartExecution(
     })
     .returning();
 
-  const executionId = execution.id;
+  return { executionId: execution.id };
+}
 
-  // Fire-and-forget: return immediately, workflow runs in background
+/**
+ * Fire-and-forget: kicks off the workflow in the background. The HTTP response
+ * is returned to the caller immediately while the workflow runs.
+ */
+function startExecutionInBackground(
+  workflow: CallRouteWorkflow,
+  body: Record<string, unknown>,
+  executionId: string
+): void {
   start(executeWorkflow, [
     {
       nodes: workflow.nodes as WorkflowNode[],
@@ -123,9 +151,23 @@ async function createAndStartExecution(
       { endpoint: "/api/mcp/workflows/[slug]/call", workflowId: workflow.id }
     );
   });
+}
 
+/**
+ * Free-path helper: prepares the execution and starts it. Used by the
+ * non-paid call path where there is no payment to record between the two.
+ */
+async function createAndStartExecution(
+  workflow: CallRouteWorkflow,
+  body: Record<string, unknown>
+): Promise<NextResponse> {
+  const prepared = await prepareExecution(workflow, body);
+  if ("error" in prepared) {
+    return prepared.error;
+  }
+  startExecutionInBackground(workflow, body, prepared.executionId);
   return NextResponse.json(
-    { executionId, status: "running" },
+    { executionId: prepared.executionId, status: "running" },
     { headers: corsHeaders }
   );
 }
@@ -146,7 +188,7 @@ async function lookupWorkflow(
       .innerJoin(organization, eq(workflows.organizationId, organization.id))
       .where(and(...filters, eq(organization.slug, orgSlug)))
       .limit(1);
-    return rows[0]?.workflows ?? null;
+    return rows[0] ?? null;
   }
 
   const rows = await db
@@ -219,11 +261,66 @@ async function handleTimeoutReconciliation(
   throw gateErr;
 }
 
-// 30 requests per minute per IP - prevents a single caller from exhausting
-// the workflow owner's execution quota. In-memory, per-pod; effective limit
-// is LIMIT * num_replicas. Replace with Redis when replica count grows.
+// Pre-auth IP backstop: prevents anonymous junk traffic from reaching DB lookup.
+// In-memory per-pod; effective limit is LIMIT * num_replicas. The real per-caller
+// rate limit happens post-auth via checkMcpRateLimit(orgId), which is also
+// per-pod but keys on the authenticated org rather than IP.
 const CALL_RATE_LIMIT = 30;
 const CALL_RATE_WINDOW_MS = 60_000;
+
+type AuthContext = { organizationId: string };
+
+/**
+ * Free and write workflows require an API key (or MCP OAuth token). Paid
+ * workflows skip this gate because the x402 PAYMENT-SIGNATURE is itself the
+ * authentication: proving you paid USDC is proof of caller identity.
+ *
+ * Mirrors validateApiKey() from app/api/execute/_lib/auth.ts but inlined to
+ * avoid a "server-only" import boundary that breaks unit tests.
+ */
+async function authenticateNonPaidCall(
+  request: Request
+): Promise<{ context: AuthContext } | { error: NextResponse }> {
+  let context: AuthContext | null = null;
+
+  const oauthResult = authenticateOAuthToken(request);
+  if (oauthResult.authenticated && oauthResult.organizationId) {
+    context = { organizationId: oauthResult.organizationId };
+  } else {
+    const apiKeyResult = await authenticateApiKey(request);
+    if (apiKeyResult.authenticated && apiKeyResult.organizationId) {
+      context = { organizationId: apiKeyResult.organizationId };
+    }
+  }
+
+  if (!context) {
+    return {
+      error: NextResponse.json(
+        {
+          error:
+            "Authentication required. Provide an Authorization: Bearer kh_... header.",
+        },
+        { status: 401, headers: corsHeaders }
+      ),
+    };
+  }
+  const orgRateCheck = checkMcpRateLimit(context.organizationId);
+  if (!orgRateCheck.allowed) {
+    return {
+      error: NextResponse.json(
+        { error: "Too many requests" },
+        {
+          status: 429,
+          headers: {
+            ...corsHeaders,
+            "Retry-After": String(orgRateCheck.retryAfter),
+          },
+        }
+      ),
+    };
+  }
+  return { context };
+}
 
 function checkCallRateLimit(request: Request): NextResponse | null {
   const clientIp = getClientIp(request);
@@ -247,14 +344,31 @@ function checkCallRateLimit(request: Request): NextResponse | null {
   return null;
 }
 
+async function parseJsonBody(
+  request: Request
+): Promise<{ body: Record<string, unknown> } | { error: NextResponse }> {
+  try {
+    const parsed = (await request.json()) as Record<string, unknown>;
+    return { body: parsed };
+  } catch {
+    return {
+      error: NextResponse.json(
+        { error: "Invalid JSON body" },
+        { status: 400, headers: corsHeaders }
+      ),
+    };
+  }
+}
+
 async function handleWriteWorkflow(
   request: Request,
   workflow: CallRouteWorkflow
 ): Promise<NextResponse> {
-  const writeBody = (await request.json().catch(() => ({}))) as Record<
-    string,
-    unknown
-  >;
+  const parsed = await parseJsonBody(request);
+  if ("error" in parsed) {
+    return parsed.error;
+  }
+  const writeBody = parsed.body;
   const writeBodyError = validateBody(workflow, writeBody);
   if (writeBodyError) {
     return writeBodyError;
@@ -276,6 +390,97 @@ async function handleWriteWorkflow(
     },
     { headers: corsHeaders }
   );
+}
+
+async function handlePaidWorkflow(
+  request: Request,
+  workflow: CallRouteWorkflow,
+  body: Record<string, unknown>
+): Promise<NextResponse> {
+  const creatorWalletAddress = await resolveCreatorWallet(
+    workflow.organizationId
+  );
+  if (!creatorWalletAddress) {
+    return NextResponse.json(
+      { error: "Workflow creator has no payment wallet configured" },
+      { status: 503, headers: corsHeaders }
+    );
+  }
+
+  const paymentSig = request.headers.get("PAYMENT-SIGNATURE");
+  const idempotent = await checkIdempotency(paymentSig);
+  if (idempotent) {
+    return idempotent;
+  }
+
+  const payerAddress = extractPayerAddress(paymentSig);
+  const paymentConfig = buildPaymentConfig(workflow, creatorWalletAddress);
+
+  // innerHandler closes over the already-parsed body so we never call
+  // request.json() a second time (ReadableStream is single-consume).
+  //
+  // Order of operations is deliberate: insert execution row -> record payment
+  // -> start workflow. Recording the payment BEFORE the workflow starts means
+  // a payment failure can't leave the system in a "work ran but not paid"
+  // state. The opposite ordering risks silent revenue loss if recordPayment
+  // throws after the workflow has already begun running.
+  const innerHandler = async (_req: NextRequest): Promise<NextResponse> => {
+    const prepared = await prepareExecution(workflow, body);
+    if ("error" in prepared) {
+      return prepared.error;
+    }
+    const { executionId } = prepared;
+
+    await recordPayment({
+      workflowId: workflow.id,
+      paymentHash: paymentSig ? hashPaymentSignature(paymentSig) : executionId,
+      executionId,
+      amountUsdc: workflow.priceUsdcPerCall ?? "0",
+      payerAddress,
+      creatorWalletAddress,
+    });
+
+    startExecutionInBackground(workflow, body, executionId);
+
+    return NextResponse.json(
+      { executionId, status: "running" },
+      { headers: corsHeaders }
+    );
+  };
+
+  const gatedHandler = withX402(innerHandler, paymentConfig, server);
+  try {
+    return (await gatedHandler(request as NextRequest)) as NextResponse;
+  } catch (gateErr) {
+    return handleTimeoutReconciliation(gateErr, request, innerHandler);
+  }
+}
+
+async function handleReadWorkflow(
+  request: Request,
+  workflow: CallRouteWorkflow
+): Promise<NextResponse> {
+  const parsed = await parseJsonBody(request);
+  if ("error" in parsed) {
+    return parsed.error;
+  }
+  const body = parsed.body;
+
+  const bodyError = validateBody(workflow, body);
+  if (bodyError) {
+    return bodyError;
+  }
+
+  const price = Number(workflow.priceUsdcPerCall ?? "0");
+  if (price <= 0) {
+    const auth = await authenticateNonPaidCall(request);
+    if ("error" in auth) {
+      return auth.error;
+    }
+    return createAndStartExecution(workflow, body);
+  }
+
+  return handlePaidWorkflow(request, workflow, body);
 }
 
 export async function POST(
@@ -300,72 +505,14 @@ export async function POST(
     }
 
     if (workflow.workflowType === "write") {
+      const auth = await authenticateNonPaidCall(request);
+      if ("error" in auth) {
+        return auth.error;
+      }
       return handleWriteWorkflow(request, workflow);
     }
 
-    const body = (await request.json().catch(() => ({}))) as Record<
-      string,
-      unknown
-    >;
-
-    const bodyError = validateBody(workflow, body);
-    if (bodyError) {
-      return bodyError;
-    }
-
-    const price = Number(workflow.priceUsdcPerCall ?? "0");
-    if (price <= 0) {
-      return createAndStartExecution(workflow, body);
-    }
-
-    const creatorWalletAddress = await resolveCreatorWallet(
-      workflow.organizationId
-    );
-    if (!creatorWalletAddress) {
-      return NextResponse.json(
-        { error: "Workflow creator has no payment wallet configured" },
-        { status: 503, headers: corsHeaders }
-      );
-    }
-
-    const paymentSig = request.headers.get("PAYMENT-SIGNATURE");
-    const idempotent = await checkIdempotency(paymentSig);
-    if (idempotent) {
-      return idempotent;
-    }
-
-    const payerAddress = extractPayerAddress(paymentSig);
-    const paymentConfig = buildPaymentConfig(workflow, creatorWalletAddress);
-
-    // innerHandler closes over the already-parsed body so we never call
-    // request.json() a second time (ReadableStream is single-consume).
-    const innerHandler = async (_req: NextRequest): Promise<NextResponse> => {
-      const response = await createAndStartExecution(workflow, body);
-
-      // Record payment after execution is created so we have the executionId
-      const result = (await response.clone().json()) as Record<string, unknown>;
-      if (result.executionId) {
-        await recordPayment({
-          workflowId: workflow.id,
-          paymentHash: paymentSig
-            ? hashPaymentSignature(paymentSig)
-            : (result.executionId as string),
-          executionId: result.executionId as string,
-          amountUsdc: workflow.priceUsdcPerCall ?? "0",
-          payerAddress,
-          creatorWalletAddress,
-        });
-      }
-
-      return response;
-    };
-
-    const gatedHandler = withX402(innerHandler, paymentConfig, server);
-    try {
-      return (await gatedHandler(request as NextRequest)) as NextResponse;
-    } catch (gateErr) {
-      return handleTimeoutReconciliation(gateErr, request, innerHandler);
-    }
+    return await handleReadWorkflow(request, workflow);
   } catch (err) {
     logSystemError(
       ErrorCategory.WORKFLOW_ENGINE,

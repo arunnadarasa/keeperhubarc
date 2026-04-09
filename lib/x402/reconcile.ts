@@ -13,6 +13,14 @@ const TIMEOUT_PATTERNS = [
   "unable to estimate gas",
 ];
 
+// Module-level singleton: avoid creating a new provider (and its connection
+// pool) on every reconciliation call. Mirrors the pattern used in
+// lib/x402/server.ts. BASE_RPC_URL is read once at module load.
+const provider = new JsonRpcProvider(
+  process.env.BASE_RPC_URL ?? "https://mainnet.base.org"
+);
+const usdcContract = new Contract(USDC_BASE_ADDRESS, AUTH_STATE_ABI, provider);
+
 /**
  * Returns true if the error message indicates a transient facilitator timeout
  * that may have resulted in a submitted-but-unconfirmed on-chain transaction.
@@ -48,16 +56,11 @@ export async function pollForPaymentConfirmation({
   maxWaitMs = 120_000,
   intervalMs = 5000,
 }: PollOptions): Promise<boolean> {
-  const provider = new JsonRpcProvider(
-    process.env.BASE_RPC_URL ?? "https://mainnet.base.org"
-  );
-  const contract = new Contract(USDC_BASE_ADDRESS, AUTH_STATE_ABI, provider);
-
   const deadline = Date.now() + maxWaitMs;
 
   while (Date.now() < deadline) {
     try {
-      const state = (await contract.authorizationState(
+      const state = (await usdcContract.authorizationState(
         payerAddress,
         nonce
       )) as bigint;
