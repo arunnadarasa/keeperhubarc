@@ -382,6 +382,91 @@ const sessionActive = getOrCreateGauge(
   []
 );
 
+// RPC failover metrics → apiRegistry (per-pod in-memory, scrape all pods)
+const RPC_LABELS = ["chain"];
+
+const rpcPrimaryAttempts = getOrCreateCounter(
+  apiRegistry,
+  "keeperhub_rpc_primary_attempts_total",
+  "Total RPC requests attempted against primary endpoint",
+  RPC_LABELS
+);
+
+const rpcPrimaryFailures = getOrCreateCounter(
+  apiRegistry,
+  "keeperhub_rpc_primary_failures_total",
+  "Total RPC request failures on primary endpoint",
+  RPC_LABELS
+);
+
+const rpcFallbackAttempts = getOrCreateCounter(
+  apiRegistry,
+  "keeperhub_rpc_fallback_attempts_total",
+  "Total RPC requests attempted against fallback endpoint",
+  RPC_LABELS
+);
+
+const rpcFallbackFailures = getOrCreateCounter(
+  apiRegistry,
+  "keeperhub_rpc_fallback_failures_total",
+  "Total RPC request failures on fallback endpoint",
+  RPC_LABELS
+);
+
+const rpcFailoverEvents = getOrCreateCounter(
+  apiRegistry,
+  "keeperhub_rpc_failover_events_total",
+  "Total times primary failed and traffic switched to fallback",
+  RPC_LABELS
+);
+
+const rpcRecoveryEvents = getOrCreateCounter(
+  apiRegistry,
+  "keeperhub_rpc_recovery_events_total",
+  "Total times primary recovered and traffic switched back from fallback",
+  RPC_LABELS
+);
+
+const rpcBothFailedEvents = getOrCreateCounter(
+  apiRegistry,
+  "keeperhub_rpc_both_failed_total",
+  "Total times both primary and fallback endpoints failed",
+  RPC_LABELS
+);
+
+const rpcCurrentProvider = getOrCreateGauge(
+  apiRegistry,
+  "keeperhub_rpc_using_fallback",
+  "Whether the chain is currently using the fallback RPC (1=fallback, 0=primary)",
+  RPC_LABELS
+);
+
+const rpcHealthState = getOrCreateGauge(
+  apiRegistry,
+  "keeperhub_rpc_health_state",
+  "RPC health state per chain (0=primary/healthy, 1=fallback/degraded, 2=both_failed/down)",
+  RPC_LABELS
+);
+
+const RPC_PROVIDER_LABELS = ["chain", "provider"];
+
+const rpcLatency = getOrCreateHistogram(
+  apiRegistry,
+  "keeperhub_rpc_latency_ms",
+  "RPC request latency in milliseconds per chain and provider",
+  RPC_PROVIDER_LABELS,
+  [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10_000, 30_000]
+);
+
+const RPC_ERROR_LABELS = ["chain", "provider", "error_type"];
+
+const rpcErrorsByType = getOrCreateCounter(
+  apiRegistry,
+  "keeperhub_rpc_errors_by_type_total",
+  "RPC errors broken down by type (timeout, rate_limit, connection, rpc_error)",
+  RPC_ERROR_LABELS
+);
+
 // API-process metrics → apiRegistry (per-pod in-memory, scrape all pods)
 const webhookLatency = getOrCreateHistogram(
   apiRegistry,
@@ -413,6 +498,30 @@ const aiDuration = getOrCreateHistogram(
   "AI workflow generation duration in milliseconds",
   ["status"],
   [500, 1000, 2000, 5000, 10_000, 20_000]
+);
+
+// Sponsorship counters
+const SPONSORSHIP_LABELS = ["chain_id", "organization_id"];
+
+const sponsorshipTransactions = getOrCreateCounter(
+  apiRegistry,
+  "keeperhub_sponsorship_transactions_total",
+  "Total sponsored transactions",
+  SPONSORSHIP_LABELS
+);
+
+const sponsorshipGasUsed = getOrCreateCounter(
+  apiRegistry,
+  "keeperhub_sponsorship_gas_used_total",
+  "Total gas units consumed by sponsored transactions",
+  SPONSORSHIP_LABELS
+);
+
+const sponsorshipGasCostUsdMicro = getOrCreateCounter(
+  apiRegistry,
+  "keeperhub_sponsorship_gas_cost_usd_micro_total",
+  "Total gas cost in micro-USD for sponsored transactions",
+  SPONSORSHIP_LABELS
 );
 
 // Traffic counters
@@ -591,6 +700,9 @@ const histogramMap: Record<string, Histogram> = {
 const counterMap: Record<string, Counter> = {
   "plugin.invocations.total": pluginInvocations,
   "db.query.slow_count": slowQueries,
+  "sponsorship.transactions.total": sponsorshipTransactions,
+  "sponsorship.gas_used.total": sponsorshipGasUsed,
+  "sponsorship.gas_cost_usd_micro.total": sponsorshipGasCostUsdMicro,
 };
 
 const errorCounterMap: Record<string, Counter> = {
@@ -933,10 +1045,37 @@ export async function getDbMetrics(): Promise<string> {
   return await dbRegistry.metrics();
 }
 
+const initializedChains = new Set<string>();
+
+/**
+ * Initialize RPC health gauges for all enabled chains so they appear in
+ * Grafana immediately (with healthy/0 defaults) instead of only after
+ * first traffic. Each chain is initialized at most once per pod lifetime.
+ */
+async function initRpcMetricsForAllChains(): Promise<void> {
+  if (initializedChains.size > 0) {
+    return;
+  }
+
+  try {
+    const { getEnabledChainNamesFromDb } = await import("../db-metrics");
+    const chainNames = await getEnabledChainNamesFromDb();
+
+    for (const chain of chainNames) {
+      rpcHealthState.labels({ chain }).inc(0);
+      rpcCurrentProvider.labels({ chain }).inc(0);
+      initializedChains.add(chain);
+    }
+  } catch {
+    // Non-fatal: metrics will still populate on first RPC traffic
+  }
+}
+
 /**
  * Get API-process metrics only (/api/metrics/api)
  */
 export async function getApiProcessMetrics(): Promise<string> {
+  await initRpcMetricsForAllChains();
   return await apiRegistry.metrics();
 }
 
@@ -946,3 +1085,20 @@ export async function getApiProcessMetrics(): Promise<string> {
 export function getPrometheusContentType(): string {
   return dbRegistry.contentType;
 }
+
+/**
+ * RPC failover metric accessors for the RPC metrics bridge
+ */
+export const rpcMetrics = {
+  primaryAttempts: rpcPrimaryAttempts,
+  primaryFailures: rpcPrimaryFailures,
+  fallbackAttempts: rpcFallbackAttempts,
+  fallbackFailures: rpcFallbackFailures,
+  failoverEvents: rpcFailoverEvents,
+  recoveryEvents: rpcRecoveryEvents,
+  bothFailedEvents: rpcBothFailedEvents,
+  currentProvider: rpcCurrentProvider,
+  healthState: rpcHealthState,
+  latency: rpcLatency,
+  errorsByType: rpcErrorsByType,
+};

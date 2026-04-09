@@ -748,10 +748,10 @@ export function NavigationSidebar(): React.ReactNode {
 
   function handleNavClick(id: string, href: string | null): void {
     if (id === "workflows") {
-      if (navState.state.panels.projects !== "closed") {
-        navState.closeAll();
-      } else {
+      if (navState.state.panels.projects === "closed") {
         navState.setPanelState("projects", "open");
+      } else {
+        navState.closeAll();
       }
       return;
     }
@@ -764,11 +764,11 @@ export function NavigationSidebar(): React.ReactNode {
   function handleSelectProject(id: string): void {
     if (id === selectedProjectId) {
       // Re-clicking same project toggles tags panel
-      if (navState.state.panels.tags !== "closed") {
-        navState.setPanelState("tags", "closed");
-      } else {
+      if (navState.state.panels.tags === "closed") {
         navState.setSelectedProject(id);
         navState.setPanelState("tags", "open");
+      } else {
+        navState.setPanelState("tags", "closed");
       }
       return;
     }
@@ -781,11 +781,11 @@ export function NavigationSidebar(): React.ReactNode {
   function handleSelectTag(id: string): void {
     if (id === selectedTagId) {
       // Re-clicking same tag toggles workflows panel
-      if (navState.state.panels.workflows !== "closed") {
-        navState.setPanelState("workflows", "closed");
-      } else {
+      if (navState.state.panels.workflows === "closed") {
         navState.setSelectedTag(id);
         navState.setPanelState("workflows", "open");
+      } else {
+        navState.setPanelState("workflows", "closed");
       }
       return;
     }

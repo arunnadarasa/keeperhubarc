@@ -7,6 +7,7 @@ import { validateWorkflowIntegrations } from "@/lib/db/integrations";
 import { projects, publicTags, tags, workflowExecutions, workflowPublicTags, workflows } from "@/lib/db/schema";
 import { syncWorkflowSchedule } from "@/lib/schedule-service";
 import { sanitizeDescription } from "@/lib/sanitize-description";
+import { sanitizeWorkflowData } from "@/lib/workflow/sanitize-nodes";
 async function fetchWorkflowPublicTags(
   workflowId: string
 ): Promise<Array<{ id: string; name: string; slug: string }>> {
@@ -165,6 +166,19 @@ function buildUpdateData(
   for (const field of fields) {
     if (body[field] !== undefined) {
       updateData[field] = body[field];
+    }
+  }
+
+  // Sanitize nodes/edges: strip React Flow UI state and normalize MCP-generated formats
+  if (Array.isArray(updateData.nodes) || Array.isArray(updateData.edges)) {
+    const nodes = (updateData.nodes ?? []) as Record<string, unknown>[];
+    const edges = (updateData.edges ?? []) as Record<string, unknown>[];
+    const sanitized = sanitizeWorkflowData(nodes, edges);
+    if (updateData.nodes !== undefined) {
+      updateData.nodes = sanitized.nodes;
+    }
+    if (updateData.edges !== undefined) {
+      updateData.edges = sanitized.edges;
     }
   }
 
