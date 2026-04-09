@@ -484,7 +484,7 @@ describe("POST /api/mcp/workflows/[slug]/call", () => {
     expect(mockDbUpdate).toHaveBeenCalled();
     expect(setMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: "failed",
+        status: "error",
         error: expect.stringContaining("recordPayment failed"),
       })
     );

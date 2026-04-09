@@ -9,8 +9,7 @@ import { ErrorCategory, logSystemError } from "@/lib/logging";
 // discovery payload and must return the canonical mainnet registration
 // regardless of how many other (chain, registry) rows exist in the table.
 const MAINNET_CHAIN_ID = 1;
-const IDENTITY_REGISTRY_ADDRESS =
-  "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432";
+const IDENTITY_REGISTRY_ADDRESS = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432";
 
 export async function GET(_request: Request): Promise<NextResponse> {
   try {

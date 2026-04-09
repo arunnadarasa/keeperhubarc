@@ -110,7 +110,7 @@ export const consoleMetricsCollector: RpcMetricsCollector = {
     console.debug(`[RPC Metrics] Error ${errorType} on ${provider}: ${chain}`),
 };
 
-export const RPC_CONNECTION_ERROR_PATTERNS: ReadonlyArray<string> = [
+export const RPC_CONNECTION_ERROR_PATTERNS: readonly string[] = [
   "ECONNREFUSED",
   "ENOTFOUND",
   "ETIMEDOUT",

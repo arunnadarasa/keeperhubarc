@@ -27,6 +27,9 @@ vi.mock("../../lib/rpc/rpc-config", () => ({
 const AGENT_ID_42 = BigInt(42);
 const AGENT_ID_12345 = BigInt(12_345);
 
+const INSUFFICIENT_BALANCE_RE = /insufficient balance/;
+const REVERTED_ON_CHAIN_RE = /reverted on-chain/;
+
 function makeReceipt(agentId: bigint) {
   return {
     status: 1,
@@ -61,9 +64,7 @@ function makeDeps(overrides: Partial<RegisterDeps> = {}): RegisterDeps {
       insert: vi.fn().mockReturnValue({ values: mockInsertValues }),
     },
     buildProvider: vi.fn().mockReturnValue({
-      getBalance: vi
-        .fn()
-        .mockResolvedValue(BigInt("10000000000000000")), // 0.01 ETH, well above floor
+      getBalance: vi.fn().mockResolvedValue(BigInt("10000000000000000")), // 0.01 ETH, well above floor
     }),
     buildWallet: vi.fn().mockReturnValue({ address: "0xTestWallet" }),
     buildContract: vi.fn().mockReturnValue({ register: mockContractRegister }),
@@ -218,16 +219,14 @@ describe("registerAgent", () => {
         insert: vi.fn().mockReturnValue({ values: mockInsertValues }),
       },
       buildProvider: vi.fn().mockReturnValue({
-        getBalance: vi
-          .fn()
-          .mockResolvedValue(BigInt("1000000000000000")), // 0.001 ETH, below the 0.005 floor
+        getBalance: vi.fn().mockResolvedValue(BigInt("1000000000000000")), // 0.001 ETH, below the 0.005 floor
       }),
       buildContract: vi
         .fn()
         .mockReturnValue({ register: mockContractRegister }),
     });
 
-    await expect(registerAgent(deps)).rejects.toThrow(/insufficient balance/);
+    await expect(registerAgent(deps)).rejects.toThrow(INSUFFICIENT_BALANCE_RE);
     expect(mockContractRegister).not.toHaveBeenCalled();
     expect(mockInsertValues).not.toHaveBeenCalled();
   });
@@ -257,7 +256,7 @@ describe("registerAgent", () => {
         .mockReturnValue({ register: mockContractRegister }),
     });
 
-    await expect(registerAgent(deps)).rejects.toThrow(/reverted on-chain/);
+    await expect(registerAgent(deps)).rejects.toThrow(REVERTED_ON_CHAIN_RE);
     expect(mockInsertValues).not.toHaveBeenCalled();
   });
 });

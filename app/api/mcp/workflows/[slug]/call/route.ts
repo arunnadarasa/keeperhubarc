@@ -451,7 +451,7 @@ async function handlePaidWorkflow(
       await db
         .update(workflowExecutions)
         .set({
-          status: "failed",
+          status: "error",
           error:
             err instanceof Error
               ? `recordPayment failed: ${err.message}`

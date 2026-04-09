@@ -63,7 +63,7 @@ type WalletLike = {
 // Conservative floor for ERC-8004 register() on mainnet. Real cost is ~0.003
 // ETH; this guards against the script silently failing mid-tx on a wallet
 // that's nearly empty.
-const MIN_BALANCE_WEI = 5_000_000_000_000_000n; // 0.005 ETH
+const MIN_BALANCE_WEI = BigInt("5000000000000000"); // 0.005 ETH
 
 type DbLike = {
   select: () => {

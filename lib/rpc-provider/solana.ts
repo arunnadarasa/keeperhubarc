@@ -1,5 +1,5 @@
 import { type Commitment, Connection } from "@solana/web3.js";
-import { type RpcErrorType, RPC_CONNECTION_ERROR_PATTERNS } from "./index";
+import { RPC_CONNECTION_ERROR_PATTERNS, type RpcErrorType } from "./index";
 
 /**
  * Solana RPC Provider Manager
