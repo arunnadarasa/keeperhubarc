@@ -305,8 +305,10 @@ export async function executeTransaction(
     }
 
     const estimatedGas = context.rpcManager
-      ? await context.rpcManager.executeWithFailover((rpcProvider) =>
-          rpcProvider.estimateGas({ ...baseTx, from: walletAddress })
+      ? await context.rpcManager.executeWithFailover(
+          (rpcProvider) =>
+            rpcProvider.estimateGas({ ...baseTx, from: walletAddress }),
+          "write"
         )
       : await provider.estimateGas({ ...baseTx, from: walletAddress });
 
@@ -387,10 +389,12 @@ export async function executeContractTransaction(
     }
 
     const estimatedGas = context.rpcManager
-      ? await context.rpcManager.executeWithFailover((rpcProvider) =>
-          (contract.connect(rpcProvider) as typeof contract)[
-            method
-          ].estimateGas(...args)
+      ? await context.rpcManager.executeWithFailover(
+          (rpcProvider) =>
+            (contract.connect(rpcProvider) as typeof contract)[
+              method
+            ].estimateGas(...args),
+          "write"
         )
       : await contract[method].estimateGas(...args);
 
@@ -490,7 +494,8 @@ export async function getCurrentNonce(
   rpcUrl: string
 ): Promise<number> {
   const rpcManager = await getRpcProviderFromUrls(rpcUrl);
-  return await rpcManager.executeWithFailover((provider) =>
-    provider.getTransactionCount(walletAddress, "pending")
+  return await rpcManager.executeWithFailover(
+    (provider) => provider.getTransactionCount(walletAddress, "pending"),
+    "write"
   );
 }
