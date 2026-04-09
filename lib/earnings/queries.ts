@@ -10,9 +10,32 @@ import type {
   WorkflowEarningsRow,
 } from "./types";
 
+const DEFAULT_PLATFORM_FEE_PERCENT = 30;
+
+/**
+ * Parses PLATFORM_FEE_PERCENT from the environment.
+ *
+ * Falls back to DEFAULT_PLATFORM_FEE_PERCENT and logs a warning when:
+ *   - the env var is unset
+ *   - the value cannot be parsed as a finite integer
+ *   - the value is outside the valid range [0, 100]
+ *
+ * Crucially, a legitimate `PLATFORM_FEE_PERCENT=0` (e.g. fee waiver promo
+ * or self-hosted instance) is preserved -- the previous `parsed || 30`
+ * coercion silently turned 0 into 30.
+ */
 export function parsePlatformFeePercent(envValue: string | undefined): number {
-  const parsed = Number.parseInt(envValue ?? "30", 10);
-  return parsed || 30;
+  if (envValue === undefined) {
+    return DEFAULT_PLATFORM_FEE_PERCENT;
+  }
+  const parsed = Number.parseInt(envValue, 10);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+    console.warn(
+      `[earnings] Invalid PLATFORM_FEE_PERCENT="${envValue}", falling back to ${DEFAULT_PLATFORM_FEE_PERCENT}`
+    );
+    return DEFAULT_PLATFORM_FEE_PERCENT;
+  }
+  return parsed;
 }
 
 export function computeRevenueSplit(

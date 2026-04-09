@@ -23,8 +23,20 @@ describe("parsePlatformFeePercent", () => {
     expect(parsePlatformFeePercent("abc")).toBe(30);
   });
 
-  it('returns 0 for "0"', () => {
-    expect(parsePlatformFeePercent("0")).toBe(30);
+  it('returns 0 for "0" (legitimate fee waiver, not coerced to default)', () => {
+    expect(parsePlatformFeePercent("0")).toBe(0);
+  });
+
+  it('returns 100 for "100" (full platform take)', () => {
+    expect(parsePlatformFeePercent("100")).toBe(100);
+  });
+
+  it('returns 30 for "-5" (negative out of range)', () => {
+    expect(parsePlatformFeePercent("-5")).toBe(30);
+  });
+
+  it('returns 30 for "150" (>100 out of range)', () => {
+    expect(parsePlatformFeePercent("150")).toBe(30);
   });
 });
 
