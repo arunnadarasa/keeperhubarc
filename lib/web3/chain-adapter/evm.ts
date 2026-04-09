@@ -56,8 +56,9 @@ export class EvmChainAdapter implements ChainAdapter {
     };
 
     if (options.rpcManager) {
-      await options.rpcManager.executeWithFailover((rpcProvider) =>
-        rpcProvider.call({ ...baseTx, from: walletAddress })
+      await options.rpcManager.executeWithFailover(
+        (rpcProvider) => rpcProvider.call({ ...baseTx, from: walletAddress }),
+        "write"
       );
     } else {
       await provider.call({ ...baseTx, from: walletAddress });
@@ -66,8 +67,10 @@ export class EvmChainAdapter implements ChainAdapter {
     const nonce = this.nonceManager.getNextNonce(session);
 
     const estimatedGas = options.rpcManager
-      ? await options.rpcManager.executeWithFailover((rpcProvider) =>
-          rpcProvider.estimateGas({ ...baseTx, from: walletAddress })
+      ? await options.rpcManager.executeWithFailover(
+          (rpcProvider) =>
+            rpcProvider.estimateGas({ ...baseTx, from: walletAddress }),
+          "write"
         )
       : await provider.estimateGas({ ...baseTx, from: walletAddress });
 
@@ -134,7 +137,7 @@ export class EvmChainAdapter implements ChainAdapter {
           ...request.args,
           valueOverride
         );
-      });
+      }, "write");
     } else {
       await contract[request.functionKey].staticCall(
         ...request.args,
@@ -155,7 +158,7 @@ export class EvmChainAdapter implements ChainAdapter {
             ...request.args,
             valueOverride
           );
-        })
+        }, "write")
       : await contract[request.functionKey].estimateGas(
           ...request.args,
           valueOverride
@@ -215,9 +218,10 @@ export class EvmChainAdapter implements ChainAdapter {
 
   async executeWithFailover<T>(
     rpcManager: RpcProviderManager,
-    operation: (provider: ethers.JsonRpcProvider) => Promise<T>
+    operation: (provider: ethers.JsonRpcProvider) => Promise<T>,
+    operationType?: "read" | "write"
   ): Promise<T> {
-    return await rpcManager.executeWithFailover(operation);
+    return await rpcManager.executeWithFailover(operation, operationType);
   }
 
   async getTransactionUrl(txHash: string): Promise<string> {

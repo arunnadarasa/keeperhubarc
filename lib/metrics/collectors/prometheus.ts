@@ -412,88 +412,130 @@ const hubUserVotesTotal = getOrCreateGauge(
 );
 
 // RPC failover metrics → apiRegistry (per-pod in-memory, scrape all pods)
-const RPC_LABELS = ["chain"];
+// Per-request counters include "operation" label (read/write)
+const RPC_CHAIN_LABELS = ["chain"];
+const RPC_OPERATION_LABELS = ["chain", "operation"];
 
 const rpcPrimaryAttempts = getOrCreateCounter(
   apiRegistry,
   "keeperhub_rpc_primary_attempts_total",
   "Total RPC requests attempted against primary endpoint",
-  RPC_LABELS
+  RPC_OPERATION_LABELS
 );
 
 const rpcPrimaryFailures = getOrCreateCounter(
   apiRegistry,
   "keeperhub_rpc_primary_failures_total",
   "Total RPC request failures on primary endpoint",
-  RPC_LABELS
+  RPC_OPERATION_LABELS
 );
 
 const rpcFallbackAttempts = getOrCreateCounter(
   apiRegistry,
   "keeperhub_rpc_fallback_attempts_total",
   "Total RPC requests attempted against fallback endpoint",
-  RPC_LABELS
+  RPC_OPERATION_LABELS
 );
 
 const rpcFallbackFailures = getOrCreateCounter(
   apiRegistry,
   "keeperhub_rpc_fallback_failures_total",
   "Total RPC request failures on fallback endpoint",
-  RPC_LABELS
+  RPC_OPERATION_LABELS
 );
 
 const rpcFailoverEvents = getOrCreateCounter(
   apiRegistry,
   "keeperhub_rpc_failover_events_total",
   "Total times primary failed and traffic switched to fallback",
-  RPC_LABELS
+  RPC_CHAIN_LABELS
 );
 
 const rpcRecoveryEvents = getOrCreateCounter(
   apiRegistry,
   "keeperhub_rpc_recovery_events_total",
   "Total times primary recovered and traffic switched back from fallback",
-  RPC_LABELS
+  RPC_CHAIN_LABELS
 );
 
 const rpcBothFailedEvents = getOrCreateCounter(
   apiRegistry,
   "keeperhub_rpc_both_failed_total",
   "Total times both primary and fallback endpoints failed",
-  RPC_LABELS
+  RPC_CHAIN_LABELS
 );
 
 const rpcCurrentProvider = getOrCreateGauge(
   apiRegistry,
   "keeperhub_rpc_using_fallback",
   "Whether the chain is currently using the fallback RPC (1=fallback, 0=primary)",
-  RPC_LABELS
+  RPC_CHAIN_LABELS
 );
 
 const rpcHealthState = getOrCreateGauge(
   apiRegistry,
   "keeperhub_rpc_health_state",
   "RPC health state per chain (0=primary/healthy, 1=fallback/degraded, 2=both_failed/down)",
-  RPC_LABELS
+  RPC_CHAIN_LABELS
 );
 
-const RPC_PROVIDER_LABELS = ["chain", "provider"];
+const RPC_PROVIDER_OPERATION_LABELS = ["chain", "provider", "operation"];
 
 const rpcLatency = getOrCreateHistogram(
   apiRegistry,
   "keeperhub_rpc_latency_ms",
   "RPC request latency in milliseconds per chain and provider",
-  RPC_PROVIDER_LABELS,
+  RPC_PROVIDER_OPERATION_LABELS,
   [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10_000, 30_000]
 );
 
-const RPC_ERROR_LABELS = ["chain", "provider", "error_type"];
+const RPC_ERROR_OPERATION_LABELS = [
+  "chain",
+  "provider",
+  "error_type",
+  "operation",
+];
 
 const rpcErrorsByType = getOrCreateCounter(
   apiRegistry,
   "keeperhub_rpc_errors_by_type_total",
   "RPC errors broken down by type (timeout, rate_limit, connection, rpc_error)",
-  RPC_ERROR_LABELS
+  RPC_ERROR_OPERATION_LABELS
+);
+
+// Active RPC health probe metrics → apiRegistry
+const RPC_PROBE_LABELS = ["chain", "provider"];
+const RPC_PROBE_ERROR_LABELS = ["chain", "provider", "error_type"];
+
+const RPC_PROBE_UP_LABELS = ["chain", "provider", "endpoint"];
+
+const rpcProbeUp = getOrCreateGauge(
+  apiRegistry,
+  "keeperhub_rpc_probe_up",
+  "Whether the RPC endpoint responded to the health probe (1=up, 0=down)",
+  RPC_PROBE_UP_LABELS
+);
+
+const rpcProbeLatency = getOrCreateHistogram(
+  apiRegistry,
+  "keeperhub_rpc_probe_latency_ms",
+  "Active health probe latency in milliseconds",
+  RPC_PROBE_LABELS,
+  [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10_000, 15_000]
+);
+
+const rpcProbeErrorsTotal = getOrCreateCounter(
+  apiRegistry,
+  "keeperhub_rpc_probe_errors_total",
+  "Active health probe errors by type",
+  RPC_PROBE_ERROR_LABELS
+);
+
+const rpcProbeLastSuccess = getOrCreateGauge(
+  apiRegistry,
+  "keeperhub_rpc_probe_last_success_timestamp",
+  "Unix timestamp of last successful probe per endpoint",
+  RPC_PROBE_LABELS
 );
 
 // API-process metrics → apiRegistry (per-pod in-memory, scrape all pods)
@@ -1128,6 +1170,11 @@ async function initRpcMetricsForAllChains(): Promise<void> {
     for (const chain of chainNames) {
       rpcHealthState.labels({ chain }).inc(0);
       rpcCurrentProvider.labels({ chain }).inc(0);
+      // Initialize per-operation counters so both read/write appear in Grafana
+      for (const operation of ["read", "write"]) {
+        rpcPrimaryAttempts.labels({ chain, operation }).inc(0);
+        rpcPrimaryFailures.labels({ chain, operation }).inc(0);
+      }
       initializedChains.add(chain);
     }
   } catch {
@@ -1140,6 +1187,8 @@ async function initRpcMetricsForAllChains(): Promise<void> {
  */
 export async function getApiProcessMetrics(): Promise<string> {
   await initRpcMetricsForAllChains();
+  const { startRpcHealthProbe } = await import("../rpc-health-probe");
+  startRpcHealthProbe();
   return await apiRegistry.metrics();
 }
 
@@ -1165,4 +1214,11 @@ export const rpcMetrics = {
   healthState: rpcHealthState,
   latency: rpcLatency,
   errorsByType: rpcErrorsByType,
+};
+
+export const rpcProbeMetrics = {
+  up: rpcProbeUp,
+  latency: rpcProbeLatency,
+  errorsTotal: rpcProbeErrorsTotal,
+  lastSuccess: rpcProbeLastSuccess,
 };

@@ -27,9 +27,9 @@ import { getRpcProviderFromUrls } from "@/lib/rpc/provider-factory";
 import type { RpcProviderManager } from "@/lib/rpc-provider";
 import { isNonRetryableError } from "@/lib/rpc-provider/error-classification";
 import {
-  withRpcMetrics,
-  rpcMetricsCtx,
   type RpcMetricsContext,
+  rpcMetricsCtx,
+  withRpcMetrics,
 } from "@/lib/rpc-provider/with-rpc-metrics";
 import {
   type TriggerType as GasTriggerType,
@@ -109,9 +109,9 @@ export async function submitAndConfirm(
       throw primaryError;
     }
 
-    rpcManager.getMetricsCollector().recordFailoverEvent(
-      rpcManager.getChainName()
-    );
+    rpcManager
+      .getMetricsCollector()
+      .recordFailoverEvent(rpcManager.getChainName());
 
     console.warn(
       JSON.stringify({
@@ -184,9 +184,9 @@ export async function submitContractCallAndConfirm(
       throw primaryError;
     }
 
-    rpcManager.getMetricsCollector().recordFailoverEvent(
-      rpcManager.getChainName()
-    );
+    rpcManager
+      .getMetricsCollector()
+      .recordFailoverEvent(rpcManager.getChainName());
 
     console.warn(
       JSON.stringify({
@@ -388,9 +388,9 @@ export async function executeContractTransaction(
 
     const estimatedGas = context.rpcManager
       ? await context.rpcManager.executeWithFailover((rpcProvider) =>
-          (contract.connect(rpcProvider) as typeof contract)[method].estimateGas(
-            ...args
-          )
+          (contract.connect(rpcProvider) as typeof contract)[
+            method
+          ].estimateGas(...args)
         )
       : await contract[method].estimateGas(...args);
 

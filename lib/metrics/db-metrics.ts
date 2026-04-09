@@ -799,3 +799,34 @@ export async function getEnabledChainNamesFromDb(): Promise<string[]> {
     return [];
   }
 }
+
+export type ProbeChainConfig = {
+  chainId: number;
+  name: string;
+  chainType: string;
+  defaultPrimaryRpc: string;
+  defaultFallbackRpc: string | null;
+};
+
+/**
+ * Query all enabled chain configs for the active RPC health probe.
+ * Returns chain metadata + default RPC URLs for both primary and fallback.
+ */
+export async function getEnabledChainConfigsForProbe(): Promise<
+  ProbeChainConfig[]
+> {
+  try {
+    return await db
+      .select({
+        chainId: chains.chainId,
+        name: chains.name,
+        chainType: chains.chainType,
+        defaultPrimaryRpc: chains.defaultPrimaryRpc,
+        defaultFallbackRpc: chains.defaultFallbackRpc,
+      })
+      .from(chains)
+      .where(eq(chains.isEnabled, true));
+  } catch {
+    return [];
+  }
+}
