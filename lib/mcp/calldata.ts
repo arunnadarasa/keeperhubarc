@@ -30,6 +30,14 @@ function isWriteActionType(actionType: unknown): boolean {
   );
 }
 
+/**
+ * Returns the FIRST write-action node in the workflow, or undefined if none.
+ *
+ * Note: workflows containing multiple write-action nodes are not composed --
+ * only the first one is used to generate calldata. This matches the current
+ * "one transaction per call" model. If multi-write composition is needed in
+ * the future, this function and its callers must change together.
+ */
 export function findFirstWriteActionNode(
   nodes: unknown[]
 ): WriteNode | undefined {
@@ -111,13 +119,33 @@ export function generateCalldataForWorkflow(
     }
   }
 
-  const iface = new ethers.Interface(parsedAbi as ethers.InterfaceAbi);
-  const data = iface.encodeFunctionData(abiFunction, resolvedArgs);
+  // ethers.Interface and encodeFunctionData throw on malformed ABI or wrong
+  // arg types. Wrap so the caller (the call route) gets a structured error
+  // and returns a 400 instead of letting the throw bubble up to a generic 500.
+  let data: string;
+  try {
+    const iface = new ethers.Interface(parsedAbi as ethers.InterfaceAbi);
+    data = iface.encodeFunctionData(abiFunction, resolvedArgs);
+  } catch (err) {
+    return {
+      success: false,
+      error: `Failed to encode function call: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
 
-  const value =
-    ethValue && ethValue.length > 0
-      ? ethers.parseEther(ethValue).toString()
-      : "0";
+  // ethers.parseEther throws on non-numeric input ("abc", "1.5e18", etc).
+  let value: string;
+  try {
+    value =
+      ethValue && ethValue.length > 0
+        ? ethers.parseEther(ethValue).toString()
+        : "0";
+  } catch (err) {
+    return {
+      success: false,
+      error: `Invalid ethValue "${ethValue}": ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
 
   return { success: true, to: contractAddress, data, value };
 }

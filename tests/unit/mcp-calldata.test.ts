@@ -164,6 +164,34 @@ describe("generateCalldataForWorkflow", () => {
     }
   });
 
+  it("returns structured error when encodeFunctionData throws", () => {
+    mockEncodeFunctionData.mockImplementation(() => {
+      throw new Error("invalid argument type for uint256");
+    });
+    const nodes = [makeWriteNode()];
+    const result = generateCalldataForWorkflow(nodes, {});
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("Failed to encode function call");
+      expect(result.error).toContain("invalid argument type for uint256");
+    }
+  });
+
+  it("returns structured error when parseEther throws on bad ethValue", () => {
+    mockParseEther.mockImplementation(() => {
+      throw new Error("invalid decimal value");
+    });
+    const nodes = [makeWriteNode({ ethValue: "not-a-number" })];
+    const result = generateCalldataForWorkflow(nodes, {});
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('Invalid ethValue "not-a-number"');
+      expect(result.error).toContain("invalid decimal value");
+    }
+  });
+
   it("returns error for unresolvable non-trigger template reference", () => {
     const nodes = [
       makeWriteNode({
