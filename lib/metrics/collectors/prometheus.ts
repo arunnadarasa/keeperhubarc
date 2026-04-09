@@ -382,6 +382,35 @@ const sessionActive = getOrCreateGauge(
   []
 );
 
+// Hub vote metrics (DB-sourced)
+const hubVotesTotal = getOrCreateGauge(
+  dbRegistry,
+  "keeperhub_hub_votes_total",
+  "Total hub workflow votes by direction",
+  ["direction"]
+);
+
+const hubWorkflowScore = getOrCreateGauge(
+  dbRegistry,
+  "keeperhub_hub_workflow_score",
+  "Top hub workflow scores",
+  ["workflow_id"]
+);
+
+const hubWorkflowClones = getOrCreateGauge(
+  dbRegistry,
+  "keeperhub_hub_workflow_clones",
+  "Top cloned hub workflows",
+  ["workflow_id"]
+);
+
+const hubUserVotesTotal = getOrCreateGauge(
+  dbRegistry,
+  "keeperhub_hub_user_votes_total",
+  "Top voters by vote count",
+  ["user_id"]
+);
+
 // RPC failover metrics → apiRegistry (per-pod in-memory, scrape all pods)
 const RPC_LABELS = ["chain"];
 
@@ -819,6 +848,36 @@ export const prometheusMetricsCollector: MetricsCollector = {
   },
 };
 
+/**
+ * Update hub vote gauges from database stats.
+ * Extracted from updateDbMetrics to reduce cognitive complexity.
+ */
+function updateHubVoteMetrics(voteStats: {
+  totalUpvotes: number;
+  totalDownvotes: number;
+  topWorkflows: { workflowId: string; score: number }[];
+  mostClonedWorkflows: { workflowId: string; cloneCount: number }[];
+  topVoters: { userId: string; voteCount: number }[];
+}): void {
+  hubVotesTotal.set({ direction: "upvote" }, voteStats.totalUpvotes);
+  hubVotesTotal.set({ direction: "downvote" }, voteStats.totalDownvotes);
+
+  hubWorkflowScore.reset();
+  for (const wf of voteStats.topWorkflows) {
+    hubWorkflowScore.set({ workflow_id: wf.workflowId }, wf.score);
+  }
+
+  hubWorkflowClones.reset();
+  for (const wf of voteStats.mostClonedWorkflows) {
+    hubWorkflowClones.set({ workflow_id: wf.workflowId }, wf.cloneCount);
+  }
+
+  hubUserVotesTotal.reset();
+  for (const voter of voteStats.topVoters) {
+    hubUserVotesTotal.set({ user_id: voter.userId }, voter.voteCount);
+  }
+}
+
 // Duration histogram bucket boundaries in milliseconds
 const WORKFLOW_DURATION_BUCKETS = [
   100, 250, 500, 1000, 2000, 5000, 10_000, 30_000,
@@ -846,6 +905,7 @@ export async function updateDbMetrics(): Promise<void> {
       getInfraStatsFromDb,
       getUserListFromDb,
       getOrgListFromDb,
+      getVoteStatsFromDb,
     } = await import("../db-metrics");
     const [
       workflowStats,
@@ -859,6 +919,7 @@ export async function updateDbMetrics(): Promise<void> {
       infraStats,
       userList,
       orgList,
+      voteStats,
     ] = await Promise.all([
       getWorkflowStatsFromDb(),
       getStepStatsFromDb(),
@@ -871,6 +932,7 @@ export async function updateDbMetrics(): Promise<void> {
       getInfraStatsFromDb(),
       getUserListFromDb(),
       getOrgListFromDb(),
+      getVoteStatsFromDb(),
     ]);
 
     // Update workflow execution counts by status (gauges - point-in-time snapshots)
@@ -1024,6 +1086,8 @@ export async function updateDbMetrics(): Promise<void> {
     chainEnabled.set(infraStats.chainsEnabled);
     paraWalletTotal.set(infraStats.paraWalletsTotal);
     sessionActive.set(infraStats.sessionsActive);
+
+    updateHubVoteMetrics(voteStats);
   } catch (error) {
     console.error("[Prometheus] Failed to update DB metrics:", error);
     // Don't throw - allow other metrics to still be returned
