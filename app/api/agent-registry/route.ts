@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { agentRegistrations } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 // Must match TARGET_CHAIN_ID and IDENTITY_REGISTRY_ADDRESS in
 // scripts/register-agent.ts. The endpoint serves the public ERC-8004
@@ -53,7 +54,13 @@ export async function GET(_request: Request): Promise<NextResponse> {
         "Cache-Control": "public, max-age=300, stale-while-revalidate=600",
       },
     });
-  } catch (_error) {
+  } catch (err) {
+    logSystemError(
+      ErrorCategory.DATABASE,
+      "[agent-registry] Failed to load registration",
+      err,
+      { endpoint: "/api/agent-registry" }
+    );
     return NextResponse.json(
       { error: "Failed to load agent registry" },
       { status: 500 }
