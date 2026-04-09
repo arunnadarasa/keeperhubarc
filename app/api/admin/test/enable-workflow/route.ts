@@ -2,8 +2,10 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { authenticateAdmin } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
-import { workflows } from "@/lib/db/schema";
+import { users, workflows } from "@/lib/db/schema";
 import { syncWorkflowSchedule } from "@/lib/schedule-service";
+
+const K6_EMAIL_PATTERN = /^k6-.*@techops\.services$/;
 
 export async function POST(request: Request): Promise<NextResponse> {
   const auth = authenticateAdmin(request);
@@ -41,6 +43,19 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json(
         { error: "Workflow not found" },
         { status: 404 }
+      );
+    }
+
+    // Ownership guard: only allow enabling workflows belonging to k6 test users.
+    // Without this, a leaked TEST_API_KEY could re-enable arbitrary workflows.
+    const owner = await db.query.users.findFirst({
+      where: eq(users.id, workflow.userId),
+      columns: { email: true },
+    });
+    if (!(owner?.email && K6_EMAIL_PATTERN.test(owner.email))) {
+      return NextResponse.json(
+        { error: "Workflow does not belong to a test user" },
+        { status: 403 }
       );
     }
 

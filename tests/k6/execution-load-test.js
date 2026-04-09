@@ -253,7 +253,11 @@ export default function () {
     createWorkflows(toCreate);
   }
 
-  // Observe: trigger manuals every 60s, scheduler handles schedules
+  // Observe: trigger manuals every 60s, scheduler-dispatcher handles schedules.
+  // Assumes the scheduler poll interval is <= ~60s so newly-enabled schedules
+  // fire at least twice within OBSERVE_SECONDS (default 180s). If the dispatcher
+  // poll interval is increased, raise OBSERVE_SECONDS proportionally or this
+  // test will silently under-count successful executions per tier.
   console.log(`VU${exec.vu.idInTest}: TIER ${tierTarget} | observing ${OBSERVE_SECONDS}s | ${allWfIds.length} total | ${manualWfIds.length} manual`);
 
   const startTime = Date.now();

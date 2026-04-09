@@ -1,12 +1,25 @@
-import { inArray, like, sql } from "drizzle-orm";
+import { inArray, like } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { authenticateAdmin } from "@/lib/admin-auth";
 import { db } from "@/lib/db";
-import { member, organization, users } from "@/lib/db/schema";
+import {
+  accounts,
+  apiKeys,
+  deviceCode,
+  integrations,
+  member,
+  organization,
+  sessions,
+  users,
+  verifications,
+  workflowExecutionLogs,
+  workflowExecutions,
+  workflows,
+  workflowSchedules,
+} from "@/lib/db/schema";
 
 const K6_EMAIL_PATTERN = "k6-%@techops.services";
-const USER_IDS_SUBQUERY = sql`(SELECT id FROM users WHERE email LIKE 'k6-%@techops.services')`;
-const WF_IDS_SUBQUERY = sql`(SELECT id FROM workflows WHERE user_id IN ${USER_IDS_SUBQUERY})`;
+const VERIFICATION_PATTERN = "email-verification-otp-k6-%@techops.services";
 
 export async function POST(request: Request): Promise<NextResponse> {
   const auth = authenticateAdmin(request);
@@ -49,60 +62,67 @@ export async function POST(request: Request): Promise<NextResponse> {
       });
     }
 
-    // Step 1: Disable test workflows so scheduler stops triggering them
-    await db.execute(
-      sql`UPDATE workflows SET enabled = false WHERE user_id IN ${USER_IDS_SUBQUERY}`
-    );
+    await db.transaction(async (tx) => {
+      // Resolve dependent IDs up front so subsequent deletes can use inArray.
+      const wfRows = await tx
+        .select({ id: workflows.id })
+        .from(workflows)
+        .where(inArray(workflows.userId, userIds));
+      const workflowIds = wfRows.map((w) => w.id);
 
-    // Step 2: Delete in FK order using subqueries (no array params)
-    await db.execute(
-      sql`DELETE FROM workflow_execution_logs WHERE execution_id IN (SELECT id FROM workflow_executions WHERE workflow_id IN ${WF_IDS_SUBQUERY})`
-    );
-    await db.execute(
-      sql`DELETE FROM workflow_executions WHERE workflow_id IN ${WF_IDS_SUBQUERY}`
-    );
-    await db.execute(
-      sql`DELETE FROM workflow_schedules WHERE workflow_id IN ${WF_IDS_SUBQUERY}`
-    );
-    await db.execute(
-      sql`DELETE FROM workflows WHERE user_id IN ${USER_IDS_SUBQUERY}`
-    );
-    await db.execute(
-      sql`DELETE FROM integrations WHERE user_id IN ${USER_IDS_SUBQUERY}`
-    );
-    await db.execute(
-      sql`DELETE FROM api_keys WHERE user_id IN ${USER_IDS_SUBQUERY}`
-    );
-    await db.execute(
-      sql`DELETE FROM device_code WHERE user_id IN ${USER_IDS_SUBQUERY}`
-    );
-    await db.execute(
-      sql`DELETE FROM verifications WHERE identifier LIKE 'email-verification-otp-k6-%@techops.services'`
-    );
-    await db.execute(
-      sql`DELETE FROM sessions WHERE user_id IN ${USER_IDS_SUBQUERY}`
-    );
-    await db.execute(
-      sql`DELETE FROM accounts WHERE user_id IN ${USER_IDS_SUBQUERY}`
-    );
+      const orgRows = await tx
+        .select({ organizationId: member.organizationId })
+        .from(member)
+        .where(inArray(member.userId, userIds));
+      const orgIds = [...new Set(orgRows.map((r) => r.organizationId))];
 
-    // Orgs
-    const orgRows = await db
-      .select({ organizationId: member.organizationId })
-      .from(member)
-      .where(inArray(member.userId, userIds));
-    const orgIds = [...new Set(orgRows.map((r) => r.organizationId))];
+      // Step 1: Disable test workflows so the scheduler stops triggering them
+      // mid-cleanup. Done inside the transaction so it rolls back on failure.
+      if (workflowIds.length > 0) {
+        await tx
+          .update(workflows)
+          .set({ enabled: false })
+          .where(inArray(workflows.id, workflowIds));
+      }
 
-    await db.execute(
-      sql`DELETE FROM member WHERE user_id IN ${USER_IDS_SUBQUERY}`
-    );
-    if (orgIds.length > 0) {
-      await db.delete(organization).where(inArray(organization.id, orgIds));
-    }
+      // Step 2: Delete in FK order.
+      if (workflowIds.length > 0) {
+        const execRows = await tx
+          .select({ id: workflowExecutions.id })
+          .from(workflowExecutions)
+          .where(inArray(workflowExecutions.workflowId, workflowIds));
+        const executionIds = execRows.map((e) => e.id);
 
-    await db.execute(
-      sql`DELETE FROM users WHERE email LIKE 'k6-%@techops.services'`
-    );
+        if (executionIds.length > 0) {
+          await tx
+            .delete(workflowExecutionLogs)
+            .where(inArray(workflowExecutionLogs.executionId, executionIds));
+        }
+        await tx
+          .delete(workflowExecutions)
+          .where(inArray(workflowExecutions.workflowId, workflowIds));
+        await tx
+          .delete(workflowSchedules)
+          .where(inArray(workflowSchedules.workflowId, workflowIds));
+        await tx.delete(workflows).where(inArray(workflows.id, workflowIds));
+      }
+
+      await tx
+        .delete(integrations)
+        .where(inArray(integrations.userId, userIds));
+      await tx.delete(apiKeys).where(inArray(apiKeys.userId, userIds));
+      await tx.delete(deviceCode).where(inArray(deviceCode.userId, userIds));
+      await tx
+        .delete(verifications)
+        .where(like(verifications.identifier, VERIFICATION_PATTERN));
+      await tx.delete(sessions).where(inArray(sessions.userId, userIds));
+      await tx.delete(accounts).where(inArray(accounts.userId, userIds));
+      await tx.delete(member).where(inArray(member.userId, userIds));
+      if (orgIds.length > 0) {
+        await tx.delete(organization).where(inArray(organization.id, orgIds));
+      }
+      await tx.delete(users).where(inArray(users.id, userIds));
+    });
 
     return NextResponse.json({
       deleted: { users: userIds.length },
