@@ -29,7 +29,8 @@
       "!lib/atoms",
       "!keeperhub-events",
       "!keeperhub-scheduler",
-      "!.history"
+      "!.history",
+      "!tests/k6"
     ]
   },
   "linter": {
