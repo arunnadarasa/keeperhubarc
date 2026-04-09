@@ -29,7 +29,7 @@ export const workflowPayments = pgTable(
     executionId: text("execution_id").notNull(),
     amountUsdc: numeric("amount_usdc").notNull(),
     payerAddress: text("payer_address"),
-    creatorWalletAddress: text("creator_wallet_address"),
+    creatorWalletAddress: text("creator_wallet_address").notNull(),
     settledAt: timestamp("settled_at").notNull().defaultNow(),
   },
   (table) => [

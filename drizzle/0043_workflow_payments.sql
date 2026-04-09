@@ -5,7 +5,7 @@ CREATE TABLE "workflow_payments" (
 	"execution_id" text NOT NULL,
 	"amount_usdc" numeric NOT NULL,
 	"payer_address" text,
-	"creator_wallet_address" text,
+	"creator_wallet_address" text NOT NULL,
 	"settled_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint

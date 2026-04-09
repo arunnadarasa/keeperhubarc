@@ -3625,7 +3625,7 @@
           "name": "creator_wallet_address",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "settled_at": {
           "name": "settled_at",
