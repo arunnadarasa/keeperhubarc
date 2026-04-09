@@ -10,6 +10,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { ethers } from "ethers";
 import { reshapeArgsForAbi } from "@/lib/abi-struct-args";
+import { validateArgsForAbi } from "@/lib/abi-validate-args";
 import { db } from "@/lib/db";
 import { explorerConfigs, workflowExecutions } from "@/lib/db/schema";
 import { getTransactionUrl } from "@/lib/explorer";
@@ -146,6 +147,13 @@ export async function writeContractCore(
         return parsedArgs.slice(index + 1).some((a) => a !== "");
       });
       args = reshapeArgsForAbi(args, functionAbi);
+      const validation = validateArgsForAbi(args, functionAbi);
+      if (!validation.ok) {
+        return {
+          success: false,
+          error: `Invalid function arguments: ${validation.error}`,
+        };
+      }
     } catch (error) {
       return {
         success: false,
@@ -216,15 +224,32 @@ export async function writeContractCore(
     }
   }
 
-  // Parse ethValue early so we fail fast with a friendly message
+  // Parse ethValue early so we fail fast with a friendly message.
+  // Reject any non-zero value sent to a non-payable function: the UI hides
+  // the field for non-payable functions, but the API and workflow layers
+  // accept ethValue as an arbitrary string, so this is the authoritative
+  // server-side guard against accidentally sending native tokens to a
+  // function that cannot accept them (the tx would revert on-chain anyway,
+  // but failing here is faster, cheaper, and produces a clearer error).
   let parsedEthValue: bigint | undefined;
-  if (ethValue) {
+  if (ethValue && ethValue.trim() !== "") {
     try {
       parsedEthValue = ethers.parseEther(ethValue);
     } catch {
       return {
         success: false,
-        error: `Invalid ETH value "${ethValue}" -- expected a decimal string like "0.1" or "1.5"`,
+        error: `Invalid payable value "${ethValue}" -- expected a decimal string like "0.1" or "1.5"`,
+      };
+    }
+
+    if (
+      parsedEthValue > BigInt(0) &&
+      (functionAbi as { stateMutability?: string }).stateMutability !==
+        "payable"
+    ) {
+      return {
+        success: false,
+        error: `Function '${abiFunction}' is not payable -- cannot send a non-zero value with this call`,
       };
     }
   }
