@@ -377,11 +377,13 @@ describe("POST /api/mcp/workflows/[slug]/call: write workflow returns calldata",
   const {
     mockDbSelect,
     mockDbInsert,
+    mockDbUpdate,
     mockBuildPaymentConfig,
     mockHashPaymentSignature,
     mockFindExistingPayment,
     mockRecordPayment,
     mockResolveCreatorWallet,
+    mockExtractPayerAddress,
     mockWithX402,
     mockStart,
     mockExecuteWorkflow,
@@ -389,14 +391,18 @@ describe("POST /api/mcp/workflows/[slug]/call: write workflow returns calldata",
     mockCheckConcurrencyLimit,
     mockLogSystemError,
     mockGenerateCalldata,
+    mockAuthenticateApiKey,
+    mockAuthenticateOAuthToken,
   } = vi.hoisted(() => ({
     mockDbSelect: vi.fn(),
     mockDbInsert: vi.fn(),
+    mockDbUpdate: vi.fn(),
     mockBuildPaymentConfig: vi.fn(),
     mockHashPaymentSignature: vi.fn(),
     mockFindExistingPayment: vi.fn(),
     mockRecordPayment: vi.fn(),
     mockResolveCreatorWallet: vi.fn(),
+    mockExtractPayerAddress: vi.fn(),
     mockWithX402: vi.fn(),
     mockStart: vi.fn(),
     mockExecuteWorkflow: vi.fn(),
@@ -404,13 +410,24 @@ describe("POST /api/mcp/workflows/[slug]/call: write workflow returns calldata",
     mockCheckConcurrencyLimit: vi.fn(),
     mockLogSystemError: vi.fn(),
     mockGenerateCalldata: vi.fn(),
+    mockAuthenticateApiKey: vi.fn(),
+    mockAuthenticateOAuthToken: vi.fn(),
   }));
 
   vi.mock("@/lib/db", () => ({
     db: {
       select: mockDbSelect,
       insert: mockDbInsert,
+      update: mockDbUpdate,
     },
+  }));
+
+  vi.mock("@/lib/api-key-auth", () => ({
+    authenticateApiKey: mockAuthenticateApiKey,
+  }));
+
+  vi.mock("@/lib/mcp/oauth-auth", () => ({
+    authenticateOAuthToken: mockAuthenticateOAuthToken,
   }));
 
   vi.mock("@/lib/db/schema", () => ({
@@ -428,6 +445,7 @@ describe("POST /api/mcp/workflows/[slug]/call: write workflow returns calldata",
     findExistingPayment: mockFindExistingPayment,
     recordPayment: mockRecordPayment,
     resolveCreatorWallet: mockResolveCreatorWallet,
+    extractPayerAddress: mockExtractPayerAddress,
   }));
 
   vi.mock("@/lib/x402/reconcile", () => ({
@@ -532,6 +550,24 @@ describe("POST /api/mcp/workflows/[slug]/call: write workflow returns calldata",
       to: "0xCONTRACT",
       data: "0xABCDEF",
       value: "0",
+    });
+    mockExtractPayerAddress.mockReturnValue(null);
+    mockDbUpdate.mockReturnValue({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue(undefined),
+      }),
+    });
+    // Default: caller is authenticated. The write workflow path requires
+    // an API key or MCP OAuth token, same as the free read path.
+    mockAuthenticateOAuthToken.mockReturnValue({
+      authenticated: true,
+      organizationId: "caller-org-1",
+      userId: "caller-user-1",
+    });
+    mockAuthenticateApiKey.mockResolvedValue({
+      authenticated: true,
+      organizationId: "caller-org-1",
+      apiKeyId: "key-1",
     });
   });
 
