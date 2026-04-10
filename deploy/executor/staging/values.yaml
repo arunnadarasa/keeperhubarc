@@ -76,6 +76,9 @@ env:
   JOB_ACTIVE_DEADLINE:
     type: kv
     value: "300"
+  WORKFLOW_RUNNER_COLLECT_MONITORING:
+    type: kv
+    value: "false"
   PARA_API_KEY:
     type: parameterStore
     name: para-api-key
