@@ -91,9 +91,13 @@ env:
   METRICS_COLLECTOR:
     type: kv
     value: "prometheus"
-  PUSHGATEWAY_URL:
+  EXECUTOR_METRICS_INGEST_URL:
     type: kv
-    value: "http://keeperhub-pushgateway.keeperhub.svc.cluster.local:9091"
+    value: "http://keeperhub-executor-staging.keeperhub.svc.cluster.local:3080"
+  METRICS_INGEST_TOKEN:
+    type: parameterStore
+    name: metrics-ingest-token
+    parameter_name: /eks/techops-staging/keeperhub/metrics-ingest-token
   PARA_API_KEY:
     type: parameterStore
     name: para-api-key

@@ -64,8 +64,21 @@ export async function createWorkflowJob(params: {
     ...(process.env.METRICS_COLLECTOR
       ? [{ name: "METRICS_COLLECTOR", value: process.env.METRICS_COLLECTOR }]
       : []),
-    ...(process.env.PUSHGATEWAY_URL
-      ? [{ name: "PUSHGATEWAY_URL", value: process.env.PUSHGATEWAY_URL }]
+    ...(process.env.EXECUTOR_METRICS_INGEST_URL
+      ? [
+          {
+            name: "EXECUTOR_METRICS_INGEST_URL",
+            value: process.env.EXECUTOR_METRICS_INGEST_URL,
+          },
+        ]
+      : []),
+    ...(process.env.METRICS_INGEST_TOKEN
+      ? [
+          {
+            name: "METRICS_INGEST_TOKEN",
+            value: process.env.METRICS_INGEST_TOKEN,
+          },
+        ]
       : []),
   ];
 

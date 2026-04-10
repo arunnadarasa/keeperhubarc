@@ -42,7 +42,7 @@ import {
   updateExecutionStatus,
   updateScheduleStatus,
 } from "./lib/db-helpers";
-import { pushMetricsToGateway } from "./lib/push-metrics";
+import { shipMetricsToExecutor } from "./lib/ship-metrics";
 
 // Validate required environment variables
 function validateEnv(): {
@@ -298,7 +298,7 @@ async function main(): Promise<void> {
       console.log("[Runner] Error recorded to database, exiting normally");
     }
   } finally {
-    await pushMetricsToGateway(`workflow-${workflowId}`);
+    await shipMetricsToExecutor();
     if (!isShuttingDown) {
       await queryClient.end();
       console.log("[Runner] Database connection closed");

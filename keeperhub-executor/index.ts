@@ -21,7 +21,7 @@
  *   JOB_ACTIVE_DEADLINE - Max Job execution time in seconds (default: 300)
  */
 
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage } from "node:http";
 import {
   DeleteMessageCommand,
   type Message,
@@ -43,8 +43,29 @@ import { CONFIG } from "./config";
 import { resolveDispatchTarget } from "./execution-mode";
 import { executeInProcess } from "./in-process";
 import { createWorkflowJob } from "./k8s-job";
+import { applyCounterDeltas, isIngestPayload } from "./lib/metrics-shipping";
 import { toJsonSafe } from "./lib/serialize";
 import type { ExecutorMessage, ScheduleMessage } from "./types";
+
+const INGEST_MAX_BODY_BYTES = 256 * 1024;
+
+async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of req) {
+    const buf = chunk as Buffer;
+    total += buf.length;
+    if (total > INGEST_MAX_BODY_BYTES) {
+      throw new Error("Ingest payload too large");
+    }
+    chunks.push(buf);
+  }
+  const raw = Buffer.concat(chunks).toString("utf8");
+  if (raw.length === 0) {
+    return {};
+  }
+  return JSON.parse(raw);
+}
 
 // Database
 const queryClient = postgres(CONFIG.databaseUrl, {
@@ -324,6 +345,43 @@ async function listen(): Promise<void> {
           console.error("[Executor] Failed to serve metrics:", error);
           res.writeHead(500);
           res.end("Failed to collect metrics");
+        }
+      })();
+      return;
+    }
+
+    if (req.url === "/metrics/ingest" && req.method === "POST") {
+      if (process.env.METRICS_COLLECTOR !== "prometheus") {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
+      const expectedToken = process.env.METRICS_INGEST_TOKEN;
+      if (!expectedToken) {
+        res.writeHead(503);
+        res.end("Ingest not configured");
+        return;
+      }
+      if (req.headers["x-ingest-token"] !== expectedToken) {
+        res.writeHead(401);
+        res.end();
+        return;
+      }
+      (async (): Promise<void> => {
+        try {
+          const body = await readJsonBody(req);
+          if (!isIngestPayload(body)) {
+            res.writeHead(400);
+            res.end("Invalid ingest payload");
+            return;
+          }
+          const { applied, skipped } = await applyCounterDeltas(body.deltas);
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ applied, skipped }));
+        } catch (error) {
+          console.error("[Executor] Metrics ingest failed:", error);
+          res.writeHead(500);
+          res.end("Ingest failed");
         }
       })();
       return;
