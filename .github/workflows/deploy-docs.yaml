@@ -24,7 +24,7 @@ jobs:
       AWS_ECR_NAME: keeperhub-docs-${{ github.ref == 'refs/heads/prod' && 'prod' || 'staging' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
