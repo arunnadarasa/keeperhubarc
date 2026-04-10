@@ -239,8 +239,8 @@ async function handleTimeoutReconciliation(
   throw gateErr;
 }
 
-// Pre-auth IP backstop: prevents anonymous junk traffic from reaching DB lookup.
-// In-memory per-pod; effective limit is LIMIT * num_replicas. The real per-caller
+// IP backstop: prevents anonymous junk traffic from reaching DB lookup.
+// In-memory per-pod; effective limit is LIMIT * num_replicas.
 const CALL_RATE_LIMIT = 30;
 const CALL_RATE_WINDOW_MS = 60_000;
 
