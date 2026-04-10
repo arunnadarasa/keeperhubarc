@@ -309,6 +309,7 @@ type AuditVerdict =
   | "cli-tool"
   | "ui-wrapper"
   | "plugin-runtime"
+  | "source-import"
   | "transitive-pin"
   | "exception";
 
@@ -359,13 +360,13 @@ function auditDep(
     };
   }
 
-  // Check if it has real source imports (outside codegen files)
+  // Check if it has real source imports (outside codegen and plugin files)
   const sourceCheck = hasSourceImport(name);
   if (sourceCheck.found) {
     return {
       name,
       isDev,
-      verdict: "plugin-runtime",
+      verdict: "source-import",
       detail: `Imported in ${sourceCheck.files.join(", ")}`,
     };
   }
