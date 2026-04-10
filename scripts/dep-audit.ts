@@ -41,10 +41,7 @@ function assertSafePackageName(pkg: string): void {
 
 type ExceptionReason =
   | "cli-tool" // Invoked as a binary, not imported (e.g. biome)
-  | "codegen-string" // Referenced as a string in generated code output
-  | "peer-dep" // Peer dependency of another listed package
-  | "transitive-pin" // Pinned to control version of a transitive dep
-  | "plugin-runtime"; // Used at runtime by dynamically-loaded plugin code
+  | "transitive-pin"; // Pinned to control version of a transitive dep
 
 type Exception = {
   reason: ExceptionReason;
