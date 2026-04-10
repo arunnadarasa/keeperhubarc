@@ -67,16 +67,15 @@ const CODEGEN_FILES = [
   "lib/workflow-codegen-shared.ts",
 ];
 
-const CODEGEN_IMPORT_PATTERN = /imports\.add\(["'`]import .+ from ['"]([^'"]+)['"]/g;
-
 function detectCodegenOnlyDeps(): Set<string> {
   const codegenPackages = new Set<string>();
+  const pattern = /imports\.add\(["'`]import .+ from ['"]([^'"]+)['"]/g;
 
   for (const file of CODEGEN_FILES) {
     try {
       const content = readFileSync(join(ROOT, file), "utf-8");
       let match: RegExpExecArray | null;
-      while ((match = CODEGEN_IMPORT_PATTERN.exec(content)) !== null) {
+      while ((match = pattern.exec(content)) !== null) {
         if (match[1]) codegenPackages.add(match[1]);
       }
     } catch {
