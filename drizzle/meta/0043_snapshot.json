@@ -1,6 +1,6 @@
 {
-  "id": "0529b242-a128-49ca-a3a3-17369d63eef9",
-  "prevId": "ab370c0b-b82d-4f7d-8376-b438b3399567",
+  "id": "ab370c0b-b82d-4f7d-8376-b438b3399567",
+  "prevId": "bba32c8a-44dd-4651-91bc-9c7b28abd9dd",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3575,99 +3575,6 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.workflow_payments": {
-      "name": "workflow_payments",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "workflow_id": {
-          "name": "workflow_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "payment_hash": {
-          "name": "payment_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "execution_id": {
-          "name": "execution_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "amount_usdc": {
-          "name": "amount_usdc",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "payer_address": {
-          "name": "payer_address",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "creator_wallet_address": {
-          "name": "creator_wallet_address",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "settled_at": {
-          "name": "settled_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "idx_workflow_payments_hash": {
-          "name": "idx_workflow_payments_hash",
-          "columns": [
-            {
-              "expression": "payment_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_workflow_payments_workflow": {
-          "name": "idx_workflow_payments_workflow",
-          "columns": [
-            {
-              "expression": "workflow_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

@@ -1,6 +1,6 @@
 {
-  "id": "f771846d-359a-4fdd-9c81-4a4a90abbb47",
-  "prevId": "0529b242-a128-49ca-a3a3-17369d63eef9",
+  "id": "0529b242-a128-49ca-a3a3-17369d63eef9",
+  "prevId": "ab370c0b-b82d-4f7d-8376-b438b3399567",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -4062,25 +4062,6 @@
         "price_usdc_per_call": {
           "name": "price_usdc_per_call",
           "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "workflow_type": {
-          "name": "workflow_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'read'"
-        },
-        "category": {
-          "name": "category",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "chain": {
-          "name": "chain",
-          "type": "text",
           "primaryKey": false,
           "notNull": false
         }

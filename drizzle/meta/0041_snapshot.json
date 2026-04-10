@@ -1,5 +1,5 @@
 {
-  "id": "bba32c8a-44dd-4651-91bc-9c7b28abd9dd",
+  "id": "1237f642-4f44-4cda-a9c6-6aa210a1f5a0",
   "prevId": "9eb4ee6d-696f-495b-958b-433b451c6ab0",
   "version": "7",
   "dialect": "postgresql",
@@ -1008,6 +1008,322 @@
           "name": "explorer_configs_chain_id_unique",
           "nullsNotDistinct": false,
           "columns": [
+            "chain_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.gas_credit_allocations": {
+      "name": "gas_credit_allocations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period_start": {
+          "name": "period_start",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "allocated_cents": {
+          "name": "allocated_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_gas_credit_alloc_org": {
+          "name": "idx_gas_credit_alloc_org",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "gas_credit_allocations_organization_id_organization_id_fk": {
+          "name": "gas_credit_allocations_organization_id_organization_id_fk",
+          "tableFrom": "gas_credit_allocations",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "gas_credit_alloc_org_period": {
+          "name": "gas_credit_alloc_org_period",
+          "nullsNotDistinct": false,
+          "columns": [
+            "organization_id",
+            "period_start"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.gas_credit_usage": {
+      "name": "gas_credit_usage",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "chain_id": {
+          "name": "chain_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tx_hash": {
+          "name": "tx_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "execution_id": {
+          "name": "execution_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gas_used": {
+          "name": "gas_used",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gas_price_wei": {
+          "name": "gas_price_wei",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gas_cost_wei": {
+          "name": "gas_cost_wei",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gas_cost_micro_usd": {
+          "name": "gas_cost_micro_usd",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "eth_price_usd": {
+          "name": "eth_price_usd",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_gas_usage_org_created": {
+          "name": "idx_gas_usage_org_created",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "gas_credit_usage_organization_id_organization_id_fk": {
+          "name": "gas_credit_usage_organization_id_organization_id_fk",
+          "tableFrom": "gas_credit_usage",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "gas_usage_org_tx": {
+          "name": "gas_usage_org_tx",
+          "nullsNotDistinct": false,
+          "columns": [
+            "organization_id",
+            "tx_hash"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.gas_sponsorship_delegations": {
+      "name": "gas_sponsorship_delegations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "wallet_address": {
+          "name": "wallet_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "chain_id": {
+          "name": "chain_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "delegation_tx_hash": {
+          "name": "delegation_tx_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "implementation_address": {
+          "name": "implementation_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "delegated_at": {
+          "name": "delegated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_gas_delegation_org": {
+          "name": "idx_gas_delegation_org",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "gas_sponsorship_delegations_organization_id_organization_id_fk": {
+          "name": "gas_sponsorship_delegations_organization_id_organization_id_fk",
+          "tableFrom": "gas_sponsorship_delegations",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "gas_delegation_org_chain": {
+          "name": "gas_delegation_org_chain",
+          "nullsNotDistinct": false,
+          "columns": [
+            "organization_id",
             "chain_id"
           ]
         }
@@ -3621,6 +3937,109 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.workflow_ratings": {
+      "name": "workflow_ratings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "workflow_id": {
+          "name": "workflow_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rating": {
+          "name": "rating",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_workflow_ratings_workflow": {
+          "name": "idx_workflow_ratings_workflow",
+          "columns": [
+            {
+              "expression": "workflow_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workflow_ratings_workflow_id_workflows_id_fk": {
+          "name": "workflow_ratings_workflow_id_workflows_id_fk",
+          "tableFrom": "workflow_ratings",
+          "tableTo": "workflows",
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "workflow_ratings_user_id_users_id_fk": {
+          "name": "workflow_ratings_user_id_users_id_fk",
+          "tableFrom": "workflow_ratings",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "uq_workflow_ratings_workflow_user": {
+          "name": "uq_workflow_ratings_workflow_user",
+          "nullsNotDistinct": false,
+          "columns": [
+            "workflow_id",
+            "user_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.workflow_schedules": {
       "name": "workflow_schedules",
       "schema": "",
@@ -3870,6 +4289,12 @@
           "notNull": true,
           "default": false
         },
+        "source_workflow_id": {
+          "name": "source_workflow_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -3883,69 +4308,9 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "is_listed": {
-          "name": "is_listed",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "listed_slug": {
-          "name": "listed_slug",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "listed_at": {
-          "name": "listed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "input_schema": {
-          "name": "input_schema",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "output_mapping": {
-          "name": "output_mapping",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "price_usdc_per_call": {
-          "name": "price_usdc_per_call",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
         }
       },
-      "indexes": {
-        "idx_workflows_org_slug": {
-          "name": "idx_workflows_org_slug",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "listed_slug",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"workflows\".\"listed_slug\" is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "workflows_user_id_users_id_fk": {
           "name": "workflows_user_id_users_id_fk",
@@ -4002,322 +4367,6 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.gas_sponsorship_delegations": {
-      "name": "gas_sponsorship_delegations",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "wallet_address": {
-          "name": "wallet_address",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "chain_id": {
-          "name": "chain_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "delegation_tx_hash": {
-          "name": "delegation_tx_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "implementation_address": {
-          "name": "implementation_address",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'pending'"
-        },
-        "delegated_at": {
-          "name": "delegated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "idx_gas_delegation_org": {
-          "name": "idx_gas_delegation_org",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "gas_sponsorship_delegations_organization_id_organization_id_fk": {
-          "name": "gas_sponsorship_delegations_organization_id_organization_id_fk",
-          "tableFrom": "gas_sponsorship_delegations",
-          "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "gas_delegation_org_chain": {
-          "name": "gas_delegation_org_chain",
-          "nullsNotDistinct": false,
-          "columns": [
-            "organization_id",
-            "chain_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.gas_credit_usage": {
-      "name": "gas_credit_usage",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "chain_id": {
-          "name": "chain_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tx_hash": {
-          "name": "tx_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "execution_id": {
-          "name": "execution_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "gas_used": {
-          "name": "gas_used",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "gas_price_wei": {
-          "name": "gas_price_wei",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "gas_cost_wei": {
-          "name": "gas_cost_wei",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "gas_cost_micro_usd": {
-          "name": "gas_cost_micro_usd",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "eth_price_usd": {
-          "name": "eth_price_usd",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "idx_gas_usage_org_created": {
-          "name": "idx_gas_usage_org_created",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "gas_credit_usage_organization_id_organization_id_fk": {
-          "name": "gas_credit_usage_organization_id_organization_id_fk",
-          "tableFrom": "gas_credit_usage",
-          "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "gas_usage_org_tx": {
-          "name": "gas_usage_org_tx",
-          "nullsNotDistinct": false,
-          "columns": [
-            "organization_id",
-            "tx_hash"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.gas_credit_allocations": {
-      "name": "gas_credit_allocations",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "period_start": {
-          "name": "period_start",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "allocated_cents": {
-          "name": "allocated_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "idx_gas_credit_alloc_org": {
-          "name": "idx_gas_credit_alloc_org",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "gas_credit_allocations_organization_id_organization_id_fk": {
-          "name": "gas_credit_allocations_organization_id_organization_id_fk",
-          "tableFrom": "gas_credit_allocations",
-          "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "gas_credit_alloc_org_period": {
-          "name": "gas_credit_alloc_org_period",
-          "nullsNotDistinct": false,
-          "columns": [
-            "organization_id",
-            "period_start"
-          ]
-        }
-      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

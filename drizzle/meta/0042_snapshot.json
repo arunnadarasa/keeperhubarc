@@ -1,6 +1,6 @@
 {
-  "id": "ab370c0b-b82d-4f7d-8376-b438b3399567",
-  "prevId": "bba32c8a-44dd-4651-91bc-9c7b28abd9dd",
+  "id": "bba32c8a-44dd-4651-91bc-9c7b28abd9dd",
+  "prevId": "9eb4ee6d-696f-495b-958b-433b451c6ab0",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -203,57 +203,6 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.agent_registrations": {
-      "name": "agent_registrations",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "agent_id": {
-          "name": "agent_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tx_hash": {
-          "name": "tx_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "registered_at": {
-          "name": "registered_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "chain_id": {
-          "name": "chain_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "registry_address": {
-          "name": "registry_address",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

@@ -222,6 +222,7 @@ export const workflows = pgTable(
       .default("private")
       .$type<WorkflowVisibility>(),
     enabled: boolean("enabled").default(false).notNull(), // keeperhub custom field //
+    sourceWorkflowId: text("source_workflow_id"), // tracks which public template was duplicated
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
     // v1.7: Workflow listing columns (INFRA-01)
@@ -240,7 +241,7 @@ export const workflows = pgTable(
     chain: text("chain"),
   },
   (table) => [
-    // INFRA-02: partial unique index -- (organizationId, listedSlug) where listedSlug IS NOT NULL
+    // INFRA-02: partial unique index - (organizationId, listedSlug) where listedSlug IS NOT NULL
     uniqueIndex("idx_workflows_org_slug")
       .on(table.organizationId, table.listedSlug)
       .where(isNotNull(table.listedSlug)),
@@ -383,6 +384,7 @@ export {
   type WorkflowPublicTag,
   walletLocks,
   workflowPublicTags,
+  workflowRatings,
 } from "./schema-extensions";
 
 export {
