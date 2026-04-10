@@ -290,7 +290,7 @@ async function listen(): Promise<void> {
   console.log(`[Executor] Runner image: ${CONFIG.runnerImage}`);
   console.log(`[Executor] K8s namespace: ${CONFIG.namespace}`);
 
-  // Health check server
+  // Health check + metrics server
   const healthServer = createServer((req, res) => {
     if (req.url === "/health" && req.method === "GET") {
       res.writeHead(200, { "Content-Type": "application/json" });
@@ -301,10 +301,36 @@ async function listen(): Promise<void> {
           timestamp: new Date().toISOString(),
         })
       );
-    } else {
-      res.writeHead(404);
-      res.end();
+      return;
     }
+
+    if (req.url === "/metrics" && req.method === "GET") {
+      if (process.env.METRICS_COLLECTOR !== "prometheus") {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
+      (async (): Promise<void> => {
+        try {
+          const { getApiProcessMetrics, getPrometheusContentType } =
+            await import("../lib/metrics/prometheus-api");
+          const metrics = await getApiProcessMetrics();
+          res.writeHead(200, {
+            "Content-Type": getPrometheusContentType(),
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+          });
+          res.end(metrics);
+        } catch (error) {
+          console.error("[Executor] Failed to serve metrics:", error);
+          res.writeHead(500);
+          res.end("Failed to collect metrics");
+        }
+      })();
+      return;
+    }
+
+    res.writeHead(404);
+    res.end();
   });
 
   healthServer.listen(CONFIG.healthPort, () => {

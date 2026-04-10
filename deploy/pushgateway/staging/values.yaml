@@ -1,0 +1,32 @@
+# Prometheus Pushgateway - Staging
+# In-cluster aggregation point for metrics from ephemeral K8s Job pods
+# (workflow-runner). Workflow runners push their RPC counters here on
+# shutdown so kube-prometheus can scrape them via the ServiceMonitor.
+#
+# Chart: prometheus-community/prometheus-pushgateway
+# Repo:  https://prometheus-community.github.io/helm-charts
+
+fullnameOverride: keeperhub-pushgateway
+
+replicaCount: 1
+
+resources:
+  requests:
+    memory: "64Mi"
+    cpu: "50m"
+  limits:
+    memory: "128Mi"
+    cpu: "200m"
+
+serviceMonitor:
+  enabled: true
+  honorLabels: true
+  interval: 30s
+  scrapeTimeout: 10s
+
+persistentVolume:
+  enabled: false
+
+extraArgs:
+  - --persistence.file=/tmp/pushgateway.dat
+  - --persistence.interval=1m

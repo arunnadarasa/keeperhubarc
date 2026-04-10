@@ -61,6 +61,12 @@ export async function createWorkflowJob(params: {
     ...(CONFIG.etherscanApiKey
       ? [{ name: "ETHERSCAN_API_KEY", value: CONFIG.etherscanApiKey }]
       : []),
+    ...(process.env.METRICS_COLLECTOR
+      ? [{ name: "METRICS_COLLECTOR", value: process.env.METRICS_COLLECTOR }]
+      : []),
+    ...(process.env.PUSHGATEWAY_URL
+      ? [{ name: "PUSHGATEWAY_URL", value: process.env.PUSHGATEWAY_URL }]
+      : []),
   ];
 
   const explicitNames = new Set(envVars.map((v) => v.name));
