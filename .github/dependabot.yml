@@ -18,6 +18,42 @@ updates:
     labels:
       - "dependencies"
 
+  - package-ecosystem: "npm"
+    directory: "/keeperhub-events"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    target-branch: "staging"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    labels:
+      - "dependencies"
+
+  - package-ecosystem: "npm"
+    directory: "/keeperhub-scheduler"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    target-branch: "staging"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    labels:
+      - "dependencies"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
