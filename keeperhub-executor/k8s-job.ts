@@ -104,6 +104,11 @@ export async function createWorkflowJob(params: {
             "workflow-id": workflowId,
             "execution-id": executionId,
           },
+          ...(!CONFIG.workflowRunnerCollectMonitoring && {
+            annotations: {
+              "keeperhub.com/monitoring.exclude": "true",
+            },
+          }),
         },
         spec: {
           restartPolicy: "Never",
