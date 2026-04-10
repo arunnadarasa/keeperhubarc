@@ -453,7 +453,6 @@ function printResults(entries: AuditEntry[]): void {
     }
   }
 
-  const total = removable.length + codegenOnly.length;
   console.log(
     `\n  Summary: ${removable.length} removable, ${codegenOnly.length} codegen-only, ${kept.length} kept\n`
   );
