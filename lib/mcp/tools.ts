@@ -1022,4 +1022,71 @@ export function registerMetaTools(
       })
     )
   );
+
+  // Meta-tool 3: Search listed workflows callable by external agents
+  server.tool(
+    "search_workflows",
+    "Search KeeperHub listed workflows callable by external agents. Returns slug, description, inputSchema, and price for each match. Use call_workflow to invoke a result.",
+    {
+      query: z.string().optional().describe("Natural-language search query"),
+      category: z
+        .string()
+        .optional()
+        .describe("Category filter (e.g., 'defi', 'monitoring')"),
+      chain: z
+        .string()
+        .optional()
+        .describe("Chain ID filter (e.g., '8453' for Base, '1' for Ethereum)"),
+    },
+    { title: "Search Workflows", readOnlyHint: true, destructiveHint: false },
+    withScopeCheck("search_workflows", scope, async (args) =>
+      withToolLogging("search_workflows", undefined, async () => {
+        const params = new URLSearchParams();
+        if (args.query) {
+          params.set("q", args.query);
+        }
+        if (args.category) {
+          params.set("category", args.category);
+        }
+        if (args.chain) {
+          params.set("chain", args.chain);
+        }
+        const query = params.toString();
+        const path = `/api/mcp/workflows${query ? `?${query}` : ""}`;
+        const data = await callApi(baseUrl, authHeader, path, "GET");
+        return {
+          content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+        };
+      })
+    )
+  );
+
+  // Meta-tool 4: Invoke a listed workflow by its globally unique slug
+  server.tool(
+    "call_workflow",
+    "Invoke a listed KeeperHub workflow. For read workflows, executes and returns the result. For write workflows, returns unsigned calldata {to, data, value} for the caller to submit. Use search_workflows first to discover available workflows.",
+    {
+      slug: z
+        .string()
+        .describe("The workflow's listed slug (listedSlug from search results)"),
+      inputs: z
+        .record(z.string(), z.unknown())
+        .describe("Input fields as declared in the workflow's inputSchema"),
+    },
+    { title: "Call Workflow", readOnlyHint: false, destructiveHint: false },
+    withScopeCheck("call_workflow", scope, async (args) =>
+      withToolLogging("call_workflow", undefined, async () => {
+        const data = await callApi(
+          baseUrl,
+          authHeader,
+          `/api/mcp/workflows/${encodeURIComponent(args.slug)}/call`,
+          "POST",
+          args.inputs
+        );
+        return {
+          content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+        };
+      })
+    )
+  );
 }

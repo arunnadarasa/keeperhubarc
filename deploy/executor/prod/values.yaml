@@ -98,6 +98,9 @@ env:
     type: parameterStore
     name: metrics-ingest-token
     parameter_name: /eks/techops-prod/keeperhub/metrics-ingest-token
+  WORKFLOW_RUNNER_COLLECT_MONITORING:
+    type: kv
+    value: "true"
   PARA_API_KEY:
     type: parameterStore
     name: para-api-key
