@@ -73,9 +73,6 @@ env:
   HEALTH_PORT:
     type: kv
     value: "3080"
-  JOB_TTL_SECONDS:
-    type: kv
-    value: "120"
   JOB_ACTIVE_DEADLINE:
     type: kv
     value: "300"
