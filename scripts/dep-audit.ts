@@ -16,7 +16,8 @@
  */
 
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -258,7 +259,7 @@ type KnipResult = {
 function runKnip(): KnipResult {
   // knip exits non-zero when it finds issues. Use a temp file to
   // capture stdout reliably regardless of exit code.
-  const tmpFile = join(ROOT, ".claude", "knip-output.json");
+  const tmpFile = join(tmpdir(), `knip-dep-audit-${process.pid}.json`);
   let output: string;
   try {
     execSync(
@@ -272,6 +273,12 @@ function runKnip(): KnipResult {
       err instanceof Error ? err.message : err
     );
     process.exit(2);
+  } finally {
+    try {
+      rmSync(tmpFile, { force: true });
+    } catch {
+      // Best effort cleanup
+    }
   }
 
   // knip json output may have non-JSON preamble (dotenv warnings on stdout)
