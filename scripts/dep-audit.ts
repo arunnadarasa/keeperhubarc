@@ -24,6 +24,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const jsonMode = process.argv.includes("--json");
 
+// Only allow valid npm package name characters to prevent shell injection
+const SAFE_PKG_NAME = /^(@[a-z0-9_.-]+\/)?[a-z0-9_.-]+$/;
+
+function assertSafePackageName(pkg: string): void {
+  if (!SAFE_PKG_NAME.test(pkg)) {
+    throw new Error(`Refusing to process unsafe package name: ${pkg}`);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Known exceptions - deps that knip flags but are intentionally kept.
 // Each entry documents WHY so the next person isn't guessing.
@@ -306,6 +315,7 @@ type AuditEntry = {
 
 function auditDep(dep: KnipDep, isDev: boolean): AuditEntry {
   const name = dep.name;
+  assertSafePackageName(name);
 
   // Check known exceptions first
   if (KNOWN_EXCEPTIONS[name]) {
