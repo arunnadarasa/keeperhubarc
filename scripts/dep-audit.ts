@@ -312,7 +312,11 @@ type AuditEntry = {
   detail: string;
 };
 
-function auditDep(dep: KnipDep, isDev: boolean): AuditEntry {
+function auditDep(
+  dep: KnipDep,
+  isDev: boolean,
+  codegenDeps: Set<string>
+): AuditEntry {
   const name = dep.name;
   assertSafePackageName(name);
 
@@ -360,7 +364,6 @@ function auditDep(dep: KnipDep, isDev: boolean): AuditEntry {
   }
 
   // Check if it's a codegen-only string reference
-  const codegenDeps = detectCodegenOnlyDeps();
   if (codegenDeps.has(name)) {
     return {
       name,
@@ -475,9 +478,10 @@ function main(): void {
 
   console.log("  Step 2/2: Running custom checks...");
 
+  const codegenDeps = detectCodegenOnlyDeps();
   const entries: AuditEntry[] = [
-    ...knipResult.dependencies.map((d) => auditDep(d, false)),
-    ...knipResult.devDependencies.map((d) => auditDep(d, true)),
+    ...knipResult.dependencies.map((d) => auditDep(d, false, codegenDeps)),
+    ...knipResult.devDependencies.map((d) => auditDep(d, true, codegenDeps)),
   ];
 
   printResults(entries);
