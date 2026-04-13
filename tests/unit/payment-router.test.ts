@@ -1,4 +1,23 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@x402/next", () => ({ withX402: vi.fn() }));
+vi.mock("@/lib/x402/payment-gate", () => ({
+  buildPaymentConfig: vi.fn(),
+  extractPayerAddress: vi.fn(),
+  findExistingPayment: vi.fn(),
+  hashPaymentSignature: vi.fn(),
+}));
+vi.mock("@/lib/x402/server", () => ({ server: {} }));
+vi.mock("@/lib/x402/reconcile", () => ({
+  isTimeoutError: vi.fn(),
+  pollForPaymentConfirmation: vi.fn(),
+}));
+vi.mock("@/lib/mpp/server", () => ({
+  extractMppPayerAddress: vi.fn(),
+  hashMppCredential: vi.fn(),
+  getMppServer: vi.fn(),
+}));
+
 import { buildDual402Response, detectProtocol } from "@/lib/payments/router";
 
 describe("detectProtocol", () => {
