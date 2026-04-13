@@ -324,6 +324,37 @@ const plugins = [
     : []),
 ];
 
+async function subscribeToMailerLite(user: {
+  name?: string | null;
+  email?: string | null;
+}): Promise<void> {
+  const apiKey = process.env.MAILERLITE_API_KEY;
+  if (!apiKey || !user.email) return;
+
+  await fetch("https://connect.mailerlite.com/api/subscribers", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email: user.email,
+      groups: ["184355071771804948", "184358071395419781"],
+      status: "active",
+    }),
+  })
+    .then((res) => {
+      if (!res.ok) {
+        console.error(
+          `[MailerLite] Subscribe failed: ${res.status} ${res.statusText}`
+        );
+      }
+    })
+    .catch((err: unknown) => {
+      console.error("[MailerLite] Subscribe request error:", err);
+    });
+}
+
 async function notifyDiscordSignup(user: {
   name?: string | null;
   email?: string | null;
@@ -417,12 +448,15 @@ export const auth = betterAuth({
             console.error(error);
           }
 
-          // Notify Discord for OAuth signups (already verified at creation)
-          if (user.emailVerified && process.env.DISCORD_WEBHOOK_SIGNUPS) {
-            console.log("[Auth] Notifying Discord for OAuth signup", {
-              email: user.email,
-            });
-            await notifyDiscordSignup(user);
+          // Notify external services for OAuth signups (already verified at creation)
+          if (user.emailVerified) {
+            if (process.env.DISCORD_WEBHOOK_SIGNUPS) {
+              console.log("[Auth] Notifying Discord for OAuth signup", {
+                email: user.email,
+              });
+              await notifyDiscordSignup(user);
+            }
+            await subscribeToMailerLite(user);
           }
         },
       },
@@ -482,6 +516,7 @@ export const auth = betterAuth({
       if (process.env.DISCORD_WEBHOOK_SIGNUPS) {
         await notifyDiscordSignup(user);
       }
+      await subscribeToMailerLite(user);
     },
   },
   socialProviders: {
