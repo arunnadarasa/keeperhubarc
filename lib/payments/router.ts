@@ -1,4 +1,5 @@
 import { withX402 } from "@x402/next";
+import { Challenge } from "mppx";
 import { type NextRequest, NextResponse } from "next/server";
 import { extractMppPayerAddress, hashMppCredential } from "@/lib/mpp/server";
 import {
@@ -15,6 +16,11 @@ import { server } from "@/lib/x402/server";
 import type { CallRouteWorkflow } from "@/lib/x402/types";
 
 export type PaymentProtocol = "x402" | "mpp";
+
+const TEMPO_USDC_ADDRESS = "0x20c000000000000000000000b9537d11c60e8b50";
+const USDC_DECIMALS = 6;
+const RE_PROTOCOL = /^https?:\/\//;
+const RE_TRAILING_SLASH = /\/$/;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -50,6 +56,29 @@ export function buildDual402Response(params: Dual402Params): Response {
   const headers = new Headers(CORS_HEADERS);
   headers.set("X-PAYMENT-REQUIREMENTS", x402Header);
   headers.set("Cache-Control", "no-store");
+
+  const mppSecretKey = process.env.MPP_SECRET_KEY;
+  if (mppSecretKey) {
+    const realm = (process.env.NEXT_PUBLIC_APP_URL ?? "app.keeperhub.com")
+      .replace(RE_PROTOCOL, "")
+      .replace(RE_TRAILING_SLASH, "");
+    const amountSmallestUnit = String(
+      Math.round(Number(price) * 10 ** USDC_DECIMALS)
+    );
+    const challenge = Challenge.from({
+      secretKey: mppSecretKey,
+      realm,
+      method: "tempo",
+      intent: "charge",
+      request: {
+        amount: amountSmallestUnit,
+        currency: TEMPO_USDC_ADDRESS,
+        recipient: creatorWalletAddress,
+        decimals: USDC_DECIMALS,
+      },
+    });
+    headers.set("WWW-Authenticate", Challenge.serialize(challenge));
+  }
 
   return new Response(
     JSON.stringify({

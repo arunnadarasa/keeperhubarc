@@ -18,6 +18,23 @@ vi.mock("@/lib/mpp/server", () => ({
   getMppServer: vi.fn(),
 }));
 
+vi.mock("mppx", () => ({
+  Challenge: {
+    from: vi.fn().mockReturnValue({
+      id: "test-id",
+      realm: "test",
+      method: "tempo",
+      intent: "charge",
+      request: {},
+    }),
+    serialize: vi
+      .fn()
+      .mockReturnValue(
+        'Payment id="test-id", realm="test", method="tempo", intent="charge", request="eyJ9"'
+      ),
+  },
+}));
+
 import { buildDual402Response, detectProtocol } from "@/lib/payments/router";
 
 describe("detectProtocol", () => {
@@ -75,5 +92,33 @@ describe("buildDual402Response", () => {
       workflowName: "Test Workflow",
     });
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  });
+
+  it("includes WWW-Authenticate header when MPP_SECRET_KEY is set", () => {
+    process.env.MPP_SECRET_KEY = "test-secret";
+    try {
+      const response = buildDual402Response({
+        price: "0.01",
+        creatorWalletAddress: "0xCreator",
+        workflowName: "Test Workflow",
+      });
+      const wwwAuth = response.headers.get("WWW-Authenticate");
+      expect(wwwAuth).toBeTruthy();
+      expect(wwwAuth).toContain("Payment");
+      expect(wwwAuth).toContain("tempo");
+      expect(wwwAuth).toContain("charge");
+    } finally {
+      delete process.env.MPP_SECRET_KEY;
+    }
+  });
+
+  it("omits WWW-Authenticate header when MPP_SECRET_KEY is not set", () => {
+    delete process.env.MPP_SECRET_KEY;
+    const response = buildDual402Response({
+      price: "0.01",
+      creatorWalletAddress: "0xCreator",
+      workflowName: "Test Workflow",
+    });
+    expect(response.headers.get("WWW-Authenticate")).toBeNull();
   });
 });
