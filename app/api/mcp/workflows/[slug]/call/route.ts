@@ -324,7 +324,11 @@ async function handlePaidWorkflow(
   );
   if (!creatorWalletAddress) {
     return NextResponse.json(
-      { error: "Workflow creator has no payment wallet configured" },
+      {
+        error: "No payment wallet found for this organization",
+        message:
+          "The workflow owner must create a wallet in Settings > Wallet before listing paid workflows.",
+      },
       { status: 503, headers: corsHeaders }
     );
   }
