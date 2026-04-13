@@ -1,5 +1,5 @@
 import { withX402 } from "@x402/next";
-import { Challenge } from "mppx";
+import { Challenge, Credential, Expires } from "mppx";
 import { type NextRequest, NextResponse } from "next/server";
 import { extractMppPayerAddress, hashMppCredential } from "@/lib/mpp/server";
 import {
@@ -70,6 +70,7 @@ export function buildDual402Response(params: Dual402Params): Response {
       realm,
       method: "tempo",
       intent: "charge",
+      expires: Expires.minutes(5),
       request: {
         amount: amountSmallestUnit,
         currency: TEMPO_USDC_ADDRESS,
@@ -204,12 +205,13 @@ async function handleMpp(
 
   // Dynamic import to avoid loading mppx when not needed
   const { getMppServer } = await import("@/lib/mpp/server");
-  type ChargeResult = {
-    status: number;
-    challenge?: Response;
-    withReceipt: (response: Response) => Response;
-    credential?: { source?: string };
-  };
+  type ChargeResult =
+    | { status: 402; challenge: Response; withReceipt?: never }
+    | {
+        status: 200;
+        challenge?: never;
+        withReceipt: (response: Response) => Response;
+      };
   const mppServer = getMppServer() as {
     charge: (opts: {
       amount: string;
@@ -229,9 +231,14 @@ async function handleMpp(
     return result.challenge as unknown as NextResponse;
   }
 
-  const payerAddress = extractMppPayerAddress(
-    result.credential?.source ?? null
-  );
+  let credentialSource: string | null = null;
+  try {
+    const credential = Credential.fromRequest(request);
+    credentialSource = credential.source ?? null;
+  } catch {
+    // credential source is optional -- wallets may omit it
+  }
+  const payerAddress = extractMppPayerAddress(credentialSource);
 
   const innerHandler = createHandler({
     protocol: "mpp",

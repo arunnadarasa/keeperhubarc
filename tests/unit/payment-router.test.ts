@@ -25,6 +25,7 @@ vi.mock("mppx", () => ({
       realm: "test",
       method: "tempo",
       intent: "charge",
+      expires: "2099-01-01T00:00:00.000Z",
       request: {},
     }),
     serialize: vi
@@ -33,8 +34,15 @@ vi.mock("mppx", () => ({
         'Payment id="test-id", realm="test", method="tempo", intent="charge", request="eyJ9"'
       ),
   },
+  Credential: {
+    fromRequest: vi.fn().mockReturnValue({ source: null }),
+  },
+  Expires: {
+    minutes: vi.fn().mockReturnValue("2099-01-01T00:00:00.000Z"),
+  },
 }));
 
+import { Challenge, Expires } from "mppx";
 import { buildDual402Response, detectProtocol } from "@/lib/payments/router";
 
 describe("detectProtocol", () => {
@@ -107,6 +115,25 @@ describe("buildDual402Response", () => {
       expect(wwwAuth).toContain("Payment");
       expect(wwwAuth).toContain("tempo");
       expect(wwwAuth).toContain("charge");
+    } finally {
+      delete process.env.MPP_SECRET_KEY;
+    }
+  });
+
+  it("passes expires to Challenge.from", () => {
+    process.env.MPP_SECRET_KEY = "test-secret";
+    try {
+      buildDual402Response({
+        price: "0.01",
+        creatorWalletAddress: "0xCreator",
+        workflowName: "Test Workflow",
+      });
+      expect(Expires.minutes).toHaveBeenCalledWith(5);
+      expect(Challenge.from).toHaveBeenCalledWith(
+        expect.objectContaining({
+          expires: "2099-01-01T00:00:00.000Z",
+        })
+      );
     } finally {
       delete process.env.MPP_SECRET_KEY;
     }
