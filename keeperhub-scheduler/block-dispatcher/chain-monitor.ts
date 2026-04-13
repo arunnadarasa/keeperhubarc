@@ -168,8 +168,8 @@ export class ChainMonitor {
       } catch (error) {
         // Destroy the provider if it was created but failed/timed out
         if (provider) {
-          provider.removeAllListeners();
-          provider.destroy().catch(() => {});
+          await provider.removeAllListeners();
+          await provider.destroy().catch(() => {});
         }
         console.warn(
           `[BlockMonitor:${this.chainName}] Failed to connect to ${label} WSS:`,
