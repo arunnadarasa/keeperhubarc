@@ -4,6 +4,7 @@ import {
   validateAddress,
   validateBool,
   validateBytes,
+  validateEthValue,
   validateInt,
   validateSolidityValue,
   validateUint,
@@ -157,6 +158,32 @@ describe("validateBytes", () => {
 
   it("accepts any length for unspecified bytes", () => {
     expect(validateBytes(`0x${"ff".repeat(100)}`)).toEqual({ valid: true });
+  });
+});
+
+describe("validateEthValue", () => {
+  it("accepts valid decimal ETH amounts", () => {
+    expect(validateEthValue("0.1")).toEqual({ valid: true });
+    expect(validateEthValue("1.5")).toEqual({ valid: true });
+    expect(validateEthValue("100")).toEqual({ valid: true });
+    expect(validateEthValue("0.001")).toEqual({ valid: true });
+  });
+
+  it("rejects alphabetic input", () => {
+    expect(validateEthValue("abc").valid).toBe(false);
+    expect(validateEthValue("1.0abc").valid).toBe(false);
+  });
+
+  it("rejects negative values", () => {
+    expect(validateEthValue("-1.0").valid).toBe(false);
+  });
+
+  it("rejects empty string", () => {
+    expect(validateEthValue("").valid).toBe(false);
+  });
+
+  it("passes template variables through", () => {
+    expect(validateEthValue("{{node.ethAmount}}")).toEqual({ valid: true });
   });
 });
 

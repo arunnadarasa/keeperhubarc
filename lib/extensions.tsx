@@ -396,6 +396,36 @@ registerFieldRenderer(
 );
 
 /**
+ * Protocol ETH Value Field
+ * Decimal number input for native ETH value (e.g. "0.1", "1.5")
+ */
+registerFieldRenderer(
+  "protocol-eth-value",
+  ({ field, config, onUpdateConfig, disabled }) => {
+    const { ProtocolEthValueField } =
+      require("@/components/workflow/config/protocol-fields/protocol-eth-value-field") as typeof import("@/components/workflow/config/protocol-fields/protocol-eth-value-field");
+    const value =
+      (config[field.key] as string | undefined) || field.defaultValue || "";
+
+    return (
+      <div className="space-y-2" key={field.key}>
+        <Label className="ml-1" htmlFor={field.key}>
+          {field.label}
+          {field.required && <span className="text-red-500">*</span>}
+        </Label>
+        <ProtocolEthValueField
+          disabled={disabled}
+          fieldKey={field.key}
+          onChange={(val: unknown) => onUpdateConfig(field.key, val)}
+          placeholder={field.placeholder}
+          value={value}
+        />
+      </div>
+    );
+  }
+);
+
+/**
  * Protocol Bool Field
  * Select dropdown for true/false, switches to text input for template variables
  */

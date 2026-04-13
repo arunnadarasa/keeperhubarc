@@ -254,7 +254,7 @@ function buildConfigFieldsFromAction(
     fields.push({
       key: "ethValue",
       label: "ETH Value",
-      type: "template-input",
+      type: "protocol-eth-value" as ActionConfigFieldBase["type"],
       placeholder: "0.0",
       required: true,
     });

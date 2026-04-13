@@ -8,6 +8,7 @@
 const TEMPLATE_VARIABLE_RE = /^\{\{.+\}\}$/;
 const HEX_RE = /^0x[0-9a-fA-F]*$/;
 const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
+const DECIMAL_NUMBER_RE = /^\d+(\.\d+)?$/;
 
 export type ValidationResult =
   | { valid: true }
@@ -130,6 +131,24 @@ export function validateInt(value: string, bits = 256): ValidationResult {
 export function validateBool(value: string): ValidationResult {
   if (value !== "true" && value !== "false") {
     return { valid: false, message: "Must be true or false" };
+  }
+  return VALID;
+}
+
+export function validateEthValue(value: string): ValidationResult {
+  if (TEMPLATE_VARIABLE_RE.test(value.trim())) {
+    return VALID;
+  }
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return { valid: false, message: "Required" };
+  }
+  if (!DECIMAL_NUMBER_RE.test(trimmed)) {
+    return { valid: false, message: "Must be a decimal number (e.g. 0.1)" };
+  }
+  const num = Number(trimmed);
+  if (num < 0) {
+    return { valid: false, message: "Must be non-negative" };
   }
   return VALID;
 }
