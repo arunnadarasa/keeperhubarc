@@ -1,3 +1,4 @@
+import { solidityTypeToFieldType } from "@/lib/solidity-type-fields";
 import type { IntegrationType } from "@/lib/types/integration";
 import {
   createProtocolIconComponent,
@@ -262,14 +263,20 @@ function buildConfigFieldsFromAction(
   }
 
   for (const input of action.inputs) {
+    const fieldType = solidityTypeToFieldType(input.type);
     fields.push({
       key: input.name,
       label: input.label,
-      type: "template-input",
+      type: fieldType,
       placeholder: input.default ?? "",
       required: true,
-      ...(input.type === "address" ? { isAddressField: true } : {}),
+      ...(fieldType === "protocol-address" || input.type === "address"
+        ? { isAddressField: true }
+        : {}),
       ...(input.helpTip ? { helpTip: input.helpTip } : {}),
+      ...(fieldType !== "template-input"
+        ? { solidityType: input.type }
+        : {}),
     });
   }
 

@@ -296,6 +296,132 @@ registerFieldRenderer(
   }
 );
 
+/**
+ * Protocol Address Field
+ * Address input with checksum display, validation, and address book support
+ */
+registerFieldRenderer(
+  "protocol-address",
+  ({ field, config, onUpdateConfig, disabled }) => {
+    const { ProtocolAddressField } =
+      require("@/components/workflow/config/protocol-fields/protocol-address-field") as typeof import("@/components/workflow/config/protocol-fields/protocol-address-field");
+    const value =
+      (config[field.key] as string | undefined) || field.defaultValue || "";
+
+    return (
+      <div className="space-y-2" key={field.key}>
+        <Label className="ml-1" htmlFor={field.key}>
+          {field.label}
+          {field.required && <span className="text-red-500">*</span>}
+        </Label>
+        <ProtocolAddressField
+          config={config}
+          disabled={disabled}
+          fieldKey={field.key}
+          onChange={(val: unknown) => onUpdateConfig(field.key, val)}
+          placeholder={field.placeholder}
+          value={value}
+        />
+      </div>
+    );
+  }
+);
+
+/**
+ * Protocol Uint Field
+ * Numeric text input with non-negative integer validation
+ */
+registerFieldRenderer(
+  "protocol-uint",
+  ({ field, config, onUpdateConfig, disabled }) => {
+    const { ProtocolUintField } =
+      require("@/components/workflow/config/protocol-fields/protocol-uint-field") as typeof import("@/components/workflow/config/protocol-fields/protocol-uint-field");
+    const value =
+      (config[field.key] as string | undefined) || field.defaultValue || "";
+    const solidityType =
+      (field as Record<string, unknown>).solidityType as string | undefined;
+
+    return (
+      <div className="space-y-2" key={field.key}>
+        <Label className="ml-1" htmlFor={field.key}>
+          {field.label}
+          {field.required && <span className="text-red-500">*</span>}
+        </Label>
+        <ProtocolUintField
+          disabled={disabled}
+          fieldKey={field.key}
+          onChange={(val: unknown) => onUpdateConfig(field.key, val)}
+          placeholder={field.placeholder}
+          solidityType={solidityType}
+          value={value}
+        />
+      </div>
+    );
+  }
+);
+
+/**
+ * Protocol Bool Field
+ * Select dropdown for true/false values
+ */
+registerFieldRenderer(
+  "protocol-bool",
+  ({ field, config, onUpdateConfig, disabled }) => {
+    const { ProtocolBoolField } =
+      require("@/components/workflow/config/protocol-fields/protocol-bool-field") as typeof import("@/components/workflow/config/protocol-fields/protocol-bool-field");
+    const value =
+      (config[field.key] as string | undefined) || field.defaultValue || "";
+
+    return (
+      <div className="space-y-2" key={field.key}>
+        <Label className="ml-1" htmlFor={field.key}>
+          {field.label}
+          {field.required && <span className="text-red-500">*</span>}
+        </Label>
+        <ProtocolBoolField
+          disabled={disabled}
+          fieldKey={field.key}
+          onChange={(val: unknown) => onUpdateConfig(field.key, val)}
+          value={value}
+        />
+      </div>
+    );
+  }
+);
+
+/**
+ * Protocol Bytes Field
+ * Hex text input with 0x-prefix validation
+ */
+registerFieldRenderer(
+  "protocol-bytes",
+  ({ field, config, onUpdateConfig, disabled }) => {
+    const { ProtocolBytesField } =
+      require("@/components/workflow/config/protocol-fields/protocol-bytes-field") as typeof import("@/components/workflow/config/protocol-fields/protocol-bytes-field");
+    const value =
+      (config[field.key] as string | undefined) || field.defaultValue || "";
+    const solidityType =
+      (field as Record<string, unknown>).solidityType as string | undefined;
+
+    return (
+      <div className="space-y-2" key={field.key}>
+        <Label className="ml-1" htmlFor={field.key}>
+          {field.label}
+          {field.required && <span className="text-red-500">*</span>}
+        </Label>
+        <ProtocolBytesField
+          disabled={disabled}
+          fieldKey={field.key}
+          onChange={(val: unknown) => onUpdateConfig(field.key, val)}
+          placeholder={field.placeholder}
+          solidityType={solidityType}
+          value={value}
+        />
+      </div>
+    );
+  }
+);
+
 // ============================================================================
 // Register Custom Integration Form Handlers
 // ============================================================================
