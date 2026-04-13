@@ -163,6 +163,52 @@ export function defineProtocol(def: ProtocolDefinition): ProtocolDefinition {
   return def;
 }
 
+// ABI-driven protocol definition
+import {
+  type AbiDrivenProtocolInput,
+  deriveActionsFromAbi,
+} from "@/lib/protocol-abi-derive";
+
+export type { AbiDrivenProtocolInput } from "@/lib/protocol-abi-derive";
+export type {
+  AbiDrivenContract,
+  AbiFunctionOverride,
+  AbiInputOverride,
+  AbiOutputOverride,
+} from "@/lib/protocol-abi-derive";
+
+export function defineAbiProtocol(
+  input: AbiDrivenProtocolInput
+): ProtocolDefinition {
+  const actions: ProtocolAction[] = [];
+  const contracts: Record<string, ProtocolContract> = {};
+
+  for (const [key, contract] of Object.entries(input.contracts)) {
+    contracts[key] = {
+      label: contract.label,
+      abi: contract.abi,
+      addresses: contract.addresses,
+      ...(contract.userSpecifiedAddress
+        ? { userSpecifiedAddress: true }
+        : {}),
+    };
+    const derived = deriveActionsFromAbi(key, contract);
+    for (const action of derived) {
+      actions.push(action);
+    }
+  }
+
+  return defineProtocol({
+    name: input.name,
+    slug: input.slug,
+    description: input.description,
+    website: input.website,
+    icon: input.icon,
+    contracts,
+    actions,
+  });
+}
+
 // Runtime protocol registry
 const protocolRegistry = new Map<string, ProtocolDefinition>();
 
