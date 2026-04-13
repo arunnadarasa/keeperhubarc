@@ -102,7 +102,7 @@ export class ChainMonitor {
   }
 
   isAlive(): boolean {
-    return this.isRunning && this.hasActiveSubscription;
+    return this.isRunning && (this.hasActiveSubscription || this.isReconnecting);
   }
 
   // ---------------------------------------------------------------------------
