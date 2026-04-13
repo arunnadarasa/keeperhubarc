@@ -5,6 +5,8 @@
  * advisory validation functions for client-side input checking.
  */
 
+import type { ActionConfigFieldBase } from "@/plugins/registry";
+
 const TEMPLATE_VARIABLE_RE = /^\{\{.+\}\}$/;
 const HEX_RE = /^0x[0-9a-fA-F]*$/;
 const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
@@ -24,7 +26,9 @@ function isTemplateVariable(value: string): boolean {
  * Map a Solidity type string to a UI field type for the protocol form builder.
  * Returns "template-input" as fallback for unrecognized types.
  */
-export function solidityTypeToFieldType(solidityType: string): string {
+export function solidityTypeToFieldType(
+  solidityType: string
+): ActionConfigFieldBase["type"] {
   if (solidityType === "address") {
     return "protocol-address";
   }

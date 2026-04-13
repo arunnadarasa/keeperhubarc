@@ -254,7 +254,7 @@ function buildConfigFieldsFromAction(
     fields.push({
       key: "ethValue",
       label: "ETH Value",
-      type: "protocol-eth-value" as ActionConfigFieldBase["type"],
+      type: "protocol-eth-value",
       placeholder: "0.0",
       required: true,
     });
@@ -265,7 +265,7 @@ function buildConfigFieldsFromAction(
     fields.push({
       key: input.name,
       label: input.label,
-      type: fieldType as ActionConfigFieldBase["type"],
+      type: fieldType,
       placeholder: input.default ?? "",
       required: true,
       ...(fieldType === "protocol-address" || input.type === "address"
