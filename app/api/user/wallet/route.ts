@@ -21,7 +21,7 @@ import type { WalletProvider } from "@/lib/wallet/types";
 const PARA_API_KEY = process.env.PARA_API_KEY ?? "";
 const PARA_ENV = process.env.PARA_ENVIRONMENT ?? "beta";
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const VALID_PROVIDERS: WalletProvider[] = ["para", "turnkey"];
+const VALID_PROVIDERS: WalletProvider[] = ["turnkey"];
 
 // Helper: Validate user authentication, organization membership, and admin permissions
 async function validateUserAndOrganization(request: Request) {
@@ -349,7 +349,7 @@ export async function POST(request: Request) {
     // 3. Parse request body
     const body: { email?: string; provider?: string } = await request.json();
     const walletEmail = body.email;
-    const provider = (body.provider ?? "para") as WalletProvider;
+    const provider = (body.provider ?? "turnkey") as WalletProvider;
 
     if (!walletEmail || typeof walletEmail !== "string") {
       return NextResponse.json(
