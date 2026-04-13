@@ -136,10 +136,7 @@ describe.skipIf(!RPC_URL)("Web3 write-contract on-chain integration", () => {
   }, 15_000);
 
   it("withdraw (uint256 arg): calldata encodes correctly", async () => {
-    const { data } = buildWeb3Calldata(
-      "withdraw",
-      '["1000000000000000000"]'
-    );
+    const { data } = buildWeb3Calldata("withdraw", '["1000000000000000000"]');
 
     const provider = getProvider();
     try {
@@ -172,10 +169,7 @@ describe.skipIf(!RPC_URL)("Web3 write-contract on-chain integration", () => {
   }, 15_000);
 
   it("transfer (address + uint256 args): calldata encodes correctly", async () => {
-    const { data } = buildWeb3Calldata(
-      "transfer",
-      `["${TEST_ADDRESS}", "0"]`
-    );
+    const { data } = buildWeb3Calldata("transfer", `["${TEST_ADDRESS}", "0"]`);
 
     const provider = getProvider();
     const gas = await provider.estimateGas({
