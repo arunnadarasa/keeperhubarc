@@ -335,7 +335,7 @@ function MembersListContent({
                 onClick={() =>
                   setPendingAction({
                     type: "revoke",
-                    invitationId: entry.id,
+                    id: entry.id,
                     email: entry.email,
                     role: entry.role,
                   })
