@@ -380,8 +380,8 @@ function MembersListContent({
         }}
         open={pendingAction !== null}
       >
-        <AlertDialogContent>
-          {pendingAction && (
+        {pendingAction && (
+          <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>
                 {
@@ -404,40 +404,41 @@ function MembersListContent({
                 }
               </AlertDialogDescription>
             </AlertDialogHeader>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={confirming}>Cancel</AlertDialogCancel>
-            <Button
-              disabled={confirming}
-              onClick={async () => {
-                if (!pendingAction) {
-                  return;
-                }
-                setConfirming(true);
-                try {
-                  if (pendingAction.type === "resend") {
-                    await onResendInvitation(
-                      pendingAction.id,
-                      pendingAction.email,
-                      pendingAction.role
-                    );
-                  } else if (pendingAction.type === "remove-member") {
-                    await onRemoveMember(pendingAction.id, pendingAction.email);
-                  } else {
-                    await onCancelInvitation(pendingAction.id);
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={confirming}>
+                Cancel
+              </AlertDialogCancel>
+              <Button
+                disabled={confirming}
+                onClick={async () => {
+                  setConfirming(true);
+                  try {
+                    if (pendingAction.type === "resend") {
+                      await onResendInvitation(
+                        pendingAction.id,
+                        pendingAction.email,
+                        pendingAction.role
+                      );
+                    } else if (pendingAction.type === "remove-member") {
+                      await onRemoveMember(
+                        pendingAction.id,
+                        pendingAction.email
+                      );
+                    } else {
+                      await onCancelInvitation(pendingAction.id);
+                    }
+                  } finally {
+                    setConfirming(false);
+                    setPendingAction(null);
                   }
-                } finally {
-                  setConfirming(false);
-                  setPendingAction(null);
-                }
-              }}
-              size="sm"
-            >
-              {confirming && <Spinner className="mr-2 h-4 w-4" />}
-              {pendingAction?.type === "resend" ? "Resend" : "Confirm"}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
+                }}
+              >
+                {confirming && <Spinner className="mr-2 h-4 w-4" />}
+                {pendingAction.type === "resend" ? "Resend" : "Confirm"}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        )}
       </AlertDialog>
     </div>
   );
