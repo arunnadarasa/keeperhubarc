@@ -105,6 +105,30 @@ export class ChainMonitor {
     return this.isRunning && (this.hasActiveSubscription || this.isReconnecting);
   }
 
+  getStatus(): {
+    chainId: number;
+    chainName: string;
+    alive: boolean;
+    reconnecting: boolean;
+    hasSubscription: boolean;
+    lastBlock: number | null;
+    blocksReceived: number;
+    blocksMatched: number;
+    workflows: number;
+  } {
+    return {
+      chainId: this.chainId,
+      chainName: this.chainName,
+      alive: this.isAlive(),
+      reconnecting: this.isReconnecting,
+      hasSubscription: this.hasActiveSubscription,
+      lastBlock: this.lastProcessedBlock,
+      blocksReceived: this.blocksReceived,
+      blocksMatched: this.blocksMatched,
+      workflows: this.workflows.length,
+    };
+  }
+
   // ---------------------------------------------------------------------------
   // Provider lifecycle
   // ---------------------------------------------------------------------------
