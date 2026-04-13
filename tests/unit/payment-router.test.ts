@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectProtocol } from "@/lib/payments/router";
+import { buildDual402Response, detectProtocol } from "@/lib/payments/router";
 
 describe("detectProtocol", () => {
   it("returns 'mpp' when Authorization: Payment header is present", () => {
@@ -36,5 +36,25 @@ describe("detectProtocol", () => {
       headers: { Authorization: "Bearer token123" },
     });
     expect(detectProtocol(req)).toBeNull();
+  });
+});
+
+describe("buildDual402Response", () => {
+  it("returns a 402 response", () => {
+    const response = buildDual402Response({
+      price: "0.01",
+      creatorWalletAddress: "0xCreator",
+      workflowName: "Test Workflow",
+    });
+    expect(response.status).toBe(402);
+  });
+
+  it("includes CORS headers", () => {
+    const response = buildDual402Response({
+      price: "0.01",
+      creatorWalletAddress: "0xCreator",
+      workflowName: "Test Workflow",
+    });
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
   });
 });
