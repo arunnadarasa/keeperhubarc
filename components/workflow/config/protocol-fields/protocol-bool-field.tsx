@@ -7,6 +7,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { TemplateBadgeInput } from "@/components/ui/template-badge-input";
+
+const TEMPLATE_RE = /\{\{.+\}\}/;
 
 type ProtocolBoolFieldProps = {
   fieldKey: string;
@@ -21,6 +24,20 @@ export function ProtocolBoolField({
   onChange,
   disabled,
 }: ProtocolBoolFieldProps): React.ReactNode {
+  const isTemplateValue = TEMPLATE_RE.test(value ?? "");
+
+  if (isTemplateValue) {
+    return (
+      <TemplateBadgeInput
+        disabled={disabled}
+        id={fieldKey}
+        onChange={onChange}
+        placeholder="true or false"
+        value={value ?? ""}
+      />
+    );
+  }
+
   return (
     <Select
       disabled={disabled}

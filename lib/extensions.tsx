@@ -362,8 +362,42 @@ registerFieldRenderer(
 );
 
 /**
+ * Protocol Int Field
+ * Numeric text input with signed integer validation
+ */
+registerFieldRenderer(
+  "protocol-int",
+  ({ field, config, onUpdateConfig, disabled }) => {
+    const { ProtocolIntField } =
+      require("@/components/workflow/config/protocol-fields/protocol-int-field") as typeof import("@/components/workflow/config/protocol-fields/protocol-int-field");
+    const value =
+      (config[field.key] as string | undefined) || field.defaultValue || "";
+    const solidityType = (field as Record<string, unknown>).solidityType as
+      | string
+      | undefined;
+
+    return (
+      <div className="space-y-2" key={field.key}>
+        <Label className="ml-1" htmlFor={field.key}>
+          {field.label}
+          {field.required && <span className="text-red-500">*</span>}
+        </Label>
+        <ProtocolIntField
+          disabled={disabled}
+          fieldKey={field.key}
+          onChange={(val: unknown) => onUpdateConfig(field.key, val)}
+          placeholder={field.placeholder}
+          solidityType={solidityType}
+          value={value}
+        />
+      </div>
+    );
+  }
+);
+
+/**
  * Protocol Bool Field
- * Select dropdown for true/false values
+ * Select dropdown for true/false, switches to text input for template variables
  */
 registerFieldRenderer(
   "protocol-bool",

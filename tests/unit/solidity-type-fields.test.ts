@@ -20,9 +20,9 @@ describe("solidityTypeToFieldType", () => {
     expect(solidityTypeToFieldType("uint128")).toBe("protocol-uint");
   });
 
-  it("maps int types to protocol-uint", () => {
-    expect(solidityTypeToFieldType("int256")).toBe("protocol-uint");
-    expect(solidityTypeToFieldType("int8")).toBe("protocol-uint");
+  it("maps int types to protocol-int", () => {
+    expect(solidityTypeToFieldType("int256")).toBe("protocol-int");
+    expect(solidityTypeToFieldType("int8")).toBe("protocol-int");
   });
 
   it("maps bool to protocol-bool", () => {

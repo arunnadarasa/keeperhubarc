@@ -30,8 +30,11 @@ export function solidityTypeToFieldType(solidityType: string): string {
   if (solidityType === "bool") {
     return "protocol-bool";
   }
-  if (solidityType.startsWith("uint") || solidityType.startsWith("int")) {
+  if (solidityType.startsWith("uint")) {
     return "protocol-uint";
+  }
+  if (solidityType.startsWith("int")) {
+    return "protocol-int";
   }
   if (solidityType.startsWith("bytes")) {
     return "protocol-bytes";
