@@ -3,8 +3,6 @@ import { createHash } from "node:crypto";
 const TEMPO_USDC_ADDRESS = "0x20c000000000000000000000b9537d11c60e8b50";
 
 export function createMppServer(): unknown {
-  // Lazy require to avoid loading mppx when MPP_SECRET_KEY is not set.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const server = require("mppx/server") as typeof import("mppx/server");
   const { Mppx, tempo } = server;
 
