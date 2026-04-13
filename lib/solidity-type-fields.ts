@@ -150,10 +150,6 @@ export function validateEthValue(value: string): ValidationResult {
   if (!DECIMAL_NUMBER_RE.test(trimmed)) {
     return { valid: false, message: "Must be a decimal number (e.g. 0.1)" };
   }
-  const num = Number(trimmed);
-  if (num < 0) {
-    return { valid: false, message: "Must be non-negative" };
-  }
   return VALID;
 }
 

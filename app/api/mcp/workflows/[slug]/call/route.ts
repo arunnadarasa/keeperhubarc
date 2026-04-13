@@ -166,7 +166,9 @@ async function createAndStartExecution(
   );
 }
 
-async function lookupWorkflow(slug: string): Promise<CallRouteWorkflow | null> {
+async function lookupWorkflow(
+  slug: string
+): Promise<CallRouteWorkflow | null> {
   const rows = await db
     .select(CALL_ROUTE_COLUMNS)
     .from(workflows)

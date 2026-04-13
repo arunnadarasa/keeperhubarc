@@ -175,7 +175,11 @@ describe("validateEthValue", () => {
   });
 
   it("rejects negative values", () => {
-    expect(validateEthValue("-1.0").valid).toBe(false);
+    const result = validateEthValue("-1.0");
+    expect(result.valid).toBe(false);
+    expect(result.valid === false && result.message).toBe(
+      "Must be a decimal number (e.g. 0.1)"
+    );
   });
 
   it("rejects empty string", () => {
