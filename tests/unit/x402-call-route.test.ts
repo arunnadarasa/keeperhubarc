@@ -341,12 +341,6 @@ describe("POST /api/mcp/workflows/[slug]/call", () => {
       workflowId: "wf-1",
       isExisting: true,
     });
-    // The route checks recordPayment result for existing payment
-    // In current route, idempotency is handled inside gatePayment (the router).
-    // For this test, we simulate the pass-through path where the route returns
-    // the result of the inner handler -- which records payment and starts execution.
-    // Since we can't intercept at the old findExistingPayment level, we verify
-    // the route produces a 200 response when gatePayment passes through.
     setupDbInsertExecution("exec-original");
     const { POST } = await import("@/app/api/mcp/workflows/[slug]/call/route");
     const request = makeRequest("test-workflow", {

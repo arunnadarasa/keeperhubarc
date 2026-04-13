@@ -231,7 +231,11 @@ async function handleMpp(
   const result = await chargeIntent(request);
 
   if (result.status === 402) {
-    return result.challenge as unknown as NextResponse;
+    const challenge = result.challenge as unknown as NextResponse;
+    for (const [key, value] of Object.entries(CORS_HEADERS)) {
+      challenge.headers.set(key, value);
+    }
+    return challenge;
   }
 
   let credentialSource: string | null = null;
