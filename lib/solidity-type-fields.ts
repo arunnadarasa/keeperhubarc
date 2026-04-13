@@ -101,10 +101,10 @@ export function validateAddress(value: string): ValidationResult {
 export function validateUint(value: string, bits = 256): ValidationResult {
   try {
     const n = BigInt(value);
-    if (n < 0n) {
+    if (n < BigInt(0)) {
       return { valid: false, message: "Must be non-negative" };
     }
-    const max = (1n << BigInt(bits)) - 1n;
+    const max = (BigInt(1) << BigInt(bits)) - BigInt(1);
     if (n > max) {
       return { valid: false, message: `Exceeds uint${bits} max` };
     }
@@ -117,7 +117,7 @@ export function validateUint(value: string, bits = 256): ValidationResult {
 export function validateInt(value: string, bits = 256): ValidationResult {
   try {
     const n = BigInt(value);
-    const half = 1n << BigInt(bits - 1);
+    const half = BigInt(1) << BigInt(bits - 1);
     if (n < -half || n >= half) {
       return { valid: false, message: `Exceeds int${bits} range` };
     }

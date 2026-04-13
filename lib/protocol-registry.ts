@@ -265,7 +265,7 @@ function buildConfigFieldsFromAction(
     fields.push({
       key: input.name,
       label: input.label,
-      type: fieldType,
+      type: fieldType as ActionConfigFieldBase["type"],
       placeholder: input.default ?? "",
       required: true,
       ...(fieldType === "protocol-address" || input.type === "address"

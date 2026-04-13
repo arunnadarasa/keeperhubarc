@@ -1,8 +1,8 @@
 "use client";
 
 import { TemplateBadgeInput } from "@/components/ui/template-badge-input";
-import { SaveAddressBookmark } from "@/components/workflow/config/save-address-bookmark";
-import { parseAddressBookSelection } from "@/components/workflow/config/save-address-bookmark";
+import { SaveAddressBookmark } from "@/components/address-book/save-address-bookmark";
+import { parseAddressBookSelection } from "@/lib/address-book-selection";
 import { toChecksumAddress } from "@/lib/address-utils";
 import { validateAddress } from "@/lib/solidity-type-fields";
 import { useMemo } from "react";

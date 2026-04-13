@@ -93,12 +93,12 @@ describe("validateUint", () => {
   });
 
   it("accepts max uint256", () => {
-    const max = ((1n << 256n) - 1n).toString();
+    const max = ((BigInt(1) << BigInt(256)) - BigInt(1)).toString();
     expect(validateUint(max, 256)).toEqual({ valid: true });
   });
 
   it("rejects uint256 overflow", () => {
-    const overflow = (1n << 256n).toString();
+    const overflow = (BigInt(1) << BigInt(256)).toString();
     expect(validateUint(overflow, 256).valid).toBe(false);
   });
 });

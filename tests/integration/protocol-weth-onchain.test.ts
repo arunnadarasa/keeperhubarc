@@ -93,7 +93,7 @@ describe.skipIf(!RPC_URL)("WETH on-chain integration", () => {
       from: TEST_ADDRESS,
     });
 
-    expect(gas).toBeGreaterThan(0n);
+    expect(gas).toBeGreaterThan(BigInt(0));
   }, 15_000);
 
   it("withdraw: calldata encodes correctly (business revert expected)", async () => {
