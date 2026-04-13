@@ -139,6 +139,27 @@ describe("buildDual402Response", () => {
     }
   });
 
+  it("passes methodDetails.chainId to Challenge.from for Tempo pinned-field parity", () => {
+    process.env.MPP_SECRET_KEY = "test-secret";
+    try {
+      buildDual402Response({
+        price: "0.01",
+        creatorWalletAddress: "0xCreator",
+        workflowName: "Test Workflow",
+      });
+      expect(Challenge.from).toHaveBeenCalledWith(
+        expect.objectContaining({
+          request: expect.objectContaining({
+            amount: "10000",
+            methodDetails: { chainId: 4217 },
+          }),
+        })
+      );
+    } finally {
+      delete process.env.MPP_SECRET_KEY;
+    }
+  });
+
   it("omits WWW-Authenticate header when MPP_SECRET_KEY is not set", () => {
     delete process.env.MPP_SECRET_KEY;
     const response = buildDual402Response({

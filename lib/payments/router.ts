@@ -18,6 +18,7 @@ import type { CallRouteWorkflow } from "@/lib/x402/types";
 export type PaymentProtocol = "x402" | "mpp";
 
 const TEMPO_USDC_ADDRESS = "0x20c000000000000000000000b9537d11c60e8b50";
+const TEMPO_CHAIN_ID = 4217;
 const USDC_DECIMALS = 6;
 const RE_PROTOCOL = /^https?:\/\//;
 const RE_TRAILING_SLASH = /\/$/;
@@ -75,7 +76,9 @@ export function buildDual402Response(params: Dual402Params): Response {
         amount: amountSmallestUnit,
         currency: TEMPO_USDC_ADDRESS,
         recipient: creatorWalletAddress,
-        decimals: USDC_DECIMALS,
+        methodDetails: {
+          chainId: TEMPO_CHAIN_ID,
+        },
       },
     });
     headers.set("WWW-Authenticate", Challenge.serialize(challenge));
