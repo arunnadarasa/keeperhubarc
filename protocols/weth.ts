@@ -1,30 +1,5 @@
 import { defineAbiProtocol } from "@/lib/protocol-registry";
-
-// Reduced ABI: only the 3 functions exposed as workflow nodes.
-// totalSupply is excluded - not useful for workflow automation.
-const WETH_ABI = JSON.stringify([
-  {
-    type: "function",
-    name: "deposit",
-    stateMutability: "payable",
-    inputs: [],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "withdraw",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "wad", type: "uint256" }],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "balanceOf",
-    stateMutability: "view",
-    inputs: [{ name: "", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-]);
+import wethAbi from "./abis/weth.json";
 
 export default defineAbiProtocol({
   name: "WETH",
@@ -37,7 +12,7 @@ export default defineAbiProtocol({
   contracts: {
     weth: {
       label: "WETH Contract",
-      abi: WETH_ABI,
+      abi: JSON.stringify(wethAbi),
       addresses: {
         "1": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
         "8453": "0x4200000000000000000000000000000000000006",
