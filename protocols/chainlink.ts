@@ -446,6 +446,7 @@ export default defineProtocol({
       type: "write",
       contract: "ccipRouter",
       function: "ccipSend",
+      payable: true,
       inputs: CCIP_MESSAGE_INPUTS,
       outputs: [
         { name: "messageId", type: "bytes32", label: "CCIP Message ID" },
