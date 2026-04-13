@@ -215,7 +215,7 @@ async function handleMpp(
         challenge?: never;
         withReceipt: (response: Response) => Response;
       };
-  const mppServer = getMppServer() as {
+  const mppServer = (await getMppServer()) as {
     charge: (opts: {
       amount: string;
       recipient: string;

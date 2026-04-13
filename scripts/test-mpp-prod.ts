@@ -142,7 +142,7 @@ async function testPaidCall(): Promise<TestResult> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Payment ${credential}`,
+      Authorization: credential,
     },
     body: JSON.stringify(TEST_INPUT),
   });
@@ -192,7 +192,7 @@ async function testIdempotency(): Promise<TestResult> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Payment ${savedCredential}`,
+      Authorization: savedCredential,
     },
     body: JSON.stringify(TEST_INPUT),
   });

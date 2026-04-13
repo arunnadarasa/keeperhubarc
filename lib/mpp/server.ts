@@ -1,21 +1,29 @@
 import { createHash } from "node:crypto";
 
 const TEMPO_USDC_ADDRESS = "0x20c000000000000000000000b9537d11c60e8b50";
+const RE_PROTOCOL = /^https?:\/\//;
+const RE_TRAILING_SLASH = /\/$/;
 
-export function createMppServer(): unknown {
-  const server = require("mppx/server") as typeof import("mppx/server");
-  const { Mppx, tempo } = server;
+function resolveRealm(): string {
+  return (process.env.NEXT_PUBLIC_APP_URL ?? "app.keeperhub.com")
+    .replace(RE_PROTOCOL, "")
+    .replace(RE_TRAILING_SLASH, "");
+}
 
+async function createMppServer(): Promise<unknown> {
+  const { Mppx, tempo } = await import("mppx/server");
   return Mppx.create({
+    secretKey: process.env.MPP_SECRET_KEY,
+    realm: resolveRealm(),
     methods: [tempo.charge({ currency: TEMPO_USDC_ADDRESS })],
   });
 }
 
-let _mppServer: ReturnType<typeof createMppServer> | null = null;
+let _mppServer: unknown = null;
 
-export function getMppServer(): ReturnType<typeof createMppServer> {
+export async function getMppServer(): Promise<unknown> {
   if (!_mppServer) {
-    _mppServer = createMppServer();
+    _mppServer = await createMppServer();
   }
   return _mppServer;
 }
