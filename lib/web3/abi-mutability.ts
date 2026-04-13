@@ -8,7 +8,7 @@
  * value -- this helper is intended for UI gating and lightweight checks,
  * not as the sole authority on whether a transfer is safe.
  */
-import { findAbiFunction } from "@/lib/abi-utils";
+import { type AbiItem, findAbiFunction } from "@/lib/abi-utils";
 
 export function deriveStateMutability(
   abiJson: string,
@@ -25,7 +25,7 @@ export function deriveStateMutability(
     return "nonpayable";
   }
 
-  const func = findAbiFunction(parsed, funcKey);
+  const func = findAbiFunction(parsed as AbiItem[], funcKey);
 
   return typeof func?.stateMutability === "string"
     ? func.stateMutability

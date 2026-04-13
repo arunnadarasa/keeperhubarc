@@ -75,7 +75,7 @@ export function findAbiFunction(
   if (parenIdx === -1) {
     return abi.find(
       (item): item is AbiFunctionItem =>
-        item.type === "function" && item.name === key
+        item != null && item.type === "function" && item.name === key
     );
   }
 
@@ -84,7 +84,8 @@ export function findAbiFunction(
   const targetTypes = typesStr === "" ? [] : typesStr.split(",");
 
   return abi.find((item): item is AbiFunctionItem => {
-    if (item.type !== "function" || item.name !== name) return false;
+    if (item == null || item.type !== "function" || item.name !== name)
+      return false;
     const inputTypes = (item.inputs ?? []).map((i) => i.type);
     if (inputTypes.length !== targetTypes.length) return false;
     return inputTypes.every((t, idx) => t === targetTypes[idx]);
