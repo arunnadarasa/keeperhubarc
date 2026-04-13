@@ -360,7 +360,10 @@ async function notifyDiscordSignup(user: {
   email?: string | null;
   image?: string | null;
 }): Promise<void> {
-  await fetch(process.env.DISCORD_WEBHOOK_SIGNUPS as string, {
+  const webhookUrl = process.env.DISCORD_WEBHOOK_SIGNUPS;
+  if (!webhookUrl) return;
+
+  await fetch(webhookUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -450,12 +453,7 @@ export const auth = betterAuth({
 
           // Notify external services for OAuth signups (already verified at creation)
           if (user.emailVerified) {
-            if (process.env.DISCORD_WEBHOOK_SIGNUPS) {
-              console.log("[Auth] Notifying Discord for OAuth signup", {
-                email: user.email,
-              });
-              await notifyDiscordSignup(user);
-            }
+            await notifyDiscordSignup(user);
             await subscribeToMailerLite(user);
           }
         },
@@ -513,9 +511,7 @@ export const auth = betterAuth({
   emailVerification: {
     afterEmailVerification: async (user) => {
       console.log("[Auth] afterEmailVerification fired", { email: user.email });
-      if (process.env.DISCORD_WEBHOOK_SIGNUPS) {
-        await notifyDiscordSignup(user);
-      }
+      await notifyDiscordSignup(user);
       await subscribeToMailerLite(user);
     },
   },
