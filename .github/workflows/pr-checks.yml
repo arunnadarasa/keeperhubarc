@@ -24,15 +24,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
 
       - name: Check for migration-relevant changes
         id: changes
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          BASE_SHA=${{ github.event.pull_request.base.sha }}
-          HEAD_SHA=${{ github.event.pull_request.head.sha }}
-          CHANGED=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- 'drizzle/**' 'lib/db/schema*.ts' | head -1)
+          CHANGED=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files \
+            --paginate -q '.[].filename' | grep -E '^(drizzle/|lib/db/schema)' | head -1)
           if [ -n "$CHANGED" ]; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
@@ -59,11 +58,19 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keeperhub_test
         run: |
-          npx drizzle-kit generate 2>&1 | tee /tmp/generate-output.txt
-          if ! grep -q "nothing to migrate" /tmp/generate-output.txt; then
+          npx drizzle-kit generate 2>&1 | tee /tmp/drizzle-generate-output.txt
+          if ! grep -q "nothing to migrate" /tmp/drizzle-generate-output.txt; then
             echo "::error::Schema drift detected - run 'pnpm drizzle-kit generate' locally and commit the result."
             exit 1
           fi
+
+      - name: Upload drizzle output on failure
+        if: failure() && steps.changes.outputs.relevant == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: drizzle-generate-output
+          path: /tmp/drizzle-generate-output.txt
+          retention-days: 7
 
   lint-typecheck:
     runs-on: ubuntu-latest
