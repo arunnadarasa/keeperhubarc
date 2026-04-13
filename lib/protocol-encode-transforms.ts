@@ -40,17 +40,6 @@ export function getEncodeTransform(
   return transforms.get(makeKey(protocolSlug, actionSlug, inputName));
 }
 
-export function applyEncodeTransforms(
-  protocolSlug: string,
-  actionSlug: string,
-  values: string[]
-): string[] {
-  if (transforms.size === 0) {
-    return values;
-  }
-  return values;
-}
-
 export function applyEncodeTransformsNamed(
   protocolSlug: string,
   actionSlug: string,

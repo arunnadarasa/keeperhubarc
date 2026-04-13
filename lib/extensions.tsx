@@ -338,8 +338,9 @@ registerFieldRenderer(
       require("@/components/workflow/config/protocol-fields/protocol-uint-field") as typeof import("@/components/workflow/config/protocol-fields/protocol-uint-field");
     const value =
       (config[field.key] as string | undefined) || field.defaultValue || "";
-    const solidityType =
-      (field as Record<string, unknown>).solidityType as string | undefined;
+    const solidityType = (field as Record<string, unknown>).solidityType as
+      | string
+      | undefined;
 
     return (
       <div className="space-y-2" key={field.key}>
@@ -400,8 +401,9 @@ registerFieldRenderer(
       require("@/components/workflow/config/protocol-fields/protocol-bytes-field") as typeof import("@/components/workflow/config/protocol-fields/protocol-bytes-field");
     const value =
       (config[field.key] as string | undefined) || field.defaultValue || "";
-    const solidityType =
-      (field as Record<string, unknown>).solidityType as string | undefined;
+    const solidityType = (field as Record<string, unknown>).solidityType as
+      | string
+      | undefined;
 
     return (
       <div className="space-y-2" key={field.key}>

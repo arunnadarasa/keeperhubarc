@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   solidityTypeToFieldType,
-  validateSolidityValue,
   validateAddress,
-  validateUint,
-  validateInt,
   validateBool,
   validateBytes,
+  validateInt,
+  validateSolidityValue,
+  validateUint,
 } from "@/lib/solidity-type-fields";
 
 describe("solidityTypeToFieldType", () => {
@@ -151,20 +151,20 @@ describe("validateBytes", () => {
   });
 
   it("validates exact byte length for bytesN", () => {
-    expect(validateBytes("0x" + "00".repeat(32), 32)).toEqual({ valid: true });
+    expect(validateBytes(`0x${"00".repeat(32)}`, 32)).toEqual({ valid: true });
     expect(validateBytes("0x00", 32).valid).toBe(false);
   });
 
   it("accepts any length for unspecified bytes", () => {
-    expect(validateBytes("0x" + "ff".repeat(100))).toEqual({ valid: true });
+    expect(validateBytes(`0x${"ff".repeat(100)}`)).toEqual({ valid: true });
   });
 });
 
 describe("validateSolidityValue", () => {
   it("always passes template variables", () => {
-    expect(
-      validateSolidityValue("uint256", "{{PriceCheck.roundId}}")
-    ).toEqual({ valid: true });
+    expect(validateSolidityValue("uint256", "{{PriceCheck.roundId}}")).toEqual({
+      valid: true,
+    });
     expect(
       validateSolidityValue("address", "{{@node1:Wallet.address}}")
     ).toEqual({ valid: true });
@@ -183,7 +183,7 @@ describe("validateSolidityValue", () => {
     ).toEqual({ valid: true });
     expect(validateSolidityValue("uint256", "1000")).toEqual({ valid: true });
     expect(validateSolidityValue("bool", "true")).toEqual({ valid: true });
-    expect(validateSolidityValue("bytes32", "0x" + "00".repeat(32))).toEqual({
+    expect(validateSolidityValue("bytes32", `0x${"00".repeat(32)}`)).toEqual({
       valid: true,
     });
   });

@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  registerEncodeTransform,
-  getEncodeTransform,
   applyEncodeTransformsNamed,
   clearEncodeTransforms,
+  getEncodeTransform,
+  registerEncodeTransform,
 } from "@/lib/protocol-encode-transforms";
 
 afterEach(() => {
@@ -57,13 +57,9 @@ describe("applyEncodeTransformsNamed", () => {
       { name: "data", value: "0x" },
     ];
 
-    const result = applyEncodeTransformsNamed(
-      "chainlink",
-      "ccip-send",
-      inputs
-    );
+    const result = applyEncodeTransformsNamed("chainlink", "ccip-send", inputs);
     expect(result[0].value).toBe("123");
-    expect(result[1].value).toBe("0x" + "0".repeat(24) + "ABCD");
+    expect(result[1].value).toBe(`0x${"0".repeat(24)}ABCD`);
     expect(result[2].value).toBe("0x");
   });
 

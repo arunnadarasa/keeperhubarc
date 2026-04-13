@@ -30,10 +30,7 @@ export function solidityTypeToFieldType(solidityType: string): string {
   if (solidityType === "bool") {
     return "protocol-bool";
   }
-  if (
-    solidityType.startsWith("uint") ||
-    solidityType.startsWith("int")
-  ) {
+  if (solidityType.startsWith("uint") || solidityType.startsWith("int")) {
     return "protocol-uint";
   }
   if (solidityType.startsWith("bytes")) {
@@ -90,7 +87,10 @@ export function validateSolidityValue(
 
 export function validateAddress(value: string): ValidationResult {
   if (!ADDRESS_RE.test(value)) {
-    return { valid: false, message: "Invalid address (expected 0x + 40 hex characters)" };
+    return {
+      valid: false,
+      message: "Invalid address (expected 0x + 40 hex characters)",
+    };
   }
   return VALID;
 }

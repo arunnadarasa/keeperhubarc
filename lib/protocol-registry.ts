@@ -170,9 +170,9 @@ import {
   deriveActionsFromAbi,
 } from "@/lib/protocol-abi-derive";
 
-export type { AbiDrivenProtocolInput } from "@/lib/protocol-abi-derive";
 export type {
   AbiDrivenContract,
+  AbiDrivenProtocolInput,
   AbiFunctionOverride,
   AbiInputOverride,
   AbiOutputOverride,
@@ -189,9 +189,7 @@ export function defineAbiProtocol(
       label: contract.label,
       abi: contract.abi,
       addresses: contract.addresses,
-      ...(contract.userSpecifiedAddress
-        ? { userSpecifiedAddress: true }
-        : {}),
+      ...(contract.userSpecifiedAddress ? { userSpecifiedAddress: true } : {}),
     };
     const derived = deriveActionsFromAbi(key, contract);
     for (const action of derived) {
@@ -274,9 +272,7 @@ function buildConfigFieldsFromAction(
         ? { isAddressField: true }
         : {}),
       ...(input.helpTip ? { helpTip: input.helpTip } : {}),
-      ...(fieldType !== "template-input"
-        ? { solidityType: input.type }
-        : {}),
+      ...(fieldType === "template-input" ? {} : { solidityType: input.type }),
     });
   }
 

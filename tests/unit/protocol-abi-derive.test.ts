@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  type AbiDrivenContract,
   camelToKebab,
   camelToTitle,
   deriveActionsFromAbi,
-  type AbiDrivenContract,
 } from "@/lib/protocol-abi-derive";
 
 describe("camelToKebab", () => {
@@ -295,7 +295,11 @@ describe("deriveActionsFromAbi", () => {
       {
         balanceOf: {
           outputs: {
-            result: { name: "balance", label: "WETH Balance (wei)", decimals: 18 },
+            result: {
+              name: "balance",
+              label: "WETH Balance (wei)",
+              decimals: 18,
+            },
           },
         },
       }
