@@ -269,4 +269,200 @@ describe("coerceArgsForAbi", () => {
     });
     expect(result).toEqual(["yes"]);
   });
+
+  it("preserves real booleans untouched", () => {
+    const result = coerceArgsForAbi([true, false], {
+      inputs: [
+        { name: "a", type: "bool" },
+        { name: "b", type: "bool" },
+      ],
+    });
+    expect(result).toEqual([true, false]);
+  });
+
+  it("is case-insensitive and trims whitespace on bool strings", () => {
+    const result = coerceArgsForAbi(["  TRUE ", "False"], {
+      inputs: [
+        { name: "a", type: "bool" },
+        { name: "b", type: "bool" },
+      ],
+    });
+    expect(result).toEqual([true, false]);
+  });
+
+  it("leaves extra args (beyond ABI length) untouched", () => {
+    const result = coerceArgsForAbi(["true", "false"], {
+      inputs: [{ name: "a", type: "bool" }],
+    });
+    expect(result).toEqual([true, "false"]);
+  });
+
+  it("coerces bool inside a fixed-size array", () => {
+    const result = coerceArgsForAbi([["true", "false", "true"]], {
+      inputs: [{ name: "flags", type: "bool[3]" }],
+    });
+    expect(result).toEqual([[true, false, true]]);
+  });
+
+  it("coerces bool deeply inside nested tuples", () => {
+    const result = coerceArgsForAbi(
+      [
+        {
+          outer: {
+            flag: "false",
+            inner: { flag: "true", amount: "42" },
+          },
+          tag: "0xabcd",
+        },
+      ],
+      {
+        inputs: [
+          {
+            name: "root",
+            type: "tuple",
+            components: [
+              {
+                name: "outer",
+                type: "tuple",
+                components: [
+                  { name: "flag", type: "bool" },
+                  {
+                    name: "inner",
+                    type: "tuple",
+                    components: [
+                      { name: "flag", type: "bool" },
+                      { name: "amount", type: "uint256" },
+                    ],
+                  },
+                ],
+              },
+              { name: "tag", type: "bytes32" },
+            ],
+          },
+        ],
+      }
+    );
+    expect(result).toEqual([
+      {
+        outer: {
+          flag: false,
+          inner: { flag: true, amount: "42" },
+        },
+        tag: "0xabcd",
+      },
+    ]);
+  });
+
+  it("coerces bool in arrays of tuples", () => {
+    const result = coerceArgsForAbi(
+      [
+        [
+          { addr: "0xaaa", enabled: "true" },
+          { addr: "0xbbb", enabled: "false" },
+        ],
+      ],
+      {
+        inputs: [
+          {
+            name: "entries",
+            type: "tuple[]",
+            components: [
+              { name: "addr", type: "address" },
+              { name: "enabled", type: "bool" },
+            ],
+          },
+        ],
+      }
+    );
+    expect(result).toEqual([
+      [
+        { addr: "0xaaa", enabled: true },
+        { addr: "0xbbb", enabled: false },
+      ],
+    ]);
+  });
+
+  it("coerces bool inside arrays of arrays", () => {
+    const result = coerceArgsForAbi(
+      [
+        [
+          ["true", "false"],
+          ["false", "false"],
+        ],
+      ],
+      {
+        inputs: [{ name: "matrix", type: "bool[][]" }],
+      }
+    );
+    expect(result).toEqual([
+      [
+        [true, false],
+        [false, false],
+      ],
+    ]);
+  });
+
+  it("preserves tuple shape when inner bool coercion fails (unknown string)", () => {
+    const result = coerceArgsForAbi([{ flag: "maybe", amount: "10" }], {
+      inputs: [
+        {
+          name: "p",
+          type: "tuple",
+          components: [
+            { name: "flag", type: "bool" },
+            { name: "amount", type: "uint256" },
+          ],
+        },
+      ],
+    });
+    expect(result).toEqual([{ flag: "maybe", amount: "10" }]);
+  });
+
+  it("does not touch non-bool types even when they look boolean-ish", () => {
+    // "true"/"false" on a string param must NOT be coerced.
+    const result = coerceArgsForAbi(["false", "true"], {
+      inputs: [
+        { name: "label", type: "string" },
+        { name: "data", type: "bytes" },
+      ],
+    });
+    expect(result).toEqual(["false", "true"]);
+  });
+
+  it("passes templates through bools inside tuples and arrays", () => {
+    const result = coerceArgsForAbi(
+      [{ flag: "{{@prev.out}}" }, ["{{@prev.a}}", "false"]],
+      {
+        inputs: [
+          {
+            name: "p",
+            type: "tuple",
+            components: [{ name: "flag", type: "bool" }],
+          },
+          { name: "flags", type: "bool[]" },
+        ],
+      }
+    );
+    expect(result).toEqual([{ flag: "{{@prev.out}}" }, ["{{@prev.a}}", false]]);
+  });
+
+  it("handles empty arrays and empty tuples without errors", () => {
+    const result = coerceArgsForAbi([[], {}], {
+      inputs: [
+        { name: "flags", type: "bool[]" },
+        { name: "empty", type: "tuple", components: [] },
+      ],
+    });
+    expect(result).toEqual([[], {}]);
+  });
+
+  it("returns array with null/undefined preserved for non-matching shapes", () => {
+    const result = coerceArgsForAbi([null, undefined], {
+      inputs: [
+        { name: "p", type: "tuple", components: [{ name: "f", type: "bool" }] },
+        { name: "flags", type: "bool[]" },
+      ],
+    });
+    expect(result).toEqual([null, undefined]);
+  });
 });

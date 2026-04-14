@@ -8,6 +8,7 @@
  */
 
 const TEMPLATE_VARIABLE_RE = /^\{\{.+\}\}$/;
+const ARRAY_SUFFIX_RE = /\[\d*\]$/;
 
 type AbiComponent = {
   name: string;
@@ -141,28 +142,43 @@ function coerceValue(
   if (isTemplateVariable(value)) {
     return value;
   }
-  if (type.endsWith("[]")) {
-    if (!Array.isArray(value)) {
-      return value;
-    }
-    const baseType = type.slice(0, -2);
-    return value.map((item) => coerceValue(item, baseType, components));
+  if (isArrayType(type)) {
+    return coerceArray(value, type, components);
   }
   if (type === "tuple") {
-    if (value === null || typeof value !== "object" || Array.isArray(value)) {
-      return value;
-    }
-    const obj = value as Record<string, unknown>;
-    const out: Record<string, unknown> = {};
-    for (const comp of components ?? []) {
-      out[comp.name] = coerceValue(obj[comp.name], comp.type, comp.components);
-    }
-    return out;
+    return coerceTuple(value, components);
   }
   if (type === "bool") {
     return coerceBool(value);
   }
   return value;
+}
+
+function coerceArray(
+  value: unknown,
+  arrayType: string,
+  components: AbiComponent[] | undefined
+): unknown {
+  if (!Array.isArray(value)) {
+    return value;
+  }
+  const elementType = stripArraySuffix(arrayType);
+  return value.map((item) => coerceValue(item, elementType, components));
+}
+
+function coerceTuple(
+  value: unknown,
+  components: AbiComponent[] | undefined
+): unknown {
+  if (!isPreStructuredObject(value)) {
+    return value;
+  }
+  const obj = value as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const comp of components ?? []) {
+    out[comp.name] = coerceValue(obj[comp.name], comp.type, comp.components);
+  }
+  return out;
 }
 
 function coerceBool(value: unknown): unknown {
@@ -177,6 +193,14 @@ function coerceBool(value: unknown): unknown {
     return false;
   }
   return value;
+}
+
+function isArrayType(type: string): boolean {
+  return type.endsWith("]");
+}
+
+function stripArraySuffix(type: string): string {
+  return type.replace(ARRAY_SUFFIX_RE, "");
 }
 
 function isTemplateVariable(value: unknown): boolean {
