@@ -7,9 +7,12 @@
  * ethers.js expects a single object argument -- this utility rebuilds it.
  */
 
+const TEMPLATE_VARIABLE_RE = /^\{\{.+\}\}$/;
+
 type AbiComponent = {
   name: string;
   type: string;
+  components?: AbiComponent[];
 };
 
 type AbiInput = {
@@ -106,4 +109,76 @@ export function reshapeArgsForAbi(
   }
 
   return reshaped;
+}
+
+/**
+ * Coerce stringly-typed args to their ABI-native types where a string would
+ * silently corrupt encoding. Currently scoped to `bool`, because ethers v6
+ * encodes any non-empty string as `true` -- so the literal string `"false"`
+ * becomes `true` without warning. Numeric and bytes types are safe as strings
+ * and are left untouched. Template variables (`{{...}}`) are passed through
+ * and resolved later in the pipeline.
+ */
+export function coerceArgsForAbi(
+  args: unknown[],
+  functionAbi: FunctionAbiEntry
+): unknown[] {
+  const inputs = functionAbi.inputs ?? [];
+  return args.map((arg, i) => {
+    const input = inputs[i];
+    if (!input) {
+      return arg;
+    }
+    return coerceValue(arg, input.type, input.components);
+  });
+}
+
+function coerceValue(
+  value: unknown,
+  type: string,
+  components: AbiComponent[] | undefined
+): unknown {
+  if (isTemplateVariable(value)) {
+    return value;
+  }
+  if (type.endsWith("[]")) {
+    if (!Array.isArray(value)) {
+      return value;
+    }
+    const baseType = type.slice(0, -2);
+    return value.map((item) => coerceValue(item, baseType, components));
+  }
+  if (type === "tuple") {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      return value;
+    }
+    const obj = value as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const comp of components ?? []) {
+      out[comp.name] = coerceValue(obj[comp.name], comp.type, comp.components);
+    }
+    return out;
+  }
+  if (type === "bool") {
+    return coerceBool(value);
+  }
+  return value;
+}
+
+function coerceBool(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true") {
+    return true;
+  }
+  if (normalized === "false") {
+    return false;
+  }
+  return value;
+}
+
+function isTemplateVariable(value: unknown): boolean {
+  return typeof value === "string" && TEMPLATE_VARIABLE_RE.test(value.trim());
 }

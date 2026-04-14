@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reshapeArgsForAbi } from "@/lib/abi-struct-args";
+import { coerceArgsForAbi, reshapeArgsForAbi } from "@/lib/abi-struct-args";
 
 describe("reshapeArgsForAbi", () => {
   it("returns empty array unchanged", () => {
@@ -197,5 +197,76 @@ describe("reshapeArgsForAbi", () => {
     const obj = result[0] as Record<string, unknown>;
     expect(obj.items).toBe(items);
     expect(obj.target).toBe("0xAddr");
+  });
+});
+
+describe("coerceArgsForAbi", () => {
+  it('coerces string "false" to boolean false on bool inputs', () => {
+    const result = coerceArgsForAbi(["0xABC", "false"], {
+      inputs: [
+        { name: "target", type: "address" },
+        { name: "flag", type: "bool" },
+      ],
+    });
+    expect(result).toEqual(["0xABC", false]);
+  });
+
+  it('coerces string "true" to boolean true on bool inputs', () => {
+    const result = coerceArgsForAbi(["true"], {
+      inputs: [{ name: "flag", type: "bool" }],
+    });
+    expect(result).toEqual([true]);
+  });
+
+  it("leaves numeric and address strings untouched", () => {
+    const result = coerceArgsForAbi(["30106", "0xABC", "0xdeadbeef"], {
+      inputs: [
+        { name: "eid", type: "uint32" },
+        { name: "addr", type: "address" },
+        { name: "data", type: "bytes" },
+      ],
+    });
+    expect(result).toEqual(["30106", "0xABC", "0xdeadbeef"]);
+  });
+
+  it("passes template variables through unchanged", () => {
+    const result = coerceArgsForAbi(["{{@node.flag}}"], {
+      inputs: [{ name: "flag", type: "bool" }],
+    });
+    expect(result).toEqual(["{{@node.flag}}"]);
+  });
+
+  it("coerces bool leaves inside tuples", () => {
+    const result = coerceArgsForAbi(
+      [{ dstEid: "30106", payInLzToken: "false" }, "false"],
+      {
+        inputs: [
+          {
+            name: "param",
+            type: "tuple",
+            components: [
+              { name: "dstEid", type: "uint32" },
+              { name: "payInLzToken", type: "bool" },
+            ],
+          },
+          { name: "simulate", type: "bool" },
+        ],
+      }
+    );
+    expect(result).toEqual([{ dstEid: "30106", payInLzToken: false }, false]);
+  });
+
+  it("coerces bool elements inside arrays", () => {
+    const result = coerceArgsForAbi([["true", "false", "true"]], {
+      inputs: [{ name: "flags", type: "bool[]" }],
+    });
+    expect(result).toEqual([[true, false, true]]);
+  });
+
+  it("leaves unrecognized bool strings unchanged so validation can reject them", () => {
+    const result = coerceArgsForAbi(["yes"], {
+      inputs: [{ name: "flag", type: "bool" }],
+    });
+    expect(result).toEqual(["yes"]);
   });
 });
