@@ -119,7 +119,9 @@ export type ActionConfigFieldBase = {
   // External documentation URL shown as "Docs" link in the field tooltip
   docUrl?: string;
 
-  // For protocol-tuple-array: ABI component definitions for the tuple items
+  // For protocol-tuple-array: ABI component definitions for the tuple items.
+  // Supports 2 levels of nesting (tuple containing tuple) which covers all
+  // current protocols. Extend to recursive type if deeper nesting is needed.
   tupleComponents?: Array<{ name: string; type: string; components?: Array<{ name: string; type: string }> }>;
 
   // For protocol field types: the underlying Solidity type (e.g. "uint256", "tuple[]")
