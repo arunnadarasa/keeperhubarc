@@ -11,7 +11,6 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { createIntegration } from "@/lib/db/integrations";
 import { integrations, organizationWallets } from "@/lib/db/schema";
-import { encryptUserShare } from "@/lib/encryption";
 import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 import { getActiveOrgId } from "@/lib/middleware/org-context";
@@ -106,46 +105,6 @@ async function checkExistingWallet(
   return { valid: true };
 }
 
-// Helper: Create wallet via Para SDK
-async function createParaWallet(email: string) {
-  if (!PARA_API_KEY) {
-    logSystemError(
-      ErrorCategory.INFRASTRUCTURE,
-      "[Para] PARA_API_KEY not configured",
-      new Error("PARA_API_KEY not configured"),
-      { endpoint: "/api/user/wallet", operation: "post" }
-    );
-    throw new Error("Para API key not configured");
-  }
-
-  const environment = PARA_ENV === "prod" ? Environment.PROD : Environment.BETA;
-  console.log(
-    `[Para] Initializing SDK with environment: ${PARA_ENV} (${environment})`
-  );
-  console.log(`[Para] API key: ${PARA_API_KEY.slice(0, 8)}...`);
-
-  const paraClient = new ParaServer(environment, PARA_API_KEY);
-
-  console.log(`[Para] Creating wallet for email: ${email}`);
-
-  const wallet = await paraClient.createPregenWallet({
-    type: "EVM",
-    pregenId: { email },
-  });
-
-  const userShare = await paraClient.getUserShare();
-
-  if (!userShare) {
-    throw new Error("Failed to get user share from Para");
-  }
-
-  if (!(wallet.id && wallet.address)) {
-    throw new Error("Invalid wallet data from Para");
-  }
-
-  return { wallet, userShare };
-}
-
 // Helper: Get user-friendly error response for wallet creation failures
 function getErrorResponse(error: unknown): NextResponse {
   // Catch DB unique constraint violation (race condition: wallet already exists)
@@ -198,48 +157,6 @@ function getErrorResponse(error: unknown): NextResponse {
   }
 
   return NextResponse.json({ error: errorMessage }, { status: statusCode });
-}
-
-// Helper: Store Para wallet in database and create integration
-async function storeParaWalletAndIntegration(options: {
-  userId: string;
-  organizationId: string;
-  email: string;
-  paraWalletId: string;
-  walletAddress: string;
-  userShare: string;
-}): Promise<{ walletAddress: string; walletId: string }> {
-  const {
-    userId,
-    organizationId,
-    email,
-    paraWalletId,
-    walletAddress,
-    userShare,
-  } = options;
-
-  const normalizedWalletAddress = normalizeAddressForStorage(walletAddress);
-
-  await db.insert(organizationWallets).values({
-    userId,
-    organizationId,
-    provider: "para",
-    email,
-    walletAddress: normalizedWalletAddress,
-    paraWalletId,
-    userShare: encryptUserShare(userShare),
-  });
-
-  const truncatedAddress = truncateAddress(normalizedWalletAddress);
-  await createIntegration({
-    userId,
-    organizationId,
-    name: truncatedAddress,
-    type: "web3",
-    config: {},
-  });
-
-  return { walletAddress: normalizedWalletAddress, walletId: paraWalletId };
 }
 
 // Helper: Store Turnkey wallet in database and create integration
@@ -383,58 +300,29 @@ export async function POST(request: Request) {
       );
     }
 
-    // 5. Create wallet via selected provider
-    if (provider === "turnkey") {
-      const orgName = `org-${organizationId.slice(0, 8)}`;
-      const turnkeyResult = await createTurnkeyWallet(walletEmail, orgName);
+    // 5. Create wallet via Turnkey
+    const orgName = `org-${organizationId.slice(0, 8)}`;
+    const turnkeyResult = await createTurnkeyWallet(walletEmail, orgName);
 
-      const { walletAddress: storedAddress, walletId } =
-        await storeTurnkeyWalletAndIntegration({
-          userId: user.id,
-          organizationId,
-          email: walletEmail,
-          walletAddress: turnkeyResult.walletAddress,
-          turnkeySubOrgId: turnkeyResult.subOrgId,
-          turnkeyWalletId: turnkeyResult.walletId,
-          turnkeyPrivateKeyId: turnkeyResult.privateKeyId,
-        });
-
-      return NextResponse.json({
-        success: true,
-        wallet: {
-          address: storedAddress,
-          walletId,
-          email: walletEmail,
-          organizationId,
-          provider: "turnkey",
-        },
-      });
-    }
-
-    // Para wallet creation (default)
-    const { wallet: paraWallet, userShare } =
-      await createParaWallet(walletEmail);
-    const paraWalletId = paraWallet.id as string;
-    const paraAddress = paraWallet.address as string;
-
-    const { walletAddress: paraStoredAddress } =
-      await storeParaWalletAndIntegration({
+    const { walletAddress: storedAddress, walletId } =
+      await storeTurnkeyWalletAndIntegration({
         userId: user.id,
         organizationId,
         email: walletEmail,
-        paraWalletId,
-        walletAddress: paraAddress,
-        userShare,
+        walletAddress: turnkeyResult.walletAddress,
+        turnkeySubOrgId: turnkeyResult.subOrgId,
+        turnkeyWalletId: turnkeyResult.walletId,
+        turnkeyPrivateKeyId: turnkeyResult.privateKeyId,
       });
 
     return NextResponse.json({
       success: true,
       wallet: {
-        address: paraStoredAddress,
-        walletId: paraWalletId,
+        address: storedAddress,
+        walletId,
         email: walletEmail,
         organizationId,
-        provider: "para",
+        provider: "turnkey",
       },
     });
   } catch (error) {
