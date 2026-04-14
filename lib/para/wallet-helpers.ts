@@ -56,7 +56,7 @@ export async function getUserWallet(userId: string) {
 export async function initializeWalletSigner(
   organizationId: string,
   rpcUrl: string,
-  chainId?: number
+  chainId: number
 ): Promise<ethers.Signer> {
   const wallet = await getOrganizationWallet(organizationId);
   const rpcManager = await getRpcProviderFromUrls(rpcUrl, undefined, chainId);
