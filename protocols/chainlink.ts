@@ -2,7 +2,6 @@ import {
   type AbiDrivenContract,
   deriveActionsFromAbi,
 } from "@/lib/protocol-abi-derive";
-import { registerEncodeTransform } from "@/lib/protocol-encode-transforms";
 import type { ProtocolAction } from "@/lib/protocol-registry";
 import { defineProtocol } from "@/lib/protocol-registry";
 import ccipBnmAbi from "./abis/ccip-bnm.json";
@@ -347,32 +346,6 @@ const ccipFeeToken: AbiDrivenContract = {
     },
   },
 };
-
-// -- Encode transforms -------------------------------------------------------
-// The CCIP receiver field is typed as bytes in the ABI (abi-encoded address)
-// but the form shows an address field. This transform pads the 20-byte
-// address to 32 bytes before ABI encoding.
-
-function padAddressToBytes(value: string): string {
-  if (value.startsWith("{{")) {
-    return value;
-  }
-  const hex = value.startsWith("0x") ? value.slice(2) : value;
-  return `0x${hex.padStart(64, "0")}`;
-}
-
-registerEncodeTransform(
-  "chainlink",
-  "ccip-get-fee",
-  "receiver",
-  padAddressToBytes
-);
-registerEncodeTransform(
-  "chainlink",
-  "ccip-send",
-  "receiver",
-  padAddressToBytes
-);
 
 // -- Price feed helpers (manual actions) -------------------------------------
 
