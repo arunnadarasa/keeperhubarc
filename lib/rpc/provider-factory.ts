@@ -204,8 +204,8 @@ export async function getSolanaProvider(
 export async function getRpcProviderFromUrls(
   primaryRpcUrl: string,
   fallbackRpcUrl?: string,
-  chainName = "unknown",
-  chainId?: number
+  chainId?: number,
+  chainName = "unknown"
 ): Promise<RpcProviderManager> {
   const [metricsCollector, failoverCallback] = await Promise.all([
     getEvmMetricsCollector(),
