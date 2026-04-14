@@ -199,7 +199,12 @@ const ccipBnM: AbiDrivenContract = {
       description:
         "Mint 1 CCIP-BnM test token to an address. Testnet only - this token is used for exercising CCIP bridging on Sepolia/Base Sepolia.",
       inputs: {
-        to: { label: "Recipient Address" },
+        to: {
+          label: "Recipient Address",
+          helpTip:
+            "Address to receive the minted CCIP-BnM test tokens. Typically your own wallet for testing.",
+          docUrl: CCIP_DOCS,
+        },
       },
     },
   },
@@ -221,11 +226,13 @@ const ccipBridgeToken: AbiDrivenContract = {
           label: "Spender (CCIP Router)",
           helpTip:
             "The CCIP Router address for your source chain. Must match the router used in the ccipSend step.",
+          docUrl: CCIP_DOCS,
         },
         amount: {
           label: "Amount (wei)",
           helpTip:
             "Amount to approve in the token's smallest unit. Must be >= the amount you intend to bridge.",
+          docUrl: CCIP_DOCS,
         },
       },
     },
@@ -237,7 +244,9 @@ const ccipBridgeToken: AbiDrivenContract = {
       inputs: {
         account: {
           label: "Account Address",
-          helpTip: "The address whose bridge token balance to check.",
+          helpTip:
+            "The address whose bridge token balance to check. Typically the wallet that will call ccipSend.",
+          docUrl: CCIP_DOCS,
         },
       },
       outputs: {
@@ -252,11 +261,15 @@ const ccipBridgeToken: AbiDrivenContract = {
       inputs: {
         owner: {
           label: "Token Owner",
-          helpTip: "The address that granted the approval (your wallet).",
+          helpTip:
+            "The address that granted the approval. Typically your wallet address.",
+          docUrl: CCIP_DOCS,
         },
         spender: {
           label: "Spender (CCIP Router)",
-          helpTip: "The CCIP Router address to check allowance for.",
+          helpTip:
+            "The CCIP Router address to check allowance for. Must match the router on your source chain.",
+          docUrl: CCIP_DOCS,
         },
       },
       outputs: {
@@ -282,11 +295,13 @@ const ccipFeeToken: AbiDrivenContract = {
           label: "Spender (CCIP Router)",
           helpTip:
             "The CCIP Router address for your source chain. Must match the router used in the ccipSend step.",
+          docUrl: CCIP_DOCS,
         },
         amount: {
           label: "Amount (wei)",
           helpTip:
             "Fee ceiling to approve in the fee token's smallest unit. Set higher than the expected fee to avoid reverts (e.g. 1 LINK = 1000000000000000000). Unused allowance is not spent.",
+          docUrl: CCIP_DOCS,
         },
       },
     },
@@ -298,7 +313,9 @@ const ccipFeeToken: AbiDrivenContract = {
       inputs: {
         account: {
           label: "Account Address",
-          helpTip: "The address whose fee token balance to check.",
+          helpTip:
+            "The address whose fee token balance to check. Typically the wallet that will call ccipSend.",
+          docUrl: CCIP_DOCS,
         },
       },
       outputs: {
@@ -313,11 +330,15 @@ const ccipFeeToken: AbiDrivenContract = {
       inputs: {
         owner: {
           label: "Token Owner",
-          helpTip: "The address that granted the approval (your wallet).",
+          helpTip:
+            "The address that granted the approval. Typically your wallet address.",
+          docUrl: CCIP_DOCS,
         },
         spender: {
           label: "Spender (CCIP Router)",
-          helpTip: "The CCIP Router address to check allowance for.",
+          helpTip:
+            "The CCIP Router address to check allowance for. Must match the router on your source chain.",
+          docUrl: CCIP_DOCS,
         },
       },
       outputs: {
