@@ -513,17 +513,14 @@ function AddTokenForm({
   );
 }
 
-type WalletProviderOption = "para" | "turnkey";
-
 function CreateWalletForm({
   initialEmail,
   onSubmit,
 }: {
   initialEmail: string;
-  onSubmit: (email: string, provider: WalletProviderOption) => Promise<void>;
+  onSubmit: (email: string) => Promise<void>;
 }) {
   const [email, setEmail] = useState(initialEmail);
-  const [provider, setProvider] = useState<WalletProviderOption>("turnkey");
   const [creating, setCreating] = useState(false);
 
   const handleCreate = async (): Promise<void> => {
@@ -533,7 +530,7 @@ function CreateWalletForm({
     }
     setCreating(true);
     try {
-      await onSubmit(email, provider);
+      await onSubmit(email);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to create wallet"
@@ -715,7 +712,7 @@ function NoWalletSection({
 }: {
   isAdmin: boolean;
   initialEmail: string;
-  onCreateWallet: (email: string, provider: WalletProviderOption) => Promise<void>;
+  onCreateWallet: (email: string) => Promise<void>;
 }) {
   if (!isAdmin) {
     return (
@@ -1290,14 +1287,11 @@ export function WalletOverlay({ overlayId }: WalletOverlayProps) {
     }
   };
 
-  const handleCreateWallet = async (
-    email: string,
-    provider: WalletProviderOption
-  ): Promise<void> => {
+  const handleCreateWallet = async (email: string): Promise<void> => {
     const response = await fetch("/api/user/wallet", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, provider }),
+      body: JSON.stringify({ email, provider: "turnkey" }),
     });
 
     const data: { error?: string } = await response.json();
