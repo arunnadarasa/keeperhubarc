@@ -329,7 +329,7 @@ export async function writeContractCore(
     // Initialize Para signer
     let signer: Awaited<ReturnType<typeof initializeWalletSigner>>;
     try {
-      signer = await initializeWalletSigner(organizationId, rpcUrl);
+      signer = await initializeWalletSigner(organizationId, rpcUrl, chainId);
     } catch (error) {
       return {
         success: false,
