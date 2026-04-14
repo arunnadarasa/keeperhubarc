@@ -446,6 +446,25 @@ describe("coerceArgsForAbi", () => {
     expect(result).toEqual([{ flag: "{{@prev.out}}" }, ["{{@prev.a}}", false]]);
   });
 
+  it("preserves keys outside the ABI so typos stay visible to the validator", () => {
+    const result = coerceArgsForAbi(
+      [{ flag: "false", typo: "extra", amount: "10" }],
+      {
+        inputs: [
+          {
+            name: "p",
+            type: "tuple",
+            components: [
+              { name: "flag", type: "bool" },
+              { name: "amount", type: "uint256" },
+            ],
+          },
+        ],
+      }
+    );
+    expect(result).toEqual([{ flag: false, typo: "extra", amount: "10" }]);
+  });
+
   it("handles empty arrays and empty tuples without errors", () => {
     const result = coerceArgsForAbi([[], {}], {
       inputs: [

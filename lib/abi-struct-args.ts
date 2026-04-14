@@ -114,11 +114,17 @@ export function reshapeArgsForAbi(
 
 /**
  * Coerce stringly-typed args to their ABI-native types where a string would
- * silently corrupt encoding. Currently scoped to `bool`, because ethers v6
- * encodes any non-empty string as `true` -- so the literal string `"false"`
- * becomes `true` without warning. Numeric and bytes types are safe as strings
- * and are left untouched. Template variables (`{{...}}`) are passed through
- * and resolved later in the pipeline.
+ * silently corrupt encoding.
+ *
+ * Scoped to `bool` on purpose: ethers v6 encodes booleans via JS truthiness
+ * (`value ? 1 : 0`), so any non-empty string -- including the literal
+ * `"false"` -- becomes `true` without warning. Every other ABI leaf type
+ * fails loudly on a malformed string: numerics go through `BigInt()` and
+ * throw on non-numeric input or out-of-range values, `address` runs EIP-55
+ * checksum validation, and `bytes`/`bytesN` reject wrong lengths or missing
+ * `0x` prefixes. Extending coercion beyond `bool` would hide those errors
+ * instead of fixing them. Template variables (`{{...}}`) pass through and
+ * are resolved later in the pipeline.
  */
 export function coerceArgsForAbi(
   args: unknown[],
@@ -173,8 +179,12 @@ function coerceTuple(
   if (!isPreStructuredObject(value)) {
     return value;
   }
+  // Start from a shallow copy so keys the user set outside the ABI are
+  // preserved. Then overwrite known components with their coerced values.
+  // The validator downstream flags typos; silently dropping them here
+  // would mask that signal.
   const obj = value as Record<string, unknown>;
-  const out: Record<string, unknown> = {};
+  const out: Record<string, unknown> = { ...obj };
   for (const comp of components ?? []) {
     out[comp.name] = coerceValue(obj[comp.name], comp.type, comp.components);
   }
