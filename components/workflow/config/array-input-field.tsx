@@ -187,7 +187,7 @@ export function ArrayInputField({
         variant="outline"
       >
         <Plus className="mr-1.5 h-3.5 w-3.5" />
-        Add Item
+        {isTuple ? "Add Object" : "Add Item"}
       </Button>
     </div>
   );

@@ -85,8 +85,8 @@ describe("Chainlink Protocol Definition", () => {
     expect(writeActions).toHaveLength(4);
   });
 
-  it("has 12 contracts (8 named feeds + 1 custom + 3 CCIP)", () => {
-    expect(Object.keys(chainlinkDef.contracts)).toHaveLength(12);
+  it("has 13 contracts (8 named feeds + 1 custom + 4 CCIP)", () => {
+    expect(Object.keys(chainlinkDef.contracts)).toHaveLength(13);
   });
 
   it("customFeed contract has userSpecifiedAddress enabled", () => {
@@ -218,8 +218,11 @@ describe("Chainlink Protocol Definition", () => {
     expect(action?.outputs).toHaveLength(1);
   });
 
-  it("ccipErc20 contract has userSpecifiedAddress enabled", () => {
-    expect(chainlinkDef.contracts.ccipErc20.userSpecifiedAddress).toBe(true);
+  it("ccipBridgeToken and ccipFeeToken contracts have userSpecifiedAddress enabled", () => {
+    expect(chainlinkDef.contracts.ccipBridgeToken.userSpecifiedAddress).toBe(
+      true
+    );
+    expect(chainlinkDef.contracts.ccipFeeToken.userSpecifiedAddress).toBe(true);
   });
 
   it("ccip-approve-bridge-token action exists and is a write with 2 inputs", () => {
@@ -228,7 +231,7 @@ describe("Chainlink Protocol Definition", () => {
     );
     expect(action).toBeDefined();
     expect(action?.type).toBe("write");
-    expect(action?.contract).toBe("ccipErc20");
+    expect(action?.contract).toBe("ccipBridgeToken");
     expect(action?.function).toBe("approve");
     expect(action?.inputs).toHaveLength(2);
   });
@@ -239,17 +242,21 @@ describe("Chainlink Protocol Definition", () => {
     );
     expect(action).toBeDefined();
     expect(action?.type).toBe("write");
-    expect(action?.contract).toBe("ccipErc20");
+    expect(action?.contract).toBe("ccipFeeToken");
     expect(action?.function).toBe("approve");
     expect(action?.inputs).toHaveLength(2);
   });
 
   it("ccip-check-bridge-balance and ccip-check-fee-balance actions exist", () => {
-    for (const slug of ["ccip-check-bridge-balance", "ccip-check-fee-balance"]) {
+    const cases: Array<{ slug: string; contract: string }> = [
+      { slug: "ccip-check-bridge-balance", contract: "ccipBridgeToken" },
+      { slug: "ccip-check-fee-balance", contract: "ccipFeeToken" },
+    ];
+    for (const { slug, contract } of cases) {
       const action = chainlinkDef.actions.find((a) => a.slug === slug);
       expect(action, `${slug} should exist`).toBeDefined();
       expect(action?.type).toBe("read");
-      expect(action?.contract).toBe("ccipErc20");
+      expect(action?.contract).toBe(contract);
       expect(action?.function).toBe("balanceOf");
       expect(action?.inputs).toHaveLength(1);
       expect(action?.outputs).toHaveLength(1);
@@ -257,14 +264,15 @@ describe("Chainlink Protocol Definition", () => {
   });
 
   it("ccip-check-bridge-allowance and ccip-check-fee-allowance actions exist", () => {
-    for (const slug of [
-      "ccip-check-bridge-allowance",
-      "ccip-check-fee-allowance",
-    ]) {
+    const cases: Array<{ slug: string; contract: string }> = [
+      { slug: "ccip-check-bridge-allowance", contract: "ccipBridgeToken" },
+      { slug: "ccip-check-fee-allowance", contract: "ccipFeeToken" },
+    ];
+    for (const { slug, contract } of cases) {
       const action = chainlinkDef.actions.find((a) => a.slug === slug);
       expect(action, `${slug} should exist`).toBeDefined();
       expect(action?.type).toBe("read");
-      expect(action?.contract).toBe("ccipErc20");
+      expect(action?.contract).toBe(contract);
       expect(action?.function).toBe("allowance");
       expect(action?.inputs).toHaveLength(2);
       expect(action?.outputs).toHaveLength(1);

@@ -18,6 +18,7 @@ import {
 type ProtocolWriteInput = StepInput & {
   network: string;
   contractAddress?: string;
+  gasLimitMultiplier?: string;
   _protocolMeta?: string;
   _actionType?: string;
   [key: string]: unknown;
@@ -134,6 +135,7 @@ export async function protocolWriteStep(
       abiFunction: meta.functionName,
       functionArgs,
       ethValue,
+      gasLimitMultiplier: input.gasLimitMultiplier,
       _context: input._context
         ? {
             executionId: input._context.executionId,
