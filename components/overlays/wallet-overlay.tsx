@@ -1291,7 +1291,7 @@ export function WalletOverlay({ overlayId }: WalletOverlayProps) {
     const response = await fetch("/api/user/wallet", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, provider: "turnkey" }),
+      body: JSON.stringify({ email }),
     });
 
     const data: { error?: string } = await response.json();

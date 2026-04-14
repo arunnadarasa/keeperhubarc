@@ -15,12 +15,10 @@ import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { resolveOrganizationId } from "@/lib/middleware/auth-helpers";
 import { getActiveOrgId } from "@/lib/middleware/org-context";
 import { createTurnkeyWallet } from "@/lib/turnkey/turnkey-client";
-import type { WalletProvider } from "@/lib/wallet/types";
 
 const PARA_API_KEY = process.env.PARA_API_KEY ?? "";
 const PARA_ENV = process.env.PARA_ENVIRONMENT ?? "beta";
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const VALID_PROVIDERS: WalletProvider[] = ["turnkey"];
 
 // Helper: Validate user authentication, organization membership, and admin permissions
 async function validateUserAndOrganization(request: Request) {
@@ -264,9 +262,8 @@ export async function POST(request: Request) {
     const { user, organizationId } = validation;
 
     // 3. Parse request body
-    const body: { email?: string; provider?: string } = await request.json();
+    const body: { email?: string } = await request.json();
     const walletEmail = body.email;
-    const provider = (body.provider ?? "turnkey") as WalletProvider;
 
     if (!walletEmail || typeof walletEmail !== "string") {
       return NextResponse.json(
@@ -278,15 +275,6 @@ export async function POST(request: Request) {
     if (!EMAIL_REGEX.test(walletEmail)) {
       return NextResponse.json(
         { error: "Invalid email format" },
-        { status: 400 }
-      );
-    }
-
-    if (!VALID_PROVIDERS.includes(provider)) {
-      return NextResponse.json(
-        {
-          error: `Invalid provider. Must be one of: ${VALID_PROVIDERS.join(", ")}`,
-        },
         { status: 400 }
       );
     }

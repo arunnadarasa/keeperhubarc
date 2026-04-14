@@ -81,7 +81,7 @@ export function Web3WalletSection({
       const response = await fetch("/api/user/wallet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: userEmail, provider: "turnkey" }),
+        body: JSON.stringify({ email: userEmail }),
       });
 
       const data = await response.json();
