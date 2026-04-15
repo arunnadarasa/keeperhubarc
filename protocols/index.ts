@@ -14,7 +14,7 @@
 import { protocolToPlugin, registerProtocol } from "@/lib/protocol-registry";
 import { registerIntegration } from "@/plugins/registry";
 
-import aaveDef from "./aave-v3";
+import aaveV3Def from "./aave-v3";
 import aaveV4Def from "./aave-v4";
 import aerodromeDef from "./aerodrome";
 import ajnaDef from "./ajna";
@@ -35,8 +35,8 @@ import uniswapDef from "./uniswap-v3";
 import wrappedDef from "./wrapped";
 import yearnDef from "./yearn-v3";
 
-registerProtocol(aaveDef);
-registerIntegration(protocolToPlugin(aaveDef));
+registerProtocol(aaveV3Def);
+registerIntegration(protocolToPlugin(aaveV3Def));
 registerProtocol(aaveV4Def);
 registerIntegration(protocolToPlugin(aaveV4Def));
 registerProtocol(aerodromeDef);
