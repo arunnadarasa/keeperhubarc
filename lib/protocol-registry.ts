@@ -1,5 +1,6 @@
 import { solidityTypeToFieldType } from "@/lib/solidity-type-fields";
 import type { IntegrationType } from "@/lib/types/integration";
+import { PRIVATE_MEMPOOL_FIELDS } from "@/lib/workflow/private-mempool-fields";
 import {
   createProtocolIconComponent,
   ProtocolIcon,
@@ -340,6 +341,11 @@ function buildConfigFieldsFromAction(
       defaultExpanded: false,
       fields: advancedFields,
     });
+  }
+
+  // KEEP-137: Private mempool toggles at the bottom of every protocol write action.
+  if (action.type === "write") {
+    fields.push(...PRIVATE_MEMPOOL_FIELDS);
   }
 
   const metaValue = JSON.stringify({

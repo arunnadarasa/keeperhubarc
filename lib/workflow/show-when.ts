@@ -15,7 +15,7 @@
 import { deriveStateMutability } from "@/lib/web3/abi-mutability";
 
 export type ShowWhen =
-  | { field: string; equals: string }
+  | { field: string; equals: string | boolean }
   | { field: string; oneOf: string[] }
   | {
       computed: "abiFunctionMutability";

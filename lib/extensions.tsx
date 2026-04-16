@@ -25,10 +25,18 @@ import {
   registerFieldRenderer,
   registerIntegrationFormHandler,
 } from "@/lib/extension-registry";
+import type { ActionConfigFieldBase } from "@/plugins/registry";
 
 // ============================================================================
 // Register Custom Field Renderers
 // ============================================================================
+
+// KEEP-137: Narrow ActionConfigFieldBase.defaultValue to string for string-
+// valued renderers. defaultValue widened to `string | boolean` for the toggle
+// field type; all string-typed renderers go through this helper.
+function stringDefault(field: ActionConfigFieldBase): string {
+  return typeof field.defaultValue === "string" ? field.defaultValue : "";
+}
 
 /**
  * ABI with Auto-Fetch Field
@@ -41,7 +49,7 @@ registerFieldRenderer(
       field.contractAddressField || "contractAddress";
     const networkField = field.networkField || "network";
     const value =
-      (config[field.key] as string | undefined) || field.defaultValue || "";
+      (config[field.key] as string | undefined) || stringDefault(field);
 
     return (
       <div className="space-y-2" key={field.key}>
@@ -73,7 +81,7 @@ registerFieldRenderer(
   "chain-select",
   ({ field, config, onUpdateConfig, disabled }) => {
     const value =
-      (config[field.key] as string | undefined) || field.defaultValue || "";
+      (config[field.key] as string | undefined) || stringDefault(field);
 
     return (
       <div className="space-y-2" key={field.key}>
@@ -126,7 +134,7 @@ registerFieldRenderer(
     const abiField = field.abiField || "abi";
     const abiValue = (config[abiField] as string | undefined) || "";
     const value =
-      (config[field.key] as string | undefined) || field.defaultValue || "";
+      (config[field.key] as string | undefined) || stringDefault(field);
 
     return (
       <div className="space-y-2" key={field.key}>
@@ -151,7 +159,7 @@ registerFieldRenderer(
   "gas-limit-multiplier",
   ({ field, config, onUpdateConfig, disabled }) => {
     const value =
-      (config[field.key] as string | undefined) || field.defaultValue || "";
+      (config[field.key] as string | undefined) || stringDefault(field);
 
     return (
       <div className="space-y-2" key={field.key}>
@@ -178,7 +186,7 @@ registerFieldRenderer(
   "code-editor",
   ({ field, config, onUpdateConfig, disabled }) => {
     const value =
-      (config[field.key] as string | undefined) || field.defaultValue || "";
+      (config[field.key] as string | undefined) || stringDefault(field);
 
     return (
       <div className="space-y-2" key={field.key}>
@@ -202,7 +210,7 @@ registerFieldRenderer(
   "json-editor",
   ({ field, config, onUpdateConfig, disabled }) => {
     const value =
-      (config[field.key] as string | undefined) || field.defaultValue || "";
+      (config[field.key] as string | undefined) || stringDefault(field);
 
     return (
       <div className="space-y-2" key={field.key}>
@@ -229,7 +237,7 @@ registerFieldRenderer(
   "call-list-builder",
   ({ field, config, onUpdateConfig, disabled }) => {
     const value =
-      (config[field.key] as string | undefined) ?? field.defaultValue ?? "";
+      (config[field.key] as string | undefined) ?? stringDefault(field);
 
     return (
       <div className="space-y-2" key={field.key}>
@@ -258,7 +266,7 @@ registerFieldRenderer(
     const abiValue = (config[abiField] as string | undefined) ?? "";
     const functionValue = (config[functionField] as string | undefined) ?? "";
     const value =
-      (config[field.key] as string | undefined) ?? field.defaultValue ?? "";
+      (config[field.key] as string | undefined) ?? stringDefault(field);
 
     return (
       <div className="space-y-2" key={field.key}>
@@ -349,7 +357,7 @@ registerFieldRenderer(
     const { ProtocolAddressField } =
       require("@/components/workflow/config/protocol-fields/protocol-address-field") as typeof import("@/components/workflow/config/protocol-fields/protocol-address-field");
     const value =
-      (config[field.key] as string | undefined) || field.defaultValue || "";
+      (config[field.key] as string | undefined) || stringDefault(field);
 
     return (
       <div className="space-y-2" key={field.key}>
@@ -377,7 +385,7 @@ registerFieldRenderer(
     const { ProtocolUintField } =
       require("@/components/workflow/config/protocol-fields/protocol-uint-field") as typeof import("@/components/workflow/config/protocol-fields/protocol-uint-field");
     const value =
-      (config[field.key] as string | undefined) || field.defaultValue || "";
+      (config[field.key] as string | undefined) || stringDefault(field);
     const solidityType = (field as Record<string, unknown>).solidityType as
       | string
       | undefined;
@@ -408,7 +416,7 @@ registerFieldRenderer(
     const { ProtocolIntField } =
       require("@/components/workflow/config/protocol-fields/protocol-int-field") as typeof import("@/components/workflow/config/protocol-fields/protocol-int-field");
     const value =
-      (config[field.key] as string | undefined) || field.defaultValue || "";
+      (config[field.key] as string | undefined) || stringDefault(field);
     const solidityType = (field as Record<string, unknown>).solidityType as
       | string
       | undefined;
@@ -439,7 +447,7 @@ registerFieldRenderer(
     const { ProtocolEthValueField } =
       require("@/components/workflow/config/protocol-fields/protocol-eth-value-field") as typeof import("@/components/workflow/config/protocol-fields/protocol-eth-value-field");
     const value =
-      (config[field.key] as string | undefined) || field.defaultValue || "";
+      (config[field.key] as string | undefined) || stringDefault(field);
 
     return (
       <div className="space-y-2" key={field.key}>
@@ -466,7 +474,7 @@ registerFieldRenderer(
     const { ProtocolBoolField } =
       require("@/components/workflow/config/protocol-fields/protocol-bool-field") as typeof import("@/components/workflow/config/protocol-fields/protocol-bool-field");
     const value =
-      (config[field.key] as string | undefined) || field.defaultValue || "";
+      (config[field.key] as string | undefined) || stringDefault(field);
 
     return (
       <div className="space-y-2" key={field.key}>
@@ -492,7 +500,7 @@ registerFieldRenderer(
     const { ProtocolBytesField } =
       require("@/components/workflow/config/protocol-fields/protocol-bytes-field") as typeof import("@/components/workflow/config/protocol-fields/protocol-bytes-field");
     const value =
-      (config[field.key] as string | undefined) || field.defaultValue || "";
+      (config[field.key] as string | undefined) || stringDefault(field);
     const solidityType = (field as Record<string, unknown>).solidityType as
       | string
       | undefined;
@@ -553,6 +561,43 @@ registerFieldRenderer(
           }
           value={value}
         />
+      </div>
+    );
+  }
+);
+
+/**
+ * Toggle Field
+ * Boolean toggle (Switch) -- stores a boolean value in config.
+ * Label appears beside the switch; tooltip (helpTip) renders via ProtocolFieldLabel.
+ */
+function resolveToggleValue(raw: unknown, defaultValue: unknown): boolean {
+  if (typeof raw === "boolean") {
+    return raw;
+  }
+  if (typeof defaultValue === "boolean") {
+    return defaultValue;
+  }
+  return false;
+}
+
+registerFieldRenderer(
+  "toggle",
+  ({ field, config, onUpdateConfig, disabled }) => {
+    const { Switch } =
+      require("@/components/ui/switch") as typeof import("@/components/ui/switch");
+
+    const checked = resolveToggleValue(config[field.key], field.defaultValue);
+
+    return (
+      <div className="flex items-center gap-2" key={field.key}>
+        <Switch
+          checked={checked}
+          disabled={disabled}
+          id={field.key}
+          onCheckedChange={(next) => onUpdateConfig(field.key, next)}
+        />
+        <ProtocolFieldLabel field={field} />
       </div>
     );
   }
