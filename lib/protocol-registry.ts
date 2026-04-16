@@ -282,6 +282,7 @@ function buildConfigFieldsFromAction(
   action: ProtocolAction
 ): ActionConfigField[] {
   const contract = def.contracts[action.contract];
+  const allowedChainIds = Object.keys(contract.addresses);
   const fields: ActionConfigField[] = [
     {
       key: "network",
@@ -291,6 +292,7 @@ function buildConfigFieldsFromAction(
       // KEEP-137: write actions show private mempool variants (e.g., Flashbots)
       ...(action.type === "write" ? { showPrivateVariants: true } : {}),
       required: true,
+      ...(allowedChainIds.length > 0 ? { allowedChainIds } : {}),
     },
   ];
 
