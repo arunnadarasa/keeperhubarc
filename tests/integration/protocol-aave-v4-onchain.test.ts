@@ -167,6 +167,34 @@ describe.skipIf(!RPC_URL)("Aave V4 Lido Spoke on-chain integration", () => {
     }
   }, 15_000);
 
+  it("getUserAccountData: eth_call returns a decodable struct with named fields", async () => {
+    const { to, data, contract } = buildCalldata(
+      aaveV4Def,
+      "get-user-account-data",
+      { user: TEST_ADDRESS }
+    );
+
+    const provider = getProvider();
+    try {
+      const result = await provider.call({ to, data });
+      const abi = JSON.parse(contract.abi as string);
+      const iface = new ethers.Interface(abi);
+      const decoded = iface.decodeFunctionResult("getUserAccountData", result);
+      expect(decoded).toBeDefined();
+      const struct = decoded[0];
+      expect(struct.healthFactor).toBeDefined();
+      expect(typeof struct.healthFactor).toBe("bigint");
+      expect(struct.totalCollateralValue).toBeDefined();
+      expect(struct.riskPremium).toBeDefined();
+      expect(struct.borrowCount).toBeDefined();
+    } catch (error) {
+      const msg = String(error);
+      expect(msg).not.toContain("INVALID_ARGUMENT");
+      expect(msg).not.toContain("could not decode");
+      expect(msg).not.toContain("invalid function");
+    }
+  }, 15_000);
+
   it("setUsingAsCollateral: calldata encodes correctly (business revert expected)", async () => {
     const { to, data } = buildCalldata(aaveV4Def, "set-collateral", {
       reserveId: "0",

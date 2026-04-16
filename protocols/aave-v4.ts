@@ -179,6 +179,22 @@ export default defineAbiProtocol({
             },
           },
         },
+        getUserAccountData: {
+          slug: "get-user-account-data",
+          label: "Get User Account Data",
+          description:
+            "Get overall account health including collateral value, debt, health factor, and risk premium. Returns a struct - access individual fields via dotted path (e.g. result.healthFactor).",
+          inputs: {
+            user: { label: "User Address" },
+          },
+          outputs: {
+            result: {
+              name: "accountData",
+              label:
+                "Account Data (struct: riskPremium, avgCollateralFactor, healthFactor, totalCollateralValue, totalDebtValueRay, activeCollateralCount, borrowCount)",
+            },
+          },
+        },
       },
     },
   },

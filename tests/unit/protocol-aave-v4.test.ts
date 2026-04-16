@@ -59,8 +59,8 @@ describe("Aave V4 Protocol Definition (ABI-driven)", () => {
     }
   });
 
-  it("has 8 actions covering V3 parity + reserveId resolver", () => {
-    expect(aaveV4Def.actions).toHaveLength(8);
+  it("has 9 actions covering V3 parity + reserveId resolver + getUserAccountData", () => {
+    expect(aaveV4Def.actions).toHaveLength(9);
     const slugs = aaveV4Def.actions.map((a) => a.slug);
     expect(slugs).toEqual(
       expect.arrayContaining([
@@ -72,14 +72,15 @@ describe("Aave V4 Protocol Definition (ABI-driven)", () => {
         "get-reserve-id",
         "get-user-supplied-assets",
         "get-user-debt",
+        "get-user-account-data",
       ])
     );
   });
 
-  it("has 5 write actions and 3 read actions", () => {
+  it("has 5 write actions and 4 read actions", () => {
     const reads = aaveV4Def.actions.filter((a) => a.type === "read");
     const writes = aaveV4Def.actions.filter((a) => a.type === "write");
-    expect(reads).toHaveLength(3);
+    expect(reads).toHaveLength(4);
     expect(writes).toHaveLength(5);
   });
 
@@ -169,6 +170,20 @@ describe("Aave V4 Protocol Definition (ABI-driven)", () => {
       expect(action?.outputs?.[0].name).toBe(name0);
       expect(action?.outputs?.[1].name).toBe(name1);
     }
+  });
+
+  it("get-user-account-data returns a single tuple output", () => {
+    const action = aaveV4Def.actions.find(
+      (a) => a.slug === "get-user-account-data"
+    );
+    expect(action).toBeDefined();
+    expect(action?.type).toBe("read");
+    expect(action?.function).toBe("getUserAccountData");
+    expect(action?.inputs).toHaveLength(1);
+    expect(action?.inputs[0].name).toBe("user");
+    expect(action?.outputs).toHaveLength(1);
+    expect(action?.outputs?.[0].name).toBe("accountData");
+    expect(action?.outputs?.[0].type).toBe("tuple");
   });
 
   it("set-collateral write has no outputs (Solidity returns void)", () => {
