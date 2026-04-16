@@ -188,7 +188,6 @@ async function storeTurnkeyWalletAndIntegration(options: {
     turnkeySubOrgId,
     turnkeyWalletId,
     turnkeyPrivateKeyId,
-    isActive: true,
   });
 
   const truncatedAddress = truncateAddress(normalizedWalletAddress);

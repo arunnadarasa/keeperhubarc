@@ -1283,7 +1283,8 @@ export function WalletOverlay({ overlayId }: WalletOverlayProps) {
         fetchBalances(data.walletAddress, chainList, tokenList);
         fetchSupportedBalances(data.walletAddress, chainList, supportedList);
       }
-    } catch (_error) {
+    } catch (error) {
+      console.error("Failed to load wallet:", error);
       setWalletData({ hasWallet: false });
       setWalletLoading(false);
     }
