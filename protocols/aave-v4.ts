@@ -41,6 +41,7 @@ export default defineAbiProtocol({
               label: "Reserve ID",
               helpTip:
                 "Opaque uint256 identifier for a reserve within this Spoke. Use the Get Reserve ID action to resolve from (hub, assetId).",
+              docUrl: "https://aave.com/docs/aave-v4/liquidity/spokes",
             },
             amount: { label: "Amount (wei)" },
             onBehalfOf: { label: "On Behalf Of Address" },
@@ -58,7 +59,10 @@ export default defineAbiProtocol({
           label: "Withdraw Asset",
           description: "Withdraw a supplied asset from the Aave V4 Lido Spoke",
           inputs: {
-            reserveId: { label: "Reserve ID" },
+            reserveId: {
+              label: "Reserve ID",
+              docUrl: "https://aave.com/docs/aave-v4/liquidity/spokes",
+            },
             amount: { label: "Amount (wei)" },
             onBehalfOf: { label: "Recipient Address" },
           },
@@ -76,7 +80,10 @@ export default defineAbiProtocol({
           description:
             "Borrow an asset from the Aave V4 Lido Spoke against supplied collateral. V4 uses a single rate model (no stable/variable mode).",
           inputs: {
-            reserveId: { label: "Reserve ID" },
+            reserveId: {
+              label: "Reserve ID",
+              docUrl: "https://aave.com/docs/aave-v4/positions/borrow",
+            },
             amount: { label: "Amount (wei)" },
             onBehalfOf: { label: "On Behalf Of Address" },
           },
@@ -93,7 +100,10 @@ export default defineAbiProtocol({
           label: "Repay Debt",
           description: "Repay a borrowed asset to the Aave V4 Lido Spoke",
           inputs: {
-            reserveId: { label: "Reserve ID" },
+            reserveId: {
+              label: "Reserve ID",
+              docUrl: "https://aave.com/docs/aave-v4/positions/borrow",
+            },
             amount: { label: "Amount (wei)" },
             onBehalfOf: { label: "On Behalf Of Address" },
           },
@@ -119,6 +129,7 @@ export default defineAbiProtocol({
               label: "Use as Collateral",
               helpTip:
                 "Toggles the entire supplied balance of this reserve as collateral. There is no partial collateral in Aave V4.",
+              docUrl: "https://aave.com/docs/aave-v4/positions/supply",
             },
             onBehalfOf: { label: "On Behalf Of Address" },
           },
@@ -134,6 +145,7 @@ export default defineAbiProtocol({
               label: "Hub Asset ID",
               helpTip:
                 "Asset identifier within the Hub. Use the Hub's getAssetId(underlying) to resolve from an ERC-20 address.",
+              docUrl: "https://aave.com/docs/aave-v4/liquidity/spokes",
             },
           },
           outputs: {
@@ -149,7 +161,10 @@ export default defineAbiProtocol({
           description:
             "Get the amount of underlying asset supplied by a user for a given reserve",
           inputs: {
-            reserveId: { label: "Reserve ID" },
+            reserveId: {
+              label: "Reserve ID",
+              docUrl: "https://aave.com/docs/aave-v4/positions/supply",
+            },
             user: { label: "User Address" },
           },
           outputs: {
@@ -165,7 +180,10 @@ export default defineAbiProtocol({
           description:
             "Get the debt of a user for a given reserve, split into drawn debt and premium debt. Total debt = drawn + premium.",
           inputs: {
-            reserveId: { label: "Reserve ID" },
+            reserveId: {
+              label: "Reserve ID",
+              docUrl: "https://aave.com/docs/aave-v4/positions/borrow",
+            },
             user: { label: "User Address" },
           },
           outputs: {
@@ -185,7 +203,10 @@ export default defineAbiProtocol({
           description:
             "Get overall account health including collateral value, debt, health factor, and risk premium. Returns a struct - access individual fields via dotted path (e.g. result.healthFactor).",
           inputs: {
-            user: { label: "User Address" },
+            user: {
+              label: "User Address",
+              docUrl: "https://aave.com/docs/aave-v4/positions",
+            },
           },
           outputs: {
             result: {
