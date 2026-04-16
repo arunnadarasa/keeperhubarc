@@ -1,6 +1,9 @@
 version: 2
 # Sub-services with their own lockfiles need explicit entries.
 # keeperhub-executor has no lockfile (part of root workspace) so "/" covers it.
+# Groups are split by applies-to so a routine security patch (e.g. a transitive
+# dompurify bump) cannot be bundled into the same PR as an unrelated direct-dep
+# major version-update bump that happens to land in the same week.
 updates:
   - package-ecosystem: "npm"
     directory: "/"
@@ -11,8 +14,13 @@ updates:
     open-pull-requests-limit: 5
     groups:
       minor-and-patch:
+        applies-to: version-updates
         update-types:
           - "minor"
+          - "patch"
+      security-patches:
+        applies-to: security-updates
+        update-types:
           - "patch"
     ignore:
       - dependency-name: "*"
@@ -29,8 +37,13 @@ updates:
     open-pull-requests-limit: 5
     groups:
       minor-and-patch:
+        applies-to: version-updates
         update-types:
           - "minor"
+          - "patch"
+      security-patches:
+        applies-to: security-updates
+        update-types:
           - "patch"
     ignore:
       - dependency-name: "*"
@@ -47,8 +60,36 @@ updates:
     open-pull-requests-limit: 5
     groups:
       minor-and-patch:
+        applies-to: version-updates
         update-types:
           - "minor"
+          - "patch"
+      security-patches:
+        applies-to: security-updates
+        update-types:
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    labels:
+      - "dependencies"
+
+  - package-ecosystem: "npm"
+    directory: "/docs-site"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    target-branch: "staging"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+      security-patches:
+        applies-to: security-updates
+        update-types:
           - "patch"
     ignore:
       - dependency-name: "*"
