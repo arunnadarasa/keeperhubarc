@@ -1,8 +1,9 @@
 # Multi-stage Dockerfile for Next.js application
 # Stage 1: Dependencies
 FROM node:24-alpine AS deps
-RUN apk add --no-cache libc6-compat
-RUN wget -O /etc/ssl/certs/rds-combined-ca-bundle.pem https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
+RUN apk add --no-cache libc6-compat && \
+    wget --progress=dot:giga -O /etc/ssl/certs/rds-combined-ca-bundle.pem \
+      https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
 WORKDIR /app
 
 # Install pnpm
@@ -41,24 +42,33 @@ ENV NEXT_PUBLIC_GITHUB_CLIENT_ID=$NEXT_PUBLIC_GITHUB_CLIENT_ID
 ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=$NEXT_PUBLIC_GOOGLE_CLIENT_ID
 ENV NEXT_PUBLIC_BILLING_ENABLED=$NEXT_PUBLIC_BILLING_ENABLED
 
-# Sentry (DSN baked into client bundle, rest for source map upload)
+# Sentry DSN baked into client bundle for error reporting.
+# SENTRY_ORG/PROJECT/AUTH_TOKEN/RELEASE are intentionally NOT set here
+# so this stage is cache-deterministic across commits (see sentry-upload stage).
 ARG NEXT_PUBLIC_SENTRY_DSN
+ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+ENV CI=true
+
+# Build the application (source maps generated but not uploaded)
+RUN pnpm build
+
+# Stage 2.5b: Sentry source map upload (side-effect only, not consumed by other stages)
+FROM builder AS sentry-upload
 ARG SENTRY_ORG
 ARG SENTRY_PROJECT
 ARG SENTRY_AUTH_TOKEN
 ARG SENTRY_RELEASE
-ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
-ENV SENTRY_ORG=$SENTRY_ORG
-ENV SENTRY_PROJECT=$SENTRY_PROJECT
-ENV SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
-ENV SENTRY_RELEASE=$SENTRY_RELEASE
-ENV CI=true
-
-# Build the application
-RUN pnpm build
-
-# Remove source maps after upload (they should not ship in the final image)
-RUN find .next -name '*.map' -delete
+RUN if [ -n "$SENTRY_AUTH_TOKEN" ]; then \
+      ./node_modules/.bin/sentry-cli releases new "$SENTRY_RELEASE" \
+        --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" && \
+      ./node_modules/.bin/sentry-cli sourcemaps upload \
+        --org "$SENTRY_ORG" \
+        --project "$SENTRY_PROJECT" \
+        --release "$SENTRY_RELEASE" \
+        .next && \
+      ./node_modules/.bin/sentry-cli releases finalize "$SENTRY_RELEASE" \
+        --org "$SENTRY_ORG" --project "$SENTRY_PROJECT"; \
+    fi
 
 # Stage 2.6: Migration stage (for running migrations and seeding)
 FROM node:24-alpine AS migrator
@@ -217,10 +227,11 @@ RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs && \
     apk add --no-cache curl
 
-# Copy built application
+# Copy built application (source maps removed - uploaded by sentry-upload stage)
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+RUN find .next -name '*.map' -delete 2>/dev/null || true
 
 # Copy OG image fonts for server-side image generation
 COPY --from=source --chown=nextjs:nodejs /app/app/api/og/fonts ./app/api/og/fonts
