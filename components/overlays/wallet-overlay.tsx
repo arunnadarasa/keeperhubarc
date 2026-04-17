@@ -58,6 +58,16 @@ type WalletOverlayProps = {
 // TEMPO uses stablecoins for gas, so we display stablecoins only (no native token)
 const TEMPO_CHAIN_IDS = new Set([42_429, 4217]);
 const isTempoChain = (chainId: number): boolean => TEMPO_CHAIN_IDS.has(chainId);
+
+// Chains whose token lineup doesn't mirror Ethereum mainnet's stablecoin set
+// (e.g. Plasma ships USDT0, no Circle USDC, no Sky USDS). For these chains we
+// render the chain's own supported_tokens rows directly instead of overlaying
+// them on the mainnet master list, which would otherwise produce misleading
+// "Not available" entries for assets that simply don't exist on the chain.
+const INDEPENDENT_TOKEN_LIST_CHAIN_IDS = new Set([42_429, 4217, 9745]);
+const hasIndependentTokenList = (chainId: number): boolean =>
+  INDEPENDENT_TOKEN_LIST_CHAIN_IDS.has(chainId);
+
 const MAINNET_CHAIN_ID = 1;
 
 // ============================================================================
@@ -249,11 +259,13 @@ function ChainBalanceItem({
 
   const isTempo = isTempoChain(balance.chainId);
   const isMainnet = balance.chainId === MAINNET_CHAIN_ID;
+  const isIndependentTokenList = hasIndependentTokenList(balance.chainId);
 
-  // For TEMPO chains, just show their own tokens
-  // For other chains, use mainnet tokens as the master list
+  // For chains with their own stablecoin lineup (TEMPO, Plasma, etc.), render
+  // their tokens directly. For other chains, use mainnet tokens as the master
+  // list and overlay availability per-chain.
   const chainSupportedTokens = (() => {
-    if (isTempo) {
+    if (isIndependentTokenList) {
       return supportedTokenBalances.filter(
         (t) => t.chainId === balance.chainId
       );
