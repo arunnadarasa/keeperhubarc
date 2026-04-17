@@ -49,6 +49,10 @@ export const PUBLIC_RPCS = {
   AVAX_MAINNET_FALLBACK: "https://avalanche-c-chain-rpc.publicnode.com",
   AVAX_FUJI: "https://api.avax-test.network/ext/bc/C/rpc",
   AVAX_FUJI_FALLBACK: "https://avalanche-fuji-c-chain-rpc.publicnode.com",
+  PLASMA_MAINNET: "https://rpc.plasma.to",
+  PLASMA_MAINNET_FALLBACK: "https://plasma.drpc.org",
+  PLASMA_TESTNET: "https://testnet-rpc.plasma.to",
+  PLASMA_TESTNET_FALLBACK: "https://9746.rpc.thirdweb.com",
   SOLANA_MAINNET: "https://api.mainnet-beta.solana.com",
   SOLANA_DEVNET: "https://api.devnet.solana.com",
 } as const;
@@ -178,6 +182,22 @@ export const CHAIN_CONFIG: Record<number, ChainConfigEntry> = {
     publicDefault: PUBLIC_RPCS.AVAX_FUJI,
     publicFallback: PUBLIC_RPCS.AVAX_FUJI_FALLBACK,
   },
+  // Plasma Mainnet
+  9745: {
+    jsonKey: "plasma-mainnet",
+    envKey: "CHAIN_PLASMA_MAINNET_PRIMARY_RPC",
+    fallbackEnvKey: "CHAIN_PLASMA_MAINNET_FALLBACK_RPC",
+    publicDefault: PUBLIC_RPCS.PLASMA_MAINNET,
+    publicFallback: PUBLIC_RPCS.PLASMA_MAINNET_FALLBACK,
+  },
+  // Plasma Testnet
+  9746: {
+    jsonKey: "plasma-testnet",
+    envKey: "CHAIN_PLASMA_TESTNET_PRIMARY_RPC",
+    fallbackEnvKey: "CHAIN_PLASMA_TESTNET_FALLBACK_RPC",
+    publicDefault: PUBLIC_RPCS.PLASMA_TESTNET,
+    publicFallback: PUBLIC_RPCS.PLASMA_TESTNET_FALLBACK,
+  },
   // Solana Mainnet
   101: {
     jsonKey: "solana-mainnet",
@@ -272,6 +292,8 @@ export type RpcConfigEntry = {
   fallbackRpcUrl?: string;
   primaryWssUrl?: string;
   fallbackWssUrl?: string;
+  isPrivateMempoolRpcEnabled?: boolean;
+  privateMempoolRpcUrl?: string;
   isEnabled?: boolean;
   isTestnet?: boolean;
 };
@@ -391,6 +413,39 @@ export function getWssUrl(options: GetWssUrlOptions): string | undefined {
     return entry.primaryWssUrl;
   }
   return entry.fallbackWssUrl;
+}
+
+/**
+ * Options for getPrivateRpcUrl / getUsePrivateMempoolRpc
+ */
+export type GetPrivateMempoolOptions = {
+  rpcConfig: RpcConfig;
+  jsonKey: string;
+};
+
+/**
+ * Get the private mempool RPC URL from chain-config JSON.
+ *
+ * No env-var fallback: private mempool endpoints are only configured via
+ * chain-config JSON (flows in through CHAIN_RPC_CONFIG at deploy time).
+ *
+ * @returns The private RPC URL, or undefined if not configured
+ */
+export function getPrivateRpcUrl(
+  options: GetPrivateMempoolOptions
+): string | undefined {
+  return options.rpcConfig[options.jsonKey]?.privateMempoolRpcUrl;
+}
+
+/**
+ * Get whether the chain has private mempool routing enabled.
+ *
+ * Defaults to false when not set in chain-config JSON.
+ */
+export function getUsePrivateMempoolRpc(
+  options: GetPrivateMempoolOptions
+): boolean {
+  return options.rpcConfig[options.jsonKey]?.isPrivateMempoolRpcEnabled ?? false;
 }
 
 /**
