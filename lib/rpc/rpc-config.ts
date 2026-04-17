@@ -292,8 +292,8 @@ export type RpcConfigEntry = {
   fallbackRpcUrl?: string;
   primaryWssUrl?: string;
   fallbackWssUrl?: string;
-  usePrivateMempoolRpc?: boolean;
-  privateRpcUrl?: string;
+  isPrivateMempoolRpcEnabled?: boolean;
+  privateMempoolRpcUrl?: string;
   isEnabled?: boolean;
   isTestnet?: boolean;
 };
@@ -434,7 +434,7 @@ export type GetPrivateMempoolOptions = {
 export function getPrivateRpcUrl(
   options: GetPrivateMempoolOptions
 ): string | undefined {
-  return options.rpcConfig[options.jsonKey]?.privateRpcUrl;
+  return options.rpcConfig[options.jsonKey]?.privateMempoolRpcUrl;
 }
 
 /**
@@ -445,7 +445,7 @@ export function getPrivateRpcUrl(
 export function getUsePrivateMempoolRpc(
   options: GetPrivateMempoolOptions
 ): boolean {
-  return options.rpcConfig[options.jsonKey]?.usePrivateMempoolRpc ?? false;
+  return options.rpcConfig[options.jsonKey]?.isPrivateMempoolRpcEnabled ?? false;
 }
 
 /**
