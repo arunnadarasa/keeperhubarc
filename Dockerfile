@@ -69,8 +69,10 @@ ARG NEXT_PUBLIC_SENTRY_DSN
 ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
 ENV CI=true
 
-# Build the application (source maps generated but not uploaded)
-RUN pnpm build
+# Build the application with Turbopack (source maps generated but not uploaded).
+# Cache mount persists .next/cache across builds on the same BuildKit instance,
+# enabling Turbopack's incremental compilation.
+RUN --mount=type=cache,target=/app/.next/cache pnpm build
 
 # Stage 2.5b: Sentry source map upload (side-effect only, not consumed by other stages)
 FROM builder AS sentry-upload
