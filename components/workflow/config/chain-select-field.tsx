@@ -206,7 +206,14 @@ export function ChainSelectField({
             <div className="mt-1 px-2 py-1.5 font-semibold text-muted-foreground text-xs">
               Testnets
             </div>
-            {testnets.map((chain) => renderChainItem(chain))}
+            {testnets.map((chain) => (
+              <Fragment key={chain.chainId}>
+                {renderChainItem(chain)}
+                {showPrivateVariants &&
+                  chain.usePrivateMempoolRpc &&
+                  renderPrivateVariant(chain)}
+              </Fragment>
+            ))}
           </>
         )}
       </SelectContent>
