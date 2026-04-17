@@ -36,7 +36,7 @@ group "scheduler" {
 }
 
 group "all" {
-  targets = ["app", "migrator", "workflow-runner", "event-tracker", "schedule-dispatcher", "block-dispatcher", "executor"]
+  targets = ["app", "migrator", "workflow-runner", "sentry-upload", "event-tracker", "schedule-dispatcher", "block-dispatcher", "executor"]
 }
 
 target "app" {
