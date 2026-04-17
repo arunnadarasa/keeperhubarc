@@ -168,6 +168,7 @@ jobs:
           NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
         with:
           files: docker-bake.hcl
+          targets: app
           push: false
 
   test-unit:
