@@ -2,7 +2,7 @@
 # Stage 1: Dependencies
 FROM node:24-alpine AS deps
 RUN apk add --no-cache libc6-compat && \
-    wget --progress=dot:giga -O /etc/ssl/certs/rds-combined-ca-bundle.pem \
+    wget -q -O /etc/ssl/certs/rds-combined-ca-bundle.pem \
       https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
 WORKDIR /app
 
