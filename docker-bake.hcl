@@ -24,7 +24,7 @@ variable "SCHEDULER_ECR_REPO" { default = "" }
 variable "EXECUTOR_ECR_REPO" { default = "" }
 
 group "default" {
-  targets = ["app", "migrator", "workflow-runner", "sentry-upload"]
+  targets = ["app", "migrator", "workflow-runner"]
 }
 
 group "events" {
@@ -36,7 +36,7 @@ group "scheduler" {
 }
 
 group "all" {
-  targets = ["app", "migrator", "workflow-runner", "sentry-upload", "event-tracker", "schedule-dispatcher", "block-dispatcher", "executor"]
+  targets = ["app", "migrator", "workflow-runner", "event-tracker", "schedule-dispatcher", "block-dispatcher", "executor"]
 }
 
 target "app" {
