@@ -58,12 +58,14 @@ ARG SENTRY_PROJECT
 ARG SENTRY_AUTH_TOKEN
 ARG SENTRY_RELEASE
 RUN if [ -n "$SENTRY_AUTH_TOKEN" ]; then \
-      npx @sentry/cli sourcemaps upload \
+      ./node_modules/.bin/sentry-cli releases new "$SENTRY_RELEASE" \
+        --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" && \
+      ./node_modules/.bin/sentry-cli sourcemaps upload \
         --org "$SENTRY_ORG" \
         --project "$SENTRY_PROJECT" \
         --release "$SENTRY_RELEASE" \
         .next && \
-      npx @sentry/cli releases finalize "$SENTRY_RELEASE" \
+      ./node_modules/.bin/sentry-cli releases finalize "$SENTRY_RELEASE" \
         --org "$SENTRY_ORG" --project "$SENTRY_PROJECT"; \
     fi
 
