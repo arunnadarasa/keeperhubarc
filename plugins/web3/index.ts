@@ -1,6 +1,5 @@
 import type { IntegrationPlugin } from "@/plugins/registry";
 import { registerIntegration } from "@/plugins/registry";
-import { PRIVATE_MEMPOOL_FIELDS } from "@/lib/workflow/private-mempool-fields";
 import { Web3Icon } from "./icon";
 
 const web3Plugin: IntegrationPlugin = {
@@ -184,6 +183,7 @@ const web3Plugin: IntegrationPlugin = {
           label: "Network",
           type: "chain-select",
           chainTypeFilter: "evm",
+          showPrivateVariants: true,
           placeholder: "Select network",
           required: true,
         },
@@ -217,7 +217,7 @@ const web3Plugin: IntegrationPlugin = {
             },
           ],
         },
-        ...PRIVATE_MEMPOOL_FIELDS,
+
       ],
     },
     {
@@ -264,6 +264,7 @@ const web3Plugin: IntegrationPlugin = {
           label: "Network",
           type: "chain-select",
           chainTypeFilter: "evm",
+          showPrivateVariants: true,
           placeholder: "Select network",
           required: true,
         },
@@ -304,7 +305,7 @@ const web3Plugin: IntegrationPlugin = {
             },
           ],
         },
-        ...PRIVATE_MEMPOOL_FIELDS,
+
       ],
     },
     {
@@ -1014,6 +1015,7 @@ const web3Plugin: IntegrationPlugin = {
           label: "Network",
           type: "chain-select",
           chainTypeFilter: "evm",
+          showPrivateVariants: true,
           placeholder: "Select network",
           required: true,
         },
@@ -1054,7 +1056,7 @@ const web3Plugin: IntegrationPlugin = {
             },
           ],
         },
-        ...PRIVATE_MEMPOOL_FIELDS,
+
       ],
     },
     {
@@ -1153,6 +1155,7 @@ const web3Plugin: IntegrationPlugin = {
           label: "Network",
           type: "chain-select",
           chainTypeFilter: "evm",
+          showPrivateVariants: true,
           placeholder: "Select network",
           required: true,
         },
@@ -1218,7 +1221,7 @@ const web3Plugin: IntegrationPlugin = {
             },
           ],
         },
-        ...PRIVATE_MEMPOOL_FIELDS,
+
       ],
     },
   ],

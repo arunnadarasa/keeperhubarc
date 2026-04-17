@@ -20,7 +20,7 @@ import type { ResolvedRpcConfig } from "./types";
  * KEEP-137: Per-node Private Mempool toggle. When `usePrivateMempool=true` and
  * the chain supports private mempool routing (`chains.usePrivateMempoolRpc=true`
  * with a populated `defaultPrivateRpcUrl`), the primary URL is swapped to the
- * private endpoint. If `strict=true`, the fallback URL is cleared so a failing
+ * private endpoint. If `strict=true` (the default), the fallback URL is cleared so a failing
  * private endpoint does NOT silently fall back to the public mempool.
  */
 export type ResolveRpcConfigOptions = {
@@ -142,13 +142,14 @@ function applyPrivateMempoolSwap(
     return baseConfig;
   }
 
-  // Non-strict: keep the public primary as fallback so a failing private RPC
-  // still lands the transaction (at the cost of MEV protection).
-  // Strict: clear the fallback entirely.
+  // Strict (default): clear the fallback entirely so a failing private RPC
+  // does NOT silently fall back to the public mempool, preserving MEV protection.
+  // Non-strict: keep the public primary as fallback (user accepts MEV risk on failure).
+  const strict = options.strict ?? true;
   return {
     ...baseConfig,
     primaryRpcUrl: baseConfig.privateRpcUrl,
-    fallbackRpcUrl: options.strict ? undefined : baseConfig.primaryRpcUrl,
+    fallbackRpcUrl: strict ? undefined : baseConfig.primaryRpcUrl,
   };
 }
 

@@ -46,8 +46,7 @@ export type ActionConfigFieldBase = {
     | "protocol-bool" // Boolean select (true/false) with template variable support
     | "protocol-bytes" // Hex input with 0x-prefix validation
     | "protocol-eth-value" // Decimal ETH value input (e.g. 0.1, 1.5)
-    | "protocol-tuple-array" // Structured array of tuple items (e.g. tokenAmounts)
-    | "toggle"; // Boolean toggle (Switch) -- stores a boolean value
+    | "protocol-tuple-array"; // Structured array of tuple items (e.g. tokenAmounts)
 
   // For chain-select: filter by chain type (e.g., "evm" or "solana")
   chainTypeFilter?: string;
@@ -55,8 +54,13 @@ export type ActionConfigFieldBase = {
   // Placeholder text
   placeholder?: string;
 
-  // Default value -- string for most fields, boolean for "toggle"
-  defaultValue?: string | boolean;
+  // Default value
+  defaultValue?: string;
+
+  // For chain-select on write actions: also render private mempool variants
+  // (e.g., "Ethereum Mainnet (Flashbots)") for chains with usePrivateMempoolRpc=true.
+  // On selection, sets both the network field AND config.usePrivateMempool.
+  showPrivateVariants?: boolean;
 
   // Example value for AI prompt generation
   example?: string;
@@ -84,7 +88,7 @@ export type ActionConfigFieldBase = {
   //   - "abiFunctionMutability": parses `abiField` (ABI JSON) and looks up
   //     the stateMutability of the function named by `functionField`.
   showWhen?:
-    | { field: string; equals: string | boolean }
+    | { field: string; equals: string }
     | { field: string; oneOf: string[] }
     | {
         computed: "abiFunctionMutability";
@@ -636,7 +640,7 @@ export function generateAIActionPrompts(): string {
       const fullId = computeActionId(plugin.type, action.slug);
 
       // Build example config from configFields (flatten groups)
-      const exampleConfig: Record<string, string | number | boolean> = {
+      const exampleConfig: Record<string, string | number> = {
         actionType: fullId,
       };
 

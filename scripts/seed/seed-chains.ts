@@ -84,7 +84,7 @@ const DEFAULT_CHAINS: NewChain[] = [
   },
   {
     chainId: getChainConfigValue("eth-sepolia", "chainId", 11_155_111),
-    name: "Sepolia Testnet",
+    name: "Ethereum Sepolia",
     symbol: getChainConfigValue("eth-sepolia", "symbol", "ETH"),
     chainType: "evm",
     defaultPrimaryRpc: getRpcUrlByChainId(11_155_111, "primary"),
@@ -479,7 +479,7 @@ const EXPLORER_CONFIG_TEMPLATES: Record<
     explorerAddressPath: "/address/{address}",
     explorerContractPath: "/address/{address}#code",
   },
-  // Sepolia Testnet - Etherscan V2
+  // Ethereum Sepolia - Etherscan V2
   11155111: {
     chainType: "evm",
     explorerUrl: "https://sepolia.etherscan.io",
@@ -702,7 +702,7 @@ async function seedChains() {
   // We map each chain to its explorer config using the CHAIN_CONFIG to find the default chainId
   const chainToDefaultIdMap: Record<string, number> = {
     "Ethereum Mainnet": 1,
-    "Sepolia Testnet": 11_155_111,
+    "Ethereum Sepolia": 11_155_111,
     Base: 8453,
     "Base Sepolia": 84_532,
     "Tempo Testnet": 42_429,
