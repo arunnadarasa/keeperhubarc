@@ -249,12 +249,12 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 # Copy built application (source maps removed - uploaded by sentry-upload stage)
 COPY --link --from=builder /app/public ./public
-COPY --link --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --link --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --link --from=builder --chown=1001:1001 /app/.next/standalone ./
+COPY --link --from=builder --chown=1001:1001 /app/.next/static ./.next/static
 RUN find .next -name '*.map' -delete 2>/dev/null || true
 
 # Copy OG image fonts for server-side image generation
-COPY --link --from=source --chown=nextjs:nodejs /app/app/api/og/fonts ./app/api/og/fonts
+COPY --link --from=source --chown=1001:1001 /app/app/api/og/fonts ./app/api/og/fonts
 
 # Copy deploy scripts (used by cronjobs)
 COPY --link --from=source /app/deploy/scripts ./deploy/scripts
