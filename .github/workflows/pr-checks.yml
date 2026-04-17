@@ -130,7 +130,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           FILES=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files \
-            --paginate --per-page 100 -q '.[].filename')
+            --paginate -q '.[].filename')
           RELEVANT=$(echo "$FILES" | grep -vE '^(docs/|specs/|\.github/|.*\.md$)' | head -1 || true)
           if [ -n "$RELEVANT" ]; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
