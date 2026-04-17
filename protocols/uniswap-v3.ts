@@ -4,6 +4,17 @@ import positionManagerAbi from "./abis/uniswap-position-manager.json";
 import quoterAbi from "./abis/uniswap-quoter.json";
 import swapRouterAbi from "./abis/uniswap-swap-router.json";
 
+const UNISWAP_DOCS = "https://docs.uniswap.org/contracts/v3/reference";
+
+const FEE_TIER_TIP =
+  "Pool fee tier in hundredths of a basis point. Common values: 100 (0.01% - stablecoin pairs), 500 (0.05% - correlated pairs), 3000 (0.3% - most pairs), 10000 (1% - exotic pairs).";
+
+const SQRT_PRICE_LIMIT_TIP =
+  "Square-root price limit encoded as a Q64.96 fixed-point number. Constrains how far the pool price can move during the swap. Set to 0 for no limit (most common). Non-zero values act as a slippage guard at the pool level.";
+
+const POSITION_TOKEN_ID_TIP =
+  "The NFT token ID representing a Uniswap V3 liquidity position. Each position minted via the NonfungiblePositionManager receives a unique uint256 ID. Find it from the Mint event or via the balanceOf + tokenOfOwnerByIndex pattern.";
+
 // QuoterV2 is declared as `view` in the reduced ABI even though the on-chain
 // contract is `nonpayable`. QuoterV2 uses a revert-to-return pattern (calls
 // pool.swap inside a try/catch), so the true mutability is nonpayable, but
@@ -44,7 +55,11 @@ export default defineAbiProtocol({
           inputs: {
             tokenA: { label: "Token A Address" },
             tokenB: { label: "Token B Address" },
-            fee: { label: "Fee Tier (100, 500, 3000, or 10000)" },
+            fee: {
+              label: "Fee Tier (100, 500, 3000, or 10000)",
+              helpTip: FEE_TIER_TIP,
+              docUrl: UNISWAP_DOCS,
+            },
           },
           outputs: {
             pool: { label: "Pool Address" },
@@ -69,7 +84,11 @@ export default defineAbiProtocol({
           description:
             "Get full details of a liquidity position by NFT token ID",
           inputs: {
-            tokenId: { label: "Position Token ID" },
+            tokenId: {
+              label: "Position Token ID",
+              helpTip: POSITION_TOKEN_ID_TIP,
+              docUrl: UNISWAP_DOCS,
+            },
           },
           outputs: {
             nonce: { label: "Nonce" },
@@ -102,7 +121,11 @@ export default defineAbiProtocol({
           label: "Get Position Owner",
           description: "Get the owner address of a liquidity position NFT",
           inputs: {
-            tokenId: { label: "Position Token ID" },
+            tokenId: {
+              label: "Position Token ID",
+              helpTip: POSITION_TOKEN_ID_TIP,
+              docUrl: UNISWAP_DOCS,
+            },
           },
           outputs: {
             result: { name: "owner", label: "Owner Address" },
@@ -115,7 +138,11 @@ export default defineAbiProtocol({
             "Approve an address to manage a specific liquidity position NFT",
           inputs: {
             to: { label: "Approved Address" },
-            tokenId: { label: "Position Token ID" },
+            tokenId: {
+              label: "Position Token ID",
+              helpTip: POSITION_TOKEN_ID_TIP,
+              docUrl: UNISWAP_DOCS,
+            },
           },
         },
         transferFrom: {
@@ -125,7 +152,11 @@ export default defineAbiProtocol({
           inputs: {
             from: { label: "From Address" },
             to: { label: "To Address" },
-            tokenId: { label: "Position Token ID" },
+            tokenId: {
+              label: "Position Token ID",
+              helpTip: POSITION_TOKEN_ID_TIP,
+              docUrl: UNISWAP_DOCS,
+            },
           },
         },
         burn: {
@@ -134,7 +165,11 @@ export default defineAbiProtocol({
           description:
             "Burn an empty liquidity position NFT (position must have zero liquidity and zero owed tokens)",
           inputs: {
-            tokenId: { label: "Position Token ID" },
+            tokenId: {
+              label: "Position Token ID",
+              helpTip: POSITION_TOKEN_ID_TIP,
+              docUrl: UNISWAP_DOCS,
+            },
           },
         },
       },
@@ -158,13 +193,24 @@ export default defineAbiProtocol({
           inputs: {
             tokenIn: { label: "Input Token Address" },
             tokenOut: { label: "Output Token Address" },
-            fee: { label: "Fee Tier (100, 500, 3000, or 10000)" },
+            fee: {
+              label: "Fee Tier (100, 500, 3000, or 10000)",
+              helpTip: FEE_TIER_TIP,
+              docUrl: UNISWAP_DOCS,
+            },
             recipient: { label: "Recipient Address" },
             amountIn: { label: "Amount In (wei)" },
-            amountOutMinimum: { label: "Minimum Output Amount (wei)" },
+            amountOutMinimum: {
+              label: "Minimum Output Amount (wei)",
+              helpTip:
+                "Minimum tokens to receive after the swap. The transaction reverts if the output would be less. Set to 0 only for testing - in production, calculate from a quote minus your slippage tolerance to avoid sandwich attacks.",
+              docUrl: UNISWAP_DOCS,
+            },
             sqrtPriceLimitX96: {
               label: "Price Limit (0 for none)",
               default: "0",
+              helpTip: SQRT_PRICE_LIMIT_TIP,
+              docUrl: UNISWAP_DOCS,
             },
           },
           outputs: {
@@ -179,13 +225,24 @@ export default defineAbiProtocol({
           inputs: {
             tokenIn: { label: "Input Token Address" },
             tokenOut: { label: "Output Token Address" },
-            fee: { label: "Fee Tier (100, 500, 3000, or 10000)" },
+            fee: {
+              label: "Fee Tier (100, 500, 3000, or 10000)",
+              helpTip: FEE_TIER_TIP,
+              docUrl: UNISWAP_DOCS,
+            },
             recipient: { label: "Recipient Address" },
             amountOut: { label: "Desired Output Amount (wei)" },
-            amountInMaximum: { label: "Maximum Input Amount (wei)" },
+            amountInMaximum: {
+              label: "Maximum Input Amount (wei)",
+              helpTip:
+                "Maximum tokens you are willing to spend. The transaction reverts if the required input exceeds this. Calculate from a quote plus your slippage tolerance.",
+              docUrl: UNISWAP_DOCS,
+            },
             sqrtPriceLimitX96: {
               label: "Price Limit (0 for none)",
               default: "0",
+              helpTip: SQRT_PRICE_LIMIT_TIP,
+              docUrl: UNISWAP_DOCS,
             },
           },
           outputs: {
@@ -214,10 +271,16 @@ export default defineAbiProtocol({
             tokenIn: { label: "Input Token Address" },
             tokenOut: { label: "Output Token Address" },
             amountIn: { label: "Amount In (wei)" },
-            fee: { label: "Fee Tier (100, 500, 3000, or 10000)" },
+            fee: {
+              label: "Fee Tier (100, 500, 3000, or 10000)",
+              helpTip: FEE_TIER_TIP,
+              docUrl: UNISWAP_DOCS,
+            },
             sqrtPriceLimitX96: {
               label: "Price Limit (0 for none)",
               default: "0",
+              helpTip: SQRT_PRICE_LIMIT_TIP,
+              docUrl: UNISWAP_DOCS,
             },
           },
           outputs: {
@@ -236,10 +299,16 @@ export default defineAbiProtocol({
             tokenIn: { label: "Input Token Address" },
             tokenOut: { label: "Output Token Address" },
             amount: { label: "Desired Output Amount (wei)" },
-            fee: { label: "Fee Tier (100, 500, 3000, or 10000)" },
+            fee: {
+              label: "Fee Tier (100, 500, 3000, or 10000)",
+              helpTip: FEE_TIER_TIP,
+              docUrl: UNISWAP_DOCS,
+            },
             sqrtPriceLimitX96: {
               label: "Price Limit (0 for none)",
               default: "0",
+              helpTip: SQRT_PRICE_LIMIT_TIP,
+              docUrl: UNISWAP_DOCS,
             },
           },
           outputs: {
