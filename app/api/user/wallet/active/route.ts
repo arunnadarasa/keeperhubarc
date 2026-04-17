@@ -1,10 +1,11 @@
 import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { truncateAddress } from "@/lib/address-utils";
 import { apiError } from "@/lib/api-error";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { organizationWallets } from "@/lib/db/schema";
+import { integrations, organizationWallets } from "@/lib/db/schema";
 import { getActiveOrgId } from "@/lib/middleware/org-context";
 
 type ValidationResult =
@@ -56,7 +57,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const target = await db
-      .select({ id: organizationWallets.id })
+      .select({
+        id: organizationWallets.id,
+        walletAddress: organizationWallets.walletAddress,
+      })
       .from(organizationWallets)
       .where(
         and(
@@ -73,9 +77,14 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
+    const newDisplayName = truncateAddress(target[0].walletAddress);
+
     // Flip in two steps inside a transaction so the partial unique index
     // `(organization_id) WHERE is_active = true` never sees two active rows
     // simultaneously: first deactivate all, then activate the target.
+    // The web3 integration row's `name` caches the active wallet's truncated
+    // address for display on workflow nodes; keep it in sync here so the UI
+    // reflects the flip without a manual refresh or stale-cache hit.
     await db.transaction(async (tx) => {
       await tx
         .update(organizationWallets)
@@ -86,6 +95,16 @@ export async function POST(request: Request): Promise<NextResponse> {
         .update(organizationWallets)
         .set({ isActive: true })
         .where(eq(organizationWallets.id, walletId));
+
+      await tx
+        .update(integrations)
+        .set({ name: newDisplayName })
+        .where(
+          and(
+            eq(integrations.organizationId, organizationId),
+            eq(integrations.type, "web3")
+          )
+        );
     });
 
     return NextResponse.json({ success: true, walletId });
