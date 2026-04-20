@@ -13,7 +13,7 @@ import {
   RPC_RETRY_CONFIG,
   rpcCall,
   rpcCallWithFailover,
-} from "./rpc";
+} from "@/lib/wallet/rpc";
 
 const VALID_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
 const TEST_RPC_URL = "https://rpc.example.test";
