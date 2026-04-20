@@ -3,7 +3,11 @@
  */
 
 import { ErrorCategory, logUserError } from "@/lib/logging";
-import { encodeBalanceOfCallData, hexWeiToBigInt, rpcCall } from "./rpc";
+import {
+  encodeBalanceOfCallData,
+  hexWeiToBigInt,
+  rpcCallWithFailover,
+} from "./rpc";
 import type {
   ChainBalance,
   ChainData,
@@ -89,6 +93,16 @@ function buildExplorerAddressUrl(
 }
 
 /**
+ * Collect the ordered list of RPC URLs to attempt for a chain: primary
+ * first, fallback second when configured.
+ */
+function getChainRpcUrls(chain: ChainData): string[] {
+  return chain.defaultFallbackRpc
+    ? [chain.defaultPrimaryRpc, chain.defaultFallbackRpc]
+    : [chain.defaultPrimaryRpc];
+}
+
+/**
  * Fetch native token balance for a single chain
  */
 export async function fetchNativeBalance(
@@ -96,7 +110,7 @@ export async function fetchNativeBalance(
   chain: ChainData
 ): Promise<ChainBalance> {
   try {
-    const resultHex = await rpcCall(chain.defaultPrimaryRpc, {
+    const resultHex = await rpcCallWithFailover(getChainRpcUrls(chain), {
       jsonrpc: "2.0",
       method: "eth_getBalance",
       params: [address, "latest"],
@@ -146,7 +160,7 @@ export async function fetchTokenBalance(
   chain: ChainData
 ): Promise<TokenBalance> {
   try {
-    const resultHex = await rpcCall(chain.defaultPrimaryRpc, {
+    const resultHex = await rpcCallWithFailover(getChainRpcUrls(chain), {
       jsonrpc: "2.0",
       method: "eth_call",
       params: [
@@ -238,7 +252,7 @@ export async function fetchSupportedTokenBalance(
   chain: ChainData
 ): Promise<SupportedTokenBalance> {
   try {
-    const resultHex = await rpcCall(chain.defaultPrimaryRpc, {
+    const resultHex = await rpcCallWithFailover(getChainRpcUrls(chain), {
       jsonrpc: "2.0",
       method: "eth_call",
       params: [

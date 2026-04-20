@@ -12,6 +12,7 @@ import {
   type JsonRpcPayload,
   RPC_RETRY_CONFIG,
   rpcCall,
+  rpcCallWithFailover,
 } from "./rpc";
 
 const VALID_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
@@ -286,5 +287,125 @@ describe("rpcCall", () => {
     expect(addBreadcrumbMock).toHaveBeenCalledTimes(
       RPC_RETRY_CONFIG.MAX_RETRIES
     );
+  });
+
+  it("honors the custom maxRetries argument", async () => {
+    fetchMock.mockResolvedValue(plainResponse(429, "Too Many Requests"));
+
+    await expect(
+      runWithTimers(rpcCall(TEST_RPC_URL, TEST_PAYLOAD, 1))
+    ).rejects.toThrow(/HTTP 429/);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("rpcCallWithFailover", () => {
+  const fetchMock = vi.fn();
+  const PRIMARY_URL = "https://primary.rpc.test";
+  const FALLBACK_URL = "https://fallback.rpc.test";
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", fetchMock);
+    vi.useFakeTimers();
+    addBreadcrumbMock.mockClear();
+    fetchMock.mockReset();
+    vi.spyOn(Math, "random").mockReturnValue(0);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  async function runWithTimers<T>(promise: Promise<T>): Promise<T> {
+    const settled = promise.then(
+      (value) => ({ ok: true as const, value }),
+      (error: unknown) => ({ ok: false as const, error })
+    );
+    await vi.runAllTimersAsync();
+    const outcome = await settled;
+    if (outcome.ok) {
+      return outcome.value;
+    }
+    throw outcome.error;
+  }
+
+  it("returns the primary result when primary succeeds", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ jsonrpc: "2.0", id: 1, result: "0xprimary" })
+    );
+
+    const result = await runWithTimers(
+      rpcCallWithFailover([PRIMARY_URL, FALLBACK_URL], TEST_PAYLOAD)
+    );
+
+    expect(result).toBe("0xprimary");
+    expect(fetchMock).toHaveBeenCalledWith(
+      PRIMARY_URL,
+      expect.anything()
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails over to the fallback URL when primary is exhausted", async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (url === PRIMARY_URL) {
+        return Promise.resolve(plainResponse(429, "Too Many Requests"));
+      }
+      return Promise.resolve(
+        jsonResponse({ jsonrpc: "2.0", id: 1, result: "0xfallback" })
+      );
+    });
+
+    const result = await runWithTimers(
+      rpcCallWithFailover([PRIMARY_URL, FALLBACK_URL], TEST_PAYLOAD)
+    );
+
+    expect(result).toBe("0xfallback");
+    // Primary uses the reduced retry budget (1 retry => 2 attempts).
+    const primaryAttempts = fetchMock.mock.calls.filter(
+      ([url]) => url === PRIMARY_URL
+    ).length;
+    expect(primaryAttempts).toBe(
+      RPC_RETRY_CONFIG.RETRIES_PER_URL_WITH_FAILOVER + 1
+    );
+    expect(addBreadcrumbMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: "rpc.failover",
+        data: expect.objectContaining({
+          failedUrl: PRIMARY_URL,
+          nextUrl: FALLBACK_URL,
+        }),
+      })
+    );
+  });
+
+  it("throws the last error when every URL is exhausted", async () => {
+    fetchMock.mockResolvedValue(plainResponse(429, "Too Many Requests"));
+
+    await expect(
+      runWithTimers(
+        rpcCallWithFailover([PRIMARY_URL, FALLBACK_URL], TEST_PAYLOAD)
+      )
+    ).rejects.toThrow(/HTTP 429/);
+  });
+
+  it("does not emit a failover breadcrumb when there is only one URL", async () => {
+    fetchMock.mockResolvedValue(plainResponse(429, "Too Many Requests"));
+
+    await expect(
+      runWithTimers(rpcCallWithFailover([PRIMARY_URL], TEST_PAYLOAD))
+    ).rejects.toThrow(/HTTP 429/);
+    const failoverBreadcrumbs = addBreadcrumbMock.mock.calls.filter(
+      (args) => (args[0] as { category?: string }).category === "rpc.failover"
+    );
+    expect(failoverBreadcrumbs).toHaveLength(0);
+  });
+
+  it("rejects an empty URL list", async () => {
+    await expect(
+      runWithTimers(rpcCallWithFailover([], TEST_PAYLOAD))
+    ).rejects.toThrow(/at least one URL/);
   });
 });

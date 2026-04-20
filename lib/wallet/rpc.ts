@@ -36,11 +36,13 @@ export type JsonRpcPayload = {
  * Each delay = `min((BASE_MS * 2^attempt) + jitter, ABSOLUTE_MAX_BACKOFF_MS)`
  * where `jitter = random() * base * JITTER_FACTOR`.
  *
- * With MAX_RETRIES = 3 and JITTER_FACTOR = 0.3, each individual delay is
- * capped at ABSOLUTE_MAX_BACKOFF_MS = 5s regardless of schedule.
+ * `RETRIES_PER_URL_WITH_FAILOVER` applies when `rpcCallWithFailover` has a
+ * fallback URL available — retry fewer times per URL so we hand off to the
+ * fallback sooner when the primary is throttled or flaky.
  */
 export const RPC_RETRY_CONFIG = {
   MAX_RETRIES: 3,
+  RETRIES_PER_URL_WITH_FAILOVER: 1,
   JITTER_FACTOR: 0.3,
   ABSOLUTE_MAX_BACKOFF_MS: 5000,
   STANDARD: {
@@ -113,12 +115,13 @@ export function hexWeiToBigInt(hex: string): bigint {
  */
 export async function rpcCall(
   rpcUrl: string,
-  payload: JsonRpcPayload
+  payload: JsonRpcPayload,
+  maxRetries: number = RPC_RETRY_CONFIG.MAX_RETRIES
 ): Promise<string> {
   let lastError: Error = new Error("RPC call failed");
   let lastFailureKind: RpcFailureKind = "standard";
 
-  for (let attempt = 0; attempt <= RPC_RETRY_CONFIG.MAX_RETRIES; attempt++) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (attempt > 0) {
       const backoffMs = getRpcBackoffMs(attempt - 1, lastFailureKind);
       addBreadcrumb({
@@ -177,6 +180,55 @@ export async function rpcCall(
     }
 
     return data.result;
+  }
+
+  throw lastError;
+}
+
+/**
+ * Execute a JSON-RPC call across a primary URL with optional fallbacks.
+ *
+ * When more than one URL is provided, each URL uses the reduced
+ * `RETRIES_PER_URL_WITH_FAILOVER` budget so a throttled primary hands off to
+ * the fallback quickly instead of burning the full retry schedule first.
+ *
+ * Throws the last error after all URLs are exhausted. A Sentry breadcrumb is
+ * emitted for every failover hop.
+ */
+export async function rpcCallWithFailover(
+  rpcUrls: ReadonlyArray<string>,
+  payload: JsonRpcPayload
+): Promise<string> {
+  if (rpcUrls.length === 0) {
+    throw new Error("rpcCallWithFailover requires at least one URL");
+  }
+
+  const maxRetries =
+    rpcUrls.length > 1
+      ? RPC_RETRY_CONFIG.RETRIES_PER_URL_WITH_FAILOVER
+      : RPC_RETRY_CONFIG.MAX_RETRIES;
+
+  let lastError: Error = new Error("RPC call failed");
+
+  for (const [i, url] of rpcUrls.entries()) {
+    try {
+      return await rpcCall(url, payload, maxRetries);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      const nextUrl = rpcUrls[i + 1];
+      if (nextUrl) {
+        addBreadcrumb({
+          category: "rpc.failover",
+          level: "info",
+          message: `RPC primary failed, failing over: ${lastError.message}`,
+          data: {
+            method: payload.method,
+            failedUrl: url,
+            nextUrl,
+          },
+        });
+      }
+    }
   }
 
   throw lastError;
