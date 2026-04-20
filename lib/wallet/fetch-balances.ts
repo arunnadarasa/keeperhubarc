@@ -88,6 +88,138 @@ function buildExplorerAddressUrl(
 }
 
 /**
+ * Encode an ERC20 `balanceOf(address)` call payload.
+ */
+function encodeBalanceOfCallData(address: string): string {
+  const balanceOfSelector = "0x70a08231";
+  const stripped = address.startsWith("0x") ? address.slice(2) : address;
+  const padded = stripped.toLowerCase().padStart(64, "0");
+  return `${balanceOfSelector}${padded}`;
+}
+
+/**
+ * Parse a hex wei string into BigInt, treating empty `"0x"` as zero.
+ * Caller must ensure hex is a non-empty string (rpcCall guarantees this).
+ */
+function hexWeiToBigInt(hex: string): bigint {
+  return hex === "0x" ? BIGINT_ZERO : BigInt(hex);
+}
+
+type JsonRpcPayload = {
+  jsonrpc: "2.0";
+  method: string;
+  params: unknown[];
+  id: number;
+};
+
+/**
+ * RPC retry configuration.
+ *
+ * Two exponential-backoff schedules, picked by failure type:
+ *
+ * - `STANDARD`: network errors, HTTP 5xx, and malformed responses (missing
+ *   `result` field). Short backoff because these usually clear quickly.
+ * - `RATE_LIMIT`: HTTP 429. Longer backoff because the server is actively
+ *   throttling us; retrying too soon just extends the throttle.
+ *
+ * Schedule = `min(BASE_MS * 2^attempt, CAP_MS)`.
+ *
+ * With MAX_RETRIES = 3:
+ *   - STANDARD delays:   500ms, 1s, 2s     (total ~3.5s across 4 attempts)
+ *   - RATE_LIMIT delays: 1s,    2s, 4s     (total ~7s across 4 attempts)
+ */
+const RPC_RETRY_CONFIG = {
+  MAX_RETRIES: 3,
+  STANDARD: {
+    BASE_MS: 500,
+    CAP_MS: 3000,
+  },
+  RATE_LIMIT: {
+    BASE_MS: 1000,
+    CAP_MS: 5000,
+  },
+} as const;
+
+type RpcFailureKind = "standard" | "rate_limit";
+
+function getRpcBackoffMs(attempt: number, kind: RpcFailureKind): number {
+  const schedule =
+    kind === "rate_limit"
+      ? RPC_RETRY_CONFIG.RATE_LIMIT
+      : RPC_RETRY_CONFIG.STANDARD;
+  return Math.min(schedule.BASE_MS * 2 ** attempt, schedule.CAP_MS);
+}
+
+/**
+ * Execute a JSON-RPC POST with retry/backoff for transient failures.
+ *
+ * Retries: HTTP 429, HTTP 5xx, network errors, and missing `result` fields
+ * (malformed gateway responses — the root cause behind `BigInt(undefined)`).
+ * Does not retry HTTP 4xx (except 429) or RPC-reported errors — those are
+ * deterministic and would fail again.
+ *
+ * Returns the raw `result` string (guaranteed non-empty). Callers interpret
+ * `"0x"` per their context via {@link hexWeiToBigInt}.
+ */
+async function rpcCall(
+  rpcUrl: string,
+  payload: JsonRpcPayload
+): Promise<string> {
+  let lastError: Error = new Error("RPC call failed");
+  let lastFailureKind: RpcFailureKind = "standard";
+
+  for (let attempt = 0; attempt <= RPC_RETRY_CONFIG.MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      await delay(getRpcBackoffMs(attempt - 1, lastFailureKind));
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      lastFailureKind = "standard";
+      continue;
+    }
+
+    if (response.status === 429) {
+      lastError = new Error("HTTP 429: rate limited");
+      lastFailureKind = "rate_limit";
+      continue;
+    }
+
+    if (response.status >= 500) {
+      lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
+      lastFailureKind = "standard";
+      continue;
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    if (data.error) {
+      throw new Error(data.error.message || "RPC error");
+    }
+
+    if (data.result === undefined || data.result === null) {
+      lastError = new Error("RPC returned no result");
+      lastFailureKind = "standard";
+      continue;
+    }
+
+    return data.result;
+  }
+
+  throw lastError;
+}
+
+/**
  * Fetch native token balance for a single chain
  */
 export async function fetchNativeBalance(
@@ -95,23 +227,14 @@ export async function fetchNativeBalance(
   chain: ChainData
 ): Promise<ChainBalance> {
   try {
-    const response = await fetch(chain.defaultPrimaryRpc, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        method: "eth_getBalance",
-        params: [address, "latest"],
-        id: 1,
-      }),
+    const resultHex = await rpcCall(chain.defaultPrimaryRpc, {
+      jsonrpc: "2.0",
+      method: "eth_getBalance",
+      params: [address, "latest"],
+      id: 1,
     });
 
-    const result = await response.json();
-    if (result.error) {
-      throw new Error(result.error.message);
-    }
-
-    const balanceWei = BigInt(result.result);
+    const balanceWei = hexWeiToBigInt(resultHex);
 
     return {
       chainId: chain.chainId,
@@ -154,49 +277,17 @@ export async function fetchTokenBalance(
   chain: ChainData
 ): Promise<TokenBalance> {
   try {
-    // ERC20 balanceOf function signature
-    const balanceOfSelector = "0x70a08231";
-
-    // Encode the balanceOf call data
-    const addressWithoutPrefix = address.startsWith("0x")
-      ? address.slice(2)
-      : address;
-    const paddedAddress = addressWithoutPrefix.toLowerCase().padStart(64, "0");
-    const callData = `${balanceOfSelector}${paddedAddress}`;
-
-    const response = await fetch(chain.defaultPrimaryRpc, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        method: "eth_call",
-        params: [{ to: token.tokenAddress, data: callData }, "latest"],
-        id: 1,
-      }),
+    const resultHex = await rpcCall(chain.defaultPrimaryRpc, {
+      jsonrpc: "2.0",
+      method: "eth_call",
+      params: [
+        { to: token.tokenAddress, data: encodeBalanceOfCallData(address) },
+        "latest",
+      ],
+      id: 1,
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const result = await response.json();
-    if (result.error) {
-      throw new Error(result.error.message || "RPC error");
-    }
-
-    if (!result.result || result.result === "0x") {
-      return {
-        tokenId: token.id,
-        chainId: token.chainId,
-        tokenAddress: token.tokenAddress,
-        symbol: token.symbol,
-        name: token.name,
-        balance: "0.000000",
-        loading: false,
-      };
-    }
-
-    const balanceWei = BigInt(result.result);
+    const balanceWei = hexWeiToBigInt(resultHex);
 
     return {
       tokenId: token.id,
@@ -272,123 +363,57 @@ export function fetchAllTokenBalances(
 /**
  * Fetch balance for a single supported token with retry logic
  */
-export function fetchSupportedTokenBalance(
+export async function fetchSupportedTokenBalance(
   address: string,
   token: SupportedToken,
-  chain: ChainData,
-  retries = 3
+  chain: ChainData
 ): Promise<SupportedTokenBalance> {
-  const makeRequest = async (
-    attempt: number
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Retry logic with exponential backoff requires this complexity
-  ): Promise<SupportedTokenBalance> => {
-    try {
-      // ERC20 balanceOf function signature
-      const balanceOfSelector = "0x70a08231";
+  try {
+    const resultHex = await rpcCall(chain.defaultPrimaryRpc, {
+      jsonrpc: "2.0",
+      method: "eth_call",
+      params: [
+        { to: token.tokenAddress, data: encodeBalanceOfCallData(address) },
+        "latest",
+      ],
+      id: 1,
+    });
 
-      // Encode the balanceOf call data
-      const addressWithoutPrefix = address.startsWith("0x")
-        ? address.slice(2)
-        : address;
-      const paddedAddress = addressWithoutPrefix
-        .toLowerCase()
-        .padStart(64, "0");
-      const callData = `${balanceOfSelector}${paddedAddress}`;
+    const balanceWei = hexWeiToBigInt(resultHex);
 
-      const response = await fetch(chain.defaultPrimaryRpc, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          method: "eth_call",
-          params: [{ to: token.tokenAddress, data: callData }, "latest"],
-          id: 1,
-        }),
-      });
-
-      // Handle rate limiting with retry
-      if (response.status === 429 && attempt < retries) {
-        const backoffMs = Math.min(1000 * 2 ** attempt, 5000);
-        await new Promise((resolve) => setTimeout(resolve, backoffMs));
-        return makeRequest(attempt + 1);
+    return {
+      chainId: token.chainId,
+      tokenAddress: token.tokenAddress,
+      symbol: token.symbol,
+      name: token.name,
+      logoUrl: token.logoUrl,
+      balance: formatWeiToBalance(balanceWei, token.decimals),
+      loading: false,
+      explorerUrl: buildExplorerAddressUrl(chain, token.tokenAddress),
+    };
+  } catch (error) {
+    logUserError(
+      ErrorCategory.NETWORK_RPC,
+      `Failed to fetch balance for ${token.symbol}:`,
+      error,
+      {
+        chain_id: token.chainId.toString(),
+        token_symbol: token.symbol,
+        token_address: token.tokenAddress,
       }
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      if (result.error) {
-        throw new Error(result.error.message || "RPC error");
-      }
-
-      const tokenExplorerUrl = buildExplorerAddressUrl(
-        chain,
-        token.tokenAddress
-      );
-
-      if (!result.result || result.result === "0x") {
-        return {
-          chainId: token.chainId,
-          tokenAddress: token.tokenAddress,
-          symbol: token.symbol,
-          name: token.name,
-          logoUrl: token.logoUrl,
-          balance: "0.000000",
-          loading: false,
-          explorerUrl: tokenExplorerUrl,
-        };
-      }
-
-      const balanceWei = BigInt(result.result);
-
-      return {
-        chainId: token.chainId,
-        tokenAddress: token.tokenAddress,
-        symbol: token.symbol,
-        name: token.name,
-        logoUrl: token.logoUrl,
-        balance: formatWeiToBalance(balanceWei, token.decimals),
-        loading: false,
-        explorerUrl: tokenExplorerUrl,
-      };
-    } catch (error) {
-      // Retry on network errors
-      if (
-        attempt < retries &&
-        error instanceof Error &&
-        !error.message.includes("HTTP 4")
-      ) {
-        const backoffMs = Math.min(500 * 2 ** attempt, 3000);
-        await new Promise((resolve) => setTimeout(resolve, backoffMs));
-        return makeRequest(attempt + 1);
-      }
-
-      logUserError(
-        ErrorCategory.NETWORK_RPC,
-        `Failed to fetch balance for ${token.symbol}:`,
-        error,
-        {
-          chain_id: token.chainId.toString(),
-          token_symbol: token.symbol,
-          token_address: token.tokenAddress,
-        }
-      );
-      return {
-        chainId: token.chainId,
-        tokenAddress: token.tokenAddress,
-        symbol: token.symbol,
-        name: token.name,
-        logoUrl: token.logoUrl,
-        balance: "0",
-        loading: false,
-        error: error instanceof Error ? error.message : "Failed to fetch",
-        explorerUrl: buildExplorerAddressUrl(chain, token.tokenAddress),
-      };
-    }
-  };
-
-  return makeRequest(0);
+    );
+    return {
+      chainId: token.chainId,
+      tokenAddress: token.tokenAddress,
+      symbol: token.symbol,
+      name: token.name,
+      logoUrl: token.logoUrl,
+      balance: "0",
+      loading: false,
+      error: error instanceof Error ? error.message : "Failed to fetch",
+      explorerUrl: buildExplorerAddressUrl(chain, token.tokenAddress),
+    };
+  }
 }
 
 /**
