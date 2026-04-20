@@ -20,7 +20,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { normalizeAddressForStorage } from "../lib/address-utils";
 import * as schema from "../lib/db/schema";
-import { createTurnkeyWallet } from "../lib/turnkey/turnkey-client";
+import { createTurnkeyWallet } from "../lib/turnkey/turnkey-operations";
 
 // Stable key for pg_try_advisory_lock. Any constant unique to this task works;
 // keep it out of the range used by other advisory locks in the project.
