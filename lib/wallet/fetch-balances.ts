@@ -3,6 +3,7 @@
  */
 
 import { ErrorCategory, logUserError } from "@/lib/logging";
+import { encodeBalanceOfCallData, hexWeiToBigInt, rpcCall } from "./rpc";
 import type {
   ChainBalance,
   ChainData,
@@ -85,138 +86,6 @@ function buildExplorerAddressUrl(
   }
   const path = chain.explorerAddressPath || "/address/{address}";
   return `${chain.explorerUrl}${path.replace("{address}", address)}`;
-}
-
-/**
- * Encode an ERC20 `balanceOf(address)` call payload.
- */
-function encodeBalanceOfCallData(address: string): string {
-  const balanceOfSelector = "0x70a08231";
-  const stripped = address.startsWith("0x") ? address.slice(2) : address;
-  const padded = stripped.toLowerCase().padStart(64, "0");
-  return `${balanceOfSelector}${padded}`;
-}
-
-/**
- * Parse a hex wei string into BigInt, treating empty `"0x"` as zero.
- * Caller must ensure hex is a non-empty string (rpcCall guarantees this).
- */
-function hexWeiToBigInt(hex: string): bigint {
-  return hex === "0x" ? BIGINT_ZERO : BigInt(hex);
-}
-
-type JsonRpcPayload = {
-  jsonrpc: "2.0";
-  method: string;
-  params: unknown[];
-  id: number;
-};
-
-/**
- * RPC retry configuration.
- *
- * Two exponential-backoff schedules, picked by failure type:
- *
- * - `STANDARD`: network errors, HTTP 5xx, and malformed responses (missing
- *   `result` field). Short backoff because these usually clear quickly.
- * - `RATE_LIMIT`: HTTP 429. Longer backoff because the server is actively
- *   throttling us; retrying too soon just extends the throttle.
- *
- * Schedule = `min(BASE_MS * 2^attempt, CAP_MS)`.
- *
- * With MAX_RETRIES = 3:
- *   - STANDARD delays:   500ms, 1s, 2s     (total ~3.5s across 4 attempts)
- *   - RATE_LIMIT delays: 1s,    2s, 4s     (total ~7s across 4 attempts)
- */
-const RPC_RETRY_CONFIG = {
-  MAX_RETRIES: 3,
-  STANDARD: {
-    BASE_MS: 500,
-    CAP_MS: 3000,
-  },
-  RATE_LIMIT: {
-    BASE_MS: 1000,
-    CAP_MS: 5000,
-  },
-} as const;
-
-type RpcFailureKind = "standard" | "rate_limit";
-
-function getRpcBackoffMs(attempt: number, kind: RpcFailureKind): number {
-  const schedule =
-    kind === "rate_limit"
-      ? RPC_RETRY_CONFIG.RATE_LIMIT
-      : RPC_RETRY_CONFIG.STANDARD;
-  return Math.min(schedule.BASE_MS * 2 ** attempt, schedule.CAP_MS);
-}
-
-/**
- * Execute a JSON-RPC POST with retry/backoff for transient failures.
- *
- * Retries: HTTP 429, HTTP 5xx, network errors, and missing `result` fields
- * (malformed gateway responses — the root cause behind `BigInt(undefined)`).
- * Does not retry HTTP 4xx (except 429) or RPC-reported errors — those are
- * deterministic and would fail again.
- *
- * Returns the raw `result` string (guaranteed non-empty). Callers interpret
- * `"0x"` per their context via {@link hexWeiToBigInt}.
- */
-async function rpcCall(
-  rpcUrl: string,
-  payload: JsonRpcPayload
-): Promise<string> {
-  let lastError: Error = new Error("RPC call failed");
-  let lastFailureKind: RpcFailureKind = "standard";
-
-  for (let attempt = 0; attempt <= RPC_RETRY_CONFIG.MAX_RETRIES; attempt++) {
-    if (attempt > 0) {
-      await delay(getRpcBackoffMs(attempt - 1, lastFailureKind));
-    }
-
-    let response: Response;
-    try {
-      response = await fetch(rpcUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-      lastFailureKind = "standard";
-      continue;
-    }
-
-    if (response.status === 429) {
-      lastError = new Error("HTTP 429: rate limited");
-      lastFailureKind = "rate_limit";
-      continue;
-    }
-
-    if (response.status >= 500) {
-      lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
-      lastFailureKind = "standard";
-      continue;
-    }
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    if (data.error) {
-      throw new Error(data.error.message || "RPC error");
-    }
-
-    if (data.result === undefined || data.result === null) {
-      lastError = new Error("RPC returned no result");
-      lastFailureKind = "standard";
-      continue;
-    }
-
-    return data.result;
-  }
-
-  throw lastError;
 }
 
 /**
