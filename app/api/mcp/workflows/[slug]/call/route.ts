@@ -15,6 +15,7 @@ import {
 } from "@/lib/payments/router";
 import { executeWorkflow } from "@/lib/workflow-executor.workflow";
 import type { WorkflowEdge, WorkflowNode } from "@/lib/workflow-store";
+import { buildCallCompletionResponse } from "@/lib/x402/execution-wait";
 import {
   hashPaymentSignature,
   recordPayment,
@@ -146,8 +147,9 @@ function startExecutionInBackground(
 }
 
 /**
- * Free-path helper: prepares the execution and starts it. Used by the
- * non-paid call path where there is no payment to record between the two.
+ * Free-path helper: prepares the execution, starts it, and awaits completion
+ * up to the read-wait timeout. Returns the mapped output inline on success or
+ * falls back to `{executionId, status: "running"}` on timeout.
  */
 async function createAndStartExecution(
   workflow: CallRouteWorkflow,
@@ -158,10 +160,11 @@ async function createAndStartExecution(
     return prepared.error;
   }
   startExecutionInBackground(workflow, body, prepared.executionId);
-  return NextResponse.json(
-    { executionId: prepared.executionId, status: "running" },
-    { headers: corsHeaders }
+  const responseBody = await buildCallCompletionResponse(
+    prepared.executionId,
+    workflow.outputMapping
   );
+  return NextResponse.json(responseBody, { headers: corsHeaders });
 }
 
 async function lookupWorkflow(slug: string): Promise<CallRouteWorkflow | null> {
@@ -334,10 +337,11 @@ async function handlePaidWorkflow(
 
         startExecutionInBackground(workflow, body, executionId);
 
-        return NextResponse.json(
-          { executionId, status: "running" },
-          { headers: corsHeaders }
+        const responseBody = await buildCallCompletionResponse(
+          executionId,
+          workflow.outputMapping
         );
+        return NextResponse.json(responseBody, { headers: corsHeaders });
       };
     }
   );

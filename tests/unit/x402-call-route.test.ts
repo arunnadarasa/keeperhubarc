@@ -21,6 +21,7 @@ const {
   mockLogSystemError,
   mockAuthenticateApiKey,
   mockAuthenticateOAuthToken,
+  mockBuildCallCompletionResponse,
 } = vi.hoisted(() => ({
   mockDbSelect: vi.fn(),
   mockDbInsert: vi.fn(),
@@ -38,6 +39,7 @@ const {
   mockLogSystemError: vi.fn(),
   mockAuthenticateApiKey: vi.fn(),
   mockAuthenticateOAuthToken: vi.fn(),
+  mockBuildCallCompletionResponse: vi.fn(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -106,6 +108,10 @@ vi.mock("@/app/api/execute/_lib/concurrency-limit", () => ({
 vi.mock("@/lib/logging", () => ({
   ErrorCategory: { WORKFLOW_ENGINE: "workflow_engine" },
   logSystemError: mockLogSystemError,
+}));
+
+vi.mock("@/lib/x402/execution-wait", () => ({
+  buildCallCompletionResponse: mockBuildCallCompletionResponse,
 }));
 
 // ---------------------------------------------------------------------------
@@ -223,6 +229,12 @@ describe("POST /api/mcp/workflows/[slug]/call", () => {
     mockRecordPayment.mockResolvedValue(undefined);
     mockHashPaymentSignature.mockReturnValue("hash-abc");
     mockResolveCreatorWallet.mockResolvedValue(CREATOR_WALLET);
+    // Default: simulate timeout so we fall back to running response. Tests
+    // exercising the synchronous completion path override this explicitly.
+    mockBuildCallCompletionResponse.mockImplementation(
+      (executionId: string) =>
+        Promise.resolve({ executionId, status: "running" })
+    );
     // Default no-op update chain: db.update(table).set(values).where(filter)
     mockDbUpdate.mockReturnValue({
       set: vi.fn().mockReturnValue({
@@ -543,6 +555,88 @@ describe("POST /api/mcp/workflows/[slug]/call", () => {
     );
     // The workflow itself was never started.
     expect(mockStart).not.toHaveBeenCalled();
+  });
+
+  it("Test 15b: free read workflow returns mapped output inline when execution completes within timeout (KEEP-265)", async () => {
+    setupDbSelectWorkflow(FREE_WORKFLOW);
+    setupDbInsertExecution("exec-sync-1");
+    mockBuildCallCompletionResponse.mockResolvedValue({
+      executionId: "exec-sync-1",
+      status: "success",
+      output: { balance: "1.3286 ETH" },
+    });
+    const { POST } = await import("@/app/api/mcp/workflows/[slug]/call/route");
+    const request = makeRequest("test-workflow");
+    const params = Promise.resolve({ slug: "test-workflow" });
+    const response = await POST(request, { params });
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.executionId).toBe("exec-sync-1");
+    expect(body.status).toBe("success");
+    expect(body.output).toEqual({ balance: "1.3286 ETH" });
+    // Workflow still kicked off in the background prior to the wait.
+    expect(mockStart).toHaveBeenCalled();
+  });
+
+  it("Test 15c: free read workflow falls back to running on timeout (KEEP-265)", async () => {
+    setupDbSelectWorkflow(FREE_WORKFLOW);
+    setupDbInsertExecution("exec-timeout-1");
+    mockBuildCallCompletionResponse.mockResolvedValue({
+      executionId: "exec-timeout-1",
+      status: "running",
+    });
+    const { POST } = await import("@/app/api/mcp/workflows/[slug]/call/route");
+    const request = makeRequest("test-workflow");
+    const params = Promise.resolve({ slug: "test-workflow" });
+    const response = await POST(request, { params });
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.executionId).toBe("exec-timeout-1");
+    expect(body.status).toBe("running");
+    expect(body.output).toBeUndefined();
+  });
+
+  it("Test 15d: free read workflow returns error status when execution fails within timeout (KEEP-265)", async () => {
+    setupDbSelectWorkflow(FREE_WORKFLOW);
+    setupDbInsertExecution("exec-err-1");
+    mockBuildCallCompletionResponse.mockResolvedValue({
+      executionId: "exec-err-1",
+      status: "error",
+      error: "RPC provider returned 500",
+    });
+    const { POST } = await import("@/app/api/mcp/workflows/[slug]/call/route");
+    const request = makeRequest("test-workflow");
+    const params = Promise.resolve({ slug: "test-workflow" });
+    const response = await POST(request, { params });
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.executionId).toBe("exec-err-1");
+    expect(body.status).toBe("error");
+    expect(body.error).toContain("RPC provider");
+  });
+
+  it("Test 15e: paid read workflow returns mapped output inline on synchronous completion (KEEP-265)", async () => {
+    setupDbSelectWorkflow(LISTED_WORKFLOW);
+    setupDbInsertExecution("exec-paid-sync-1");
+    makePassThroughGatePayment();
+    mockBuildCallCompletionResponse.mockResolvedValue({
+      executionId: "exec-paid-sync-1",
+      status: "success",
+      output: { riskScore: 2 },
+    });
+    const { POST } = await import("@/app/api/mcp/workflows/[slug]/call/route");
+    const request = makeRequest("test-workflow", {
+      paymentSignature: "sig-sync",
+    });
+    const params = Promise.resolve({ slug: "test-workflow" });
+    const response = await POST(request, { params });
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.executionId).toBe("exec-paid-sync-1");
+    expect(body.status).toBe("success");
+    expect(body.output).toEqual({ riskScore: 2 });
+    // Payment must still be recorded before completion wait returned a result.
+    expect(mockRecordPayment).toHaveBeenCalled();
   });
 
   it("Test 16: paid workflow probe with empty body returns 402 before body validation", async () => {
