@@ -284,15 +284,25 @@ export class StripeBillingProvider implements BillingProvider {
         : null;
 
     // Stripe Checkout stores the default payment method on the subscription,
-    // not on the customer. Fall back to the most recent subscription's default,
-    // then to any card attached to the customer.
+    // not on the customer. Prefer the active subscription's default PM, since
+    // that's the card actually being charged. Fall back to any status only if
+    // there is no active sub, to preserve data for past_due / canceled users
+    // viewing billing history.
     if (!card) {
-      const subs = await s.subscriptions.list({
+      let subs = await s.subscriptions.list({
         customer: customerId,
-        status: "all",
+        status: "active",
         limit: 1,
         expand: ["data.default_payment_method"],
       });
+      if (subs.data.length === 0) {
+        subs = await s.subscriptions.list({
+          customer: customerId,
+          status: "all",
+          limit: 1,
+          expand: ["data.default_payment_method"],
+        });
+      }
       const subDefault = subs.data[0]?.default_payment_method;
       if (
         subDefault &&
