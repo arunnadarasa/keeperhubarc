@@ -68,6 +68,14 @@ describe("agenticWallets table: v1.8 schema", () => {
     expect(col).toBeDefined();
     expect(col?.hasDefault).toBe(true);
   });
+
+  it("linked_user_id FK uses ON DELETE SET NULL (ONBOARD-06 audit trail)", () => {
+    const fk = cfg.foreignKeys.find((f) =>
+      f.reference().columns.some((c) => c.name === "linked_user_id")
+    );
+    expect(fk).toBeDefined();
+    expect(fk?.onDelete).toBe("set null");
+  });
 });
 
 describe("walletApprovalRequests table: v1.8 schema", () => {
@@ -113,6 +121,22 @@ describe("walletApprovalRequests table: v1.8 schema", () => {
     const col = cfg.columns.find((c) => c.name === "resolved_by_user_id");
     expect(col).toBeDefined();
     expect(col?.notNull).toBe(false);
+  });
+
+  it("sub_org_id FK uses ON DELETE CASCADE (approval rows die with wallet)", () => {
+    const fk = cfg.foreignKeys.find((f) =>
+      f.reference().columns.some((c) => c.name === "sub_org_id")
+    );
+    expect(fk).toBeDefined();
+    expect(fk?.onDelete).toBe("cascade");
+  });
+
+  it("resolved_by_user_id FK uses ON DELETE SET NULL (audit preservation)", () => {
+    const fk = cfg.foreignKeys.find((f) =>
+      f.reference().columns.some((c) => c.name === "resolved_by_user_id")
+    );
+    expect(fk).toBeDefined();
+    expect(fk?.onDelete).toBe("set null");
   });
 });
 
