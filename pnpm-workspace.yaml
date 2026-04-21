@@ -1,9 +1,0 @@
-packages:
-  - "packages/*"
-
-# Mirrors the `minimum-release-age=3d` rule in .npmrc. The .npmrc value uses
-# duration-suffix syntax (`3d`) which pnpm 10.27 fails to parse, causing
-# ERR_PNPM_NO_MATURE_MATCHING_VERSION for legitimate mature packages. The
-# pnpm-workspace.yaml setting expects minutes, so 3 days = 4320. Keep both
-# entries in sync. See 34-01-SUMMARY.md Rule 3 deviation.
-minimumReleaseAge: 4320
