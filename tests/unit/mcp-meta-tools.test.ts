@@ -420,8 +420,14 @@ describe("POST /api/mcp/workflows/[slug]/call: write workflow returns calldata",
   }));
 
   vi.mock("@/lib/db/schema", () => ({
-    workflows: { id: "id", listedSlug: "listed_slug", isListed: "is_listed" },
+    workflows: {
+      id: "id",
+      listedSlug: "listed_slug",
+      isListed: "is_listed",
+      tagId: "tag_id",
+    },
     workflowExecutions: { id: "id" },
+    tags: { id: "id", name: "name" },
   }));
 
   vi.mock("@/lib/x402/server", () => ({
@@ -501,10 +507,15 @@ describe("POST /api/mcp/workflows/[slug]/call: write workflow returns calldata",
   };
 
   function setupDbSelectWorkflow(row: unknown) {
+    // lookupWorkflow joins the tags table to project tagName into the row;
+    // the real chain is select().from().leftJoin().where().limit(). Mirror
+    // that shape here or the real code throws on the missing .leftJoin().
     mockDbSelect.mockReturnValue({
       from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue(row ? [row] : []),
+        leftJoin: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue(row ? [row] : []),
+          }),
         }),
       }),
     });
