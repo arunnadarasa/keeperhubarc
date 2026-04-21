@@ -79,6 +79,9 @@ describe("supply-chain guard (DIST-03)", () => {
     const pkg = JSON.parse(raw) as {
       devDependencies?: Record<string, string>;
     };
+    // Guard against a future refactor that removes devDependencies entirely,
+    // which would make the loop below vacuously pass.
+    expect(Object.keys(pkg.devDependencies ?? {}).length).toBeGreaterThan(0);
     for (const [name, range] of Object.entries(pkg.devDependencies ?? {})) {
       expect(
         range.startsWith("^") || range.startsWith("~"),
