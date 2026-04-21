@@ -86,4 +86,13 @@ describe("supply-chain guard (DIST-03)", () => {
       ).toBe(false);
     }
   });
+
+  it("files entry includes skill/ so the .skill.md ships in the published tarball (DIST-01)", async () => {
+    const raw = await readFile(
+      resolve(import.meta.dirname, "../../package.json"),
+      "utf-8"
+    );
+    const pkg = JSON.parse(raw) as { files?: string[] };
+    expect(pkg.files).toEqual(expect.arrayContaining(["skill"]));
+  });
 });
