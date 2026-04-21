@@ -97,7 +97,12 @@ export function BillingPage(): React.ReactElement {
     if (checkout === "success") {
       toast.success("Subscription activated successfully!");
       window.history.replaceState({}, "", window.location.pathname);
-      // Re-fetch after Stripe finishes attaching the payment method (~2s delay)
+      // Heuristic delay: Stripe needs a moment after Checkout to attach the
+      // payment method where getBillingDetails can read it back via the API
+      // cascade. 2s works in practice but is a race, not a guarantee. The
+      // robust fix is to persist payment method details in our DB on the
+      // checkout.session.completed webhook and read from DB instead of
+      // hitting Stripe here.
       const timer = setTimeout(() => setRefreshKey((k) => k + 1), 2000);
       return () => clearTimeout(timer);
     }
