@@ -1178,15 +1178,17 @@ export const PanelInner = () => {
                         )}
                       </Button>
                     )}
-                    <Button
-                      className="text-muted-foreground"
-                      onClick={() => setShowDeleteNodeAlert(true)}
-                      size="sm"
-                      variant="ghost"
-                    >
-                      <Trash2 className="mr-2 size-4" />
-                      Delete
-                    </Button>
+                    {selectedNode.data.type !== "trigger" && (
+                      <Button
+                        className="text-muted-foreground"
+                        onClick={() => setShowDeleteNodeAlert(true)}
+                        size="sm"
+                        variant="ghost"
+                      >
+                        <Trash2 className="mr-2 size-4" />
+                        Delete
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}
