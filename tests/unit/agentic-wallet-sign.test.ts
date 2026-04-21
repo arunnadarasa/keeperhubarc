@@ -20,11 +20,18 @@ const { mockSignRawPayload } = vi.hoisted(() => ({
 }));
 
 vi.mock("@turnkey/sdk-server", () => ({
-  Turnkey: vi.fn(() => ({
-    apiClient: (): { signRawPayload: typeof mockSignRawPayload } => ({
-      signRawPayload: mockSignRawPayload,
-    }),
-  })),
+  // Named function expression (not an arrow) so `new Turnkey(...)` is
+  // constructable under vitest 4.x. Arrow fns lack [[Construct]] and throw
+  // "is not a constructor". See 33-01a summary deviation #2 for the same fix.
+  Turnkey: vi.fn(function TurnkeyMock(this: unknown): {
+    apiClient: () => { signRawPayload: typeof mockSignRawPayload };
+  } {
+    return {
+      apiClient: (): { signRawPayload: typeof mockSignRawPayload } => ({
+        signRawPayload: mockSignRawPayload,
+      }),
+    };
+  }),
 }));
 
 const { signMppProof, signX402Challenge } = await import(
@@ -43,8 +50,12 @@ function happyPathResult(
       status: "ACTIVITY_STATUS_COMPLETED",
       result: {
         signRawPayloadResult: {
+          // r is arbitrary 32 bytes. s MUST be canonical (low-s per EIP-2);
+          // the secp256k1 half-order is ~0x7FFF...5D57..., so all-"bb"
+          // (0xbb...) is high-s and ethers 6 rejects it with "non-canonical
+          // s". Use "11".repeat(32) — safely below the half-order boundary.
           r: "aa".repeat(32),
-          s: "bb".repeat(32),
+          s: "11".repeat(32),
           v,
         },
       },
