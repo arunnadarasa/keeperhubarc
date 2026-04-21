@@ -18,6 +18,13 @@ export {
   paymentSigner,
 } from "./payment-signer.js";
 export {
+  DEFAULT_SAFETY_CONFIG,
+  getSafetyConfigPath,
+  loadSafetyConfig,
+  type SafetyConfig,
+  validateAndMerge,
+} from "./safety-config.js";
+export {
   getWalletConfigPath,
   readWalletConfig,
   writeWalletConfig,
