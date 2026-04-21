@@ -46,11 +46,12 @@ jobs:
           git config user.name "keeperhub-bot"
           git config user.email "bot@keeperhub.com"
           TAG_NAME="${GITHUB_REF_NAME:-manual-dispatch}"
-          if git diff --quiet; then
+          git add skills/keeperhub-wallet.skill.md
+          [ -f README.md ] && git add README.md
+          if git diff --cached --quiet; then
             echo "No changes to sync."
             exit 0
           fi
-          git add skills/keeperhub-wallet.skill.md README.md 2>/dev/null || true
           git commit -m "sync: $TAG_NAME" -m "Syncs skill file from @keeperhub/wallet npm release."
           git tag "$TAG_NAME" || true
           git push origin HEAD:main
