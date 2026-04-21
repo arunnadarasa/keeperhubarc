@@ -379,6 +379,13 @@
       "when": 1776761125086,
       "tag": "0053_sleepy_franklin_richards",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1776767237288,
+      "tag": "0054_agentic_wallet_credits_and_hmac",
+      "breakpoints": true
     }
   ]
 }
