@@ -1084,6 +1084,9 @@ export const PanelInner = () => {
             !selectedNode.data.config?.actionType &&
             isOwner
           ) && (
+            // key forces this subtree to remount when the selected node
+            // changes, resetting local useState in leaf field components so
+            // the previous node's inputs don't leak into the new node's panel.
             <div
               className="flex-1 space-y-4 overflow-y-auto p-4"
               key={selectedNode.id}
