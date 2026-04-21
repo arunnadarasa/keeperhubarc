@@ -17,6 +17,7 @@ import { Command } from "commander";
 import { checkBalance } from "./balance.js";
 import { fund } from "./fund.js";
 import { buildHmacHeaders } from "./hmac.js";
+import { installSkill } from "./skill-install.js";
 import {
   getWalletConfigPath,
   readWalletConfig,
@@ -186,6 +187,42 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     .action(async () => {
       await cmdInfo();
     });
+
+  program
+    .command("skill")
+    .description(
+      "Install the KeeperHub skill file into detected agent directories"
+    )
+    .addCommand(
+      new Command("install")
+        .description(
+          "Write skill file + register PreToolUse hook in all detected agents"
+        )
+        .action(async () => {
+          const result = await installSkill();
+          for (const write of result.skillWrites) {
+            process.stdout.write(
+              `skill: ${write.agent} -> ${write.path} (${write.status})\n`
+            );
+          }
+          for (const reg of result.hookRegistrations) {
+            if (reg.status === "registered") {
+              process.stdout.write(
+                `hook: ${reg.agent} -> PreToolUse registered\n`
+              );
+            } else if (reg.status === "notice") {
+              process.stderr.write(
+                `notice: ${reg.agent} -> ${reg.message ?? ""}\n`
+              );
+            }
+          }
+          if (result.skillWrites.length === 0) {
+            process.stderr.write(
+              "No supported agent skill directories detected under $HOME. Create ~/.claude/, ~/.cursor/, ~/.cline/, ~/.windsurf/, or ~/.config/opencode/ and re-run.\n"
+            );
+          }
+        })
+    );
 
   try {
     await program.parseAsync(argv);

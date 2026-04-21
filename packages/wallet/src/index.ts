@@ -1,3 +1,4 @@
+export { type AgentTarget, detectAgents } from "./agent-detect.js";
 export {
   type BalanceSnapshot,
   type CheckBalanceOptions,
@@ -27,6 +28,12 @@ export {
   type SafetyConfig,
   validateAndMerge,
 } from "./safety-config.js";
+export {
+  type InstallOptions,
+  type InstallResult,
+  installSkill,
+  registerClaudeCodeHook,
+} from "./skill-install.js";
 export {
   getWalletConfigPath,
   readWalletConfig,

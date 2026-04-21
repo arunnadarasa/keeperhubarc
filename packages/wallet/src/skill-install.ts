@@ -18,6 +18,7 @@
 
 import { chmod, copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { type AgentTarget, detectAgents } from "./agent-detect.js";
 
 const HOOK_COMMAND = "keeperhub-wallet-hook";
@@ -65,10 +66,13 @@ function buildKeeperhubEntry(): ClaudeHookEntry {
 }
 
 function resolveDefaultSkillSource(): string {
-  // import.meta.dirname points at the compiled output directory (dist/)
-  // at runtime, and at src/ during tests (tsx/vitest). In both cases the
-  // `skill/` directory lives one level up (alongside dist/ or src/).
-  return join(import.meta.dirname, "..", "skill", "keeperhub-wallet.skill.md");
+  // Resolve the module's own directory in a way that works in both ESM
+  // (import.meta.url) and CJS (__dirname shim emitted by tsup). At runtime
+  // the module lives inside dist/, so `../skill/` points at the sibling
+  // skill/ directory shipped via pkg.files. During vitest tests the module
+  // executes from src/, and `../skill/` resolves to packages/wallet/skill/.
+  const here = dirname(fileURLToPath(import.meta.url));
+  return join(here, "..", "skill", "keeperhub-wallet.skill.md");
 }
 
 function defaultNotice(msg: string): void {
