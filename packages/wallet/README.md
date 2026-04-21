@@ -1,15 +1,23 @@
 # @keeperhub/wallet
 
-Agentic wallet for KeeperHub. Auto-pays x402 and MPP 402 responses. Server-side Turnkey custody.
+Agentic wallet for AI agents. Auto-pays x402 (Base USDC) and MPP (Tempo USDC.e) 402 responses with server-side Turnkey custody. Ships a three-tier PreToolUse safety hook (auto/ask/block).
 
 ## Install
 
-    npx @keeperhub/wallet add
+```bash
+npx skills add keeperhub/agentic-wallet-skills
+npx @keeperhub/wallet add
+```
 
 ## First use
 
-    import { paymentSigner } from "@keeperhub/wallet";
-    const resp = await fetch(url);
-    const paid = await paymentSigner.pay(resp);
+```ts
+import { paymentSigner } from "@keeperhub/wallet";
+const paid = await paymentSigner.pay(await fetch(url));
+```
 
-See docs.keeperhub.com/ai-tools/agentic-wallet (Phase 36).
+Full walkthrough (safety hooks, approval flow, comparison with agentcash + Coinbase): https://docs.keeperhub.com/ai-tools/agentic-wallet
+
+## License
+
+Apache-2.0
