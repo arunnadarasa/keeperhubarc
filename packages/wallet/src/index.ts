@@ -4,6 +4,7 @@ export {
   checkBalance,
 } from "./balance.js";
 export { BASE_USDC, base, TEMPO_USDC_E, tempo } from "./chains.js";
+export { runCli } from "./cli.js";
 export {
   type AskTierResponse,
   type ClientOptions,
