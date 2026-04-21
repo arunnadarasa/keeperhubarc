@@ -48,6 +48,7 @@ import {
   type WorkflowNode,
   type WorkflowNodeType,
 } from "@/lib/workflow-store";
+import { hasDuplicateEdge } from "@/lib/workflow/edge-helpers";
 import { Edge } from "../ai-elements/edge";
 import { Panel } from "../ai-elements/panel";
 import { ActionNode } from "./nodes/action-node";
@@ -454,9 +455,25 @@ export function WorkflowCanvas() {
         return false;
       }
 
+      // Reject a duplicate of an existing edge (same source/target and handles).
+      // Different handles between the same node pair are still allowed.
+      if (
+        hasDuplicateEdge(edges, {
+          source: connection.source,
+          target: connection.target,
+          sourceHandle,
+          targetHandle:
+            "targetHandle" in connection
+              ? (connection.targetHandle as string | null | undefined)
+              : undefined,
+        })
+      ) {
+        return false;
+      }
+
       return true;
     },
-    [nodes]
+    [edges, nodes]
   );
 
   const onConnect: OnConnect = useCallback(
@@ -491,6 +508,17 @@ export function WorkflowCanvas() {
             }
             sourceHandle = hasTrueEdge ? "false" : "true";
           }
+        }
+
+        if (
+          hasDuplicateEdge(currentEdges, {
+            source: connection.source,
+            target: connection.target,
+            sourceHandle,
+            targetHandle: connection.targetHandle,
+          })
+        ) {
+          return currentEdges;
         }
 
         const newEdge = {
