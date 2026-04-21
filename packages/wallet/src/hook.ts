@@ -189,7 +189,11 @@ export async function createPreToolUseHook(
         const status = await client.request<{
           status: "pending" | "approved" | "rejected";
         }>("GET", `/api/agentic-wallet/approval-request/${approvalId}`);
-        if ("_status" in status) {
+        // WR-03: align with payment-signer.ts:84 -- positive-shape check on
+        // the expected envelope. If a future server change or proxy returns
+        // a 202/other wrapper without `status`, keep polling instead of
+        // treating an unknown envelope as "pending" by implication.
+        if (!("status" in status)) {
           continue;
         }
         if (status.status === "approved") {
@@ -198,6 +202,7 @@ export async function createPreToolUseHook(
         if (status.status === "rejected") {
           return { decision: "deny", reason: "USER_REJECTED" };
         }
+        // status === "pending" -- continue polling.
       }
       return { decision: "deny", reason: "APPROVAL_TIMEOUT" };
     }
