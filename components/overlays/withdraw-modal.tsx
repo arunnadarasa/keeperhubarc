@@ -56,6 +56,7 @@ export function WithdrawModal({
   const [gasEstimateLoading, setGasEstimateLoading] = useState(false);
   const [gasEstimateError, setGasEstimateError] = useState<string | null>(null);
   const [maxReserveApplied, setMaxReserveApplied] = useState(false);
+  const [maxLoading, setMaxLoading] = useState(false);
   const lastEstimateKeyRef = useRef<string | null>(null);
 
   const selectedAsset = assets[selectedAssetIndex];
@@ -88,50 +89,52 @@ export function WithdrawModal({
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
+    const runEstimate = async (): Promise<void> => {
       setGasEstimateLoading(true);
       setGasEstimateError(null);
-      fetch("/api/user/wallet/estimate-gas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chainId: selectedAsset.chainId,
-          tokenAddress: selectedAsset.tokenAddress,
-          amount,
-          recipient: estimationRecipient,
-        }),
-        signal: controller.signal,
-      })
-        .then(async (response) => {
-          const data = await response.json();
-          if (!response.ok) {
-            throw new Error(data.error ?? "Gas estimation failed");
-          }
-          return data as {
-            gasCostWei: string;
-            gasCostEth: string;
-            nativeSymbol: string;
-          };
-        })
-        .then((data) => {
-          setGasEstimate({
-            costWei: BigInt(data.gasCostWei),
-            costEth: data.gasCostEth,
-            nativeSymbol: data.nativeSymbol,
-          });
-          lastEstimateKeyRef.current = key;
-          setGasEstimateLoading(false);
-        })
-        .catch((err: unknown) => {
-          if (err instanceof Error && err.name === "AbortError") {
-            return;
-          }
-          setGasEstimate(null);
-          setGasEstimateError(
-            err instanceof Error ? err.message : "Gas estimation failed"
-          );
-          setGasEstimateLoading(false);
+      try {
+        const response = await fetch("/api/user/wallet/estimate-gas", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chainId: selectedAsset.chainId,
+            tokenAddress: selectedAsset.tokenAddress,
+            amount,
+            recipient: estimationRecipient,
+          }),
+          signal: controller.signal,
         });
+        const data = (await response.json()) as {
+          gasCostWei?: string;
+          gasCostEth?: string;
+          nativeSymbol?: string;
+          error?: string;
+        };
+        if (
+          !(response.ok && data.gasCostWei && data.gasCostEth && data.nativeSymbol)
+        ) {
+          throw new Error(data.error ?? "Gas estimation failed");
+        }
+        setGasEstimate({
+          costWei: BigInt(data.gasCostWei),
+          costEth: data.gasCostEth,
+          nativeSymbol: data.nativeSymbol,
+        });
+        lastEstimateKeyRef.current = key;
+        setGasEstimateLoading(false);
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === "AbortError") {
+          return;
+        }
+        setGasEstimate(null);
+        setGasEstimateError(
+          err instanceof Error ? err.message : "Gas estimation failed"
+        );
+        setGasEstimateLoading(false);
+      }
+    };
+    const timeoutId = setTimeout(() => {
+      void runEstimate();
     }, 500);
 
     return () => {
@@ -144,8 +147,6 @@ export function WithdrawModal({
     selectedAsset,
     walletAddress,
   ]);
-
-  const [maxLoading, setMaxLoading] = useState(false);
 
   const handleMaxClick = async (): Promise<void> => {
     if (!selectedAsset) {
@@ -169,6 +170,9 @@ export function WithdrawModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chainId: selectedAsset.chainId,
+          // Native gasUsed is amount-independent, so a tiny placeholder is enough
+          // to get the fee estimate. Passing the full balance here would make
+          // provider.estimateGas reject with insufficient-funds for this very call.
           amount: "0.000001",
           recipient: estimationRecipient,
         }),
