@@ -139,12 +139,17 @@ export async function POST(request: Request) {
       chainId
     );
 
-    const gasCostWei = gasConfig.gasLimit * gasConfig.maxFeePerGas;
+    // Upper-bound on what the tx will actually burn: estimatedGas * maxFeePerGas.
+    // gasLimit is a consumption cap, not a prepay, so we do not multiply by it here
+    // or we would quote (and reserve) a fee that the tx cannot reach in practice.
+    // maxFeePerGas already encodes headroom for a baseFee spike.
+    const gasCostWei = estimatedGas * gasConfig.maxFeePerGas;
 
     return NextResponse.json({
       gasCostWei: gasCostWei.toString(),
       gasCostEth: ethers.formatEther(gasCostWei),
       nativeSymbol: chain.symbol,
+      estimatedGas: estimatedGas.toString(),
       gasLimit: gasConfig.gasLimit.toString(),
       maxFeePerGasGwei: ethers.formatUnits(gasConfig.maxFeePerGas, "gwei"),
     });

@@ -185,14 +185,13 @@ export function WithdrawModal({
 
       const balanceWei = ethers.parseEther(selectedAsset.balance);
       const gasCostWei = BigInt(data.gasCostWei);
-      const gasCostWithBuffer = (gasCostWei * BigInt(110)) / BigInt(100);
 
-      if (balanceWei <= gasCostWithBuffer) {
+      if (balanceWei <= gasCostWei) {
         toast.error("Balance is too low to cover network fee");
         return;
       }
 
-      const maxWei = balanceWei - gasCostWithBuffer;
+      const maxWei = balanceWei - gasCostWei;
       const newAmount = ethers.formatEther(maxWei);
 
       lastEstimateKeyRef.current = `${selectedAsset.chainId}|native|${newAmount}|${estimationRecipient}`;
