@@ -817,7 +817,7 @@ export function NavigationSidebar(): React.ReactNode {
     <>
       <div
         className={cn(
-          "pointer-events-auto fixed top-[60px] bottom-0 left-0 z-40 flex flex-col bg-background",
+          "pointer-events-auto fixed top-[calc(60px+var(--app-banner-height,0px))] bottom-0 left-0 z-40 flex flex-col bg-background",
           dragWidth === null && "transition-[width] duration-200 ease-out"
         )}
         ref={sidebarRef}
