@@ -36,8 +36,13 @@ export type CreateAgenticWalletResult = {
 /**
  * Create a KeeperHub-owned Turnkey sub-org for an agentic wallet.
  * Phase 32: stub. Phase 33 implements.
+ *
+ * The `async` modifier is load-bearing: this is the published contract
+ * Phase 33 will satisfy with real `await` calls against the Turnkey SDK.
+ * Callers in Phase 33 and beyond will `await createAgenticWallet(...)`;
+ * dropping `async` now would force a breaking API change later.
  */
-// biome-ignore lint/suspicious/useAwait: Phase 32 stub throws synchronously; Phase 33 will add await calls to Turnkey SDK
+// biome-ignore lint/suspicious/useAwait: stub preserves the Phase-33 async contract; removing `async` would break the published Promise<CreateAgenticWalletResult> signature and require rewriting every future caller.
 export async function createAgenticWallet(): Promise<CreateAgenticWalletResult> {
   throw new Error("createAgenticWallet: not yet implemented (Phase 33)");
 }
