@@ -10,3 +10,4 @@ AI-powered tools that help you build, configure, and manage blockchain automatio
 - [Overview](/ai-tools/overview) -- How AI tools integrate with KeeperHub
 - [Claude Code Plugin](/ai-tools/claude-code-plugin) -- Use Claude Code for workflow development
 - [MCP Server](/ai-tools/mcp-server) -- KeeperHub MCP server for AI-assisted automation
+- [Install the Skill](/ai-tools/agentcash-install) -- One-command skill install for 17 AI agents via agentcash
