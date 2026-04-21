@@ -756,6 +756,7 @@ export function WorkflowCanvas() {
         onNodesChange={isGenerating ? undefined : onNodesChange}
         onPaneClick={onPaneClick}
         onPaneContextMenu={
+          // Add Step is the pane menu's only action; gate by route since the canvas is shared with /
           isGenerating || !isWorkflowRoute ? undefined : onPaneContextMenu
         }
         onSelectionChange={isGenerating ? undefined : onSelectionChange}
