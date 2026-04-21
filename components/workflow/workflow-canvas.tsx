@@ -755,7 +755,9 @@ export function WorkflowCanvas() {
         onNodeContextMenu={isGenerating ? undefined : onNodeContextMenu}
         onNodesChange={isGenerating ? undefined : onNodesChange}
         onPaneClick={onPaneClick}
-        onPaneContextMenu={isGenerating ? undefined : onPaneContextMenu}
+        onPaneContextMenu={
+          isGenerating || !isWorkflowRoute ? undefined : onPaneContextMenu
+        }
         onSelectionChange={isGenerating ? undefined : onSelectionChange}
       >
         {isWorkflowRoute && (
