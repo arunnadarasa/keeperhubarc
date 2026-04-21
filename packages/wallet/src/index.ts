@@ -1,3 +1,8 @@
+export {
+  type BalanceSnapshot,
+  type CheckBalanceOptions,
+  checkBalance,
+} from "./balance.js";
 export { BASE_USDC, base, TEMPO_USDC_E, tempo } from "./chains.js";
 export {
   type AskTierResponse,
