@@ -2,7 +2,7 @@
 
 import { ethers } from "ethers";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Overlay } from "@/components/overlays/overlay";
 import { useOverlay } from "@/components/overlays/overlay-provider";
@@ -40,6 +40,12 @@ type WithdrawModalProps = {
 
 type WithdrawState = "input" | "confirming" | "success" | "error";
 
+type GasEstimate = {
+  costWei: bigint;
+  costEth: string;
+  nativeSymbol: string;
+};
+
 export function WithdrawModal({
   overlayId,
   assets,
@@ -55,13 +61,164 @@ export function WithdrawModal({
   const [state, setState] = useState<WithdrawState>("input");
   const [txHash, setTxHash] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [gasEstimate, _setGasEstimate] = useState<string | null>(null);
+  const [gasEstimate, setGasEstimate] = useState<GasEstimate | null>(null);
+  const [gasEstimateLoading, setGasEstimateLoading] = useState(false);
+  const [gasEstimateError, setGasEstimateError] = useState<string | null>(null);
+  const [maxReserveApplied, setMaxReserveApplied] = useState(false);
+  const lastEstimateKeyRef = useRef<string | null>(null);
 
   const selectedAsset = assets[selectedAssetIndex];
 
-  const handleMaxClick = () => {
-    if (selectedAsset) {
+  useEffect(() => {
+    if (!selectedAsset) {
+      return;
+    }
+    const parsedAmount = Number.parseFloat(amount);
+    if (!(amount && Number.isFinite(parsedAmount)) || parsedAmount <= 0) {
+      setGasEstimate(null);
+      setGasEstimateError(null);
+      setGasEstimateLoading(false);
+      return;
+    }
+    if (parsedAmount > Number.parseFloat(selectedAsset.balance)) {
+      setGasEstimate(null);
+      setGasEstimateError(null);
+      setGasEstimateLoading(false);
+      return;
+    }
+
+    const estimationRecipient = ethers.isAddress(recipient)
+      ? recipient
+      : walletAddress;
+
+    const key = `${selectedAsset.chainId}|${selectedAsset.tokenAddress ?? "native"}|${amount}|${estimationRecipient}`;
+    if (lastEstimateKeyRef.current === key) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      setGasEstimateLoading(true);
+      setGasEstimateError(null);
+      fetch("/api/user/wallet/estimate-gas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chainId: selectedAsset.chainId,
+          tokenAddress: selectedAsset.tokenAddress,
+          amount,
+          recipient: estimationRecipient,
+        }),
+        signal: controller.signal,
+      })
+        .then(async (response) => {
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error ?? "Gas estimation failed");
+          }
+          return data as {
+            gasCostWei: string;
+            gasCostEth: string;
+            nativeSymbol: string;
+          };
+        })
+        .then((data) => {
+          setGasEstimate({
+            costWei: BigInt(data.gasCostWei),
+            costEth: data.gasCostEth,
+            nativeSymbol: data.nativeSymbol,
+          });
+          lastEstimateKeyRef.current = key;
+          setGasEstimateLoading(false);
+        })
+        .catch((err: unknown) => {
+          if (err instanceof Error && err.name === "AbortError") {
+            return;
+          }
+          setGasEstimate(null);
+          setGasEstimateError(
+            err instanceof Error ? err.message : "Gas estimation failed"
+          );
+          setGasEstimateLoading(false);
+        });
+    }, 500);
+
+    return () => {
+      controller.abort();
+      clearTimeout(timeoutId);
+    };
+  }, [
+    amount,
+    recipient,
+    selectedAsset,
+    walletAddress,
+  ]);
+
+  const [maxLoading, setMaxLoading] = useState(false);
+
+  const handleMaxClick = async (): Promise<void> => {
+    if (!selectedAsset) {
+      return;
+    }
+
+    if (selectedAsset.type === "token") {
       setAmount(selectedAsset.balance);
+      setMaxReserveApplied(false);
+      return;
+    }
+
+    setMaxLoading(true);
+    try {
+      const estimationRecipient = ethers.isAddress(recipient)
+        ? recipient
+        : walletAddress;
+
+      const response = await fetch("/api/user/wallet/estimate-gas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chainId: selectedAsset.chainId,
+          amount: "0.000001",
+          recipient: estimationRecipient,
+        }),
+      });
+      const data = (await response.json()) as {
+        gasCostWei?: string;
+        gasCostEth?: string;
+        nativeSymbol?: string;
+        error?: string;
+      };
+      if (!(response.ok && data.gasCostWei && data.gasCostEth && data.nativeSymbol)) {
+        throw new Error(data.error ?? "Gas estimation failed");
+      }
+
+      const balanceWei = ethers.parseEther(selectedAsset.balance);
+      const gasCostWei = BigInt(data.gasCostWei);
+      const gasCostWithBuffer = (gasCostWei * BigInt(110)) / BigInt(100);
+
+      if (balanceWei <= gasCostWithBuffer) {
+        toast.error("Balance is too low to cover network fee");
+        return;
+      }
+
+      const maxWei = balanceWei - gasCostWithBuffer;
+      const newAmount = ethers.formatEther(maxWei);
+
+      lastEstimateKeyRef.current = `${selectedAsset.chainId}|native|${newAmount}|${estimationRecipient}`;
+      setGasEstimate({
+        costWei: gasCostWei,
+        costEth: data.gasCostEth,
+        nativeSymbol: data.nativeSymbol,
+      });
+      setGasEstimateError(null);
+      setMaxReserveApplied(true);
+      setAmount(newAmount);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to calculate max amount"
+      );
+    } finally {
+      setMaxLoading(false);
     }
   };
 
@@ -211,6 +368,7 @@ export function WithdrawModal({
             onValueChange={(value) => {
               setSelectedAssetIndex(Number.parseInt(value, 10));
               setAmount("");
+              setMaxReserveApplied(false);
             }}
             value={selectedAssetIndex.toString()}
           >
@@ -235,18 +393,26 @@ export function WithdrawModal({
           <Label>Amount</Label>
           <div className="flex gap-2">
             <Input
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => {
+                setAmount(e.target.value);
+                setMaxReserveApplied(false);
+              }}
               placeholder="0.00"
               type="number"
               value={amount}
             />
             <Button
+              disabled={maxLoading}
               onClick={handleMaxClick}
               size="sm"
               type="button"
               variant="outline"
             >
-              Max
+              {maxLoading ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : (
+                "Max"
+              )}
             </Button>
           </div>
           {selectedAsset && (
@@ -272,11 +438,31 @@ export function WithdrawModal({
         </div>
 
         {/* Gas Estimate (informational) */}
-        {gasEstimate && (
-          <div className="rounded-md border bg-muted/50 p-3">
-            <p className="text-muted-foreground text-xs">
-              Estimated network fee: {gasEstimate}
-            </p>
+        {(gasEstimateLoading || gasEstimate || gasEstimateError) && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Network fee</span>
+              {gasEstimateLoading && (
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <Loader2 className="size-3 animate-spin" />
+                  Estimating...
+                </span>
+              )}
+              {!gasEstimateLoading && gasEstimate && (
+                <span className="font-medium text-foreground">
+                  {gasEstimate.costEth} {gasEstimate.nativeSymbol}
+                </span>
+              )}
+              {!gasEstimateLoading && gasEstimateError && (
+                <span className="text-destructive">Unable to estimate</span>
+              )}
+            </div>
+            {maxReserveApplied && gasEstimate && (
+              <p className="text-muted-foreground text-xs">
+                Max amount reduced to reserve {gasEstimate.costEth}{" "}
+                {gasEstimate.nativeSymbol} for the network fee.
+              </p>
+            )}
           </div>
         )}
       </div>
