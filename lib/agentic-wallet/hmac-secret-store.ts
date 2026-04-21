@@ -1,10 +1,24 @@
 /**
- * HMAC secret store stub (Phase 33 Wave 0 placeholder).
+ * @security HMAC secret access helper. NEVER pass the returned value to
+ * logSystemError, console.log, or any serializer that may surface in error
+ * responses. Log only the sub-org id, never the secret material.
  *
- * Plan 33-01a wires this up against the `agentic_wallets.hmac_secret` column.
- * Wave 0 ships only the named export so `lib/agentic-wallet/hmac.ts` can compile
- * and the matching test file can mock it via `vi.mock`.
+ * Phase 33 Plan 01a: reads agentic_wallets.hmac_secret keyed by sub-org id.
+ * Null return signals "unknown sub-org"; callers translate to HTTP 404.
+ * T-33-02 (Information Disclosure) mitigation: module-level JSDoc guard
+ * plus a negative grep in the plan's acceptance criteria.
  */
-export function lookupHmacSecret(_subOrgId: string): Promise<string | null> {
-  throw new Error("lookupHmacSecret: not yet implemented (Phase 33 plan 01a)");
+import { eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { agenticWallets } from "@/lib/db/schema";
+
+export async function lookupHmacSecret(
+  subOrgId: string
+): Promise<string | null> {
+  const rows = await db
+    .select({ hmacSecret: agenticWallets.hmacSecret })
+    .from(agenticWallets)
+    .where(eq(agenticWallets.subOrgId, subOrgId))
+    .limit(1);
+  return rows[0]?.hmacSecret ?? null;
 }
