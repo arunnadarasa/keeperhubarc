@@ -18,18 +18,9 @@ import {
 } from "@/components/ui/select";
 import { SaveAddressBookmark } from "@/components/address-book/save-address-bookmark";
 import { toChecksumAddress, truncateAddress } from "@/lib/address-utils";
+import type { WithdrawableAsset } from "@/lib/wallet/build-withdrawable-assets";
 
-export type WithdrawableAsset = {
-  type: "native" | "token";
-  chainId: number;
-  chainName: string;
-  symbol: string;
-  balance: string;
-  tokenAddress?: string;
-  decimals: number;
-  rpcUrl: string;
-  explorerUrl: string | null;
-};
+export type { WithdrawableAsset };
 
 type WithdrawModalProps = {
   overlayId: string;

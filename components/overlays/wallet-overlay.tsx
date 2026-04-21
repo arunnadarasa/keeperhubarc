@@ -38,6 +38,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { toChecksumAddress, truncateAddress } from "@/lib/address-utils";
 import { useSession } from "@/lib/auth-client";
 import { useActiveMember } from "@/lib/hooks/use-organization";
+import { buildWithdrawableAssets } from "@/lib/wallet/build-withdrawable-assets";
 import { fetchAllSupportedTokenBalances } from "@/lib/wallet/fetch-balances";
 import type {
   ChainBalance,
@@ -1409,100 +1410,25 @@ export function WalletOverlay({ overlayId }: WalletOverlayProps) {
     [loadWallet]
   );
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Logic is straightforward, three loops with validation
-  const buildWithdrawableAssets = useCallback((): WithdrawableAsset[] => {
-    const assets: WithdrawableAsset[] = [];
-
-    // Add native balances (skip TEMPO - it uses stablecoins, not native tokens)
-    for (const balance of balances) {
-      if (isTempoChain(balance.chainId)) {
-        continue;
-      }
-      const chain = chains.find((c) => c.chainId === balance.chainId);
-      const numBalance = Number.parseFloat(balance.balance);
-      if (!(chain && Number.isFinite(numBalance)) || numBalance <= 0) {
-        continue;
-      }
-      assets.push({
-        type: "native",
-        chainId: balance.chainId,
-        chainName: balance.name,
-        symbol: balance.symbol,
-        balance: balance.balance,
-        decimals: 18,
-        rpcUrl: chain.defaultPrimaryRpc,
-        explorerUrl: balance.explorerUrl,
-      });
-    }
-
-    // Add supported token balances (stablecoins)
-    for (const token of supportedTokenBalances) {
-      const numBalance = Number.parseFloat(token.balance);
-      if (!Number.isFinite(numBalance) || numBalance <= 0) {
-        continue;
-      }
-      const chain = chains.find((c) => c.chainId === token.chainId);
-      if (!chain) {
-        continue;
-      }
-      const tokenMeta = supportedTokens.find(
-        (t) =>
-          t.chainId === token.chainId && t.tokenAddress === token.tokenAddress
-      );
-      const balance = balances.find((b) => b.chainId === token.chainId);
-      assets.push({
-        type: "token",
-        chainId: token.chainId,
-        chainName: chain.name,
-        symbol: token.symbol,
-        balance: token.balance,
-        tokenAddress: token.tokenAddress,
-        decimals: tokenMeta?.decimals ?? 6,
-        rpcUrl: chain.defaultPrimaryRpc,
-        explorerUrl: balance?.explorerUrl || null,
-      });
-    }
-
-    // Add custom token balances (user-added ERC20s)
-    for (const token of tokenBalances) {
-      const numBalance = Number.parseFloat(token.balance);
-      if (!Number.isFinite(numBalance) || numBalance <= 0) {
-        continue;
-      }
-      const chain = chains.find((c) => c.chainId === token.chainId);
-      if (!chain) {
-        continue;
-      }
-      const tokenMeta = tokens.find(
-        (t) =>
-          t.chainId === token.chainId && t.tokenAddress === token.tokenAddress
-      );
-      if (!tokenMeta) {
-        continue;
-      }
-      const nativeBalance = balances.find((b) => b.chainId === token.chainId);
-      assets.push({
-        type: "token",
-        chainId: token.chainId,
-        chainName: chain.name,
-        symbol: token.symbol,
-        balance: token.balance,
-        tokenAddress: token.tokenAddress,
-        decimals: tokenMeta.decimals,
-        rpcUrl: chain.defaultPrimaryRpc,
-        explorerUrl: nativeBalance?.explorerUrl || null,
-      });
-    }
-
-    return assets;
-  }, [
-    balances,
-    chains,
-    supportedTokenBalances,
-    supportedTokens,
-    tokenBalances,
-    tokens,
-  ]);
+  const buildAssets = useCallback(
+    (): WithdrawableAsset[] =>
+      buildWithdrawableAssets({
+        balances,
+        chains,
+        supportedTokenBalances,
+        supportedTokens,
+        tokenBalances,
+        tokens,
+      }),
+    [
+      balances,
+      chains,
+      supportedTokenBalances,
+      supportedTokens,
+      tokenBalances,
+      tokens,
+    ]
+  );
 
   const findAssetIndex = useCallback(
     (assets: WithdrawableAsset[], chainId: number, tokenAddress?: string) => {
@@ -1526,7 +1452,7 @@ export function WalletOverlay({ overlayId }: WalletOverlayProps) {
         return;
       }
 
-      const assets = buildWithdrawableAssets();
+      const assets = buildAssets();
       if (assets.length === 0) {
         toast.error("No assets available for withdrawal");
         return;
@@ -1539,7 +1465,7 @@ export function WalletOverlay({ overlayId }: WalletOverlayProps) {
         initialAssetIndex: initialIndex,
       });
     },
-    [walletData?.walletAddress, buildWithdrawableAssets, findAssetIndex, push]
+    [walletData?.walletAddress, buildAssets, findAssetIndex, push]
   );
 
   // Re-fetch wallet when session changes (e.g., user signs in)

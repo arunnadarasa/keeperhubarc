@@ -9,6 +9,7 @@ import { chains } from "@/lib/db/schema";
 import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { getActiveOrgId } from "@/lib/middleware/org-context";
 import { getOrganizationWalletAddress } from "@/lib/para/wallet-helpers";
+import { getRpcProvider } from "@/lib/rpc/provider-factory";
 import { getGasStrategy } from "@/lib/web3/gas-strategy";
 
 const ERC20_TRANSFER_ABI = [
@@ -105,31 +106,34 @@ export async function POST(request: Request) {
 
     const chain = chainResult[0];
     const walletAddress = await getOrganizationWalletAddress(organizationId);
-    const provider = new ethers.JsonRpcProvider(chain.defaultPrimaryRpc);
+    const rpcManager = await getRpcProvider({ chainId });
 
-    let estimatedGas: bigint;
-    if (tokenAddress) {
-      const contract = new ethers.Contract(
-        tokenAddress,
-        ERC20_TRANSFER_ABI,
-        provider
-      );
-      const decimals: number = await contract.decimals();
-      const amountWei = ethers.parseUnits(amount, decimals);
-      estimatedGas = await contract.transfer.estimateGas(recipient, amountWei, {
-        from: walletAddress,
-      });
-    } else {
-      const amountWei = ethers.parseEther(amount);
-      estimatedGas = await provider.estimateGas({
-        from: walletAddress,
-        to: recipient,
-        value: amountWei,
-      });
-    }
+    const estimatedGas = await rpcManager.executeWithFailover(
+      async (provider): Promise<bigint> => {
+        if (tokenAddress) {
+          const contract = new ethers.Contract(
+            tokenAddress,
+            ERC20_TRANSFER_ABI,
+            provider
+          );
+          const decimalsBig: bigint = await contract.decimals();
+          const decimals = Number(decimalsBig);
+          const amountWei = ethers.parseUnits(amount, decimals);
+          return await contract.transfer.estimateGas(recipient, amountWei, {
+            from: walletAddress,
+          });
+        }
+        const amountWei = ethers.parseEther(amount);
+        return await provider.estimateGas({
+          from: walletAddress,
+          to: recipient,
+          value: amountWei,
+        });
+      }
+    );
 
     const gasConfig = await getGasStrategy().getGasConfig(
-      provider,
+      rpcManager.getProvider(),
       "manual",
       estimatedGas,
       chainId
