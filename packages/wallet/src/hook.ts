@@ -56,8 +56,15 @@ function defaultToolMatcher(name: string): boolean {
 function extractAmountMicroUsdc(input: HookInput): bigint | null {
   const ti = input.tool_input ?? {};
   const challenge = (ti.paymentChallenge ?? {}) as Record<string, unknown>;
-  const directAmount = ti.amount ?? challenge.amount;
-  const directUnit = ti.unit ?? challenge.unit;
+  // WR-01: prefer the signed wire field (paymentChallenge.amount/unit) over
+  // caller-supplied sibling tool_input fields. The nested challenge is the
+  // field the downstream /sign call actually binds into the signed bytes, so
+  // a misbehaving tool cannot slip a larger nested amount past the auto cap
+  // by shadowing it with a small top-level sibling. Fall back to top-level
+  // only when no challenge is present (e.g. direct /sign tool calls with no
+  // 402 round).
+  const directAmount = challenge.amount ?? ti.amount;
+  const directUnit = challenge.unit ?? ti.unit;
 
   if (directAmount === undefined || directAmount === null) {
     return null;
