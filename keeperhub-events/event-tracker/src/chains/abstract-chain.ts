@@ -5,8 +5,8 @@ import {
   KEEPERHUB_API_URL,
   SQS_QUEUE_URL,
 } from "../../lib/config/environment";
-import { sqs } from "../../lib/sqs-client";
 import type { WorkflowEvent } from "../../lib/models/workflow-event";
+import { sqs } from "../../lib/sqs-client";
 import type { NetworkConfig, NetworksWrapper } from "../../lib/types";
 import { type Logger, logger } from "../../lib/utils/logger";
 
@@ -72,9 +72,7 @@ export class AbstractChain {
         }),
       );
 
-      logger.log(
-        `[SQS] Enqueued workflow ${workflowId} for event execution`,
-      );
+      logger.log(`[SQS] Enqueued workflow ${workflowId} for event execution`);
       return true;
     } catch (error: any) {
       logger.error(`Error enqueuing workflow to SQS: ${error.message}`);
