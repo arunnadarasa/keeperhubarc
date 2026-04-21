@@ -42,4 +42,48 @@ describe("supply-chain guard (DIST-03)", () => {
       ).toBe(false);
     }
   });
+
+  it("bin entries are declared for keeperhub-wallet and keeperhub-wallet-hook", async () => {
+    const raw = await readFile(
+      resolve(import.meta.dirname, "../../package.json"),
+      "utf-8"
+    );
+    const pkg = JSON.parse(raw) as { bin?: Record<string, string> };
+    expect(pkg.bin?.["keeperhub-wallet"]).toBe("./bin/keeperhub-wallet.js");
+    expect(pkg.bin?.["keeperhub-wallet-hook"]).toBe(
+      "./bin/keeperhub-wallet-hook.js"
+    );
+  });
+
+  it("files entry includes dist, bin, README, LICENSE -- no extraneous paths", async () => {
+    const raw = await readFile(
+      resolve(import.meta.dirname, "../../package.json"),
+      "utf-8"
+    );
+    const pkg = JSON.parse(raw) as { files?: string[] };
+    expect(pkg.files).toEqual(
+      expect.arrayContaining(["dist", "bin", "README.md"])
+    );
+    // No accidentally-included src/ or tests/ in the published tarball.
+    expect(pkg.files).not.toContain("src");
+    expect(pkg.files).not.toContain("tests");
+    expect(pkg.files).not.toContain(".env");
+    expect(pkg.files).not.toContain(".planning");
+  });
+
+  it("devDependencies also use exact pins (no floating ranges)", async () => {
+    const raw = await readFile(
+      resolve(import.meta.dirname, "../../package.json"),
+      "utf-8"
+    );
+    const pkg = JSON.parse(raw) as {
+      devDependencies?: Record<string, string>;
+    };
+    for (const [name, range] of Object.entries(pkg.devDependencies ?? {})) {
+      expect(
+        range.startsWith("^") || range.startsWith("~"),
+        `dev ${name} uses floating range ${range}`
+      ).toBe(false);
+    }
+  });
 });
