@@ -58,7 +58,13 @@ export const agenticWallets = pgTable(
     subOrgId: text("sub_org_id").notNull().unique(),
     walletAddressBase: text("wallet_address_base").notNull(),
     walletAddressTempo: text("wallet_address_tempo").notNull(),
-    hmacSecret: text("hmac_secret").notNull(),
+    // REVIEW CR-01: nullable to avoid migration deploy break on tables with
+    // pre-existing rows (Phase 32 test seeds). The runtime invariant is that
+    // `provisionAgenticWallet` always writes a non-null 64-hex-char secret for
+    // new rows; callers (verifyHmacRequest -> lookupHmacSecret) treat null as
+    // "unknown sub-org" and return 404. A follow-up backfill + NOT NULL
+    // migration can tighten the schema once legacy rows are reconciled.
+    hmacSecret: text("hmac_secret"),
     linkedUserId: text("linked_user_id").references(() => users.id, {
       onDelete: "set null",
     }),

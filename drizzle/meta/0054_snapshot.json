@@ -388,7 +388,7 @@
           "name": "hmac_secret",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "linked_user_id": {
           "name": "linked_user_id",

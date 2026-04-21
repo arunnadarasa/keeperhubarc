@@ -44,10 +44,15 @@ describe("agenticWallets table: v1.8 schema", () => {
     }
   });
 
-  it("hmac_secret is notNull (Plan 33-01a / CONTEXT Resolution #5)", () => {
+  it("hmac_secret is nullable at schema level (REVIEW CR-01 relaxed to avoid migration break)", () => {
     const col = cfg.columns.find((c) => c.name === "hmac_secret");
     expect(col).toBeDefined();
-    expect(col?.notNull).toBe(true);
+    // Runtime invariant: provisionAgenticWallet always writes a non-null
+    // 64-hex secret for new rows; lookupHmacSecret treats null as unknown
+    // sub-org. Schema-level NOT NULL was dropped because Phase 32 shipped
+    // rows without a secret and an ADD COLUMN ... NOT NULL with no DEFAULT
+    // would break the staging/prod deploy.
+    expect(col?.notNull).toBe(false);
   });
 
   it("has NO expires_at column (ONBOARD-06: permanent)", () => {
