@@ -407,12 +407,12 @@ export {
 
 export {
   type AgenticWallet,
-  agenticWallets,
-  approvalRiskLevel,
-  approvalStatus,
   type NewAgenticWallet,
   type NewWalletApprovalRequest,
   type WalletApprovalRequest,
+  agenticWallets,
+  approvalRiskLevel,
+  approvalStatus,
   walletApprovalRequests,
 } from "./schema-agentic-wallets";
 
