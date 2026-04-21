@@ -1,7 +1,8 @@
 "use client";
 
+import { atom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useState } from "react";
-import { useSession } from "@/lib/auth-client";
+import { authClient, useSession } from "@/lib/auth-client";
 
 export type WalletInfoState = {
   hasWallet: boolean;
@@ -16,12 +17,32 @@ type WalletResponse = {
 };
 
 /**
+ * Counter atom to let parts of the app (e.g. the wallet overlay after
+ * switching the active wallet) invalidate any mounted useWalletInfo hooks.
+ */
+const walletInfoRefreshAtom = atom(0);
+
+/**
+ * Call from components that mutate wallet state (create, switch active, etc.)
+ * to force every subscribed useWalletInfo consumer to refetch.
+ */
+export function useInvalidateWalletInfo(): () => void {
+  const setCounter = useSetAtom(walletInfoRefreshAtom);
+  return useCallback(() => {
+    setCounter((n) => n + 1);
+  }, [setCounter]);
+}
+
+/**
  * Lightweight hook that tracks whether the active organization has a wallet
  * and exposes the primary address. Safe to mount in shared chrome (toolbar)
- * because it short-circuits for anonymous sessions.
+ * because it short-circuits for anonymous sessions. Refetches automatically
+ * when the active org changes or useInvalidateWalletInfo is fired.
  */
 export function useWalletInfo(): WalletInfoState {
   const { data: session } = useSession();
+  const { data: activeOrg } = authClient.useActiveOrganization();
+  const refreshCounter = useAtomValue(walletInfoRefreshAtom);
   const [hasWallet, setHasWallet] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -33,6 +54,8 @@ export function useWalletInfo(): WalletInfoState {
     !!email &&
     !email.startsWith("temp-") &&
     session?.user?.emailVerified === true;
+
+  const activeOrgId = activeOrg?.id ?? null;
 
   const refresh = useCallback(async (): Promise<void> => {
     if (!isAuthed) {
@@ -64,9 +87,11 @@ export function useWalletInfo(): WalletInfoState {
     }
   }, [isAuthed]);
 
+  // Refetch when auth state changes, when the active org switches, or when
+  // useInvalidateWalletInfo bumps the counter (wallet create / switch active).
   useEffect(() => {
     refresh();
-  }, [refresh]);
+  }, [refresh, activeOrgId, refreshCounter]);
 
   return { hasWallet, walletAddress, isLoading, refresh };
 }

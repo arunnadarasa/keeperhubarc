@@ -18,6 +18,7 @@ import type {
   WalletData,
 } from "@/lib/wallet/types";
 import { useWalletBalances } from "@/lib/wallet/use-wallet-balances";
+import { useInvalidateWalletInfo } from "@/lib/wallet/use-wallet-info";
 import { BalancesTab } from "./wallet/balances-tab";
 import { ManageTab } from "./wallet/manage-tab";
 import { NoWalletSection } from "./wallet/no-wallet-section";
@@ -37,6 +38,7 @@ export function WalletOverlay({
   const { closeAll, push } = useOverlay();
   const { data: session } = useSession();
   const { isAdmin } = useActiveMember();
+  const invalidateWalletInfo = useInvalidateWalletInfo();
 
   const [walletLoading, setWalletLoading] = useState(true);
   const [walletData, setWalletData] = useState<WalletData | null>(null);
@@ -259,6 +261,7 @@ export function WalletOverlay({
 
     toast.success("Wallet created successfully!");
     await loadWallet();
+    invalidateWalletInfo();
   };
 
   const handleSelectActiveWallet = useCallback(
@@ -276,6 +279,7 @@ export function WalletOverlay({
         }
         toast.success("Active wallet updated");
         await loadWallet();
+        invalidateWalletInfo();
       } catch (error) {
         toast.error(
           error instanceof Error ? error.message : "Failed to switch wallet"
@@ -284,7 +288,7 @@ export function WalletOverlay({
         setSwitchingWallet(false);
       }
     },
-    [loadWallet]
+    [loadWallet, invalidateWalletInfo]
   );
 
   const buildAssets = useCallback(
