@@ -53,19 +53,21 @@ const APPROVE_SELECTOR = "0x095ea7b3";
 const ASK_THRESHOLD_CENTS = 50 * 100; // $50
 const BLOCK_THRESHOLD_CENTS = 100 * 100; // $100
 
-const ASK_THRESHOLD_MICRO = BigInt(ASK_THRESHOLD_CENTS) * 10_000n; // 50_000_000
-const BLOCK_THRESHOLD_MICRO = BigInt(BLOCK_THRESHOLD_CENTS) * 10_000n; // 100_000_000
+const MICRO_PER_CENT = BigInt(10_000);
+const ASK_THRESHOLD_MICRO = BigInt(ASK_THRESHOLD_CENTS) * MICRO_PER_CENT; // 50_000_000
+const BLOCK_THRESHOLD_MICRO =
+  BigInt(BLOCK_THRESHOLD_CENTS) * MICRO_PER_CENT; // 100_000_000
 
 /**
  * Parse a micro-USDC (6-decimal) decimal-integer string into a bigint count
- * of micro-USDC. Returns 0n on malformed input so unknown shapes fall
- * through to the selector-based tier rules.
+ * of micro-USDC. Returns 0 on malformed input so unknown shapes fall through
+ * to the selector-based tier rules.
  */
 function parseAmountMicro(amountStr: string): bigint {
   try {
     return BigInt(amountStr);
   } catch {
-    return 0n;
+    return BigInt(0);
   }
 }
 
