@@ -2,6 +2,7 @@
 
 import {
   ConnectionMode,
+  type FinalConnectionState,
   MiniMap,
   type Node,
   type NodeMouseHandler,
@@ -590,30 +591,16 @@ export function WorkflowCanvas() {
   );
 
   const onConnectEnd = useCallback(
-    (event: MouseEvent | TouchEvent) => {
+    (event: MouseEvent | TouchEvent, connectionState: FinalConnectionState) => {
       if (!connectingNodeId.current) {
         return;
       }
 
-      // Get client position first
-      const { clientX, clientY } = getClientPosition(event);
-
-      // For touch events, use elementFromPoint to get the actual element at the touch position
-      // For mouse events, use event.target as before
-      const target =
-        "changedTouches" in event
-          ? document.elementFromPoint(clientX, clientY)
-          : (event.target as Element);
-
-      if (!target) {
-        connectingNodeId.current = null;
-        return;
-      }
-
-      const isNode = target.closest(".react-flow__node");
-      const isHandle = target.closest(".react-flow__handle");
-
-      if (!(isNode || isHandle)) {
+      // isValid === null: pointer never entered a handle's connection radius (pane drop).
+      // true: valid connection -- onConnect already created the edge.
+      // false: over a handle that rejected the drop -- do nothing.
+      if (connectionState.isValid === null) {
+        const { clientX, clientY } = getClientPosition(event);
         const { adjustedX, adjustedY } = calculateMenuPosition(
           event,
           clientX,
