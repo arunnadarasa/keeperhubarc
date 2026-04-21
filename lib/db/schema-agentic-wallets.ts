@@ -110,6 +110,10 @@ export const walletApprovalRequests = pgTable(
     index("idx_wallet_approval_sub_org").on(table.subOrgId),
     index("idx_wallet_approval_status").on(table.status),
     index("idx_wallet_approval_created").on(table.createdAt),
+    // REVIEW MED-02: index the FK target so ON DELETE SET NULL does not
+    // seq-scan wallet_approval_requests on user deletion, and so "approvals
+    // resolved by user X" queries in Phase 33 use an index.
+    index("idx_wallet_approval_resolved_by").on(table.resolvedByUserId),
   ]
 );
 
