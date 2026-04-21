@@ -12,6 +12,7 @@ export {
 export { type FundInstructions, fund } from "./fund.js";
 export { buildHmacHeaders, computeSignature } from "./hmac.js";
 export { type CreateHookOptions, createPreToolUseHook } from "./hook.js";
+export { runHookCli } from "./hook-entrypoint.js";
 export { type MppChallenge, parseMppChallenge } from "./mpp-detect.js";
 export {
   createPaymentSigner,
