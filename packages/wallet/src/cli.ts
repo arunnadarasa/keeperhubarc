@@ -38,41 +38,48 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
 
+function provisionInvalidError(
+  message: string
+): Error & { code: "PROVISION_RESPONSE_INVALID" } {
+  const err = new Error(message) as Error & {
+    code: "PROVISION_RESPONSE_INVALID";
+  };
+  err.code = "PROVISION_RESPONSE_INVALID";
+  return err;
+}
+
 function validateProvisionResponse(data: unknown): {
   subOrgId: string;
   walletAddress: `0x${string}`;
   hmacSecret: string;
 } {
   if (typeof data !== "object" || data === null) {
-    const err = new Error(
-      "provision response is not an object"
-    ) as Error & { code?: string };
-    err.code = "PROVISION_RESPONSE_INVALID";
-    throw err;
+    throw provisionInvalidError("provision response is not an object");
   }
-  const record = data as Record<string, unknown>;
+  const { subOrgId, walletAddress, hmacSecret } = data as Record<
+    string,
+    unknown
+  >;
   if (
-    !isNonEmptyString(record.subOrgId) ||
-    !isNonEmptyString(record.walletAddress) ||
-    !isNonEmptyString(record.hmacSecret)
+    !(
+      isNonEmptyString(subOrgId) &&
+      isNonEmptyString(walletAddress) &&
+      isNonEmptyString(hmacSecret)
+    )
   ) {
-    const err = new Error(
+    throw provisionInvalidError(
       "provision response missing subOrgId, walletAddress, or hmacSecret"
-    ) as Error & { code?: string };
-    err.code = "PROVISION_RESPONSE_INVALID";
-    throw err;
+    );
   }
-  if (!WALLET_ADDRESS_PATTERN.test(record.walletAddress)) {
-    const err = new Error(
-      `provision response walletAddress is not a valid 0x-prefixed 40-hex address: ${record.walletAddress}`
-    ) as Error & { code?: string };
-    err.code = "PROVISION_RESPONSE_INVALID";
-    throw err;
+  if (!WALLET_ADDRESS_PATTERN.test(walletAddress)) {
+    throw provisionInvalidError(
+      `provision response walletAddress is not a valid 0x-prefixed 40-hex address: ${walletAddress}`
+    );
   }
   return {
-    subOrgId: record.subOrgId,
-    walletAddress: record.walletAddress as `0x${string}`,
-    hmacSecret: record.hmacSecret,
+    subOrgId,
+    walletAddress: walletAddress as `0x${string}`,
+    hmacSecret,
   };
 }
 
