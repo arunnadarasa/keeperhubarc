@@ -58,6 +58,7 @@ export const agenticWallets = pgTable(
     subOrgId: text("sub_org_id").notNull().unique(),
     walletAddressBase: text("wallet_address_base").notNull(),
     walletAddressTempo: text("wallet_address_tempo").notNull(),
+    hmacSecret: text("hmac_secret").notNull(),
     linkedUserId: text("linked_user_id").references(() => users.id, {
       onDelete: "set null",
     }),

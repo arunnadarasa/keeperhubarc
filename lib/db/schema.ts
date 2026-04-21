@@ -416,6 +416,12 @@ export {
   walletApprovalRequests,
 } from "./schema-agentic-wallets";
 
+export {
+  type AgenticWalletCredit,
+  agenticWalletCredits,
+  type NewAgenticWalletCredit,
+} from "./schema-agentic-wallet-credits";
+
 // Better Auth: Device Authorization table (for CLI device flow)
 export const deviceCode = pgTable("device_code", {
   id: text("id").primaryKey(),

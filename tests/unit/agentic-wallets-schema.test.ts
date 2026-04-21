@@ -2,14 +2,18 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 import {
   type AgenticWallet,
+  type AgenticWalletCredit,
+  agenticWalletCredits as reexportedAgenticWalletCredits,
   approvalRiskLevel,
   approvalStatus,
   type NewAgenticWallet,
+  type NewAgenticWalletCredit,
   type NewWalletApprovalRequest,
   agenticWallets as reexportedAgenticWallets,
   walletApprovalRequests as reexportedApprovalRequests,
   type WalletApprovalRequest,
 } from "../../lib/db/schema";
+import { agenticWalletCredits } from "../../lib/db/schema-agentic-wallet-credits";
 import {
   agenticWallets,
   walletApprovalRequests,
@@ -30,6 +34,7 @@ describe("agenticWallets table: v1.8 schema", () => {
       "sub_org_id",
       "wallet_address_base",
       "wallet_address_tempo",
+      "hmac_secret",
       "linked_user_id",
       "linked_at",
       "created_at",
@@ -37,6 +42,12 @@ describe("agenticWallets table: v1.8 schema", () => {
     for (const name of required) {
       expect(cols.has(name)).toBe(true);
     }
+  });
+
+  it("hmac_secret is notNull (Plan 33-01a / CONTEXT Resolution #5)", () => {
+    const col = cfg.columns.find((c) => c.name === "hmac_secret");
+    expect(col).toBeDefined();
+    expect(col?.notNull).toBe(true);
   });
 
   it("has NO expires_at column (ONBOARD-06: permanent)", () => {
@@ -140,6 +151,79 @@ describe("walletApprovalRequests table: v1.8 schema", () => {
   });
 });
 
+describe("agenticWalletCredits table", () => {
+  const cfg = getTableConfig(agenticWalletCredits);
+
+  it("has required columns", () => {
+    const cols = new Set(cfg.columns.map((c) => c.name));
+    const required = [
+      "id",
+      "sub_org_id",
+      "amount_usdc_cents",
+      "allocation_reason",
+      "granted_at",
+    ];
+    for (const name of required) {
+      expect(cols.has(name)).toBe(true);
+    }
+  });
+
+  it("id column is primary key", () => {
+    const col = cfg.columns.find((c) => c.name === "id");
+    expect(col).toBeDefined();
+    expect(col?.primary).toBe(true);
+  });
+
+  it("sub_org_id FK uses ON DELETE CASCADE (credits die with wallet)", () => {
+    const fk = cfg.foreignKeys.find((f) =>
+      f.reference().columns.some((c) => c.name === "sub_org_id")
+    );
+    expect(fk).toBeDefined();
+    expect(fk?.onDelete).toBe("cascade");
+  });
+
+  it("allocation_reason defaults to 'onboard_initial'", () => {
+    const col = cfg.columns.find((c) => c.name === "allocation_reason");
+    expect(col).toBeDefined();
+    expect(col?.hasDefault).toBe(true);
+    expect(col?.notNull).toBe(true);
+  });
+
+  it("amount_usdc_cents is notNull (integer column)", () => {
+    const col = cfg.columns.find((c) => c.name === "amount_usdc_cents");
+    expect(col).toBeDefined();
+    expect(col?.notNull).toBe(true);
+  });
+
+  it("granted_at is notNull and has default (now())", () => {
+    const col = cfg.columns.find((c) => c.name === "granted_at");
+    expect(col).toBeDefined();
+    expect(col?.notNull).toBe(true);
+    expect(col?.hasDefault).toBe(true);
+  });
+
+  it("has UNIQUE index on (sub_org_id, allocation_reason) — T-33-07 guard", () => {
+    const unique = cfg.indexes.find(
+      (idx) => idx.config.name === "uq_agentic_wallet_credits_sub_org_reason"
+    );
+    expect(unique).toBeDefined();
+    expect(unique?.config.unique).toBe(true);
+    const columns = unique?.config.columns ?? [];
+    // biome-ignore lint/suspicious/noExplicitAny: drizzle index column type is loose
+    const names = columns.map((c: any) => c.name);
+    expect(names).toContain("sub_org_id");
+    expect(names).toContain("allocation_reason");
+  });
+
+  it("has idx_agentic_wallet_credits_sub_org non-unique index", () => {
+    const nonUnique = cfg.indexes.find(
+      (idx) => idx.config.name === "idx_agentic_wallet_credits_sub_org"
+    );
+    expect(nonUnique).toBeDefined();
+    expect(nonUnique?.config.unique).toBeFalsy();
+  });
+});
+
 describe("re-export: @/lib/db/schema exposes agentic-wallet tables", () => {
   it("re-exports agenticWallets as the same table object", () => {
     expect(reexportedAgenticWallets).toBe(agenticWallets);
@@ -147,6 +231,10 @@ describe("re-export: @/lib/db/schema exposes agentic-wallet tables", () => {
 
   it("re-exports walletApprovalRequests as the same table object", () => {
     expect(reexportedApprovalRequests).toBe(walletApprovalRequests);
+  });
+
+  it("re-exports agenticWalletCredits as the same table object", () => {
+    expect(reexportedAgenticWalletCredits).toBe(agenticWalletCredits);
   });
 
   it("re-exports approvalStatus pgEnum", () => {
@@ -157,11 +245,20 @@ describe("re-export: @/lib/db/schema exposes agentic-wallet tables", () => {
     expect(approvalRiskLevel).toBeDefined();
   });
 
-  it("re-exports all four types (compile-time check)", () => {
+  it("re-exports all six types (compile-time check)", () => {
     const a: AgenticWallet | undefined = undefined;
     const b: NewAgenticWallet | undefined = undefined;
     const c: WalletApprovalRequest | undefined = undefined;
     const d: NewWalletApprovalRequest | undefined = undefined;
-    expect([a, b, c, d]).toEqual([undefined, undefined, undefined, undefined]);
+    const e: AgenticWalletCredit | undefined = undefined;
+    const f: NewAgenticWalletCredit | undefined = undefined;
+    expect([a, b, c, d, e, f]).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ]);
   });
 });
