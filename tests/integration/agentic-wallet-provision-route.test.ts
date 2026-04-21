@@ -32,6 +32,18 @@ const { mockCreateSubOrg, mockCreatePolicy, mockDbInsert, mockDbValues } =
     };
   });
 
+// Stand-in classes for the Turnkey SDK error types. The production route uses
+// `instanceof` against the real exports from @turnkey/sdk-server, but tests
+// mock the whole module -- exposing lightweight Error subclasses here lets the
+// name-based fallback path exercise the TURNKEY_UPSTREAM branch while keeping
+// the mock self-contained.
+class TurnkeyRequestErrorMock extends Error {
+  override name = "TurnkeyRequestError";
+}
+class TurnkeyActivityErrorMock extends Error {
+  override name = "TurnkeyActivityError";
+}
+
 vi.mock("@turnkey/sdk-server", () => ({
   Turnkey: vi.fn(function TurnkeyMock(this: unknown): {
     apiClient: () => {
@@ -46,6 +58,8 @@ vi.mock("@turnkey/sdk-server", () => ({
       }),
     };
   }),
+  TurnkeyRequestError: TurnkeyRequestErrorMock,
+  TurnkeyActivityError: TurnkeyActivityErrorMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -168,11 +182,48 @@ describe("POST /api/agentic-wallet/provision", () => {
     expect(body.retryAfter).toBeGreaterThan(0);
   });
 
-  it("returns 502 TURNKEY_UPSTREAM when Turnkey sub-org creation throws", async () => {
-    mockCreateSubOrg.mockRejectedValueOnce(new Error("turnkey down"));
+  it("returns 502 TURNKEY_UPSTREAM with opaque message when Turnkey throws a typed error (HI-03)", async () => {
+    // Simulate the shape of TurnkeyRequestError (error.name is the detector
+    // in the provision route -- instanceof works for same-class but tests
+    // mock the SDK; name-based fallback is the observable contract).
+    const turnkeyErr = new Error(
+      "Turnkey error 500: detailed upstream response body with secret-ish details"
+    );
+    turnkeyErr.name = "TurnkeyRequestError";
+    mockCreateSubOrg.mockRejectedValueOnce(turnkeyErr);
     const r = await POST(makeRequest("203.0.113.20"));
     expect(r.status).toBe(502);
     const body = (await r.json()) as { code: string; error: string };
     expect(body.code).toBe("TURNKEY_UPSTREAM");
+    // REVIEW HI-03: the raw upstream detail must not leak to unauthenticated
+    // clients. The fixed opaque string is returned instead.
+    expect(body.error).toBe("Upstream signer error");
+    expect(body.error).not.toContain("detailed upstream response body");
+  });
+
+  it("returns 502 TURNKEY_UPSTREAM for Turnkey network/activity errors not matching a regex (HI-03)", async () => {
+    // Previously, an error whose .message did not contain 'turnkey' or
+    // 'sub-org' was misclassified as INTERNAL/500. With typed detection,
+    // name='TurnkeyActivityError' is enough to trigger the 502 path.
+    const activityErr = new Error("API request failed: network timeout");
+    activityErr.name = "TurnkeyActivityError";
+    mockCreateSubOrg.mockRejectedValueOnce(activityErr);
+    const r = await POST(makeRequest("203.0.113.21"));
+    expect(r.status).toBe(502);
+    const body = (await r.json()) as { code: string; error: string };
+    expect(body.code).toBe("TURNKEY_UPSTREAM");
+    expect(body.error).toBe("Upstream signer error");
+  });
+
+  it("returns 500 INTERNAL with opaque message for untagged errors", async () => {
+    mockCreateSubOrg.mockRejectedValueOnce(
+      new Error("some secret-ish db path detail")
+    );
+    const r = await POST(makeRequest("203.0.113.22"));
+    expect(r.status).toBe(500);
+    const body = (await r.json()) as { code: string; error: string };
+    expect(body.code).toBe("INTERNAL");
+    expect(body.error).toBe("Provision failed");
+    expect(body.error).not.toContain("secret-ish");
   });
 });
