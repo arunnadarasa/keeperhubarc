@@ -14,6 +14,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockCreateSubOrg,
   mockCreatePolicy,
+  mockGetPolicies,
+  mockDeletePolicy,
   mockInsertAgenticWallets,
   mockInsertCredits,
   mockInsertValues,
@@ -23,11 +25,15 @@ const {
   const insertReturning = vi.fn();
   const createSubOrg = vi.fn();
   const createPolicy = vi.fn();
+  const getPolicies = vi.fn();
+  const deletePolicy = vi.fn();
   const insertAgenticWallets = vi.fn();
   const insertCredits = vi.fn();
   return {
     mockCreateSubOrg: createSubOrg,
     mockCreatePolicy: createPolicy,
+    mockGetPolicies: getPolicies,
+    mockDeletePolicy: deletePolicy,
     mockInsertAgenticWallets: insertAgenticWallets,
     mockInsertCredits: insertCredits,
     mockInsertValues: insertValues,
@@ -43,12 +49,16 @@ vi.mock("@turnkey/sdk-server", () => ({
     apiClient: () => {
       createSubOrganization: typeof mockCreateSubOrg;
       createPolicy: typeof mockCreatePolicy;
+      getPolicies: typeof mockGetPolicies;
+      deletePolicy: typeof mockDeletePolicy;
     };
   } {
     return {
       apiClient: () => ({
         createSubOrganization: mockCreateSubOrg,
         createPolicy: mockCreatePolicy,
+        getPolicies: mockGetPolicies,
+        deletePolicy: mockDeletePolicy,
       }),
     };
   }),
@@ -99,6 +109,8 @@ describe("provisionAgenticWallet", () => {
     process.env.TURNKEY_ORGANIZATION_ID = "org_test";
     mockCreateSubOrg.mockReset();
     mockCreatePolicy.mockReset();
+    mockGetPolicies.mockReset();
+    mockDeletePolicy.mockReset();
     mockInsertAgenticWallets.mockReset();
     mockInsertCredits.mockReset();
     mockInsertValues.mockReset();
@@ -111,9 +123,30 @@ describe("provisionAgenticWallet", () => {
         addresses: [MOCK_WALLET_ADDRESS],
       },
     });
-    mockCreatePolicy.mockResolvedValue({
-      activity: { id: "act", status: "ACTIVITY_STATUS_COMPLETED" },
+    // REVIEW HI-04: createPolicy returns a policyId; getPolicies supplies
+    // the post-condition list with all 3 baseline policy names.
+    let policyCounter = 0;
+    mockCreatePolicy.mockImplementation(async () => {
+      policyCounter += 1;
+      return {
+        activity: {
+          id: `act_${policyCounter}`,
+          status: "ACTIVITY_STATUS_COMPLETED",
+        },
+        policyId: `policy_${policyCounter}`,
+      };
     });
+    mockGetPolicies.mockResolvedValue({
+      policies: [
+        { policyName: "block-erc20-unlimited-approve", effect: "EFFECT_DENY" },
+        {
+          policyName: "block-erc20-transfer-over-100usdc",
+          effect: "EFFECT_DENY",
+        },
+        { policyName: "allowlist-outbound-contracts", effect: "EFFECT_DENY" },
+      ],
+    });
+    mockDeletePolicy.mockResolvedValue({});
     mockInsertReturning.mockResolvedValue([{ id: "wallet-row-id" }]);
   });
 

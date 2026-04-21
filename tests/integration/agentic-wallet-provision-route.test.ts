@@ -18,19 +18,29 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Named function expression so `new Turnkey(...)` inside the factory treats
 // the mock as a constructor (vitest 4 does not auto-wrap arrow fns with
 // [[Construct]]). Matches the pattern used in the provision unit test.
-const { mockCreateSubOrg, mockCreatePolicy, mockDbInsert, mockDbValues } =
-  vi.hoisted(() => {
-    const createSubOrg = vi.fn();
-    const createPolicy = vi.fn();
-    const dbValues = vi.fn();
-    const dbInsert = vi.fn(() => ({ values: dbValues }));
-    return {
-      mockCreateSubOrg: createSubOrg,
-      mockCreatePolicy: createPolicy,
-      mockDbInsert: dbInsert,
-      mockDbValues: dbValues,
-    };
-  });
+const {
+  mockCreateSubOrg,
+  mockCreatePolicy,
+  mockGetPolicies,
+  mockDeletePolicy,
+  mockDbInsert,
+  mockDbValues,
+} = vi.hoisted(() => {
+  const createSubOrg = vi.fn();
+  const createPolicy = vi.fn();
+  const getPolicies = vi.fn();
+  const deletePolicy = vi.fn();
+  const dbValues = vi.fn();
+  const dbInsert = vi.fn(() => ({ values: dbValues }));
+  return {
+    mockCreateSubOrg: createSubOrg,
+    mockCreatePolicy: createPolicy,
+    mockGetPolicies: getPolicies,
+    mockDeletePolicy: deletePolicy,
+    mockDbInsert: dbInsert,
+    mockDbValues: dbValues,
+  };
+});
 
 // Stand-in classes for the Turnkey SDK error types. The production route uses
 // `instanceof` against the real exports from @turnkey/sdk-server, but tests
@@ -49,12 +59,16 @@ vi.mock("@turnkey/sdk-server", () => ({
     apiClient: () => {
       createSubOrganization: typeof mockCreateSubOrg;
       createPolicy: typeof mockCreatePolicy;
+      getPolicies: typeof mockGetPolicies;
+      deletePolicy: typeof mockDeletePolicy;
     };
   } {
     return {
       apiClient: () => ({
         createSubOrganization: mockCreateSubOrg,
         createPolicy: mockCreatePolicy,
+        getPolicies: mockGetPolicies,
+        deletePolicy: mockDeletePolicy,
       }),
     };
   }),
@@ -90,6 +104,8 @@ describe("POST /api/agentic-wallet/provision", () => {
   beforeEach(() => {
     mockCreateSubOrg.mockReset();
     mockCreatePolicy.mockReset();
+    mockGetPolicies.mockReset();
+    mockDeletePolicy.mockReset();
     mockDbValues.mockReset();
     mockDbInsert.mockClear();
     mockDbValues.mockResolvedValue(undefined);
@@ -97,7 +113,31 @@ describe("POST /api/agentic-wallet/provision", () => {
       subOrganizationId: "subOrg_test_123",
       wallet: { addresses: ["0xabc0000000000000000000000000000000dead01"] },
     });
-    mockCreatePolicy.mockResolvedValue({});
+    // createPolicy returns { policyId } per v1CreatePolicyResult.
+    let policyCounter = 0;
+    mockCreatePolicy.mockImplementation(async () => {
+      policyCounter += 1;
+      return {
+        activity: {
+          id: `act_${policyCounter}`,
+          status: "ACTIVITY_STATUS_COMPLETED",
+        },
+        policyId: `policy_${policyCounter}`,
+      };
+    });
+    // REVIEW HI-04: getPolicies post-condition verify -- return all 3
+    // baseline policy names on the happy path.
+    mockGetPolicies.mockResolvedValue({
+      policies: [
+        { policyName: "block-erc20-unlimited-approve", effect: "EFFECT_DENY" },
+        {
+          policyName: "block-erc20-transfer-over-100usdc",
+          effect: "EFFECT_DENY",
+        },
+        { policyName: "allowlist-outbound-contracts", effect: "EFFECT_DENY" },
+      ],
+    });
+    mockDeletePolicy.mockResolvedValue({});
   });
 
   it("returns 200 with subOrgId, walletAddress, hmacSecret under the 10s SLO", async () => {

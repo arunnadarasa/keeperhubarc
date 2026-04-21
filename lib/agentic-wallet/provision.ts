@@ -30,7 +30,7 @@ import {
 } from "@/lib/turnkey/agentic-wallet";
 import { generateId } from "@/lib/utils/id";
 import { grantInitialCredit } from "./credit";
-import { applyBaselinePolicies } from "./policy";
+import { applyBaselinePolicies, PolicyIncompleteError } from "./policy";
 
 export type ProvisionAgenticWalletResult = {
   subOrgId: string;
@@ -101,10 +101,33 @@ export async function provisionAgenticWallet(): Promise<ProvisionAgenticWalletRe
     // Apply the three baseline DENY policies to the newly-created sub-org
     // before returning the secret to the caller. Parallelized inside
     // applyBaselinePolicies (RESEARCH Pitfall 1 latency mitigation).
-    await applyBaselinePolicies(
-      getTurnkeyClientForOrg(subOrgId).apiClient(),
-      subOrgId
-    );
+    //
+    // REVIEW HI-04: applyBaselinePolicies now throws PolicyIncompleteError
+    // on any partial failure. We log the orphaned sub-org distinctly so ops
+    // can clean it up manually; the DB insert is skipped (the outer catch
+    // re-throws) so the wallet is never returned to the caller. GUARD-06
+    // requires the Turnkey policy to be the hard limit, so a sub-org with
+    // partial coverage must be treated as unusable.
+    try {
+      await applyBaselinePolicies(
+        getTurnkeyClientForOrg(subOrgId).apiClient(),
+        subOrgId
+      );
+    } catch (policyError) {
+      if (policyError instanceof PolicyIncompleteError) {
+        logSystemError(
+          ErrorCategory.EXTERNAL_SERVICE,
+          "[Agentic] AGENTIC_WALLET_ORPHANED_SUBORG — policies incomplete, sub-org abandoned",
+          policyError,
+          {
+            service: "agentic-wallet",
+            subOrgId,
+            failures: policyError.failures.join(","),
+          }
+        );
+      }
+      throw policyError;
+    }
 
     // Parallelize the two independent DB writes (RESEARCH Pitfall 1 — keep
     // /provision under the 10s ONBOARD-01 SLO).

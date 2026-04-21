@@ -65,20 +65,57 @@ export const BASELINE_POLICIES: readonly BaselinePolicy[] = [
 type ApiClient = ReturnType<Turnkey["apiClient"]>;
 
 /**
- * Apply all three baseline DENY policies to a freshly-created sub-org.
- * Parallelized via Promise.all to keep /provision latency under the
- * 10-second ONBOARD-01 SLO (RESEARCH Pitfall 1).
+ * Thrown when baseline policies could not be applied completely to a
+ * freshly-created sub-org. The provisioning flow catches this and treats
+ * the sub-org as unusable (the caller must NOT return an hmacSecret since
+ * GUARD-06 says Turnkey policy is the ONLY hard limit -- a sub-org with
+ * partial policy coverage is dangerous).
  *
- * Any single createPolicy rejection rejects the whole Promise.all; the
- * caller (provisionAgenticWallet) surfaces the error and logs it. The
- * sub-org is left with partial policies — a follow-up retry must use
- * idempotent policyNames (Turnkey enforces name-uniqueness per sub-org).
+ * REVIEW HI-04: prefer this typed error over generic Error so the
+ * provisioning path can react deterministically without substring-matching
+ * on .message. The instance still inherits from Error for log fidelity.
+ */
+export class PolicyIncompleteError extends Error {
+  override readonly name = "PolicyIncompleteError";
+  readonly failures: readonly string[];
+  readonly subOrgId: string;
+  constructor(subOrgId: string, failures: readonly string[]) {
+    super(
+      `Baseline policies incomplete for sub-org ${subOrgId}: ${failures.join(", ")}`
+    );
+    this.subOrgId = subOrgId;
+    this.failures = failures;
+  }
+}
+
+/**
+ * Apply all three baseline DENY policies to a freshly-created sub-org.
+ *
+ * REVIEW HI-04 (Partial policy coverage): previously the helper used
+ * Promise.all, so a single createPolicy rejection rejected the whole
+ * batch but the already-issued createPolicy calls remained on Turnkey's
+ * side. That left the sub-org with 1 or 2 of the 3 baseline DENY rules,
+ * violating GUARD-06 ("Turnkey policy is the ONLY hard limit"). The new
+ * flow uses Promise.allSettled to observe every outcome, then on ANY
+ * failure:
+ *
+ *   1. Best-effort deletes policies that DID succeed so the sub-org is
+ *      left fully unprotected (no partial coverage that looks safe but
+ *      isn't). We prefer "no policy at all" over "2 out of 3 policies"
+ *      because the sub-org is going to be abandoned either way.
+ *   2. Throws PolicyIncompleteError with the list of failing policy
+ *      names so the provisioning caller can fail the whole transaction
+ *      deterministically.
+ *
+ * After success, the helper queries listPolicies and verifies all three
+ * baseline policy names are present -- a defence against Turnkey silently
+ * accepting a createPolicy request that later doesn't materialise.
  */
 export async function applyBaselinePolicies(
   client: ApiClient,
   subOrgId: string
 ): Promise<void> {
-  await Promise.all(
+  const settled = await Promise.allSettled(
     BASELINE_POLICIES.map((p) =>
       client.createPolicy({
         organizationId: subOrgId,
@@ -90,4 +127,70 @@ export async function applyBaselinePolicies(
       })
     )
   );
+
+  const failures: string[] = [];
+  const successes: { policyId: string; policyName: string }[] = [];
+  const pairs = settled.map((result, idx) => ({
+    result,
+    policy: BASELINE_POLICIES[idx],
+  }));
+  for (const { result, policy } of pairs) {
+    if (!policy) {
+      continue;
+    }
+    if (result.status === "rejected") {
+      failures.push(policy.policyName);
+    } else {
+      // createPolicy returns { activity: {...}, policyId: string }.
+      const res = result.value as unknown as { policyId?: string };
+      if (res?.policyId) {
+        successes.push({
+          policyId: res.policyId,
+          policyName: policy.policyName,
+        });
+      }
+    }
+  }
+
+  if (failures.length > 0) {
+    // Best-effort rollback of any partial successes. Failures here are
+    // non-fatal -- we are about to throw anyway, and the provisioning flow
+    // must treat the sub-org as abandoned.
+    await Promise.allSettled(
+      successes.map((s) =>
+        client.deletePolicy({
+          organizationId: subOrgId,
+          policyId: s.policyId,
+        })
+      )
+    );
+    throw new PolicyIncompleteError(subOrgId, failures);
+  }
+
+  // Post-condition: verify all three baseline policies are actually visible
+  // on Turnkey's side. This catches the (rare but documented) case where
+  // createPolicy succeeds but the policy is not yet queryable, and any
+  // future regression where a silent failure would leave a gap.
+  const listed = (await client.getPolicies({
+    organizationId: subOrgId,
+  })) as { policies?: { policyName: string; effect: string }[] };
+  const presentNames = new Set(
+    (listed.policies ?? []).map((p) => p.policyName)
+  );
+  const missing = BASELINE_POLICIES.filter(
+    (p) => !presentNames.has(p.policyName)
+  ).map((p) => p.policyName);
+  if (missing.length > 0) {
+    // Best-effort rollback then throw -- same semantics as the batch-failure
+    // path above.
+    await Promise.allSettled(
+      successes.map((s) =>
+        client.deletePolicy({
+          organizationId: subOrgId,
+          policyId: s.policyId,
+        })
+      )
+    );
+    throw new PolicyIncompleteError(subOrgId, missing);
+  }
 }
