@@ -1,9 +1,17 @@
 /**
  * @security HMAC request-authentication primitive for /sign, /approval-request, /link.
  *
- * Signing string format (CONTEXT line 29 / RESEARCH Pattern 5):
- *   signingString = `${method}\n${pathname}\n${sha256_hex(body)}\n${timestamp}`
+ * Signing string format (REVIEW HI-05 — subOrgId now bound into the signature
+ * so the (subOrgId, secret) pair is a single signed unit instead of being
+ * implicitly bound via lookupHmacSecret):
+ *   signingString = `${method}\n${pathname}\n${subOrgId}\n${sha256_hex(body)}\n${timestamp}`
  *   signature     = hex(hmac_sha256(secret, signingString))
+ *
+ * Previously the subOrgId header was trusted because the HMAC verifier used
+ * the caller-declared subOrgId to look up the secret; tampering with the
+ * header made the signature no longer verify. That argument held in theory
+ * but depended on lookupHmacSecret staying pure. Folding subOrgId into the
+ * signed string makes the binding explicit and robust to future refactors.
  *
  * Headers: X-KH-Sub-Org, X-KH-Timestamp (unix seconds), X-KH-Signature (hex).
  * Replay window: 300 seconds, symmetric (|now - ts| <= 300).
@@ -16,7 +24,8 @@
  *
  * T-33-01 (Spoofing) mitigations: all three headers required, timestamp
  * window, length pre-check before timingSafeEqual (avoid length-leak),
- * constant-time compare on the hex strings.
+ * constant-time compare on the hex strings, subOrgId bound into the signed
+ * string.
  *
  * T-33-02 (Information Disclosure) mitigation: never log the secret,
  * signature, or timestamp in error paths.
@@ -30,11 +39,13 @@ export function computeSignature(
   secret: string,
   method: string,
   path: string,
+  subOrgId: string,
   body: string,
   timestamp: string
 ): string {
   const bodyDigest = createHash("sha256").update(body).digest("hex");
-  const signingString = `${method}\n${path}\n${bodyDigest}\n${timestamp}`;
+  // REVIEW HI-05: subOrgId is now a signed field.
+  const signingString = `${method}\n${path}\n${subOrgId}\n${bodyDigest}\n${timestamp}`;
   return createHmac("sha256", secret).update(signingString).digest("hex");
 }
 
@@ -70,6 +81,7 @@ export async function verifyHmacRequest(
     secret,
     request.method,
     url.pathname,
+    subOrgId,
     body,
     timestamp
   );

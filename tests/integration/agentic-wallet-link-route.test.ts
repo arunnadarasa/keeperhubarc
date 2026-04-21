@@ -98,8 +98,9 @@ function buildHmacHeaders(
   const path = "/api/agentic-wallet/link";
   const ts = Math.floor(Date.now() / 1000).toString();
   const digest = createHash("sha256").update(body).digest("hex");
+  // REVIEW HI-05: subOrgId is bound into the signed string.
   const sig = createHmac("sha256", secret)
-    .update(`POST\n${path}\n${digest}\n${ts}`)
+    .update(`POST\n${path}\n${subOrgId}\n${digest}\n${ts}`)
     .digest("hex");
   return {
     "Content-Type": "application/json",

@@ -144,7 +144,8 @@ function buildHmacHeaders(
 ): Record<string, string> {
   const timestamp = String(Math.floor(Date.now() / 1000));
   const bodyDigest = createHash("sha256").update(body).digest("hex");
-  const signingString = `${method}\n${path}\n${bodyDigest}\n${timestamp}`;
+  // REVIEW HI-05: subOrgId is bound into the signed string.
+  const signingString = `${method}\n${path}\n${subOrgId}\n${bodyDigest}\n${timestamp}`;
   const signature = createHmac("sha256", secret)
     .update(signingString)
     .digest("hex");

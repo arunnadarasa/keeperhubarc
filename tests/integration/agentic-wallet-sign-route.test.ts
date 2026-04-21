@@ -144,8 +144,9 @@ function buildHmacHeaders(
 ): Record<string, string> {
   const ts = Math.floor(Date.now() / 1000).toString();
   const digest = createHash("sha256").update(body).digest("hex");
+  // REVIEW HI-05: subOrgId is bound into the signed string.
   const sig = createHmac("sha256", TEST_HMAC_SECRET)
-    .update(`${method}\n${path}\n${digest}\n${ts}`)
+    .update(`${method}\n${path}\n${subOrgId}\n${digest}\n${ts}`)
     .digest("hex");
   return {
     "Content-Type": "application/json",
