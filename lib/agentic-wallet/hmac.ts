@@ -71,6 +71,19 @@ export async function verifyHmacRequest(
     return { ok: false, status: 401, error: "Timestamp outside replay window" };
   }
 
+  // REVIEW ME-04: length pre-check BEFORE the DB lookup. A sha256-hex
+  // signature is always 64 chars; any other length is garbage and we can
+  // reject it without touching the DB. This shrinks the DoS amplification
+  // a random-subOrgId flood can cause -- only length-64 requests reach the
+  // DB roundtrip path.
+  //
+  // Constant-length is safe to check non-constant-time (the length is not
+  // secret; the timingSafeEqual below protects the byte contents).
+  const EXPECTED_SIG_HEX_LEN = 64;
+  if (signature.length !== EXPECTED_SIG_HEX_LEN) {
+    return { ok: false, status: 401, error: "Invalid signature" };
+  }
+
   const secret = await lookupHmacSecret(subOrgId);
   if (!secret) {
     return { ok: false, status: 404, error: "Unknown sub-org" };
@@ -85,12 +98,6 @@ export async function verifyHmacRequest(
     body,
     timestamp
   );
-
-  // Length pre-check avoids the Buffer.from(...)-length-mismatch throw in
-  // timingSafeEqual and prevents a length-based side channel.
-  if (signature.length !== expected.length) {
-    return { ok: false, status: 401, error: "Invalid signature" };
-  }
   const a = Buffer.from(signature, "hex");
   const b = Buffer.from(expected, "hex");
   if (a.length !== b.length || !timingSafeEqual(a, b)) {
