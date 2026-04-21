@@ -4,6 +4,7 @@ export {
   KeeperHubClient,
 } from "./client.js";
 export { buildHmacHeaders, computeSignature } from "./hmac.js";
+export { type MppChallenge, parseMppChallenge } from "./mpp-detect.js";
 export {
   getWalletConfigPath,
   readWalletConfig,
@@ -16,3 +17,4 @@ export {
   type WalletConfig,
   WalletConfigMissingError,
 } from "./types.js";
+export { parseX402Challenge, type X402Challenge } from "./x402-detect.js";
