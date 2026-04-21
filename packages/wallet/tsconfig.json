@@ -17,7 +17,8 @@
     "jsx": "preserve",
     "lib": ["ES2022"],
     "plugins": [],
-    "paths": {}
+    "paths": {},
+    "incremental": false
   },
   "include": ["src/**/*"],
   "exclude": ["dist", "tests", "node_modules"]

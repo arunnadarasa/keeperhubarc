@@ -1,3 +1,8 @@
+export {
+  type AskTierResponse,
+  type ClientOptions,
+  KeeperHubClient,
+} from "./client.js";
 export { buildHmacHeaders, computeSignature } from "./hmac.js";
 export {
   getWalletConfigPath,

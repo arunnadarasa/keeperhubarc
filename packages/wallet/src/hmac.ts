@@ -7,8 +7,9 @@ import type { HmacHeaders } from "./types.js";
  *   `${method}\n${path}\n${subOrgId}\n${sha256_hex(body)}\n${timestamp}`
  * Post-HI-05: subOrgId is a signed field.
  *
- * @security Do NOT log `secret` or the returned signature. Any console.*
- *   call in this file is a T-34-08 violation (grep-enforced).
+ * @security Do NOT log the secret or the returned signature. Any stdout
+ *   emitter (the global console object or util.inspect) added to this
+ *   file is a T-34-08 violation (grep-enforced).
  */
 export function computeSignature(
   secret: string,
