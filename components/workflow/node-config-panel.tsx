@@ -1084,7 +1084,10 @@ export const PanelInner = () => {
             !selectedNode.data.config?.actionType &&
             isOwner
           ) && (
-            <div className="flex-1 space-y-4 overflow-y-auto p-4">
+            <div
+              className="flex-1 space-y-4 overflow-y-auto p-4"
+              key={selectedNode.id}
+            >
               {selectedNode.data.type === "trigger" && (
                 <TriggerConfig
                   config={selectedNode.data.config || {}}
