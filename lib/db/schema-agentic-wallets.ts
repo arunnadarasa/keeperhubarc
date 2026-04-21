@@ -98,6 +98,10 @@ export const walletApprovalRequests = pgTable(
     riskLevel: approvalRiskLevel("risk_level").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     resolvedAt: timestamp("resolved_at"),
+    // SET NULL preserves the approval audit trail if the approver's user is
+    // deleted. Mirrors the audit-preservation rationale on
+    // agenticWallets.linked_user_id -- a deleted approver must not erase the
+    // fact that an approval occurred.
     resolvedByUserId: text("resolved_by_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
