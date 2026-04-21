@@ -26,11 +26,54 @@ import {
 import { WalletConfigMissingError } from "./types.js";
 
 const TRAILING_SLASH = /\/$/;
+const WALLET_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 
 function resolveBaseUrl(override: string | undefined): string {
   const candidate =
     override ?? process.env.KEEPERHUB_API_URL ?? "https://app.keeperhub.com";
   return candidate.replace(TRAILING_SLASH, "");
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+function validateProvisionResponse(data: unknown): {
+  subOrgId: string;
+  walletAddress: `0x${string}`;
+  hmacSecret: string;
+} {
+  if (typeof data !== "object" || data === null) {
+    const err = new Error(
+      "provision response is not an object"
+    ) as Error & { code?: string };
+    err.code = "PROVISION_RESPONSE_INVALID";
+    throw err;
+  }
+  const record = data as Record<string, unknown>;
+  if (
+    !isNonEmptyString(record.subOrgId) ||
+    !isNonEmptyString(record.walletAddress) ||
+    !isNonEmptyString(record.hmacSecret)
+  ) {
+    const err = new Error(
+      "provision response missing subOrgId, walletAddress, or hmacSecret"
+    ) as Error & { code?: string };
+    err.code = "PROVISION_RESPONSE_INVALID";
+    throw err;
+  }
+  if (!WALLET_ADDRESS_PATTERN.test(record.walletAddress)) {
+    const err = new Error(
+      `provision response walletAddress is not a valid 0x-prefixed 40-hex address: ${record.walletAddress}`
+    ) as Error & { code?: string };
+    err.code = "PROVISION_RESPONSE_INVALID";
+    throw err;
+  }
+  return {
+    subOrgId: record.subOrgId,
+    walletAddress: record.walletAddress as `0x${string}`,
+    hmacSecret: record.hmacSecret,
+  };
 }
 
 async function cmdAdd(opts: { baseUrl?: string } = {}): Promise<void> {
@@ -47,11 +90,8 @@ async function cmdAdd(opts: { baseUrl?: string } = {}): Promise<void> {
     );
     process.exit(1);
   }
-  const data = (await response.json()) as {
-    subOrgId: string;
-    walletAddress: `0x${string}`;
-    hmacSecret: string;
-  };
+  const raw = (await response.json()) as unknown;
+  const data = validateProvisionResponse(raw);
   await writeWalletConfig({
     subOrgId: data.subOrgId,
     walletAddress: data.walletAddress,
