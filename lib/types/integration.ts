@@ -9,12 +9,13 @@
  * 2. Add a system integration to SYSTEM_INTEGRATION_TYPES in discover-plugins.ts
  * 3. Run: pnpm discover-plugins
  *
- * Generated types: aave, aerodrome, ai-gateway, ajna, chainlink, chronicle, clerk, code, compound, cowswap, curve, database, discord, ethena, lido, linear, math, morpho, pendle, protocol, resend, rocket-pool, safe, sendgrid, sky, slack, spark, telegram, uniswap, v0, web3, webflow, webhook, weth, yearn
+ * Generated types: aave-v3, aave-v4, aerodrome, ai-gateway, ajna, chainlink, chronicle, clerk, code, compound, cowswap, curve, database, discord, ethena, lido, linear, math, morpho, pendle, protocol, resend, rocket-pool, safe, sendgrid, sky, slack, spark, telegram, uniswap, v0, web3, webflow, webhook, wrapped, yearn
  */
 
 // Integration type union - plugins + system integrations
 export type IntegrationType =
-  | "aave"
+  | "aave-v3"
+  | "aave-v4"
   | "aerodrome"
   | "ai-gateway"
   | "ajna"
@@ -47,7 +48,7 @@ export type IntegrationType =
   | "web3"
   | "webflow"
   | "webhook"
-  | "weth"
+  | "wrapped"
   | "yearn";
 
 // Generic config type - plugins define their own keys via formFields[].configKey

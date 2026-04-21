@@ -16,6 +16,7 @@ export type ChainData = {
   symbol: string;
   chainType: string;
   defaultPrimaryRpc: string;
+  defaultFallbackRpc: string | null;
   explorerUrl: string | null;
   explorerAddressPath: string | null;
   isTestnet: boolean;
@@ -123,6 +124,7 @@ export type SupportedTokenBalance = {
 export type WalletProvider = "para" | "turnkey";
 
 export type WalletInfo = {
+  id: string;
   provider: WalletProvider;
   walletAddress: string;
   walletId: string;
@@ -130,6 +132,7 @@ export type WalletInfo = {
   createdAt: string;
   canExportKey: boolean;
   organizationId: string;
+  isActive: boolean;
 };
 
 export type WalletData = {

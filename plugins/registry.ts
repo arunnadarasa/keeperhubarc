@@ -51,11 +51,19 @@ export type ActionConfigFieldBase = {
   // For chain-select: filter by chain type (e.g., "evm" or "solana")
   chainTypeFilter?: string;
 
+  // For chain-select: restrict to specific chain IDs (e.g., ["1", "8453"])
+  allowedChainIds?: string[];
+
   // Placeholder text
   placeholder?: string;
 
   // Default value
   defaultValue?: string;
+
+  // For chain-select on write actions: also render private mempool variants
+  // (e.g., "Ethereum Mainnet (Flashbots)") for chains with usePrivateMempoolRpc=true.
+  // On selection, sets both the network field AND config.usePrivateMempool.
+  showPrivateVariants?: boolean;
 
   // Example value for AI prompt generation
   example?: string;
