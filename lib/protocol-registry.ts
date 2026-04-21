@@ -369,7 +369,11 @@ function buildOutputFieldsFromAction(
 ): Array<{ field: string; description: string }> {
   const outputs: Array<{ field: string; description: string }> = [];
 
-  if (action.outputs) {
+  // KEEP-296: only reads surface action.outputs as UI template suggestions.
+  // Write actions still have ABI-derived outputs at the model layer, but
+  // writeContractCore returns result: undefined, so surfacing them would
+  // create template suggestions that resolve to undefined at runtime.
+  if (action.type === "read" && action.outputs) {
     for (const output of action.outputs) {
       outputs.push({ field: output.name, description: output.label });
     }

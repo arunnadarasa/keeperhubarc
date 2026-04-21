@@ -31,10 +31,11 @@ export default defineAbiProtocol({
         "1": "0xe1900480ac69f0B296841Cd01cC37546d92F35Cd",
       },
       overrides: {
-        // Write actions (supply/withdraw/borrow/repay) omit outputs pending
-        // KEEP-296: write-contract-core returns result: undefined today, so
-        // declared named outputs would surface in the UI picker but resolve
-        // to undefined at runtime.
+        // Write actions (supply/withdraw/borrow/repay) omit output overrides
+        // pending KEEP-296. writeContractCore returns result: undefined, so
+        // UI template suggestions are gated in buildOutputFieldsFromAction;
+        // named overrides would be dead metadata until the write path decodes
+        // function returns.
         supply: {
           slug: "supply",
           label: "Supply Asset",

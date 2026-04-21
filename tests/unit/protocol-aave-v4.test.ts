@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getProtocol, registerProtocol } from "@/lib/protocol-registry";
+import {
+  getProtocol,
+  protocolActionToPluginAction,
+  registerProtocol,
+} from "@/lib/protocol-registry";
 import aaveV4Def from "@/protocols/aave-v4";
 
 const KEBAB_CASE_REGEX = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
@@ -156,15 +160,61 @@ describe("Aave V4 Protocol Definition (ABI-driven)", () => {
     expect(getSupplied?.outputs?.[0].name).toBe("suppliedAmount");
   });
 
-  it("write actions (supply/withdraw/borrow/repay) do not declare outputs", () => {
-    // KEEP-296: write path returns result: undefined, so declared outputs
-    // would mislead the UI picker. Revisit once the write path decodes
-    // function returns from simulation or events.
+  it("write actions do not surface ABI-derived outputs as UI template suggestions (KEEP-296)", () => {
+    // writeContractCore returns result: undefined, so any action.outputs on
+    // write actions must not flow into pluginAction.outputFields (which
+    // drives template autocomplete). Gated in buildOutputFieldsFromAction.
     for (const slug of ["supply", "withdraw", "borrow", "repay"]) {
       const action = aaveV4Def.actions.find((a) => a.slug === slug);
       expect(action, `action "${slug}" not found`).toBeDefined();
-      expect(action?.type).toBe("write");
-      expect(action?.outputs).toBeUndefined();
+      if (!action) {
+        continue;
+      }
+      expect(action.type).toBe("write");
+      const pluginAction = protocolActionToPluginAction(aaveV4Def, action);
+      const outputFieldNames = (pluginAction.outputFields ?? []).map(
+        (f) => f.field
+      );
+      // No ABI-derived outputs leak through
+      expect(outputFieldNames).not.toContain("result0");
+      expect(outputFieldNames).not.toContain("result1");
+      // Standard write-action fields are still present
+      expect(outputFieldNames).toEqual(
+        expect.arrayContaining([
+          "success",
+          "error",
+          "transactionHash",
+          "transactionLink",
+        ])
+      );
+    }
+  });
+
+  it("read actions surface ABI-derived outputs as UI template suggestions", () => {
+    for (const slug of [
+      "get-user-supplied-assets",
+      "get-user-debt",
+      "get-reserve-id",
+    ]) {
+      const action = aaveV4Def.actions.find((a) => a.slug === slug);
+      expect(action, `action "${slug}" not found`).toBeDefined();
+      if (!action) {
+        continue;
+      }
+      expect(action.type).toBe("read");
+      const pluginAction = protocolActionToPluginAction(aaveV4Def, action);
+      const outputFieldNames = (pluginAction.outputFields ?? []).map(
+        (f) => f.field
+      );
+      // success/error always present; plus at least one ABI-derived output
+      expect(outputFieldNames).toEqual(
+        expect.arrayContaining(["success", "error"])
+      );
+      expect(outputFieldNames).not.toContain("transactionHash");
+      const nonStandardFields = outputFieldNames.filter(
+        (f) => f !== "success" && f !== "error"
+      );
+      expect(nonStandardFields.length).toBeGreaterThan(0);
     }
   });
 
