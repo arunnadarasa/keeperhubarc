@@ -15,7 +15,8 @@
  * Enforced by: tests/unit/agentic-wallet-boundary.test.ts (static string check)
  * and code review.
  */
-import type { Turnkey } from "@turnkey/sdk-server";
+import { Turnkey } from "@turnkey/sdk-server";
+import { provisionAgenticWallet } from "@/lib/agentic-wallet/provision";
 
 /**
  * Passkey Relying Party ID for agentic-wallet passkey enrollment.
@@ -33,25 +34,69 @@ export type CreateAgenticWalletResult = {
   walletAddressTempo: string;
 };
 
-/**
- * Create a KeeperHub-owned Turnkey sub-org for an agentic wallet.
- * Phase 32: stub. Phase 33 implements.
- *
- * The `async` modifier is load-bearing: this is the published contract
- * Phase 33 will satisfy with real `await` calls against the Turnkey SDK.
- * Callers in Phase 33 and beyond will `await createAgenticWallet(...)`;
- * dropping `async` now would force a breaking API change later.
- */
-// biome-ignore lint/suspicious/useAwait: stub preserves the Phase-33 async contract; removing `async` would break the published Promise<CreateAgenticWalletResult> signature and require rewriting every future caller.
-export async function createAgenticWallet(): Promise<CreateAgenticWalletResult> {
-  throw new Error("createAgenticWallet: not yet implemented (Phase 33)");
+function readTurnkeyEnv(): {
+  apiPublicKey: string;
+  apiPrivateKey: string;
+  organizationId: string;
+} {
+  const apiPublicKey = process.env.TURNKEY_API_PUBLIC_KEY;
+  const apiPrivateKey = process.env.TURNKEY_API_PRIVATE_KEY;
+  const organizationId = process.env.TURNKEY_ORGANIZATION_ID;
+  if (!(apiPublicKey && apiPrivateKey && organizationId)) {
+    throw new Error(
+      "TURNKEY_API_PUBLIC_KEY, TURNKEY_API_PRIVATE_KEY, and TURNKEY_ORGANIZATION_ID must be set"
+    );
+  }
+  return { apiPublicKey, apiPrivateKey, organizationId };
 }
 
 /**
- * Factory returning a Turnkey client scoped to a specific agentic sub-org.
- * Used by the signing proxy to stamp requests as the sub-org.
- * Phase 32: stub. Phase 33 implements.
+ * Parent-org-scoped Turnkey client. Used for `createSubOrganization` which
+ * must execute in the KeeperHub parent-org context. The resulting sub-org
+ * inherits its own policy scope; do NOT reuse this instance for per-sub-org
+ * calls (policies would not apply).
  */
-export function getTurnkeyClientForOrg(_subOrgId: string): Turnkey {
-  throw new Error("getTurnkeyClientForOrg: not yet implemented (Phase 33)");
+export function getTurnkeyParentClient(): Turnkey {
+  const { apiPublicKey, apiPrivateKey, organizationId } = readTurnkeyEnv();
+  return new Turnkey({
+    apiBaseUrl: "https://api.turnkey.com",
+    apiPublicKey,
+    apiPrivateKey,
+    defaultOrganizationId: organizationId,
+  });
+}
+
+/**
+ * Sub-org-scoped Turnkey client. Used for per-sub-org calls: `createPolicy`,
+ * `signRawPayload`, wallet reads.
+ *
+ * CRITICAL: must instantiate a NEW Turnkey client with `defaultOrganizationId:
+ * subOrgId`. Reusing a parent-scoped instance signs with the parent org
+ * context and policies do NOT apply. See 33-RESEARCH.md Anti-Patterns.
+ */
+export function getTurnkeyClientForOrg(subOrgId: string): Turnkey {
+  const { apiPublicKey, apiPrivateKey } = readTurnkeyEnv();
+  return new Turnkey({
+    apiBaseUrl: "https://api.turnkey.com",
+    apiPublicKey,
+    apiPrivateKey,
+    defaultOrganizationId: subOrgId,
+  });
+}
+
+/**
+ * Create a KeeperHub-owned Turnkey sub-org for an agentic wallet.
+ *
+ * The implementation lives in lib/agentic-wallet/provision.ts (Plan 33-01a).
+ * This wrapper preserves the Phase-32-published `{subOrgId, walletAddressBase,
+ * walletAddressTempo}` shape by mirroring the single EVM address onto both
+ * Base and Tempo columns (CONTEXT Resolution #1 — single derivation path).
+ */
+export async function createAgenticWallet(): Promise<CreateAgenticWalletResult> {
+  const { subOrgId, walletAddress } = await provisionAgenticWallet();
+  return {
+    subOrgId,
+    walletAddressBase: walletAddress,
+    walletAddressTempo: walletAddress,
+  };
 }
