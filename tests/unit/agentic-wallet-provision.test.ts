@@ -35,16 +35,23 @@ const {
   };
 });
 
+// Use a function expression (not arrow) so `new Turnkey(...)` inside
+// lib/turnkey/agentic-wallet.ts treats the mock as a constructor. vitest 4
+// does not auto-wrap arrow-function mock implementations with [[Construct]].
 vi.mock("@turnkey/sdk-server", () => ({
-  Turnkey: vi.fn(() => ({
-    apiClient: (): {
+  Turnkey: vi.fn(function TurnkeyMock(this: unknown): {
+    apiClient: () => {
       createSubOrganization: typeof mockCreateSubOrg;
       createPolicy: typeof mockCreatePolicy;
-    } => ({
-      createSubOrganization: mockCreateSubOrg,
-      createPolicy: mockCreatePolicy,
-    }),
-  })),
+    };
+  } {
+    return {
+      apiClient: () => ({
+        createSubOrganization: mockCreateSubOrg,
+        createPolicy: mockCreatePolicy,
+      }),
+    };
+  }),
 }));
 
 // Route DB inserts through table-keyed dispatchers so tests can assert on which
