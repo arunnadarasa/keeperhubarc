@@ -53,8 +53,14 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/db/schema", () => ({
-  workflows: { id: "id", listedSlug: "listed_slug", isListed: "is_listed" },
+  workflows: {
+    id: "id",
+    listedSlug: "listed_slug",
+    isListed: "is_listed",
+    tagId: "tag_id",
+  },
   workflowExecutions: { id: "id" },
+  tags: { id: "id", name: "name" },
 }));
 
 vi.mock("@/lib/x402/payment-gate", () => ({
@@ -128,10 +134,15 @@ const FREE_WORKFLOW_NULL_PRICE = { ...LISTED_WORKFLOW, priceUsdcPerCall: null };
 const CREATOR_WALLET = "0xCREATOR_WALLET";
 
 function setupDbSelectWorkflow(row: unknown) {
+  // lookupWorkflow joins the tags table to project tagName into the row, so
+  // the chain is: select().from().leftJoin().where().limit(). Mirror that
+  // shape here or the real code throws on the missing .leftJoin().
   mockDbSelect.mockReturnValue({
     from: vi.fn().mockReturnValue({
-      where: vi.fn().mockReturnValue({
-        limit: vi.fn().mockResolvedValue(row ? [row] : []),
+      leftJoin: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue(row ? [row] : []),
+        }),
       }),
     }),
   });

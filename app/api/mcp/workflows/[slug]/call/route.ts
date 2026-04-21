@@ -4,7 +4,7 @@ import { start } from "workflow/api";
 import { checkConcurrencyLimit } from "@/app/api/execute/_lib/concurrency-limit";
 import { enforceExecutionLimit } from "@/lib/billing/execution-guard";
 import { db } from "@/lib/db";
-import { workflowExecutions, workflows } from "@/lib/db/schema";
+import { tags, workflowExecutions, workflows } from "@/lib/db/schema";
 import { ErrorCategory, logSystemError } from "@/lib/logging";
 import { checkIpRateLimit, getClientIp } from "@/lib/mcp/rate-limit";
 import { hashMppCredential } from "@/lib/mpp/server";
@@ -166,8 +166,9 @@ async function createAndStartExecution(
 
 async function lookupWorkflow(slug: string): Promise<CallRouteWorkflow | null> {
   const rows = await db
-    .select(CALL_ROUTE_COLUMNS)
+    .select({ ...CALL_ROUTE_COLUMNS, tagName: tags.name })
     .from(workflows)
+    .leftJoin(tags, eq(workflows.tagId, tags.id))
     .where(and(eq(workflows.listedSlug, slug), eq(workflows.isListed, true)))
     .limit(1);
   return rows[0] ?? null;
