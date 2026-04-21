@@ -1,7 +1,11 @@
 import type { Edge as XYFlowEdge } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 
-import { hasDuplicateEdge, normalizeHandle } from "@/lib/workflow/edge-helpers";
+import {
+  dedupeEdges,
+  hasDuplicateEdge,
+  normalizeHandle,
+} from "@/lib/workflow/edge-helpers";
 
 function edge(
   id: string,
@@ -114,6 +118,40 @@ describe("edge-helpers", () => {
       expect(
         hasDuplicateEdge(existing, { source: "a", target: "b" })
       ).toBe(true);
+    });
+  });
+
+  describe("dedupeEdges", () => {
+    it("returns an empty array for empty input", () => {
+      expect(dedupeEdges([])).toEqual([]);
+    });
+
+    it("returns the same edges when all are unique", () => {
+      const input = [
+        edge("e1", "a", "b"),
+        edge("e2", "b", "c"),
+        edge("e3", "a", "c"),
+      ];
+      expect(dedupeEdges(input)).toEqual(input);
+    });
+
+    it("drops later duplicates and preserves first occurrence order", () => {
+      const first = edge("e1", "a", "b");
+      const second = edge("e2", "b", "c");
+      const dup = edge("e3", "a", "b");
+      expect(dedupeEdges([first, second, dup])).toEqual([first, second]);
+    });
+
+    it("treats null/undefined/empty-string handles as equivalent when deduping", () => {
+      const first = edge("e1", "a", "b", null, null);
+      const dup = edge("e2", "a", "b", "", undefined);
+      expect(dedupeEdges([first, dup])).toEqual([first]);
+    });
+
+    it("keeps edges that differ only by sourceHandle", () => {
+      const trueEdge = edge("e1", "cond", "t", "true");
+      const falseEdge = edge("e2", "cond", "t", "false");
+      expect(dedupeEdges([trueEdge, falseEdge])).toEqual([trueEdge, falseEdge]);
     });
   });
 });
