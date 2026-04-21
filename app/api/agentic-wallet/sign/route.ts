@@ -55,6 +55,51 @@ function isChain(value: unknown): value is Chain {
   return value === "base" || value === "tempo";
 }
 
+// REVIEW HI-01 + ME-01: maximum validity window for an EIP-3009 x402
+// authorization minted by /sign. 10 minutes is generous for any x402
+// facilitator's settlement loop while capping replay exposure on a stolen
+// HMAC secret.
+const MAX_VALIDITY_SECONDS = 10 * 60;
+// Small slack on validAfter to tolerate clock skew between agent and server.
+const VALID_AFTER_FUTURE_SLACK_SECONDS = 60;
+
+function isNonNegativeSafeInt(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 0 &&
+    value <= Number.MAX_SAFE_INTEGER
+  );
+}
+
+function validateX402Validity(
+  validAfterRaw: unknown,
+  validBeforeRaw: unknown
+): string | null {
+  if (!isNonNegativeSafeInt(validAfterRaw)) {
+    return "validAfter must be a non-negative integer";
+  }
+  if (!isNonNegativeSafeInt(validBeforeRaw)) {
+    return "validBefore must be a non-negative integer";
+  }
+  const now = Math.floor(Date.now() / 1000);
+  const validAfter = validAfterRaw;
+  const validBefore = validBeforeRaw;
+  if (validAfter > now + VALID_AFTER_FUTURE_SLACK_SECONDS) {
+    return "validAfter must not be more than 60s in the future";
+  }
+  if (validBefore <= now) {
+    return "validBefore must be in the future";
+  }
+  if (validBefore > now + MAX_VALIDITY_SECONDS) {
+    return "validBefore must be within 10 minutes of now";
+  }
+  if (validBefore - validAfter > MAX_VALIDITY_SECONDS) {
+    return "validity window (validBefore - validAfter) must be <= 600s";
+  }
+  return null;
+}
+
 export async function POST(request: Request): Promise<Response> {
   // HMAC signs raw bytes -- read text FIRST, never reach request.json().
   const rawBody = await request.text();
@@ -89,6 +134,29 @@ export async function POST(request: Request): Promise<Response> {
 
   const chain: Chain = body.chain;
   const challenge = body.paymentChallenge as Record<string, unknown>;
+
+  // REVIEW HI-01 + ME-01: bound the EIP-3009 validity window on the Base
+  // (x402) path so a compromised HMAC secret cannot mint open-ended
+  // authorizations. Also guards against NaN / non-integer inputs that
+  // Turnkey would sign verbatim and x402 facilitators would later reject.
+  // Rejecting (not capping) surfaces client bugs rather than silently
+  // overwriting caller intent.
+  //
+  //   validAfter  must be a non-negative integer <= now
+  //   validBefore must be a non-negative integer in (now, now + 600]
+  //   total window (validBefore - validAfter) must be <= 600 seconds
+  if (chain === "base") {
+    const validityError = validateX402Validity(
+      challenge.validAfter,
+      challenge.validBefore
+    );
+    if (validityError) {
+      return Response.json(
+        { error: validityError, code: "INVALID_VALIDITY_WINDOW" },
+        { status: 400 }
+      );
+    }
+  }
 
   // Wallet address resolution from DB -- NEVER trust any caller-supplied
   // wallet value (T-33-sign-spoofwallet).
@@ -177,8 +245,22 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ signature }, { status: 200 });
   } catch (error) {
     if (error instanceof PolicyBlockedError) {
+      // REVIEW HI-02: the error.message ("POLICY_BLOCKED: ...") is controlled
+      // server-side today, but returning a fixed string guards against future
+      // authors stuffing upstream detail into .message. Internal log still
+      // carries the full error via logSystemError for debugging.
+      logSystemError(
+        ErrorCategory.EXTERNAL_SERVICE,
+        "[Agentic] /sign policy blocked",
+        error,
+        {
+          endpoint: "/api/agentic-wallet/sign",
+          operation: "sign",
+          subOrgId: auth.subOrgId,
+        }
+      );
       return Response.json(
-        { error: error.message, code: "POLICY_BLOCKED" },
+        { error: "Policy blocked", code: "POLICY_BLOCKED" },
         { status: 403 }
       );
     }
@@ -193,8 +275,9 @@ export async function POST(request: Request): Promise<Response> {
           subOrgId: auth.subOrgId,
         }
       );
+      // REVIEW HI-02: do not forward upstream error text to HMAC callers.
       return Response.json(
-        { error: error.message, code: "TURNKEY_UPSTREAM" },
+        { error: "Upstream signer error", code: "TURNKEY_UPSTREAM" },
         { status: 502 }
       );
     }

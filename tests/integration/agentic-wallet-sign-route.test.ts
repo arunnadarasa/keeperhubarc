@@ -174,11 +174,13 @@ beforeEach(() => {
 
 describe("POST /api/agentic-wallet/sign -- EIP-3009 ecrecover round-trip", () => {
   it("returns a signature that ecrecovers to the wallet address (PAY-04 acceptance)", async () => {
+    const nowTs = Math.floor(Date.now() / 1000);
     const challenge = {
       payTo: "0xdeadbeef00000000000000000000000000000000",
       amount: "1000000", // 1 USDC (6 decimals)
-      validAfter: 0,
-      validBefore: Math.floor(Date.now() / 1000) + 3600,
+      // REVIEW HI-01: tight window within the 600s cap enforced by /sign.
+      validAfter: nowTs,
+      validBefore: nowTs + 300,
       nonce: `0x${"11".repeat(32)}`,
     };
     const message = {
@@ -289,13 +291,14 @@ describe("POST /api/agentic-wallet/sign -- EIP-3009 ecrecover round-trip", () =>
     mockSignRawPayload.mockResolvedValue({
       activity: { status: "ACTIVITY_STATUS_CONSENSUS_NEEDED" },
     });
+    const nowTs = Math.floor(Date.now() / 1000);
     const body = JSON.stringify({
       chain: "base",
       paymentChallenge: {
         payTo: "0x0000000000000000000000000000000000000000",
         amount: "1000000",
-        validAfter: 0,
-        validBefore: 9_999_999_999,
+        validAfter: nowTs,
+        validBefore: nowTs + 300,
         nonce: `0x${"00".repeat(32)}`,
       },
     });
@@ -312,16 +315,70 @@ describe("POST /api/agentic-wallet/sign -- EIP-3009 ecrecover round-trip", () =>
     expect(json.code).toBe("POLICY_BLOCKED");
   });
 
+  it("returns 400 INVALID_VALIDITY_WINDOW when validBefore is too far in the future (HI-01)", async () => {
+    const body = JSON.stringify({
+      chain: "base",
+      paymentChallenge: {
+        payTo: "0x0000000000000000000000000000000000000000",
+        amount: "1000000",
+        validAfter: 0,
+        // 300 years in the future -- the original over-wide window.
+        validBefore: 9_999_999_999,
+        nonce: `0x${"00".repeat(32)}`,
+      },
+    });
+    const path = "/api/agentic-wallet/sign";
+    const res = await POST(
+      new Request(`http://localhost:3000${path}`, {
+        method: "POST",
+        headers: buildHmacHeaders("subOrg_test", "POST", path, body),
+        body,
+      })
+    );
+    expect(res.status).toBe(400);
+    const json = (await res.json()) as { code: string };
+    expect(json.code).toBe("INVALID_VALIDITY_WINDOW");
+    // Route MUST short-circuit before reaching Turnkey on validity failure.
+    expect(mockSignRawPayload).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 INVALID_VALIDITY_WINDOW when validAfter is not an integer (ME-01)", async () => {
+    const nowTs = Math.floor(Date.now() / 1000);
+    const body = JSON.stringify({
+      chain: "base",
+      paymentChallenge: {
+        payTo: "0x0000000000000000000000000000000000000000",
+        amount: "1000000",
+        // NaN path: string "abc" is neither a number nor a non-negative int.
+        validAfter: "abc",
+        validBefore: nowTs + 300,
+        nonce: `0x${"00".repeat(32)}`,
+      },
+    });
+    const path = "/api/agentic-wallet/sign";
+    const res = await POST(
+      new Request(`http://localhost:3000${path}`, {
+        method: "POST",
+        headers: buildHmacHeaders("subOrg_test", "POST", path, body),
+        body,
+      })
+    );
+    expect(res.status).toBe(400);
+    const json = (await res.json()) as { code: string };
+    expect(json.code).toBe("INVALID_VALIDITY_WINDOW");
+  });
+
   it("returns 202 approvalRequestId when risk=ask", async () => {
     mockClassifyRisk.mockReturnValue("ask");
     mockCreateApprovalRequest.mockResolvedValue({ id: "ar_test" });
+    const nowTs = Math.floor(Date.now() / 1000);
     const body = JSON.stringify({
       chain: "base",
       paymentChallenge: {
         payTo: "0x0000000000000000000000000000000000000000",
         amount: "60000000", // 60 USDC -- ask tier
-        validAfter: 0,
-        validBefore: 9_999_999_999,
+        validAfter: nowTs,
+        validBefore: nowTs + 300,
         nonce: `0x${"00".repeat(32)}`,
       },
     });
@@ -345,13 +402,14 @@ describe("POST /api/agentic-wallet/sign -- EIP-3009 ecrecover round-trip", () =>
 
   it("returns 403 RISK_BLOCKED when risk=block", async () => {
     mockClassifyRisk.mockReturnValue("block");
+    const nowTs = Math.floor(Date.now() / 1000);
     const body = JSON.stringify({
       chain: "base",
       paymentChallenge: {
         payTo: "0x0000000000000000000000000000000000000000",
         amount: "200000000", // 200 USDC -- block tier
-        validAfter: 0,
-        validBefore: 9_999_999_999,
+        validAfter: nowTs,
+        validBefore: nowTs + 300,
         nonce: `0x${"00".repeat(32)}`,
       },
     });
