@@ -156,19 +156,15 @@ describe("Aave V4 Protocol Definition (ABI-driven)", () => {
     expect(getSupplied?.outputs?.[0].name).toBe("suppliedAmount");
   });
 
-  it("supply/withdraw/borrow/repay writes expose their Solidity return values as named outputs", () => {
-    const expected: Record<string, [string, string]> = {
-      supply: ["suppliedShares", "suppliedAmount"],
-      withdraw: ["withdrawnShares", "withdrawnAmount"],
-      borrow: ["drawnShares", "drawnAmount"],
-      repay: ["drawnSharesBurned", "totalAmountRepaid"],
-    };
-    for (const [slug, [name0, name1]] of Object.entries(expected)) {
+  it("write actions (supply/withdraw/borrow/repay) do not declare outputs", () => {
+    // KEEP-296: write path returns result: undefined, so declared outputs
+    // would mislead the UI picker. Revisit once the write path decodes
+    // function returns from simulation or events.
+    for (const slug of ["supply", "withdraw", "borrow", "repay"]) {
       const action = aaveV4Def.actions.find((a) => a.slug === slug);
       expect(action, `action "${slug}" not found`).toBeDefined();
-      expect(action?.outputs).toHaveLength(2);
-      expect(action?.outputs?.[0].name).toBe(name0);
-      expect(action?.outputs?.[1].name).toBe(name1);
+      expect(action?.type).toBe("write");
+      expect(action?.outputs).toBeUndefined();
     }
   });
 

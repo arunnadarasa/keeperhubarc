@@ -31,6 +31,10 @@ export default defineAbiProtocol({
         "1": "0xe1900480ac69f0B296841Cd01cC37546d92F35Cd",
       },
       overrides: {
+        // Write actions (supply/withdraw/borrow/repay) omit outputs pending
+        // KEEP-296: write-contract-core returns result: undefined today, so
+        // declared named outputs would surface in the UI picker but resolve
+        // to undefined at runtime.
         supply: {
           slug: "supply",
           label: "Supply Asset",
@@ -46,13 +50,6 @@ export default defineAbiProtocol({
             amount: { label: "Amount (wei)" },
             onBehalfOf: { label: "On Behalf Of Address" },
           },
-          outputs: {
-            result0: { name: "suppliedShares", label: "Supplied Shares" },
-            result1: {
-              name: "suppliedAmount",
-              label: "Supplied Amount (underlying)",
-            },
-          },
         },
         withdraw: {
           slug: "withdraw",
@@ -65,13 +62,6 @@ export default defineAbiProtocol({
             },
             amount: { label: "Amount (wei)" },
             onBehalfOf: { label: "Recipient Address" },
-          },
-          outputs: {
-            result0: { name: "withdrawnShares", label: "Withdrawn Shares" },
-            result1: {
-              name: "withdrawnAmount",
-              label: "Withdrawn Amount (underlying)",
-            },
           },
         },
         borrow: {
@@ -87,13 +77,6 @@ export default defineAbiProtocol({
             amount: { label: "Amount (wei)" },
             onBehalfOf: { label: "On Behalf Of Address" },
           },
-          outputs: {
-            result0: { name: "drawnShares", label: "Drawn Shares" },
-            result1: {
-              name: "drawnAmount",
-              label: "Drawn Amount (underlying)",
-            },
-          },
         },
         repay: {
           slug: "repay",
@@ -106,16 +89,6 @@ export default defineAbiProtocol({
             },
             amount: { label: "Amount (wei)" },
             onBehalfOf: { label: "On Behalf Of Address" },
-          },
-          outputs: {
-            result0: {
-              name: "drawnSharesBurned",
-              label: "Drawn Shares Burned",
-            },
-            result1: {
-              name: "totalAmountRepaid",
-              label: "Total Amount Repaid (underlying)",
-            },
           },
         },
         setUsingAsCollateral: {
