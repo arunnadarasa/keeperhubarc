@@ -129,19 +129,23 @@ export async function provisionAgenticWallet(): Promise<ProvisionAgenticWalletRe
       throw policyError;
     }
 
-    // Parallelize the two independent DB writes (RESEARCH Pitfall 1 — keep
-    // /provision under the 10s ONBOARD-01 SLO).
+    // REVIEW ME-06: the wallet row must land before the credit FK check.
+    // Previously these ran in parallel via Promise.all; if the credit insert
+    // happened to begin before the wallet insert committed, the FK check
+    // could fail with a violation message that included the sub-org id.
+    // Serialising is effectively free (<10ms extra on the 10s ONBOARD-01
+    // budget) and removes the ordering hazard. A future transaction wrap
+    // (db.transaction) would be strictly better but requires deeper test
+    // mock refactoring -- deferred per review.
     try {
-      await Promise.all([
-        db.insert(agenticWallets).values({
-          subOrgId,
-          // CONTEXT Resolution #1: single path => same address on both chains.
-          walletAddressBase: walletAddress,
-          walletAddressTempo: walletAddress,
-          hmacSecret,
-        }),
-        grantInitialCredit(subOrgId),
-      ]);
+      await db.insert(agenticWallets).values({
+        subOrgId,
+        // CONTEXT Resolution #1: single path => same address on both chains.
+        walletAddressBase: walletAddress,
+        walletAddressTempo: walletAddress,
+        hmacSecret,
+      });
+      await grantInitialCredit(subOrgId);
     } catch (dbError) {
       logSystemError(
         ErrorCategory.DATABASE,
