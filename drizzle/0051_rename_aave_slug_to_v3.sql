@@ -1,24 +1,30 @@
 -- Rename Aave V3 protocol slug from "aave" to "aave-v3" so it coexists
 -- cleanly with the new "aave-v4" slug. Data-only migration: no schema change.
 --
--- Affects:
---   * workflows.featured_protocol (text column)
---   * workflows.nodes (jsonb): each node's data.config.actionType ("aave/*")
---     and the stringified data.config._protocolMeta.protocolSlug ("aave")
+-- Slug-bearing fields audited in the schema:
+--   * workflows.featured_protocol               (text)
+--   * workflows.nodes[].data.config.actionType  (jsonb, "aave/*")
+--   * workflows.nodes[].data.config._protocolMeta.protocolSlug
+--                                               (stringified JSON inside jsonb)
+--   * workflows.nodes[].data._eventProtocolSlug (jsonb, on trigger nodes)
+--   * integrations.type                         (text, stores IntegrationType)
 --
--- Strategy: text-level REPLACE on the canonical JSONB text rendition, then
--- cast back. Two distinct patterns exist:
+-- Not touched: workflows.nodes[].data._eventProtocolIconPath. Both "aave"
+-- and "aave-v3" resolve to the same icon file (protocols/aave-v3.ts still
+-- declares icon: "/protocols/aave.png"), so the icon path is stable across
+-- the rename. The 0025 safe-wallet precedent had to update its icon path
+-- because the safe icon file itself was being renamed; that's not the case
+-- here.
 --
--- (1) Top-level JSONB fields: PostgreSQL canonicalizes with a space after
---     the colon, so the actionType field renders as "actionType": "aave/...".
+-- Historical tables (workflow_executions, workflow_execution_logs,
+-- direct_executions) are intentionally NOT touched: they record past runs
+-- with their slug-of-the-day, rewriting them would falsify history.
 --
--- (2) The _protocolMeta value is itself a stringified JSON produced by
---     JSON.stringify() on the client. Default JSON.stringify output has NO
---     space after colons, so within that string the pattern is
---     \"protocolSlug\":\"aave\" (escaped quotes, no spaces).
---
--- These patterns are key-scoped so free-form text containing the word "aave"
--- (e.g. a description field) is untouched.
+-- Strategy: text-level REPLACE on JSONB::text for actionType / protocolSlug
+-- (the stringified _protocolMeta can't be reached by jsonb_set because its
+-- value is itself a string, not nested jsonb). For _eventProtocolSlug, use
+-- jsonb_set via jsonb_agg (the 0025 precedent): a native jsonb key on each
+-- node's data object.
 --
 -- LIKE-escape note: LIKE treats backslash as its own escape character by
 -- default. To match a literal backslash-quote sequence in the text form we
@@ -45,3 +51,29 @@ SET nodes = REPLACE(
 WHERE
   nodes::text LIKE '%"actionType": "aave/%'
   OR nodes::text LIKE '%\\"protocolSlug\\":\\"aave\\"%';
+--> statement-breakpoint
+
+-- Event triggers (node.data._eventProtocolSlug).
+-- Structured jsonb_set via jsonb_agg, mirroring the 0025 precedent.
+UPDATE workflows
+SET nodes = (
+  SELECT jsonb_agg(
+    CASE
+      WHEN node->'data'->>'_eventProtocolSlug' = 'aave'
+      THEN jsonb_set(node, '{data,_eventProtocolSlug}', '"aave-v3"')
+      ELSE node
+    END
+  )
+  FROM jsonb_array_elements(nodes) AS node
+)
+WHERE
+  nodes::text LIKE '%"_eventProtocolSlug":"aave"%'
+  OR nodes::text LIKE '%"_eventProtocolSlug": "aave"%';
+--> statement-breakpoint
+
+-- Defensive: integrations.type is $type<IntegrationType> which no longer
+-- admits "aave". Protocol plugins set requiresCredentials: false, so no
+-- rows are expected, but renaming is idempotent and cheap.
+UPDATE integrations
+SET type = 'aave-v3'
+WHERE type = 'aave';
