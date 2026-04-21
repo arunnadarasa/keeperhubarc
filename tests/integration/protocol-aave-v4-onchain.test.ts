@@ -69,6 +69,18 @@ function buildCalldata(
   return { to: contractAddress, data, action, contract };
 }
 
+// Assertion model:
+//  - Read tests: let the RPC call fail loudly. A success path asserts the
+//    decoded return has the expected shape; anything else (network error,
+//    ABI mismatch, decode failure) surfaces as a real test failure instead
+//    of being swallowed.
+//  - Write tests: use provider.call (not estimateGas) against a zero-balance
+//    TEST_ADDRESS to trigger a business-logic revert. Assert the rejection
+//    is a CALL_EXCEPTION (ethers v6 contract-revert code). That rules out
+//    ABI-level failures like INVALID_ARGUMENT, BAD_DATA, or an unknown
+//    selector (which return empty data and decode-fail before CALL_EXCEPTION
+//    is raised). The test fails if the tx unexpectedly succeeds -- a useful
+//    signal that business logic changed.
 describe.skipIf(!RPC_URL)("Aave V4 Lido Spoke on-chain integration", () => {
   const getProvider = (): ethers.JsonRpcProvider =>
     new ethers.JsonRpcProvider(RPC_URL);
@@ -80,19 +92,12 @@ describe.skipIf(!RPC_URL)("Aave V4 Lido Spoke on-chain integration", () => {
     });
 
     const provider = getProvider();
-    try {
-      const result = await provider.call({ to, data });
-      const abi = JSON.parse(contract.abi as string);
-      const iface = new ethers.Interface(abi);
-      const decoded = iface.decodeFunctionResult("getReserveId", result);
-      expect(decoded).toBeDefined();
-      expect(typeof decoded[0]).toBe("bigint");
-    } catch (error) {
-      const msg = String(error);
-      expect(msg).not.toContain("INVALID_ARGUMENT");
-      expect(msg).not.toContain("could not decode");
-      expect(msg).not.toContain("invalid function");
-    }
+    const result = await provider.call({ to, data });
+    const abi = JSON.parse(contract.abi as string);
+    const iface = new ethers.Interface(abi);
+    const decoded = iface.decodeFunctionResult("getReserveId", result);
+    expect(decoded).toBeDefined();
+    expect(typeof decoded[0]).toBe("bigint");
   }, 15_000);
 
   it("getUserSuppliedAssets: eth_call returns a decodable uint256", async () => {
@@ -103,22 +108,15 @@ describe.skipIf(!RPC_URL)("Aave V4 Lido Spoke on-chain integration", () => {
     );
 
     const provider = getProvider();
-    try {
-      const result = await provider.call({ to, data });
-      const abi = JSON.parse(contract.abi as string);
-      const iface = new ethers.Interface(abi);
-      const decoded = iface.decodeFunctionResult(
-        "getUserSuppliedAssets",
-        result
-      );
-      expect(decoded).toBeDefined();
-      expect(typeof decoded[0]).toBe("bigint");
-    } catch (error) {
-      const msg = String(error);
-      expect(msg).not.toContain("INVALID_ARGUMENT");
-      expect(msg).not.toContain("could not decode");
-      expect(msg).not.toContain("invalid function");
-    }
+    const result = await provider.call({ to, data });
+    const abi = JSON.parse(contract.abi as string);
+    const iface = new ethers.Interface(abi);
+    const decoded = iface.decodeFunctionResult(
+      "getUserSuppliedAssets",
+      result
+    );
+    expect(decoded).toBeDefined();
+    expect(typeof decoded[0]).toBe("bigint");
   }, 15_000);
 
   it("getUserDebt: eth_call returns two decodable uint256 values", async () => {
@@ -128,43 +126,14 @@ describe.skipIf(!RPC_URL)("Aave V4 Lido Spoke on-chain integration", () => {
     });
 
     const provider = getProvider();
-    try {
-      const result = await provider.call({ to, data });
-      const abi = JSON.parse(contract.abi as string);
-      const iface = new ethers.Interface(abi);
-      const decoded = iface.decodeFunctionResult("getUserDebt", result);
-      expect(decoded).toBeDefined();
-      expect(decoded.length).toBeGreaterThanOrEqual(2);
-      expect(typeof decoded[0]).toBe("bigint");
-      expect(typeof decoded[1]).toBe("bigint");
-    } catch (error) {
-      const msg = String(error);
-      expect(msg).not.toContain("INVALID_ARGUMENT");
-      expect(msg).not.toContain("could not decode");
-      expect(msg).not.toContain("invalid function");
-    }
-  }, 15_000);
-
-  it("supply: calldata encodes correctly (business revert expected)", async () => {
-    const { to, data } = buildCalldata(aaveV4Def, "supply", {
-      reserveId: "0",
-      amount: "1000000000000000000",
-      onBehalfOf: TEST_ADDRESS,
-    });
-
-    const provider = getProvider();
-    try {
-      await provider.estimateGas({
-        to,
-        data,
-        from: TEST_ADDRESS,
-      });
-    } catch (error) {
-      const msg = String(error);
-      expect(msg).not.toContain("INVALID_ARGUMENT");
-      expect(msg).not.toContain("could not decode");
-      expect(msg).not.toContain("invalid function");
-    }
+    const result = await provider.call({ to, data });
+    const abi = JSON.parse(contract.abi as string);
+    const iface = new ethers.Interface(abi);
+    const decoded = iface.decodeFunctionResult("getUserDebt", result);
+    expect(decoded).toBeDefined();
+    expect(decoded.length).toBeGreaterThanOrEqual(2);
+    expect(typeof decoded[0]).toBe("bigint");
+    expect(typeof decoded[1]).toBe("bigint");
   }, 15_000);
 
   it("getUserAccountData: eth_call returns a decodable struct with named fields", async () => {
@@ -175,27 +144,32 @@ describe.skipIf(!RPC_URL)("Aave V4 Lido Spoke on-chain integration", () => {
     );
 
     const provider = getProvider();
-    try {
-      const result = await provider.call({ to, data });
-      const abi = JSON.parse(contract.abi as string);
-      const iface = new ethers.Interface(abi);
-      const decoded = iface.decodeFunctionResult("getUserAccountData", result);
-      expect(decoded).toBeDefined();
-      const struct = decoded[0];
-      expect(struct.healthFactor).toBeDefined();
-      expect(typeof struct.healthFactor).toBe("bigint");
-      expect(struct.totalCollateralValue).toBeDefined();
-      expect(struct.riskPremium).toBeDefined();
-      expect(struct.borrowCount).toBeDefined();
-    } catch (error) {
-      const msg = String(error);
-      expect(msg).not.toContain("INVALID_ARGUMENT");
-      expect(msg).not.toContain("could not decode");
-      expect(msg).not.toContain("invalid function");
-    }
+    const result = await provider.call({ to, data });
+    const abi = JSON.parse(contract.abi as string);
+    const iface = new ethers.Interface(abi);
+    const decoded = iface.decodeFunctionResult("getUserAccountData", result);
+    expect(decoded).toBeDefined();
+    const struct = decoded[0];
+    expect(typeof struct.healthFactor).toBe("bigint");
+    expect(typeof struct.totalCollateralValue).toBe("bigint");
+    expect(typeof struct.riskPremium).toBe("bigint");
+    expect(typeof struct.borrowCount).toBe("bigint");
   }, 15_000);
 
-  it("setUsingAsCollateral: calldata encodes correctly (business revert expected)", async () => {
+  it("supply: deployed bytecode accepts the calldata (business revert expected)", async () => {
+    const { to, data } = buildCalldata(aaveV4Def, "supply", {
+      reserveId: "0",
+      amount: "1000000000000000000",
+      onBehalfOf: TEST_ADDRESS,
+    });
+
+    const provider = getProvider();
+    await expect(
+      provider.call({ to, data, from: TEST_ADDRESS })
+    ).rejects.toMatchObject({ code: "CALL_EXCEPTION" });
+  }, 15_000);
+
+  it("setUsingAsCollateral: deployed bytecode accepts the calldata (business revert expected)", async () => {
     const { to, data } = buildCalldata(aaveV4Def, "set-collateral", {
       reserveId: "0",
       usingAsCollateral: "true",
@@ -203,17 +177,8 @@ describe.skipIf(!RPC_URL)("Aave V4 Lido Spoke on-chain integration", () => {
     });
 
     const provider = getProvider();
-    try {
-      await provider.estimateGas({
-        to,
-        data,
-        from: TEST_ADDRESS,
-      });
-    } catch (error) {
-      const msg = String(error);
-      expect(msg).not.toContain("INVALID_ARGUMENT");
-      expect(msg).not.toContain("could not decode");
-      expect(msg).not.toContain("invalid function");
-    }
+    await expect(
+      provider.call({ to, data, from: TEST_ADDRESS })
+    ).rejects.toMatchObject({ code: "CALL_EXCEPTION" });
   }, 15_000);
 });
