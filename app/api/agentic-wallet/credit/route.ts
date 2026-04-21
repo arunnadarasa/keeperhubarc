@@ -77,7 +77,28 @@ export async function GET(request: Request): Promise<Response> {
       .from(agenticWalletCredits)
       .where(eq(agenticWalletCredits.subOrgId, auth.subOrgId));
 
-    const totalCents = Number.parseInt(result[0]?.totalCents ?? "0", 10);
+    const rawCents = result[0]?.totalCents ?? "0";
+    const totalCents = Number.parseInt(rawCents, 10);
+    // WR-02: a SUM over numeric-to-text that exceeds 2^53 - 1 collapses to
+    // NaN after parseInt; refuse to emit a misleading "NaN" amount to the
+    // caller. The error envelope is opaque (INTERNAL) per the existing
+    // /credit failure shape.
+    if (!Number.isFinite(totalCents)) {
+      logSystemError(
+        ErrorCategory.DATABASE,
+        "[Agentic] /credit sum not finite",
+        null,
+        {
+          endpoint: "/api/agentic-wallet/credit",
+          operation: "read",
+          subOrgId: auth.subOrgId,
+        }
+      );
+      return Response.json(
+        { error: "Internal error", code: "INTERNAL" },
+        { status: 500 }
+      );
+    }
     const amountUsd = (totalCents / 100).toFixed(2);
 
     return Response.json({
