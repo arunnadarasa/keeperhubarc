@@ -6,6 +6,11 @@ export {
 export { buildHmacHeaders, computeSignature } from "./hmac.js";
 export { type MppChallenge, parseMppChallenge } from "./mpp-detect.js";
 export {
+  createPaymentSigner,
+  type PaymentSigner,
+  paymentSigner,
+} from "./payment-signer.js";
+export {
   getWalletConfigPath,
   readWalletConfig,
   writeWalletConfig,
