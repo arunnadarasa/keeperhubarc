@@ -382,6 +382,7 @@ describe("POST /api/mcp/workflows/[slug]/call: write workflow returns calldata",
     mockGenerateCalldata,
     mockAuthenticateApiKey,
     mockAuthenticateOAuthToken,
+    mockBuildCallCompletionResponse,
   } = vi.hoisted(() => ({
     mockDbSelect: vi.fn(),
     mockDbInsert: vi.fn(),
@@ -401,6 +402,7 @@ describe("POST /api/mcp/workflows/[slug]/call: write workflow returns calldata",
     mockGenerateCalldata: vi.fn(),
     mockAuthenticateApiKey: vi.fn(),
     mockAuthenticateOAuthToken: vi.fn(),
+    mockBuildCallCompletionResponse: vi.fn(),
   }));
 
   vi.mock("@/lib/db", () => ({
@@ -461,6 +463,10 @@ describe("POST /api/mcp/workflows/[slug]/call: write workflow returns calldata",
 
   vi.mock("@/app/api/execute/_lib/concurrency-limit", () => ({
     checkConcurrencyLimit: mockCheckConcurrencyLimit,
+  }));
+
+  vi.mock("@/lib/x402/execution-wait", () => ({
+    buildCallCompletionResponse: mockBuildCallCompletionResponse,
   }));
 
   vi.mock("@/lib/logging", () => ({
@@ -546,6 +552,11 @@ describe("POST /api/mcp/workflows/[slug]/call: write workflow returns calldata",
         where: vi.fn().mockResolvedValue(undefined),
       }),
     });
+    // Default: completion wait times out so we fall back to running response.
+    mockBuildCallCompletionResponse.mockImplementation(
+      (executionId: string) =>
+        Promise.resolve({ executionId, status: "running" })
+    );
     // Default: caller is authenticated. The write workflow path requires
     // an API key or MCP OAuth token, same as the free read path.
     mockAuthenticateOAuthToken.mockReturnValue({
