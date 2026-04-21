@@ -1,6 +1,7 @@
 import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import type {
+  BillingDetails,
   BillingProvider,
   BillingWebhookEvent,
   CreateCheckoutParams,
@@ -261,6 +262,67 @@ export class StripeBillingProvider implements BillingProvider {
       return_url: returnUrl,
     });
     return { url: session.url };
+  }
+
+  async getBillingDetails(customerId: string): Promise<BillingDetails> {
+    const s = getStripe();
+    const customer = await s.customers.retrieve(customerId, {
+      expand: ["invoice_settings.default_payment_method"],
+    });
+
+    if (customer.deleted) {
+      return { paymentMethod: null, billingEmail: null };
+    }
+
+    const defaultPaymentMethod =
+      customer.invoice_settings?.default_payment_method;
+    let card: Stripe.PaymentMethod.Card | null =
+      defaultPaymentMethod &&
+      typeof defaultPaymentMethod === "object" &&
+      defaultPaymentMethod.type === "card"
+        ? (defaultPaymentMethod.card ?? null)
+        : null;
+
+    // Stripe Checkout stores the default payment method on the subscription,
+    // not on the customer. Fall back to the most recent subscription's default,
+    // then to any card attached to the customer.
+    if (!card) {
+      const subs = await s.subscriptions.list({
+        customer: customerId,
+        status: "all",
+        limit: 1,
+        expand: ["data.default_payment_method"],
+      });
+      const subDefault = subs.data[0]?.default_payment_method;
+      if (
+        subDefault &&
+        typeof subDefault === "object" &&
+        subDefault.type === "card"
+      ) {
+        card = subDefault.card ?? null;
+      }
+    }
+
+    if (!card) {
+      const methods = await s.paymentMethods.list({
+        customer: customerId,
+        type: "card",
+        limit: 1,
+      });
+      card = methods.data[0]?.card ?? null;
+    }
+
+    return {
+      paymentMethod: card
+        ? {
+            brand: card.brand,
+            last4: card.last4,
+            expMonth: card.exp_month,
+            expYear: card.exp_year,
+          }
+        : null,
+      billingEmail: customer.email ?? null,
+    };
   }
 
   // biome-ignore lint/suspicious/useAwait: must be async to satisfy BillingProvider interface contract
