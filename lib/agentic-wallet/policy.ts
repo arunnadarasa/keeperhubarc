@@ -63,15 +63,25 @@ export const BASELINE_POLICIES: readonly BaselinePolicy[] = [
     condition: `!(eth.tx.to in ['${USDC_BASE_LC}', '${USDC_TEMPO_LC}'])`,
     notes: "GUARD-06: only permit outbound calls to allowlisted USDC contracts",
   },
-  // Phase 37 fix #1: eth.tx.* fields are NOT populated for signRawPayload
-  // with PAYLOAD_ENCODING_EIP712. The three policies below are the actual
-  // gate on the current /sign codepath. Source: Turnkey policy-language docs
-  // (https://docs.turnkey.com/concepts/policies/language) — EIP-712 typed-data
-  // signing exposes eth.eip_712.{primary_type,domain,message}.
+  // Phase 37 fix #1 (revised): eth.tx.* fields are NOT populated for
+  // signRawPayload with PAYLOAD_ENCODING_EIP712. The three policies below are
+  // the actual gate on the current /sign codepath.
+  //
+  // LIVE API CORRECTIONS (validated against Turnkey staging 2026-04-22):
+  //   - activity.parameters.encoding does not exist in the DSL; dropped.
+  //     eth.eip_712.* fields are only populated for EIP-712 payloads, so the
+  //     activity.type check alone is the implicit discriminator.
+  //   - domain.verifyingContract -> domain.verifying_contract (snake_case)
+  //   - domain.chainId -> domain.chain_id (snake_case); integer `in [...]`
+  //     is not supported for numeric fields — expanded to `== x || == y` form.
+  //   - message.value -> message['value'] (bracket notation; EIP-712 message
+  //     fields are a dynamic map, dot access fails for arbitrary key names).
+  //   - chain_id policy updated to match ALLOWED_TEMPO_CHAIN_IDS: adds 4218
+  //     (Tempo testnet) alongside 8453 (Base mainnet) and 4217 (Tempo mainnet).
   {
     policyName: "block-eip712-foreign-domain",
     effect: "EFFECT_DENY",
-    condition: `activity.type == 'ACTIVITY_TYPE_SIGN_RAW_PAYLOAD_V2' && activity.parameters.encoding == 'PAYLOAD_ENCODING_EIP712' && !(eth.eip_712.domain.verifyingContract in ['${USDC_BASE_LC}', '${USDC_TEMPO_LC}'])`,
+    condition: `activity.type == 'ACTIVITY_TYPE_SIGN_RAW_PAYLOAD_V2' && !(eth.eip_712.domain.verifying_contract in ['${USDC_BASE_LC}', '${USDC_TEMPO_LC}'])`,
     notes:
       "GUARD-06 (EIP-712): only permit typed-data signing for allowlisted USDC domains",
   },
@@ -79,7 +89,7 @@ export const BASELINE_POLICIES: readonly BaselinePolicy[] = [
     policyName: "block-eip712-erc3009-overcap",
     effect: "EFFECT_DENY",
     condition:
-      "activity.type == 'ACTIVITY_TYPE_SIGN_RAW_PAYLOAD_V2' && activity.parameters.encoding == 'PAYLOAD_ENCODING_EIP712' && eth.eip_712.primary_type == 'TransferWithAuthorization' && eth.eip_712.message.value > 100000000",
+      "activity.type == 'ACTIVITY_TYPE_SIGN_RAW_PAYLOAD_V2' && eth.eip_712.primary_type == 'TransferWithAuthorization' && eth.eip_712.message['value'] > 100000000",
     notes:
       "GUARD-06 (EIP-712): block EIP-3009 TransferWithAuthorization above 100 USDC",
   },
@@ -87,9 +97,9 @@ export const BASELINE_POLICIES: readonly BaselinePolicy[] = [
     policyName: "block-eip712-foreign-chainid",
     effect: "EFFECT_DENY",
     condition:
-      "activity.type == 'ACTIVITY_TYPE_SIGN_RAW_PAYLOAD_V2' && activity.parameters.encoding == 'PAYLOAD_ENCODING_EIP712' && !(eth.eip_712.domain.chainId in [8453, 4217])",
+      "activity.type == 'ACTIVITY_TYPE_SIGN_RAW_PAYLOAD_V2' && !(eth.eip_712.domain.chain_id == 8453 || eth.eip_712.domain.chain_id == 4217 || eth.eip_712.domain.chain_id == 4218)",
     notes:
-      "GUARD-06 (EIP-712): only permit Base mainnet (8453) or Tempo mainnet (4217) chain ids",
+      "GUARD-06 (EIP-712): only permit Base mainnet (8453), Tempo mainnet (4217), or Tempo testnet (4218) chain ids",
   },
 ] as const;
 

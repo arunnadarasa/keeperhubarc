@@ -297,8 +297,10 @@ describe("BASELINE_POLICIES — EIP-712 coverage (Phase 37)", () => {
       (x) => x.policyName === "block-eip712-foreign-domain"
     );
     expect(p).toBeDefined();
-    expect(p?.condition).toContain("eth.eip_712.domain.verifyingContract");
-    expect(p?.condition).toContain("PAYLOAD_ENCODING_EIP712");
+    // Corrected field name: verifying_contract (snake_case) not verifyingContract.
+    // activity.parameters.encoding removed — field does not exist in Turnkey DSL.
+    expect(p?.condition).toContain("eth.eip_712.domain.verifying_contract");
+    expect(p?.condition).not.toContain("activity.parameters.encoding");
   });
 
   it("includes block-eip712-erc3009-overcap", () => {
@@ -307,7 +309,8 @@ describe("BASELINE_POLICIES — EIP-712 coverage (Phase 37)", () => {
     );
     expect(p).toBeDefined();
     expect(p?.condition).toContain("TransferWithAuthorization");
-    expect(p?.condition).toContain("eth.eip_712.message.value");
+    // Corrected: bracket notation message['value'] not dot-access message.value.
+    expect(p?.condition).toContain("eth.eip_712.message['value']");
     expect(p?.condition).toContain("100000000");
   });
 
@@ -316,8 +319,12 @@ describe("BASELINE_POLICIES — EIP-712 coverage (Phase 37)", () => {
       (x) => x.policyName === "block-eip712-foreign-chainid"
     );
     expect(p).toBeDefined();
-    expect(p?.condition).toContain("eth.eip_712.domain.chainId");
+    // Corrected field name: chain_id (snake_case) not chainId.
+    // Integer `in [...]` unsupported for numeric fields; expanded to `== x || == y` form.
+    // Includes Tempo testnet (4218) to match ALLOWED_TEMPO_CHAIN_IDS.
+    expect(p?.condition).toContain("eth.eip_712.domain.chain_id");
     expect(p?.condition).toContain("8453");
     expect(p?.condition).toContain("4217");
+    expect(p?.condition).toContain("4218");
   });
 });
