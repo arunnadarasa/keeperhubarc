@@ -391,10 +391,10 @@ describe("agentic-wallet approval-request lifecycle", () => {
     // Default secret resolver: SUB_ORG -> HMAC_SECRET, OTHER_SUB_ORG -> OTHER_HMAC_SECRET.
     mockLookupHmacSecret.mockImplementation(async (subOrgId: string) => {
       if (subOrgId === SUB_ORG) {
-        return HMAC_SECRET;
+        return { secret: HMAC_SECRET, keyVersion: 1 };
       }
       if (subOrgId === OTHER_SUB_ORG) {
-        return OTHER_HMAC_SECRET;
+        return { secret: OTHER_HMAC_SECRET, keyVersion: 1 };
       }
       return null;
     });

@@ -105,7 +105,9 @@ beforeEach(() => {
   mockLookupSecret.mockReset();
   mockDbSelectWhere.mockReset();
   mockLookupSecret.mockImplementation(async (subOrgId: string) =>
-    subOrgId === TEST_SUB_ORG ? TEST_HMAC_SECRET : null
+    subOrgId === TEST_SUB_ORG
+      ? { secret: TEST_HMAC_SECRET, keyVersion: 1 }
+      : null
   );
 });
 

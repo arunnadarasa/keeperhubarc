@@ -130,7 +130,7 @@ beforeEach(() => {
   // Default: secret store returns TEST_SECRET for any known sub-org.
   mockLookupSecret.mockImplementation(async (subOrgId: string) => {
     if (subOrgId === "subOrg_A" || subOrgId === "subOrg_B") {
-      return TEST_SECRET;
+      return { secret: TEST_SECRET, keyVersion: 1 };
     }
     return null;
   });

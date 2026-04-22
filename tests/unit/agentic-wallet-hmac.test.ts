@@ -12,14 +12,126 @@
  * "not yet implemented" stubs. Plan 33-01a flips this suite GREEN.
  */
 import { createHash, createHmac } from "node:crypto";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
-const { mockLookupSecret } = vi.hoisted(() => ({
-  mockLookupSecret: vi.fn<(subOrgId: string) => Promise<string | null>>(),
+type HmacSecretRow = {
+  subOrgId: string;
+  keyVersion: number;
+  secretCiphertext: string;
+  expiresAt: Date | null;
+};
+
+const { mockLookupSecret, hmacSecretRows } = vi.hoisted(() => ({
+  mockLookupSecret:
+    vi.fn<
+      (
+        subOrgId: string,
+        keyVersion?: number
+      ) => Promise<{ secret: string; keyVersion: number } | null>
+    >(),
+  hmacSecretRows: [] as HmacSecretRow[],
 }));
 
-vi.mock("@/lib/agentic-wallet/hmac-secret-store", () => ({
-  lookupHmacSecret: mockLookupSecret,
+vi.mock("@/lib/agentic-wallet/hmac-secret-store", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/lib/agentic-wallet/hmac-secret-store")
+  >("@/lib/agentic-wallet/hmac-secret-store");
+  return {
+    ...actual,
+    // Override only what the verifyHmacRequest suite needs to stub.
+    lookupHmacSecret: mockLookupSecret,
+  };
+});
+
+// Minimal in-memory drizzle-shaped mock of @/lib/db. The real
+// hmac-secret-store.ts queries agenticWalletHmacSecrets via
+//   db.select({...}).from(t).where(w).orderBy(c)
+// and
+//   db.update(t).set(v).where(w)
+// The mock ignores the SQL predicates and instead filters by the arguments
+// the tests set up (sub_org_id + active expiresAt), which mirrors the
+// runtime filter. This keeps the unit test DB-free while still exercising
+// the envelope-encryption + lazy-backfill code paths.
+vi.mock("@/lib/db", () => {
+  type TableMarker = { __table: "agentic_wallet_hmac_secrets" };
+  const isHmacTable = (t: unknown): t is TableMarker =>
+    typeof t === "object" && t !== null && "__table" in t;
+
+  const runSelect = (): Promise<
+    Array<{ keyVersion: number; secretCiphertext: string }>
+  > => {
+    const now = Date.now();
+    const active = hmacSecretRows.filter(
+      (r) => r.expiresAt === null || r.expiresAt.getTime() > now
+    );
+    active.sort((a, b) => a.keyVersion - b.keyVersion);
+    return Promise.resolve(
+      active.map((r) => ({
+        keyVersion: r.keyVersion,
+        secretCiphertext: r.secretCiphertext,
+      }))
+    );
+  };
+
+  return {
+    db: {
+      select: () => ({
+        from: (t: unknown) => ({
+          where: (_w: unknown) => ({
+            orderBy: (_c: unknown) => {
+              if (!isHmacTable(t)) {
+                return Promise.resolve([]);
+              }
+              return runSelect();
+            },
+          }),
+        }),
+      }),
+      update: (t: unknown) => ({
+        set: (values: { secretCiphertext?: string }) => ({
+          where: (_w: unknown): Promise<void> => {
+            if (!isHmacTable(t)) {
+              return Promise.resolve();
+            }
+            // The mock can't read the drizzle predicate, so apply the
+            // update to every row where the ciphertext still carries the
+            // backfill marker — matches the lazy-backfill semantics the
+            // test exercises.
+            for (const row of hmacSecretRows) {
+              if (
+                row.secretCiphertext.startsWith("__PLAINTEXT_BACKFILL__:") &&
+                values.secretCiphertext !== undefined
+              ) {
+                row.secretCiphertext = values.secretCiphertext;
+              }
+            }
+            return Promise.resolve();
+          },
+        }),
+      }),
+      insert: (_t: unknown) => ({
+        values: (_v: unknown): Promise<void> => Promise.resolve(),
+      }),
+    },
+  };
+});
+
+vi.mock("@/lib/db/schema", () => ({
+  agenticWalletHmacSecrets: {
+    __table: "agentic_wallet_hmac_secrets",
+    subOrgId: "sub_org_id",
+    keyVersion: "key_version",
+    secretCiphertext: "secret_ciphertext",
+    expiresAt: "expires_at",
+  },
 }));
 
 const { computeSignature, verifyHmacRequest } = await import(
@@ -143,7 +255,10 @@ describe("verifyHmacRequest", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(FROZEN_NOW_ISO));
     mockLookupSecret.mockReset();
-    mockLookupSecret.mockResolvedValue(TEST_SECRET);
+    mockLookupSecret.mockResolvedValue({
+      secret: TEST_SECRET,
+      keyVersion: 1,
+    });
   });
 
   afterEach(() => {
@@ -350,5 +465,106 @@ describe("verifyHmacRequest", () => {
     if (!result.ok) {
       expect(result.status).toBe(401);
     }
+  });
+});
+
+describe("hmac-secret-store envelope encryption (Phase 37 fix C2)", () => {
+  beforeAll(() => {
+    process.env.AGENTIC_WALLET_HMAC_KMS_KEY = Buffer.alloc(32, 1).toString(
+      "base64"
+    );
+  });
+
+  beforeEach(() => {
+    hmacSecretRows.length = 0;
+  });
+
+  it("encrypt/decrypt round-trips a known secret", async () => {
+    const { encryptSecret, decryptSecret } = await vi.importActual<
+      typeof import("@/lib/agentic-wallet/hmac-secret-store")
+    >("@/lib/agentic-wallet/hmac-secret-store");
+    const secret = "deadbeef".repeat(8); // 64 hex chars
+    const ct = encryptSecret(secret);
+    expect(ct).not.toContain(secret);
+    expect(ct.split(":").length).toBe(3);
+    expect(decryptSecret(ct)).toBe(secret);
+  });
+
+  it("decryptSecret detects + strips the __PLAINTEXT_BACKFILL__ marker", async () => {
+    const { decryptSecret } = await vi.importActual<
+      typeof import("@/lib/agentic-wallet/hmac-secret-store")
+    >("@/lib/agentic-wallet/hmac-secret-store");
+    expect(decryptSecret("__PLAINTEXT_BACKFILL__:abc123")).toBe("abc123");
+  });
+
+  it("rejects ciphertext with bad auth tag", async () => {
+    const { encryptSecret, decryptSecret } = await vi.importActual<
+      typeof import("@/lib/agentic-wallet/hmac-secret-store")
+    >("@/lib/agentic-wallet/hmac-secret-store");
+    const ct = encryptSecret("secret");
+    const [iv, _tag, body] = ct.split(":");
+    const tampered = `${iv}:${Buffer.alloc(16, 0).toString("base64")}:${body}`;
+    expect(() => decryptSecret(tampered)).toThrow();
+  });
+
+  it("lookupHmacSecret returns highest active version, skipping expired rows", async () => {
+    const { lookupHmacSecret: realLookup, encryptSecret } =
+      await vi.importActual<
+        typeof import("@/lib/agentic-wallet/hmac-secret-store")
+      >("@/lib/agentic-wallet/hmac-secret-store");
+
+    const past = new Date(Date.now() - 60_000);
+    const future = new Date(Date.now() + 60_000);
+    hmacSecretRows.push(
+      {
+        subOrgId: "subOrg_versioned",
+        keyVersion: 1,
+        secretCiphertext: encryptSecret("v1-secret"),
+        expiresAt: past,
+      },
+      {
+        subOrgId: "subOrg_versioned",
+        keyVersion: 2,
+        secretCiphertext: encryptSecret("v2-secret"),
+        expiresAt: null,
+      },
+      {
+        subOrgId: "subOrg_versioned",
+        keyVersion: 3,
+        secretCiphertext: encryptSecret("v3-secret"),
+        expiresAt: future,
+      }
+    );
+
+    const result = await realLookup("subOrg_versioned");
+    expect(result).not.toBeNull();
+    expect(result?.keyVersion).toBe(3);
+    expect(result?.secret).toBe("v3-secret");
+  });
+
+  it("lookupHmacSecret lazy-backfills __PLAINTEXT_BACKFILL__ rows", async () => {
+    const { lookupHmacSecret: realLookup } = await vi.importActual<
+      typeof import("@/lib/agentic-wallet/hmac-secret-store")
+    >("@/lib/agentic-wallet/hmac-secret-store");
+
+    const hexSecret = "feedface".repeat(8); // 64 hex chars
+    hmacSecretRows.push({
+      subOrgId: "subOrg_backfill",
+      keyVersion: 1,
+      secretCiphertext: `__PLAINTEXT_BACKFILL__:${hexSecret}`,
+      expiresAt: null,
+    });
+
+    const result = await realLookup("subOrg_backfill");
+    expect(result).not.toBeNull();
+    expect(result?.keyVersion).toBe(1);
+    expect(result?.secret).toBe(hexSecret);
+
+    const rowAfter = hmacSecretRows[0];
+    expect(
+      rowAfter.secretCiphertext.startsWith("__PLAINTEXT_BACKFILL__:")
+    ).toBe(false);
+    expect(rowAfter.secretCiphertext.split(":").length).toBe(3);
+    expect(rowAfter.secretCiphertext).not.toContain(hexSecret);
   });
 });

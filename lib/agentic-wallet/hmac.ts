@@ -84,14 +84,14 @@ export async function verifyHmacRequest(
     return { ok: false, status: 401, error: "Invalid signature" };
   }
 
-  const secret = await lookupHmacSecret(subOrgId);
-  if (!secret) {
+  const lookup = await lookupHmacSecret(subOrgId);
+  if (!lookup) {
     return { ok: false, status: 404, error: "Unknown sub-org" };
   }
 
   const url = new URL(request.url);
   const expected = computeSignature(
-    secret,
+    lookup.secret,
     request.method,
     url.pathname,
     subOrgId,

@@ -180,7 +180,10 @@ beforeEach(() => {
   mockCreateApprovalRequest.mockReset();
   mockVerifyWorkflowBinding.mockReset();
 
-  mockLookupSecret.mockResolvedValue(TEST_HMAC_SECRET);
+  mockLookupSecret.mockResolvedValue({
+    secret: TEST_HMAC_SECRET,
+    keyVersion: 1,
+  });
   mockClassifyRisk.mockReturnValue("auto");
   mockDbSelectLimit.mockResolvedValue([
     {
