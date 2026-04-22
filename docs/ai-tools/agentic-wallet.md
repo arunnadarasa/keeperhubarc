@@ -11,7 +11,7 @@ This page covers the first-party **KeeperHub agentic wallet** (skill + npm packa
 
 ## KeeperHub agentic wallet
 
-A skill + npm package from KeeperHub. Custody is server-side in a per-wallet Turnkey sub-organisation, so no private key lands on disk. A `PreToolUse` hook gates every signing call against a three-tier (auto / ask / block) policy sourced from `~/.keeperhub/safety.json`.
+A skill + npm package from KeeperHub. Custody is server-side in a per-wallet [Turnkey sub-organisation](https://docs.turnkey.com/concepts/sub-organizations), so no private key lands on disk. A `PreToolUse` hook gates every signing call against a three-tier (auto / ask / block) policy sourced from `~/.keeperhub/safety.json`.
 
 ### Install
 
