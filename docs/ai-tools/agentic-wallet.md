@@ -161,4 +161,4 @@ Paid workflows settle in USDC on Base (via x402) or USDC.e on Tempo (via MPP). M
 
 - npm: [`@keeperhub/wallet`](https://www.npmjs.com/package/@keeperhub/wallet)
 - Skills registry: [`keeperhub/agentic-wallet-skills`](https://skills.sh/keeperhub/agentic-wallet-skills)
-- Source: [`packages/wallet`](https://github.com/KeeperHub/keeperhub/tree/main/packages/wallet) in the KeeperHub monorepo.
+- Source: [`KeeperHub/agentic-wallet`](https://github.com/KeeperHub/agentic-wallet).
