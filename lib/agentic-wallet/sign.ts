@@ -33,9 +33,6 @@ import { BASE_CHAIN_ID, USDC_BASE_ADDRESS } from "./constants";
 
 export class PolicyBlockedError extends Error {
   override readonly name = "PolicyBlockedError";
-  constructor(message: string) {
-    super(message);
-  }
 }
 
 export class TurnkeyUpstreamError extends Error {
