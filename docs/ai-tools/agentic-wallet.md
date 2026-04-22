@@ -230,7 +230,7 @@ No ETH, no gas out of your wallet for normal agentic wallet use.
 
 So for a `$0.05` paid workflow, `$0.05` of USDC (or USDC.e) leaves your wallet -- nothing else.
 
-KeeperHub absorbs the Turnkey signing cost on its side; that never appears in your wallet activity. If in future you use the wallet to sign a direct on-chain transaction outside the agentic workflow pattern (e.g. a manual ERC-20 transfer), you'd need native gas for that chain the same way any wallet would.
+If in future you use the wallet to sign a direct on-chain transaction outside the agentic workflow pattern (e.g. a manual ERC-20 transfer), you'd need native gas for that chain the same way any wallet would.
 
 ## Links
 
