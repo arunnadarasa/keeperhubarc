@@ -12,6 +12,13 @@ const nextConfig = {
     process.env.INCLUDE_TEST_ENDPOINTS === "true"
       ? ["ts", "tsx", "staging.ts", "staging.tsx"]
       : ["ts", "tsx"],
+  // Bake INCLUDE_TEST_ENDPOINTS into the server bundle so lib/admin-auth.ts
+  // and lib/auth.ts can gate runtime behavior (admin routes, rate-limit
+  // bypass) on the build-time flag. Runtime env cannot override the baked
+  // value. See KEEP-237.
+  env: {
+    INCLUDE_TEST_ENDPOINTS: process.env.INCLUDE_TEST_ENDPOINTS ?? "",
+  },
   // The SDK loads @workflow/world-postgres via dynamic
   // require(process.env.WORKFLOW_TARGET_WORLD) which the standalone output
   // tracer cannot follow. serverExternalPackages keeps it out of the bundle

@@ -17,10 +17,30 @@ describe("authenticateAdmin", () => {
     delete process.env.TEST_API_KEY;
     vi.stubEnv("NODE_ENV", "");
     vi.stubEnv("ALLOW_TEST_ENDPOINTS", "");
+    // Assume routes are compiled in unless a specific test overrides.
+    // Without this, every test below would trip the build-time gate.
+    vi.stubEnv("INCLUDE_TEST_ENDPOINTS", "true");
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
+  });
+
+  it("should refuse when INCLUDE_TEST_ENDPOINTS is not baked in (build-time gate)", () => {
+    process.env.TEST_API_KEY = TEST_KEY;
+    vi.stubEnv("INCLUDE_TEST_ENDPOINTS", "");
+    const result = authenticateAdmin(createRequest(`Bearer ${TEST_KEY}`));
+    expect(result).toEqual({
+      authenticated: false,
+      error: "Admin test endpoints disabled in production",
+    });
+  });
+
+  it("should refuse when INCLUDE_TEST_ENDPOINTS is any value other than 'true'", () => {
+    process.env.TEST_API_KEY = TEST_KEY;
+    vi.stubEnv("INCLUDE_TEST_ENDPOINTS", "1");
+    const result = authenticateAdmin(createRequest(`Bearer ${TEST_KEY}`));
+    expect(result.authenticated).toBe(false);
   });
 
   it("should reject when TEST_API_KEY is not configured", () => {

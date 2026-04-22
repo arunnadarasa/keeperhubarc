@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const TEST_KEY = "kha_test-secret-key-12345";
 const TEST_EMAIL = "test@techops.services";
@@ -53,6 +53,11 @@ describe("GET /api/admin/test/otp", () => {
     mockResult = [];
     mockShouldThrow = false;
     process.env.TEST_API_KEY = TEST_KEY;
+    vi.stubEnv("INCLUDE_TEST_ENDPOINTS", "true");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   describe("authentication", () => {
