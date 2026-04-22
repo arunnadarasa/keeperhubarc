@@ -191,6 +191,92 @@ describe("verifySessionToken rejects invalid signature", () => {
   });
 });
 
+describe("verifySessionTokenDetailed wire compatibility", () => {
+  /**
+   * Builds a token exactly the way the pre-jose implementation did:
+   * hand-rolled base64url + HMAC-SHA256, header literal `{"alg":"HS256","typ":"JWT"}`
+   * with that key order. If this ever fails, it means in-flight tokens
+   * minted by a previous deploy would stop verifying after this one, and
+   * a rollback would stop verifying tokens minted under the current one.
+   */
+  function oldStyleToken(
+    payload: Record<string, unknown>,
+    secret: string
+  ): string {
+    const { createHmac } = require("node:crypto") as typeof import("node:crypto");
+    const b64url = (s: string): string =>
+      Buffer.from(s)
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=/g, "");
+    const header = b64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+    const body = b64url(JSON.stringify(payload));
+    const signingInput = `${header}.${body}`;
+    const signature = createHmac("sha256", secret)
+      .update(signingInput)
+      .digest("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=/g, "");
+    return `${signingInput}.${signature}`;
+  }
+
+  it("verifies tokens produced by the pre-jose hand-rolled signer", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const token = oldStyleToken(
+      {
+        org: "org-legacy",
+        key: "key-legacy",
+        scope: "read",
+        iat: now,
+        exp: now + 3600,
+        original_iat: now,
+      },
+      TEST_SECRET
+    );
+
+    const result = await verifySessionTokenDetailed(token);
+    expect(result.payload).not.toBeNull();
+    if (result.payload) {
+      expect(result.payload.org).toBe("org-legacy");
+      expect(result.payload.key).toBe("key-legacy");
+      expect(result.expired).toBe(false);
+    }
+  });
+});
+
+describe("verifySessionTokenDetailed rejects alg:none attack", () => {
+  it('treats a token with alg:"none" as malformed or invalid_signature', async () => {
+    const b64url = (s: string): string =>
+      Buffer.from(s)
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=/g, "");
+    const now = Math.floor(Date.now() / 1000);
+    const header = b64url(JSON.stringify({ alg: "none", typ: "JWT" }));
+    const body = b64url(
+      JSON.stringify({
+        org: "org-attack",
+        key: "key-attack",
+        iat: now,
+        exp: now + 3600,
+      })
+    );
+    const unsignedToken = `${header}.${body}.`;
+
+    const result = await verifySessionTokenDetailed(unsignedToken);
+    expect(result.payload).toBeNull();
+    if (!result.payload) {
+      // jose rejects wrong-alg tokens with JOSEAlgNotAllowed, which maps to
+      // malformed in our catch. invalid_signature is acceptable too if the
+      // mapping ever changes -- what matters is the token is rejected.
+      expect(["malformed", "invalid_signature"]).toContain(result.reason);
+    }
+  });
+});
+
 describe("verifySessionTokenDetailed handles config errors", () => {
   it("returns malformed when no session secret is configured", async () => {
     delete process.env.MCP_SESSION_SECRET;
