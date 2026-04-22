@@ -386,6 +386,13 @@
       "when": 1776767237288,
       "tag": "0054_agentic_wallet_credits_and_hmac",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1776849417865,
+      "tag": "0055_agentic_wallet_approval_binding",
+      "breakpoints": true
     }
   ]
 }

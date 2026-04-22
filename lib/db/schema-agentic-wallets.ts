@@ -103,6 +103,13 @@ export const walletApprovalRequests = pgTable(
       .$type<Record<string, unknown>>(),
     status: approvalStatus("status").notNull().default("pending"),
     riskLevel: approvalRiskLevel("risk_level").notNull(),
+    // Phase 37 fix B1: bind approval to a specific recipient/amount/chain/contract
+    // so the future re-enable of the ask-tier server flow cannot be one-click
+    // approved into a different operation.
+    boundRecipient: text("bound_recipient"),
+    boundAmountMicro: text("bound_amount_micro"),
+    boundChain: text("bound_chain"),
+    boundContract: text("bound_contract"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     resolvedAt: timestamp("resolved_at"),
     // SET NULL preserves the approval audit trail if the approver's user is
