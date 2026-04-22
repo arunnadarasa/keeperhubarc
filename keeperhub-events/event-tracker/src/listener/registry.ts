@@ -47,6 +47,18 @@ export class ListenerRegistry {
     this.deps = deps;
   }
 
+  /**
+   * Not concurrency-safe against interleaved `remove(workflowId)` calls
+   * for the same id. The has() check and the final `listeners.set` straddle
+   * an `await` on `listener.start()`, so a `remove` that lands in that
+   * window sees nothing to remove, the add completes, and a zombie
+   * listener is left registered.
+   *
+   * Phase 4's reconciler calls `add` and `remove` from a single sequential
+   * loop inside `synchronizeData`, so this race cannot be observed in the
+   * production code path. If a caller needs concurrent calls, wrap
+   * Registry access in a serialising queue at the call site.
+   */
   async add(reg: WorkflowRegistration): Promise<void> {
     if (this.listeners.has(reg.workflowId)) {
       // Idempotent: Phase 4 reconciler handles config changes via
