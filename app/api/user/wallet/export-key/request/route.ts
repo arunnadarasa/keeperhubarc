@@ -99,8 +99,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       expiresAt,
     });
 
-    // Send to the wallet's recovery email, not the requester's — any org
-    // admin may request export, but only the wallet owner should approve it.
+    // The requester is always the wallet creator at this point (gated above);
+    // the OTP is a second factor tied to the wallet's recovery inbox, which
+    // may differ from the creator's account email.
     await sendEmail({
       to: walletEmail,
       subject: "Private Key Export Verification - KeeperHub",
