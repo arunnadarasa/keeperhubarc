@@ -76,7 +76,7 @@ describe("signX402Challenge", () => {
     vi.clearAllMocks();
   });
 
-  it("calls signRawPayload with ACTIVITY_TYPE_SIGN_RAW_PAYLOAD_V2 and EIP-712 encoding", async () => {
+  it("calls signRawPayload with flat EIP-712 args (Turnkey SDK v5.3.0 contract)", async () => {
     await signX402Challenge(SUB_ORG, WALLET, {
       payTo: "0x1111111111111111111111111111111111111111",
       amount: "1000000",
@@ -86,10 +86,9 @@ describe("signX402Challenge", () => {
     });
     expect(mockSignRawPayload).toHaveBeenCalledTimes(1);
     const args = mockSignRawPayload.mock.calls[0]?.[0];
-    expect(args.type).toBe("ACTIVITY_TYPE_SIGN_RAW_PAYLOAD_V2");
-    expect(args.parameters.signWith).toBe(WALLET);
-    expect(args.parameters.encoding).toBe("PAYLOAD_ENCODING_EIP712");
-    expect(args.parameters.hashFunction).toBe("HASH_FUNCTION_NO_OP");
+    expect(args.signWith).toBe(WALLET);
+    expect(args.encoding).toBe("PAYLOAD_ENCODING_EIP712");
+    expect(args.hashFunction).toBe("HASH_FUNCTION_NO_OP");
   });
 
   it("serialises typed data with chainId 8453, Base USDC verifying contract, and primaryType TransferWithAuthorization", async () => {
@@ -101,7 +100,7 @@ describe("signX402Challenge", () => {
       nonce: `0x${"11".repeat(32)}`,
     });
     const args = mockSignRawPayload.mock.calls[0]?.[0];
-    const typedData = JSON.parse(args.parameters.payload) as {
+    const typedData = JSON.parse(args.payload) as {
       domain: { chainId: number; verifyingContract: string };
       types: Record<string, unknown>;
       primaryType: string;
@@ -190,8 +189,8 @@ describe("signMppProof", () => {
       challengeId: "challenge-abc-123",
     });
     const args = mockSignRawPayload.mock.calls[0]?.[0];
-    expect(args.parameters.encoding).toBe("PAYLOAD_ENCODING_EIP712");
-    const typedData = JSON.parse(args.parameters.payload) as {
+    expect(args.encoding).toBe("PAYLOAD_ENCODING_EIP712");
+    const typedData = JSON.parse(args.payload) as {
       domain: { chainId: number };
       primaryType: string;
     };
