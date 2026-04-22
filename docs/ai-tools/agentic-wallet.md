@@ -221,9 +221,16 @@ Installing an agentic wallet does not touch or affect your creator wallet, and v
 
 Not through the CLI today. If you've stopped using a wallet and want the sub-org cleaned up, get in touch via the KeeperHub support channel with your `subOrgId` (from `npx @keeperhub/wallet info`) and the operator team can remove it.
 
-### How much does signing cost?
+### What do I actually pay? Do I need ETH for gas?
 
-Signing is free to you at the wallet layer. KeeperHub absorbs the Turnkey signing cost. You only pay the workflow price itself, in USDC on Base (x402) or USDC.e on Tempo (MPP), directly from your wallet balance.
+No ETH, no gas out of your wallet for normal agentic wallet use.
+
+- **x402 on Base.** You sign an EIP-3009 `TransferWithAuthorization` -- a pre-signed authorisation that lets the x402 facilitator move USDC on your behalf. The facilitator submits the on-chain transaction and pays the gas. Your wallet only debits the USDC amount.
+- **MPP on Tempo.** You sign a payment proof; Tempo settles the transfer through the MPP facilitator, which pays the network fees. Your wallet only debits the USDC.e amount.
+
+So for a `$0.05` paid workflow, `$0.05` of USDC (or USDC.e) leaves your wallet -- nothing else.
+
+KeeperHub absorbs the Turnkey signing cost on its side; that never appears in your wallet activity. If in future you use the wallet to sign a direct on-chain transaction outside the agentic workflow pattern (e.g. a manual ERC-20 transfer), you'd need native gas for that chain the same way any wallet would.
 
 ## Links
 
