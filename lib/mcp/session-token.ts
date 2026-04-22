@@ -80,6 +80,10 @@ export async function verifySessionTokenDetailed(
 ): Promise<VerifyResult> {
   try {
     const secret = getSessionSecret();
+    // clockTolerance here is intentionally the 48h renewal grace, not the
+    // usual few seconds of clock skew. Tokens past `exp` but within the
+    // grace window must still verify so the slow path in app/mcp/route.ts
+    // can reconstruct the session and mint a renewed token.
     const { payload } = await jwtVerify(token, secret, {
       algorithms: ["HS256"],
       clockTolerance: MAX_RENEWAL_GRACE_SECONDS,
@@ -97,6 +101,11 @@ export async function verifySessionTokenDetailed(
     }
     return { payload: claims, expired: false };
   } catch (err) {
+    // Note on reason priority: a token that is both past the 48h grace AND
+    // past the 30d absolute lifetime will surface here as too_old (jose's
+    // JWTExpired fires before our manual max_lifetime_exceeded check can
+    // run). app/mcp/route.ts treats both reasons identically via
+    // isExpiredBeyondRenewal, so there's no HTTP-level drift.
     if (err instanceof errors.JWTExpired) {
       return { payload: null, expired: false, reason: "too_old" };
     }
