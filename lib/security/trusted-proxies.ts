@@ -5,6 +5,10 @@
  *
  * Why: agents can spoof X-Forwarded-For freely. The header is only meaningful
  * if the request demonstrably came from a known proxy.
+ *
+ * IPv4-only. IPv6 peers (including Cloudflare's IPv6 ranges, e.g.
+ * 2606:4700::/32) are treated as untrusted — XFF is ignored and the
+ * connecting IP is used. Add IPv6 CIDR support when v6 traffic warrants it.
  */
 
 // Snapshot of Cloudflare IPv4 ranges (refresh from
@@ -44,6 +48,13 @@ function ipToInt(ip: string): number | null {
   return result >>> 0;
 }
 
+function cidrMask(prefix: number): number {
+  // 32-bit unsigned mask with the top `prefix` bits set. Caller guarantees
+  // prefix is in [1, 32]; prefix === 0 is a "match anything" short-circuit
+  // handled before we get here.
+  return (0xffffffff << (32 - prefix)) >>> 0;
+}
+
 function isInCidr(ip: string, cidr: string): boolean {
   const [base, prefixStr] = cidr.split("/");
   if (!base || !prefixStr) {
@@ -61,7 +72,7 @@ function isInCidr(ip: string, cidr: string): boolean {
   if (prefix === 0) {
     return true;
   }
-  const mask = (~0 << (32 - prefix)) >>> 0;
+  const mask = cidrMask(prefix);
   return (baseInt & mask) === (ipInt & mask);
 }
 

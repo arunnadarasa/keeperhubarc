@@ -35,3 +35,23 @@ describe("resolveTrustedClientIp", () => {
     expect(resolveTrustedClientIp(req, "173.245.48.1")).toBe("203.0.113.10");
   });
 });
+
+describe("IP parsing strictness", () => {
+  it("rejects malformed IPs (treated as not-trusted, falls back to connectingIp)", () => {
+    const cases = ["1.2.3", "1.2.3.4.5", "a.b.c.d", "1.2.3.256", "-1.2.3.4"];
+    for (const bad of cases) {
+      const req = new Request("https://example.com/", {
+        headers: { "x-forwarded-for": "203.0.113.10" },
+      });
+      // bad IP is the connecting peer — not trusted, so XFF ignored, returns peer
+      expect(resolveTrustedClientIp(req, bad)).toBe(bad);
+    }
+  });
+
+  it("treats whitespace-only XFF leftmost as missing (returns connecting IP)", () => {
+    const req = new Request("https://example.com/", {
+      headers: { "x-forwarded-for": "   ,1.2.3.4" },
+    });
+    expect(resolveTrustedClientIp(req, "173.245.48.1")).toBe("173.245.48.1");
+  });
+});
