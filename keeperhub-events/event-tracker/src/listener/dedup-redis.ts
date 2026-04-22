@@ -1,17 +1,29 @@
 import { Redis } from "ioredis";
 import {
+  NODE_ENV,
   REDIS_HOST,
   REDIS_PASSWORD,
   REDIS_PORT,
 } from "../../lib/config/environment";
-import { DEDUP_TTL_SECONDS, type DedupStore, buildDedupKey } from "./dedup";
+import type { DedupStore } from "./dedup";
 
 /**
  * Redis-backed DedupStore. Split from dedup.ts so that registry.ts can
  * depend on the `DedupStore` interface without pulling ioredis into test
  * environments that do not have it installed. Phase 5 replaces this with a
  * Postgres-backed implementation; the factory swap happens in `factory.ts`.
+ *
+ * Redis-specific details (key namespace, TTL expiry) live in this module
+ * rather than the interface module because they do not translate to the
+ * Postgres impl - a row with `processed_at` plus a cleanup cron has no
+ * notion of TTL and a different natural key format.
  */
+
+const DEDUP_TTL_SECONDS = 24 * 60 * 60;
+
+function buildDedupKey(workflowId: string, txHash: string): string {
+  return `${NODE_ENV}:keeper_id:${workflowId}:processed_tx:${txHash}`;
+}
 
 export class RedisDedupStore implements DedupStore {
   constructor(private readonly redis: Redis) {}
