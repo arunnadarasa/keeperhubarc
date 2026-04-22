@@ -90,6 +90,7 @@ vi.mock("@/lib/logging", () => ({
 
 import { POST as requestPost } from "@/app/api/user/wallet/export-key/request/route";
 import { POST as verifyPost } from "@/app/api/user/wallet/export-key/verify/route";
+import { __resetRateLimitForTesting } from "@/app/api/user/wallet/export-key/_lib/rate-limit";
 
 const CREATOR_ID = "user-creator";
 const OTHER_ADMIN_ID = "user-other-admin";
@@ -125,6 +126,7 @@ function createJsonRequest(body?: Record<string, unknown>): Request {
 describe("POST /api/user/wallet/export-key/request", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    __resetRateLimitForTesting();
     mockWalletSelectLimit.mockReset();
     mockSendEmail.mockClear();
   });
@@ -182,6 +184,7 @@ describe("POST /api/user/wallet/export-key/request", () => {
 describe("POST /api/user/wallet/export-key/verify", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    __resetRateLimitForTesting();
     mockWalletSelectLimit.mockReset();
     mockCodeSelectLimit.mockReset();
     mockExportTurnkeyPrivateKey.mockReset();
@@ -255,7 +258,9 @@ describe("POST /api/user/wallet/export-key/verify", () => {
 describe("Wallet export rate limiting", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    __resetRateLimitForTesting();
     mockWalletSelectLimit.mockReset();
+    mockCodeSelectLimit.mockReset();
   });
 
   it("returns 429 on the 4th request call within the window", async () => {
@@ -278,5 +283,60 @@ describe("Wallet export rate limiting", () => {
     expect(over.status).toBe(429);
     const data = await over.json();
     expect(data.retryAfter).toBeGreaterThan(0);
+  });
+
+  it("returns 429 on the 11th verify call within the window", async () => {
+    const userId = "rate-verify-user";
+    mockGetSession.mockResolvedValue({
+      user: { id: userId, email: "rv@x.com" },
+      session: { activeOrganizationId: ORG_ID },
+    });
+    mockGetActiveOrgId.mockReturnValue(ORG_ID);
+    mockGetActiveMember.mockResolvedValue({ role: "owner" });
+    // Each verify call bumps the counter past the identity/hash gate; return
+    // an empty code set so every call short-circuits at 400 after the rate
+    // counter is incremented.
+    mockCodeSelectLimit.mockResolvedValue([]);
+
+    for (const _ of Array.from({ length: 10 })) {
+      const res = await verifyPost(createJsonRequest({ code: "123456" }));
+      expect(res.status).toBe(400);
+    }
+    const over = await verifyPost(createJsonRequest({ code: "123456" }));
+    expect(over.status).toBe(429);
+    const data = await over.json();
+    expect(data.retryAfter).toBeGreaterThan(0);
+  });
+
+  it("rejects a wrong verification code via timing-safe compare", async () => {
+    const userId = "timing-user";
+    mockGetSession.mockResolvedValue({
+      user: { id: userId, email: "ts@x.com" },
+      session: { activeOrganizationId: ORG_ID },
+    });
+    mockGetActiveOrgId.mockReturnValue(ORG_ID);
+    mockGetActiveMember.mockResolvedValue({ role: "owner" });
+
+    // Stored code hash is for "654321"; caller submits "123456". Must 400.
+    const storedCode = "654321";
+    const storedHash = crypto
+      .createHash("sha256")
+      .update(storedCode)
+      .digest("hex");
+    mockCodeSelectLimit.mockResolvedValueOnce([
+      {
+        id: "code-1",
+        organizationId: ORG_ID,
+        codeHash: storedHash,
+        attempts: 0,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    ]);
+
+    const res = await verifyPost(createJsonRequest({ code: "123456" }));
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBe("Invalid verification code");
+    expect(mockExportTurnkeyPrivateKey).not.toHaveBeenCalled();
   });
 });
