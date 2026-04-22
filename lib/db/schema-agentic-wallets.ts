@@ -1,9 +1,11 @@
 import { sql } from "drizzle-orm";
 import {
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
@@ -138,8 +140,40 @@ export const walletApprovalRequests = pgTable(
   ]
 );
 
+/**
+ * Agentic wallet HMAC secrets -- versioned, encrypted at rest.
+ *
+ * Phase 37 fixes #6 (no rotation path) and #9 (plaintext storage). One row
+ * per (sub_org_id, key_version). Rotation creates a new row at version+1
+ * and stamps the previous row's `expires_at = now() + 24h` for grace.
+ *
+ * `secret_ciphertext` is AES-256-GCM with a 12-byte IV, encoded as
+ * `${base64(iv)}:${base64(authTag)}:${base64(ciphertext)}`. The encryption
+ * key comes from process.env.AGENTIC_WALLET_HMAC_KMS_KEY (32 bytes b64).
+ */
+export const agenticWalletHmacSecrets = pgTable(
+  "agentic_wallet_hmac_secrets",
+  {
+    subOrgId: text("sub_org_id")
+      .notNull()
+      .references(() => agenticWallets.subOrgId, { onDelete: "cascade" }),
+    keyVersion: integer("key_version").notNull(),
+    secretCiphertext: text("secret_ciphertext").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    expiresAt: timestamp("expires_at"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.subOrgId, table.keyVersion] }),
+    index("idx_agentic_wallet_hmac_secrets_sub_org").on(table.subOrgId),
+  ]
+);
+
 export type AgenticWallet = typeof agenticWallets.$inferSelect;
 export type NewAgenticWallet = typeof agenticWallets.$inferInsert;
 export type WalletApprovalRequest = typeof walletApprovalRequests.$inferSelect;
 export type NewWalletApprovalRequest =
   typeof walletApprovalRequests.$inferInsert;
+export type AgenticWalletHmacSecret =
+  typeof agenticWalletHmacSecrets.$inferSelect;
+export type NewAgenticWalletHmacSecret =
+  typeof agenticWalletHmacSecrets.$inferInsert;

@@ -400,6 +400,13 @@
       "when": 1776849593589,
       "tag": "0056_agentic_wallet_approval_expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1776849693528,
+      "tag": "0057_agentic_wallet_hmac_secrets",
+      "breakpoints": true
     }
   ]
 }
