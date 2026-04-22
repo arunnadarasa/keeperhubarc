@@ -24,6 +24,9 @@ function getDescription(
   if (step === "done") {
     return "Your private key is shown below. Copy it and store it securely.";
   }
+  if (step === "requesting") {
+    return "Sending a verification code to the wallet's recovery email...";
+  }
   if (recipientEmail) {
     return `A verification code has been sent to ${recipientEmail} (the wallet's recovery email).`;
   }
