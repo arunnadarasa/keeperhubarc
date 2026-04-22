@@ -57,35 +57,33 @@ Every wallet signing call is gated by a `PreToolUse` hook that reads thresholds 
 
 | Tier  | Behaviour                                                                 |
 |-------|---------------------------------------------------------------------------|
-| auto  | Amount below `auto_approve_max_usd` signs without prompting.              |
-| ask   | Amount between `auto_approve_max_usd` and `ask_threshold_usd` surfaces an approval prompt in the agent's chat. |
+| auto  | Amount at or below `auto_approve_max_usd` signs without prompting.        |
+| ask   | Amount above `auto_approve_max_usd` and at or below `block_threshold_usd` returns `{decision: "ask"}` so Claude Code surfaces an inline prompt in the agent chat. |
 | block | Amount above `block_threshold_usd`, or a contract not in `allowlisted_contracts`, is denied without calling `/sign`. |
 
-Example `~/.keeperhub/safety.json`:
+The hook reads only the payment-challenge fields `amount`, `unit`, and the asset contract address from the tool payload. Forged fields like `trust-level hint` or `admin-override` are ignored by design.
+
+### Default safety config
+
+When `~/.keeperhub/safety.json` is absent the hook applies these defaults:
 
 ```json
 {
   "auto_approve_max_usd": 5,
-  "ask_threshold_usd": 50,
   "block_threshold_usd": 100,
   "allowlisted_contracts": [
     "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    "0xC0FFEE1234567890ABCDEF0123456789ABCDEF01"
+    "0x20C000000000000000000000B9537D11c60E8b50"
   ]
 }
 ```
 
-The hook reads only the payment-challenge fields `amount`, `unit`, and the asset contract address from the tool payload. Forged fields like `trust-level hint` or `admin-override` are ignored by design.
+The two allowlisted addresses are the only tokens the hook will authorise out of the box:
 
-### Approval flow
+- `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` -- **Base USDC**. Canonical Circle USDC contract on Base mainnet (chain id 8453). Used by x402 challenges from KeeperHub and any other x402-compliant service.
+- `0x20C000000000000000000000B9537D11c60E8b50` -- **Tempo USDC.e**. USDC bridge token on Tempo mainnet (chain id 4217). Used by MPP challenges from KeeperHub paid workflows that settle on Tempo.
 
-When a signing call falls into the `ask` tier, the hook:
-
-1. Creates an approval request via `POST /api/agentic-wallet/approval-request`.
-2. Surfaces the `ask` decision to the agent, which prints the approval URL `https://app.keeperhub.com/approve/{id}` into its chat.
-3. The user replies in chat after reviewing; the URL is optional for inspection.
-4. The hook polls `GET /api/agentic-wallet/approval-request/:id` until status is `approved` or `rejected`.
-5. On approval the original signing call proceeds; on rejection the hook returns `deny` and `/sign` is never called.
+Adding other ERC-20 contracts to `allowlisted_contracts` allows your agent to sign against them too -- at your own risk. To verify an address, paste it into [BaseScan](https://basescan.org) (Base) or the Tempo block explorer; the contract page shows the token name, issuer, and verification status.
 
 ## Alternatives
 
@@ -157,8 +155,8 @@ Paid workflows settle in USDC on Base (via x402) or USDC.e on Tempo (via MPP). M
 ## Known limitations
 
 - Signing supported on Base and Tempo (chain 4217) only in v1.8. Solana, Arbitrum, Optimism, etc. are not yet supported.
-- Approval flow uses in-chat `ask` decisions; no email or SMS notification channel yet.
-- Anonymous wallets persist indefinitely until linked or explicitly deleted; sub-org cleanup is not automated.
+- Ask-tier approvals are surfaced inline via Claude Code's permission prompt. A server-side approval flow (browser-based review for larger amounts) was built in Phase 33 but not exposed to users -- see KEEP-307 for the permanent design decision.
+- Wallets persist indefinitely until explicitly deleted; sub-org cleanup is not automated. Linking a wallet to a KeeperHub account is not supported in v1.8 pending a device-code auth flow and UI work (KEEP-308).
 
 ## Links
 
