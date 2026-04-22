@@ -155,8 +155,7 @@ Paid workflows settle in USDC on Base (via x402) or USDC.e on Tempo (via MPP). M
 ## Known limitations
 
 - Signing is supported on Base and Tempo (chain 4217) today. Solana, Arbitrum, Optimism and other chains are not yet supported.
-- Ask-tier approvals are surfaced inline via the agent's permission prompt.
-- A browser-based review flow for larger amounts is on the roadmap.
+- Ask-tier approvals are surfaced inline via the agent's permission prompt. A browser-based review flow for larger amounts is on the roadmap.
 
 ## Links
 
