@@ -20,18 +20,18 @@ import {
 } from "@/lib/agentic-wallet/policy";
 
 describe("BASELINE_POLICIES", () => {
-  it("contains exactly 3 entries (Turnkey DSL: one rule per policyName)", () => {
-    expect(BASELINE_POLICIES.length).toBe(3);
+  it("contains exactly 6 entries (3 eth.tx.* + 3 eth.eip_712.* per Phase 37)", () => {
+    expect(BASELINE_POLICIES.length).toBe(6);
   });
 
-  it("entry 0 blocks unlimited ERC-20 approvals (selector 0x095ea7b3)", () => {
+  it("entry 0 blocks ERC-20 approvals over 100 USDC (selector 0x095ea7b3)", () => {
     const p = BASELINE_POLICIES[0];
     expect(p).toBeDefined();
     expect(p?.policyName).toBe("block-erc20-unlimited-approve");
     expect(p?.effect).toBe("EFFECT_DENY");
-    // Condition string must name the approve selector and the 2^32 threshold.
+    // Phase 37 fix #8: threshold is now > 100 USDC (100_000_000), not 2^32.
     expect(p?.condition).toContain("0x095ea7b3");
-    expect(p?.condition).toContain("4294967296");
+    expect(p?.condition).toContain("100000000");
   });
 
   it("entry 1 caps transfer / transferFrom at 100 USDC (6 decimals)", () => {
@@ -69,9 +69,9 @@ describe("BASELINE_POLICIES", () => {
     }
   });
 
-  it("all three policy names are unique (Turnkey enforces uniqueness)", () => {
+  it("all baseline policy names are unique (Turnkey enforces uniqueness)", () => {
     const names = new Set(BASELINE_POLICIES.map((p) => p.policyName));
-    expect(names.size).toBe(3);
+    expect(names.size).toBe(BASELINE_POLICIES.length);
   });
 });
 
@@ -143,7 +143,7 @@ function makeClient(): StubClient {
 describe("applyBaselinePolicies (HI-04)", () => {
   const SUB_ORG = "subOrg_policy_test";
 
-  it("happy path: creates all 3 policies then verifies via getPolicies", async () => {
+  it("happy path: creates all baseline policies then verifies via getPolicies", async () => {
     const client = makeClient();
     let counter = 0;
     client.createPolicy.mockImplementation(
@@ -169,18 +169,20 @@ describe("applyBaselinePolicies (HI-04)", () => {
       SUB_ORG
     );
 
-    expect(client.createPolicy).toHaveBeenCalledTimes(3);
+    expect(client.createPolicy).toHaveBeenCalledTimes(BASELINE_POLICIES.length);
     expect(client.getPolicies).toHaveBeenCalledTimes(1);
     expect(client.deletePolicy).not.toHaveBeenCalled();
   });
 
   it("rolls back partial successes and throws PolicyIncompleteError on any failure", async () => {
     const client = makeClient();
-    // First two succeed, third rejects.
+    // All but the last succeed; the last rejects.
+    const lastIdx = BASELINE_POLICIES.length - 1;
+    const lastPolicy = BASELINE_POLICIES[lastIdx];
     const created: string[] = [];
     client.createPolicy.mockImplementation(
       async (input: PolicyCreateInput): Promise<PolicyCreateResult> => {
-        if (input.policyName === BASELINE_POLICIES[2].policyName) {
+        if (input.policyName === lastPolicy?.policyName) {
           throw new Error("Turnkey 5xx");
         }
         const id = `policy_${created.length + 1}`;
@@ -202,13 +204,18 @@ describe("applyBaselinePolicies (HI-04)", () => {
     // getPolicies MUST NOT be queried on the failure path -- we fail fast.
     expect(client.getPolicies).not.toHaveBeenCalled();
 
-    // Two successful creates -> two rollback delete calls.
-    expect(client.deletePolicy).toHaveBeenCalledTimes(2);
+    // N-1 successful creates -> N-1 rollback delete calls.
+    const expectedSuccesses = BASELINE_POLICIES.length - 1;
+    expect(client.deletePolicy).toHaveBeenCalledTimes(expectedSuccesses);
     const deleteCalls = client.deletePolicy.mock.calls as unknown as Array<
       [PolicyDeleteInput]
     >;
     const deletedIds = deleteCalls.map((c) => c[0].policyId).sort();
-    expect(deletedIds).toEqual(["policy_1", "policy_2"]);
+    const expectedIds = Array.from(
+      { length: expectedSuccesses },
+      (_, i) => `policy_${i + 1}`
+    ).sort();
+    expect(deletedIds).toEqual(expectedIds);
   });
 
   it("PolicyIncompleteError carries the list of failing policyNames", async () => {
@@ -251,18 +258,12 @@ describe("applyBaselinePolicies (HI-04)", () => {
         };
       }
     );
-    // getPolicies reports only 2 of the 3 baseline rules.
+    // getPolicies reports only N-1 of the N baseline rules (drop the last).
     client.getPolicies.mockResolvedValue({
-      policies: [
-        {
-          policyName: BASELINE_POLICIES[0].policyName,
-          effect: BASELINE_POLICIES[0].effect,
-        },
-        {
-          policyName: BASELINE_POLICIES[1].policyName,
-          effect: BASELINE_POLICIES[1].effect,
-        },
-      ],
+      policies: BASELINE_POLICIES.slice(0, -1).map((p) => ({
+        policyName: p.policyName,
+        effect: p.effect,
+      })),
     } satisfies PolicyListResult);
 
     await expect(
@@ -274,6 +275,49 @@ describe("applyBaselinePolicies (HI-04)", () => {
 
     // Post-condition failure ALSO rolls back the successful creates so the
     // sub-org ends up unprotected (no partial coverage).
-    expect(client.deletePolicy).toHaveBeenCalledTimes(3);
+    expect(client.deletePolicy).toHaveBeenCalledTimes(BASELINE_POLICIES.length);
+  });
+});
+
+describe("BASELINE_POLICIES — EIP-712 coverage (Phase 37)", () => {
+  it("contains 6 entries (3 eth.tx.* + 3 eth.eip_712.*)", () => {
+    expect(BASELINE_POLICIES.length).toBe(6);
+  });
+
+  it("block-erc20-unlimited-approve threshold is > 100 USDC, not 2^32", () => {
+    const p = BASELINE_POLICIES.find(
+      (x) => x.policyName === "block-erc20-unlimited-approve"
+    );
+    expect(p?.condition).toContain("100000000");
+    expect(p?.condition).not.toContain("4294967296");
+  });
+
+  it("includes block-eip712-foreign-domain", () => {
+    const p = BASELINE_POLICIES.find(
+      (x) => x.policyName === "block-eip712-foreign-domain"
+    );
+    expect(p).toBeDefined();
+    expect(p?.condition).toContain("eth.eip_712.domain.verifyingContract");
+    expect(p?.condition).toContain("PAYLOAD_ENCODING_EIP712");
+  });
+
+  it("includes block-eip712-erc3009-overcap", () => {
+    const p = BASELINE_POLICIES.find(
+      (x) => x.policyName === "block-eip712-erc3009-overcap"
+    );
+    expect(p).toBeDefined();
+    expect(p?.condition).toContain("TransferWithAuthorization");
+    expect(p?.condition).toContain("eth.eip_712.message.value");
+    expect(p?.condition).toContain("100000000");
+  });
+
+  it("includes block-eip712-foreign-chainid", () => {
+    const p = BASELINE_POLICIES.find(
+      (x) => x.policyName === "block-eip712-foreign-chainid"
+    );
+    expect(p).toBeDefined();
+    expect(p?.condition).toContain("eth.eip_712.domain.chainId");
+    expect(p?.condition).toContain("8453");
+    expect(p?.condition).toContain("4217");
   });
 });

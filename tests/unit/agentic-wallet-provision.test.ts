@@ -97,6 +97,7 @@ vi.mock("@/lib/db/schema", () => ({
 const { provisionAgenticWallet } = await import(
   "@/lib/agentic-wallet/provision"
 );
+const { BASELINE_POLICIES } = await import("@/lib/agentic-wallet/policy");
 
 const MOCK_SUB_ORG_ID = "subOrg_123";
 const MOCK_WALLET_ADDRESS = "0xabc000000000000000000000000000000000dead";
@@ -124,7 +125,7 @@ describe("provisionAgenticWallet", () => {
       },
     });
     // REVIEW HI-04: createPolicy returns a policyId; getPolicies supplies
-    // the post-condition list with all 3 baseline policy names.
+    // the post-condition list with all baseline policy names.
     let policyCounter = 0;
     mockCreatePolicy.mockImplementation(async () => {
       policyCounter += 1;
@@ -137,14 +138,10 @@ describe("provisionAgenticWallet", () => {
       };
     });
     mockGetPolicies.mockResolvedValue({
-      policies: [
-        { policyName: "block-erc20-unlimited-approve", effect: "EFFECT_DENY" },
-        {
-          policyName: "block-erc20-transfer-over-100usdc",
-          effect: "EFFECT_DENY",
-        },
-        { policyName: "allowlist-outbound-contracts", effect: "EFFECT_DENY" },
-      ],
+      policies: BASELINE_POLICIES.map((p) => ({
+        policyName: p.policyName,
+        effect: p.effect,
+      })),
     });
     mockDeletePolicy.mockResolvedValue({});
     mockInsertReturning.mockResolvedValue([{ id: "wallet-row-id" }]);
@@ -176,9 +173,9 @@ describe("provisionAgenticWallet", () => {
     );
   });
 
-  it("applies exactly 3 baseline policies, each EFFECT_DENY with empty consensus", async () => {
+  it("applies all baseline policies, each EFFECT_DENY with consensus 'true'", async () => {
     await provisionAgenticWallet();
-    expect(mockCreatePolicy).toHaveBeenCalledTimes(3);
+    expect(mockCreatePolicy).toHaveBeenCalledTimes(BASELINE_POLICIES.length);
     for (const call of mockCreatePolicy.mock.calls) {
       const arg = call[0];
       expect(arg.organizationId).toBe(MOCK_SUB_ORG_ID);

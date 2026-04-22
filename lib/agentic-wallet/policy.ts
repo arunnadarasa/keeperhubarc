@@ -2,13 +2,13 @@
  * Turnkey policy DSL definitions + facilitator allowlist.
  *
  * GUARD-06 baseline policies applied ONCE at sub-org creation time.
- * Plan 33-02 (/sign) must NOT call createPolicy or updatePolicy —
- * Turnkey enforces these rules at signRawPayload regardless of caller.
+ * Plan 33-02 (/sign) must NOT call createPolicy or updatePolicy.
  *
- * References:
- *   - 33-RESEARCH.md Pattern 2 (lines 301-364) — exact DSL strings
- *   - 33-CONTEXT.md Resolution #2 — two USDC addresses (no HTTP facilitators)
- *   - RESEARCH.md Pitfall 7 — empty consensus avoids CONSENSUS_NEEDED
+ * Phase 37: the eth.tx.* policies fire on signTransaction activities (not
+ * exercised by /sign today, kept for future-proofing). The eth.eip_712.*
+ * policies fire on signRawPayload + PAYLOAD_ENCODING_EIP712 (the current
+ * /sign codepath). Server-side payTo + chainId checks in /sign route are
+ * defence-in-depth on top of these.
  */
 import type { Turnkey } from "@turnkey/sdk-server";
 
@@ -35,26 +35,61 @@ export type BaselinePolicy = {
 
 // Baseline Turnkey policies (GUARD-06) — applied once at sub-org creation.
 // /sign MUST NOT update or remove these (T-33-03 mitigation).
+//
+// Phase 37: split into two namespace groups. The eth.tx.* group catches any
+// future signTransaction codepath. The eth.eip_712.* group is the actual
+// gate on signRawPayload + PAYLOAD_ENCODING_EIP712 (the current /sign path).
+// Both groups land at provision time; either firing means deny.
 export const BASELINE_POLICIES: readonly BaselinePolicy[] = [
   {
     policyName: "block-erc20-unlimited-approve",
     effect: "EFFECT_DENY",
+    // Phase 37 fix #8: threshold was >= 2^32 (= 4294 USDC), comment said
+    // "unlimited". Now matches the per-transfer cap: any approve over $100.
     condition:
-      "eth.tx.function_signature == '0x095ea7b3' && eth.tx.contract_call_args['value'] >= 4294967296",
-    notes: "GUARD-06: block unlimited ERC-20 approvals (amount >= 2^32)",
+      "eth.tx.function_signature == '0x095ea7b3' && eth.tx.contract_call_args['value'] > 100000000",
+    notes: "GUARD-06: block ERC-20 approvals above 100 USDC",
   },
   {
     policyName: "block-erc20-transfer-over-100usdc",
     effect: "EFFECT_DENY",
     condition:
       "(eth.tx.function_signature == '0xa9059cbb' && eth.tx.contract_call_args['value'] > 100000000) || (eth.tx.function_signature == '0x23b872dd' && eth.tx.contract_call_args['value'] > 100000000)",
-    notes: "GUARD-06: block ERC-20 transfers above 100 USDC (6-decimal cap)",
+    notes: "GUARD-06: block ERC-20 transfers above 100 USDC",
   },
   {
     policyName: "allowlist-outbound-contracts",
     effect: "EFFECT_DENY",
     condition: `!(eth.tx.to in ['${USDC_BASE_LC}', '${USDC_TEMPO_LC}'])`,
     notes: "GUARD-06: only permit outbound calls to allowlisted USDC contracts",
+  },
+  // Phase 37 fix #1: eth.tx.* fields are NOT populated for signRawPayload
+  // with PAYLOAD_ENCODING_EIP712. The three policies below are the actual
+  // gate on the current /sign codepath. Source: Turnkey policy-language docs
+  // (https://docs.turnkey.com/concepts/policies/language) — EIP-712 typed-data
+  // signing exposes eth.eip_712.{primary_type,domain,message}.
+  {
+    policyName: "block-eip712-foreign-domain",
+    effect: "EFFECT_DENY",
+    condition: `activity.type == 'ACTIVITY_TYPE_SIGN_RAW_PAYLOAD_V2' && activity.parameters.encoding == 'PAYLOAD_ENCODING_EIP712' && !(eth.eip_712.domain.verifyingContract in ['${USDC_BASE_LC}', '${USDC_TEMPO_LC}'])`,
+    notes:
+      "GUARD-06 (EIP-712): only permit typed-data signing for allowlisted USDC domains",
+  },
+  {
+    policyName: "block-eip712-erc3009-overcap",
+    effect: "EFFECT_DENY",
+    condition:
+      "activity.type == 'ACTIVITY_TYPE_SIGN_RAW_PAYLOAD_V2' && activity.parameters.encoding == 'PAYLOAD_ENCODING_EIP712' && eth.eip_712.primary_type == 'TransferWithAuthorization' && eth.eip_712.message.value > 100000000",
+    notes:
+      "GUARD-06 (EIP-712): block EIP-3009 TransferWithAuthorization above 100 USDC",
+  },
+  {
+    policyName: "block-eip712-foreign-chainid",
+    effect: "EFFECT_DENY",
+    condition:
+      "activity.type == 'ACTIVITY_TYPE_SIGN_RAW_PAYLOAD_V2' && activity.parameters.encoding == 'PAYLOAD_ENCODING_EIP712' && !(eth.eip_712.domain.chainId in [8453, 4217])",
+    notes:
+      "GUARD-06 (EIP-712): only permit Base mainnet (8453) or Tempo mainnet (4217) chain ids",
   },
 ] as const;
 

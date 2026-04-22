@@ -4,7 +4,7 @@
  * Coverage:
  *   - 200 happy-path response shape + ONBOARD-01 10s wall-clock SLO
  *   - Anonymous Turnkey sub-org flags (all 4 disable* true, no userEmail)
- *   - GUARD-06 baseline policies applied exactly 3 times
+ *   - GUARD-06 baseline policies applied for all entries
  *   - DB inserts into agentic_wallets + agentic_wallet_credits
  *   - IP rate limit returns 429 on the 6th call within the hour window
  *   - Turnkey 5xx surfaces as 502 with code="TURNKEY_UPSTREAM"
@@ -89,6 +89,7 @@ process.env.TURNKEY_API_PRIVATE_KEY = "test-priv";
 process.env.TURNKEY_ORGANIZATION_ID = "org_test";
 
 const { POST } = await import("@/app/api/agentic-wallet/provision/route");
+const { BASELINE_POLICIES } = await import("@/lib/agentic-wallet/policy");
 
 function makeRequest(ip: string): Request {
   return new Request("http://localhost:3000/api/agentic-wallet/provision", {
@@ -125,17 +126,13 @@ describe("POST /api/agentic-wallet/provision", () => {
         policyId: `policy_${policyCounter}`,
       };
     });
-    // REVIEW HI-04: getPolicies post-condition verify -- return all 3
+    // REVIEW HI-04: getPolicies post-condition verify -- return all
     // baseline policy names on the happy path.
     mockGetPolicies.mockResolvedValue({
-      policies: [
-        { policyName: "block-erc20-unlimited-approve", effect: "EFFECT_DENY" },
-        {
-          policyName: "block-erc20-transfer-over-100usdc",
-          effect: "EFFECT_DENY",
-        },
-        { policyName: "allowlist-outbound-contracts", effect: "EFFECT_DENY" },
-      ],
+      policies: BASELINE_POLICIES.map((p) => ({
+        policyName: p.policyName,
+        effect: p.effect,
+      })),
     });
     mockDeletePolicy.mockResolvedValue({});
   });
@@ -176,17 +173,14 @@ describe("POST /api/agentic-wallet/provision", () => {
     expect(args.wallet.accounts[0]?.path).toBe("m/44'/60'/0'/0/0");
   });
 
-  it("applies exactly 3 baseline Turnkey policies", async () => {
+  it("applies all baseline Turnkey policies", async () => {
     await POST(makeRequest("203.0.113.12"));
-    expect(mockCreatePolicy).toHaveBeenCalledTimes(3);
+    expect(mockCreatePolicy).toHaveBeenCalledTimes(BASELINE_POLICIES.length);
     const policyNames = mockCreatePolicy.mock.calls
       .map((c) => (c[0] as { policyName: string }).policyName)
       .sort();
-    expect(policyNames).toEqual([
-      "allowlist-outbound-contracts",
-      "block-erc20-transfer-over-100usdc",
-      "block-erc20-unlimited-approve",
-    ]);
+    const expectedNames = BASELINE_POLICIES.map((p) => p.policyName).sort();
+    expect(policyNames).toEqual(expectedNames);
   });
 
   it("inserts rows into agentic_wallets and agentic_wallet_credits", async () => {
