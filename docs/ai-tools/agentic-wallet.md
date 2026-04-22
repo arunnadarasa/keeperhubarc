@@ -157,6 +157,74 @@ Paid workflows settle in USDC on Base (via x402) or USDC.e on Tempo (via MPP). M
 - Signing is supported on Base and Tempo (chain 4217) today. Solana, Arbitrum, Optimism and other chains are not yet supported.
 - Ask-tier approvals are surfaced inline via the agent's permission prompt. A browser-based review flow for larger amounts is on the roadmap.
 
+## FAQ
+
+### Who controls my wallet?
+
+KeeperHub does, today. Each wallet is a [Turnkey sub-organisation](https://docs.turnkey.com/concepts/sub-organizations) where KeeperHub holds the only root user -- a server-side API key inside a Turnkey enclave. Your agent does not hold a private key. When your agent needs to pay, it sends a signed request to KeeperHub, KeeperHub checks it against the safety policy engine, and Turnkey produces the signature.
+
+This is a custodial model. You are trusting KeeperHub to honour the policy limits on every signing call. In exchange you get zero-registration onboarding, no private keys on disk, and no seed phrase to back up.
+
+### What stops KeeperHub signing whatever it wants?
+
+Three hard policies are applied to every sub-org at provision time and enforced by Turnkey itself, not by application code:
+
+1. Signing is only allowed against the ERC-20 contracts in your `allowlisted_contracts` -- Base USDC and Tempo USDC.e by default.
+2. Unlimited ERC-20 approvals are blocked outright. Even KeeperHub cannot sign a `max uint256` spend allowance.
+3. Transfers can only target facilitator addresses the wallet is configured to recognise.
+
+If KeeperHub's operator key is compromised, the attacker is still bound by these policies. They cannot drain funds to an arbitrary address or approve an arbitrary contract to spend your balance.
+
+### What happens if I lose `wallet.json`?
+
+Today, the wallet is not recoverable. `wallet.json` holds the HMAC secret that authenticates your agent against KeeperHub; without it there is no way to re-authenticate to the same sub-org. Running `npx @keeperhub/wallet add` again creates a brand new sub-org with a brand new address. Any funds in the old wallet stay there but are unreachable.
+
+Back up `wallet.json` the same way you would back up an SSH key. A passkey-backed recovery path is on the roadmap.
+
+### Can I move the wallet to another machine?
+
+Yes. `wallet.json` is the wallet from your agent's perspective. Copy it to another machine (under `~/.keeperhub/wallet.json`, mode `0600`) and that machine speaks for the same wallet. Treat it like any other long-lived credential.
+
+### Does KeeperHub have access to my funds?
+
+KeeperHub can produce signatures for your wallet, but only within the limits of the three policies above. KeeperHub never sees a private key -- the key material lives inside Turnkey's secure enclave, and Turnkey is the one that produces signatures after KeeperHub's API key passes the policy engine.
+
+### Why don't I have a passkey or 2FA option?
+
+Passkey-backed sub-orgs are a more secure option Turnkey supports natively, and it's on the roadmap as an opt-in enrolment. The default today is convenience-first -- onboard in under a minute, no ceremony -- because that's what unblocks trying an agent-paid workflow. Users who want a break-glass signing authority and a recovery path will get a `--with-passkey` provisioning mode in a future release.
+
+### Can I change the safety thresholds or the allowed contracts?
+
+Yes. Edit `~/.keeperhub/safety.json` (mode `0644`). You can raise or lower `auto_approve_max_usd` and `block_threshold_usd`, and you can add your own ERC-20 contract addresses to `allowlisted_contracts`. The hook picks up changes on its next invocation.
+
+Raising thresholds raises your exposure. Adding contracts means the hook will authorise signing against them -- verify any address on [BaseScan](https://basescan.org) (Base) or the Tempo block explorer before adding it.
+
+### How are signing decisions actually enforced?
+
+Two layers, and they're independent:
+
+1. **Client-side hook**, running inside your agent (Claude Code, etc.). Reads `~/.keeperhub/safety.json`, classifies the amount, and either allows, asks you inline, or denies the call before it ever hits the network. This is what keeps your agent from being manipulated into calling `/sign` for amounts you didn't authorise.
+2. **Server-side Turnkey policies**, enforced inside Turnkey for every signing activity. These are the three policies above. They are the hard floor -- a misconfigured hook or a compromised agent still cannot sign outside them.
+
+Either layer alone isn't enough. The hook stops an agent from asking for a bad signature; the policies stop any signature from being produced outside the rules.
+
+### What's the difference between my wallet and my KeeperHub creator wallet?
+
+Two different things:
+
+- The **agentic wallet** is what your agent uses to pay for workflows. It's provisioned per agent install, custodial via Turnkey, not tied to a KeeperHub account.
+- A **creator wallet** is what a workflow author sets up to receive payouts. It lives on your KeeperHub account, is managed through the dashboard, and is a separate Turnkey sub-org with a different setup.
+
+Installing an agentic wallet does not touch or affect your creator wallet, and vice versa.
+
+### Can I delete my wallet?
+
+Not through the CLI today. If you've stopped using a wallet and want the sub-org cleaned up, get in touch via the KeeperHub support channel with your `subOrgId` (from `npx @keeperhub/wallet info`) and the operator team can remove it.
+
+### How much does signing cost?
+
+Signing is free to you at the wallet layer. KeeperHub absorbs the Turnkey signing cost. You only pay the workflow price itself, in USDC on Base (x402) or USDC.e on Tempo (MPP), directly from your wallet balance.
+
 ## Links
 
 - npm: [`@keeperhub/wallet`](https://www.npmjs.com/package/@keeperhub/wallet)
