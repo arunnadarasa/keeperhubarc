@@ -34,6 +34,7 @@ import {
   signMppProof,
   signX402Challenge,
 } from "@/lib/agentic-wallet/sign";
+import { verifyWorkflowBinding } from "@/lib/agentic-wallet/workflow-binding";
 import { db } from "@/lib/db";
 import { agenticWallets } from "@/lib/db/schema";
 import { ErrorCategory, logSystemError } from "@/lib/logging";
@@ -46,6 +47,7 @@ const TEMPO_CHAIN_ID = 4217;
 
 type SignRequestBody = {
   chain?: unknown;
+  workflowSlug?: unknown;
   paymentChallenge?: unknown;
 };
 
@@ -135,6 +137,25 @@ export async function POST(request: Request): Promise<Response> {
   const chain: Chain = body.chain;
   const challenge = body.paymentChallenge as Record<string, unknown>;
 
+  // Phase 37 fix #2: workflowSlug is required so the server can derive
+  // payTo + amount from the workflows registry (closes the HMAC-compromise
+  // drain). Wallet client v0.1.5+ extracts the slug from the x402
+  // resource.url and forwards it on every /sign call.
+  const workflowSlug =
+    typeof body.workflowSlug === "string" ? body.workflowSlug : undefined;
+  if (!workflowSlug) {
+    return Response.json(
+      { error: "workflowSlug is required", code: "WORKFLOW_SLUG_REQUIRED" },
+      { status: 400 }
+    );
+  }
+
+  // Caller-supplied payTo + amount are checked against the registry below.
+  // String() normalises numeric/string amount inputs into the decimal-string
+  // shape that downstream signing + the binding check both expect.
+  const amountMicro = String(challenge.amount ?? "0");
+  const callerPayTo = String(challenge.payTo ?? "");
+
   // REVIEW HI-01 + ME-01: bound the EIP-3009 validity window on the Base
   // (x402) path so a compromised HMAC secret cannot mint open-ended
   // authorizations. Also guards against NaN / non-integer inputs that
@@ -156,6 +177,22 @@ export async function POST(request: Request): Promise<Response> {
         { status: 400 }
       );
     }
+  }
+
+  // Phase 37 fix #2: server-derived recipient + amount via workflow registry.
+  // The eth.eip_712.* Turnkey policy catches domain mismatches; this route-
+  // side check is the recipient + amount gate that the policy DSL cannot
+  // express.
+  const binding = await verifyWorkflowBinding(
+    workflowSlug,
+    callerPayTo,
+    amountMicro
+  );
+  if (!binding.ok) {
+    return Response.json(
+      { error: binding.error, code: binding.code },
+      { status: binding.status }
+    );
   }
 
   // Wallet address resolution from DB -- NEVER trust any caller-supplied

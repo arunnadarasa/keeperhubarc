@@ -59,6 +59,7 @@ type MockSignRawPayload = ReturnType<typeof vi.fn>;
 type MockLookupSecret = ReturnType<typeof vi.fn>;
 type MockClassifyRisk = ReturnType<typeof vi.fn>;
 type MockCreateApproval = ReturnType<typeof vi.fn>;
+type MockVerifyWorkflowBinding = ReturnType<typeof vi.fn>;
 
 const {
   mockSignRawPayload,
@@ -66,6 +67,7 @@ const {
   mockDbSelectLimit,
   mockClassifyRisk,
   mockCreateApprovalRequest,
+  mockVerifyWorkflowBinding,
 } = vi.hoisted(
   (): {
     mockSignRawPayload: MockSignRawPayload;
@@ -73,12 +75,14 @@ const {
     mockDbSelectLimit: MockResolveLimit;
     mockClassifyRisk: MockClassifyRisk;
     mockCreateApprovalRequest: MockCreateApproval;
+    mockVerifyWorkflowBinding: MockVerifyWorkflowBinding;
   } => ({
     mockSignRawPayload: vi.fn(),
     mockLookupSecret: vi.fn(),
     mockDbSelectLimit: vi.fn(),
     mockClassifyRisk: vi.fn(),
     mockCreateApprovalRequest: vi.fn(),
+    mockVerifyWorkflowBinding: vi.fn(),
   })
 );
 
@@ -106,6 +110,10 @@ vi.mock("@/lib/agentic-wallet/risk", () => ({
 
 vi.mock("@/lib/agentic-wallet/approval", () => ({
   createApprovalRequest: mockCreateApprovalRequest,
+}));
+
+vi.mock("@/lib/agentic-wallet/workflow-binding", () => ({
+  verifyWorkflowBinding: mockVerifyWorkflowBinding,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -162,6 +170,7 @@ beforeEach(() => {
   mockDbSelectLimit.mockReset();
   mockClassifyRisk.mockReset();
   mockCreateApprovalRequest.mockReset();
+  mockVerifyWorkflowBinding.mockReset();
 
   mockLookupSecret.mockResolvedValue(TEST_HMAC_SECRET);
   mockClassifyRisk.mockReturnValue("auto");
@@ -171,6 +180,14 @@ beforeEach(() => {
       walletAddressTempo: account.address,
     },
   ]);
+  // Default to ok so existing tests stay green; binding-specific tests
+  // override this per-case.
+  mockVerifyWorkflowBinding.mockResolvedValue({
+    ok: true,
+    expectedPayTo: "0x0000000000000000000000000000000000000000",
+    expectedAmountMicro: "0",
+    workflowId: "wf_test",
+  });
 });
 
 describe("POST /api/agentic-wallet/sign -- EIP-3009 ecrecover round-trip", () => {
@@ -219,6 +236,7 @@ describe("POST /api/agentic-wallet/sign -- EIP-3009 ecrecover round-trip", () =>
 
     const body = JSON.stringify({
       chain: "base",
+      workflowSlug: "test-slug",
       paymentChallenge: challenge,
     });
     const path = "/api/agentic-wallet/sign";
@@ -295,6 +313,7 @@ describe("POST /api/agentic-wallet/sign -- EIP-3009 ecrecover round-trip", () =>
     const nowTs = Math.floor(Date.now() / 1000);
     const body = JSON.stringify({
       chain: "base",
+      workflowSlug: "test-slug",
       paymentChallenge: {
         payTo: "0x0000000000000000000000000000000000000000",
         amount: "1000000",
@@ -319,6 +338,7 @@ describe("POST /api/agentic-wallet/sign -- EIP-3009 ecrecover round-trip", () =>
   it("returns 400 INVALID_VALIDITY_WINDOW when validBefore is too far in the future (HI-01)", async () => {
     const body = JSON.stringify({
       chain: "base",
+      workflowSlug: "test-slug",
       paymentChallenge: {
         payTo: "0x0000000000000000000000000000000000000000",
         amount: "1000000",
@@ -347,6 +367,7 @@ describe("POST /api/agentic-wallet/sign -- EIP-3009 ecrecover round-trip", () =>
     const nowTs = Math.floor(Date.now() / 1000);
     const body = JSON.stringify({
       chain: "base",
+      workflowSlug: "test-slug",
       paymentChallenge: {
         payTo: "0x0000000000000000000000000000000000000000",
         amount: "1000000",
@@ -375,6 +396,7 @@ describe("POST /api/agentic-wallet/sign -- EIP-3009 ecrecover round-trip", () =>
     const nowTs = Math.floor(Date.now() / 1000);
     const body = JSON.stringify({
       chain: "base",
+      workflowSlug: "test-slug",
       paymentChallenge: {
         payTo: "0x0000000000000000000000000000000000000000",
         amount: "60000000", // 60 USDC -- ask tier
@@ -406,6 +428,7 @@ describe("POST /api/agentic-wallet/sign -- EIP-3009 ecrecover round-trip", () =>
     const nowTs = Math.floor(Date.now() / 1000);
     const body = JSON.stringify({
       chain: "base",
+      workflowSlug: "test-slug",
       paymentChallenge: {
         payTo: "0x0000000000000000000000000000000000000000",
         amount: "200000000", // 200 USDC -- block tier
@@ -427,5 +450,172 @@ describe("POST /api/agentic-wallet/sign -- EIP-3009 ecrecover round-trip", () =>
     expect(json.code).toBe("RISK_BLOCKED");
     // Block branch short-circuits BEFORE Turnkey is reached.
     expect(mockSignRawPayload).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/agentic-wallet/sign -- workflow-slug binding (Phase 37 fix #2)", () => {
+  const REGISTRY_PAYTO = "0x1111111111111111111111111111111111111111";
+  const REGISTRY_AMOUNT = "50000"; // 0.05 USDC in micros
+  const ATTACKER_PAYTO = "0x2222222222222222222222222222222222222222";
+
+  function buildBaseChallenge(opts?: {
+    payTo?: string;
+    amount?: string;
+  }): Record<string, unknown> {
+    const nowTs = Math.floor(Date.now() / 1000);
+    return {
+      payTo: opts?.payTo ?? REGISTRY_PAYTO,
+      amount: opts?.amount ?? REGISTRY_AMOUNT,
+      validAfter: nowTs,
+      validBefore: nowTs + 300,
+      nonce: `0x${"22".repeat(32)}`,
+    };
+  }
+
+  it("rejects /sign without workflowSlug with 400 WORKFLOW_SLUG_REQUIRED", async () => {
+    const body = JSON.stringify({
+      chain: "base",
+      paymentChallenge: buildBaseChallenge(),
+    });
+    const path = "/api/agentic-wallet/sign";
+    const res = await POST(
+      new Request(`http://localhost:3000${path}`, {
+        method: "POST",
+        headers: buildHmacHeaders("subOrg_test", "POST", path, body),
+        body,
+      })
+    );
+    expect(res.status).toBe(400);
+    const json = (await res.json()) as { code: string };
+    expect(json.code).toBe("WORKFLOW_SLUG_REQUIRED");
+    expect(mockVerifyWorkflowBinding).not.toHaveBeenCalled();
+    expect(mockSignRawPayload).not.toHaveBeenCalled();
+  });
+
+  it("rejects /sign when payTo differs from workflow creator wallet (403 PAYTO_MISMATCH)", async () => {
+    mockVerifyWorkflowBinding.mockResolvedValue({
+      ok: false,
+      status: 403,
+      code: "PAYTO_MISMATCH",
+      error: "payTo does not match workflow creator wallet",
+    });
+    const body = JSON.stringify({
+      chain: "base",
+      workflowSlug: "test-slug",
+      paymentChallenge: buildBaseChallenge({ payTo: ATTACKER_PAYTO }),
+    });
+    const path = "/api/agentic-wallet/sign";
+    const res = await POST(
+      new Request(`http://localhost:3000${path}`, {
+        method: "POST",
+        headers: buildHmacHeaders("subOrg_test", "POST", path, body),
+        body,
+      })
+    );
+    expect(res.status).toBe(403);
+    const json = (await res.json()) as { code: string };
+    expect(json.code).toBe("PAYTO_MISMATCH");
+    // Binding rejection short-circuits before Turnkey.
+    expect(mockSignRawPayload).not.toHaveBeenCalled();
+    // Binding check sees the attacker's payTo and the slug from the body.
+    expect(mockVerifyWorkflowBinding).toHaveBeenCalledWith(
+      "test-slug",
+      ATTACKER_PAYTO,
+      REGISTRY_AMOUNT
+    );
+  });
+
+  it("rejects /sign when amount differs from priceUsdcPerCall (403 AMOUNT_MISMATCH)", async () => {
+    mockVerifyWorkflowBinding.mockResolvedValue({
+      ok: false,
+      status: 403,
+      code: "AMOUNT_MISMATCH",
+      error: "amount does not match workflow priceUsdcPerCall",
+    });
+    const wrongAmount = "999999";
+    const body = JSON.stringify({
+      chain: "base",
+      workflowSlug: "test-slug",
+      paymentChallenge: buildBaseChallenge({ amount: wrongAmount }),
+    });
+    const path = "/api/agentic-wallet/sign";
+    const res = await POST(
+      new Request(`http://localhost:3000${path}`, {
+        method: "POST",
+        headers: buildHmacHeaders("subOrg_test", "POST", path, body),
+        body,
+      })
+    );
+    expect(res.status).toBe(403);
+    const json = (await res.json()) as { code: string };
+    expect(json.code).toBe("AMOUNT_MISMATCH");
+    expect(mockSignRawPayload).not.toHaveBeenCalled();
+    expect(mockVerifyWorkflowBinding).toHaveBeenCalledWith(
+      "test-slug",
+      REGISTRY_PAYTO,
+      wrongAmount
+    );
+  });
+
+  it("accepts /sign when slug + payTo + amount all match registry (binding ok -> reaches signer)", async () => {
+    // The binding check is the gate this test exercises — once it passes the
+    // route hands off to Turnkey. We use a canonical signature locally so
+    // serializeSignature succeeds and the route returns 200, mirroring the
+    // PAY-04 round-trip fixture above.
+    mockVerifyWorkflowBinding.mockResolvedValue({
+      ok: true,
+      expectedPayTo: account.address,
+      expectedAmountMicro: REGISTRY_AMOUNT,
+      workflowId: "wf_test",
+    });
+
+    const challenge = buildBaseChallenge({ payTo: account.address });
+    const message = {
+      from: account.address,
+      to: challenge.payTo as `0x${string}`,
+      value: BigInt(challenge.amount as string),
+      validAfter: BigInt(challenge.validAfter as number),
+      validBefore: BigInt(challenge.validBefore as number),
+      nonce: challenge.nonce as `0x${string}`,
+    };
+    const canonicalSig = await account.signTypedData({
+      domain: BASE_USDC_DOMAIN,
+      types: AUTHORIZATION_TYPES,
+      primaryType: "TransferWithAuthorization",
+      message,
+    });
+    const r = canonicalSig.slice(2, 66);
+    const s = canonicalSig.slice(66, 130);
+    const vByte = Number.parseInt(canonicalSig.slice(130, 132), 16);
+    const v = (vByte >= 27 ? vByte - 27 : vByte)
+      .toString(16)
+      .padStart(2, "0");
+    mockSignRawPayload.mockResolvedValue({
+      activity: {
+        status: "ACTIVITY_STATUS_COMPLETED",
+        result: { signRawPayloadResult: { r, s, v } },
+      },
+    });
+
+    const body = JSON.stringify({
+      chain: "base",
+      workflowSlug: "test-slug",
+      paymentChallenge: challenge,
+    });
+    const path = "/api/agentic-wallet/sign";
+    const res = await POST(
+      new Request(`http://localhost:3000${path}`, {
+        method: "POST",
+        headers: buildHmacHeaders("subOrg_test", "POST", path, body),
+        body,
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(mockVerifyWorkflowBinding).toHaveBeenCalledWith(
+      "test-slug",
+      account.address,
+      REGISTRY_AMOUNT
+    );
+    expect(mockSignRawPayload).toHaveBeenCalledTimes(1);
   });
 });
