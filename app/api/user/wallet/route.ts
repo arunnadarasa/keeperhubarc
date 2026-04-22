@@ -11,7 +11,6 @@ import { db } from "@/lib/db";
 import { createIntegration } from "@/lib/db/integrations";
 import { integrations, organizationWallets } from "@/lib/db/schema";
 import { ErrorCategory, logSystemError } from "@/lib/logging";
-import { resolveCreatorContext } from "@/lib/middleware/auth-helpers";
 import { getActiveOrgId } from "@/lib/middleware/org-context";
 import { createTurnkeyWallet } from "@/lib/turnkey/turnkey-client";
 
@@ -201,14 +200,20 @@ async function storeTurnkeyWalletAndIntegration(options: {
 
 export async function GET(request: Request) {
   try {
-    const authCtx = await resolveCreatorContext(request);
-    if ("error" in authCtx) {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const activeOrgId = getActiveOrgId(session);
+    if (!activeOrgId) {
       return NextResponse.json(
-        { error: authCtx.error },
-        { status: authCtx.status }
+        { error: "No active organization" },
+        { status: 400 }
       );
     }
-    const { organizationId: activeOrgId, userId } = authCtx;
+
+    const userId = session.user.id;
 
     const allWallets = await db
       .select()
