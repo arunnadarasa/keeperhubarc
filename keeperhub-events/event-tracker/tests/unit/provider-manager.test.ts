@@ -287,6 +287,83 @@ describe("ChainProviderManager", () => {
       expect(h2).toHaveBeenCalledTimes(1);
     });
 
+    it("dispatches matching subscribers in parallel, not serially", async () => {
+      // Two handlers on the same (address, topic0). h1 sleeps; h2 should
+      // start before h1 resolves. With sequential await the h2 start time
+      // would be >= 50ms; in parallel it should be ~0ms.
+      let h1Started = 0;
+      let h2Started = 0;
+      let start = 0;
+      const h1 = vi.fn(async () => {
+        h1Started = Date.now() - start;
+        await new Promise((r) => setTimeout(r, 50));
+      });
+      const h2 = vi.fn(async () => {
+        h2Started = Date.now() - start;
+      });
+      await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_A,
+        topic0: TOPIC_EMITTED,
+        handler: h1,
+      });
+      await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_A,
+        topic0: TOPIC_EMITTED,
+        handler: h2,
+      });
+
+      const provider = factoryBundle.created[0];
+      const log = {
+        address: ADDR_A.toLowerCase(),
+        topics: [TOPIC_EMITTED],
+      };
+      provider.sendResponses = [[log]];
+      start = Date.now();
+      await provider.emitBlock(500);
+
+      expect(h1).toHaveBeenCalledTimes(1);
+      expect(h2).toHaveBeenCalledTimes(1);
+      // h2 starts well before h1's 50ms sleep completes.
+      expect(h2Started).toBeLessThan(40);
+      expect(h1Started).toBeLessThan(10);
+    });
+
+    it("one handler throwing does not block or abort the others", async () => {
+      const thrower = vi.fn(async () => {
+        throw new Error("boom");
+      });
+      const later = vi.fn();
+      await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_A,
+        topic0: TOPIC_EMITTED,
+        handler: thrower,
+      });
+      await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_A,
+        topic0: TOPIC_EMITTED,
+        handler: later,
+      });
+
+      const provider = factoryBundle.created[0];
+      const log = {
+        address: ADDR_A.toLowerCase(),
+        topics: [TOPIC_EMITTED],
+      };
+      provider.sendResponses = [[log]];
+      await provider.emitBlock(501);
+
+      expect(thrower).toHaveBeenCalledTimes(1);
+      expect(later).toHaveBeenCalledTimes(1);
+    });
+
     it("does not call a handler after its subscription is cancelled", async () => {
       const handler = vi.fn();
       const unsubscribe = await manager.subscribeToLogs({

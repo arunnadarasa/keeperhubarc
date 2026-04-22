@@ -238,18 +238,28 @@ export class ChainProviderManager {
     if (!(logAddr && logTopic0)) {
       return;
     }
+    // Fire all matching handlers concurrently. Sequential `await` here would
+    // let a slow handler (e.g. one applying the EventListener jitter sleep)
+    // stall dispatch to every other subscriber on the same log, compounding
+    // latency linearly with listener count. Each handler's errors are
+    // isolated so one rejection does not abort the others.
+    const matching: Subscriber[] = [];
     for (const sub of entry.subscribers) {
-      if (sub.address !== logAddr || sub.topic0 !== logTopic0) {
-        continue;
-      }
-      try {
-        await sub.handler(log);
-      } catch (err) {
-        logger.warn(
-          `[ChainProviderManager] chain=${entry.chainId} subscriber handler threw: ${String(err)}`,
-        );
+      if (sub.address === logAddr && sub.topic0 === logTopic0) {
+        matching.push(sub);
       }
     }
+    await Promise.all(
+      matching.map(async (sub) => {
+        try {
+          await sub.handler(log);
+        } catch (err) {
+          logger.warn(
+            `[ChainProviderManager] chain=${entry.chainId} subscriber handler threw: ${String(err)}`,
+          );
+        }
+      }),
+    );
   }
 }
 
