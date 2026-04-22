@@ -115,6 +115,25 @@ describe("interface-cache", () => {
     expect(getInterfaceCacheSize()).toBe(0);
   });
 
+  describe("non-serializable ABI", () => {
+    it("throws a contextual error when the ABI has a circular reference", () => {
+      const circular: unknown[] = [];
+      circular.push(circular);
+      expect(() =>
+        // Cast via unknown to bypass the InterfaceAbi type guard; this test
+        // exists precisely to verify behaviour on malformed input.
+        getInterface(circular as unknown as ethers.InterfaceAbi),
+      ).toThrow(/interface-cache: ABI is not JSON-serializable/);
+    });
+
+    it("throws a contextual error when the ABI contains a BigInt", () => {
+      const withBigInt = [{ type: "event", name: "X", inputs: [], max: 1n }];
+      expect(() =>
+        getInterface(withBigInt as unknown as ethers.InterfaceAbi),
+      ).toThrow(/interface-cache: ABI is not JSON-serializable/);
+    });
+  });
+
   describe("LRU eviction", () => {
     // Helper: build a cheap unique signature-string ABI for the Nth entry.
     function uniqueAbi(n: number): string[] {

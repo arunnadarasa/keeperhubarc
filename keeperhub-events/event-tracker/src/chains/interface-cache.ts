@@ -32,7 +32,19 @@ function hashAbi(abi: ethers.InterfaceAbi): string {
   // rawEventsAbi.map(buildEventAbi). If two callers pass semantically
   // equivalent ABIs with different key orderings, they will miss the cache
   // and allocate a second Interface. That is an overhead, not a bug.
-  return createHash("sha256").update(JSON.stringify(abi)).digest("hex");
+  let serialized: string;
+  try {
+    serialized = JSON.stringify(abi);
+  } catch (err) {
+    // JSON.stringify throws on circular refs or BigInt. The native error
+    // doesn't mention the ABI, so callers hit a confusing stack from
+    // inside this module. Re-throw with context.
+    const cause = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `interface-cache: ABI is not JSON-serializable (${cause}); cannot compute cache key`,
+    );
+  }
+  return createHash("sha256").update(serialized).digest("hex");
 }
 
 export function getInterface(abi: ethers.InterfaceAbi): ethers.Interface {
