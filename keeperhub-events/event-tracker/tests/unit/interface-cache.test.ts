@@ -38,6 +38,16 @@ const OTHER_EVENTS = [
   },
 ];
 
+// Production call site (evm-chain.ts) passes `rawEventsAbi.map(buildEventAbi)`
+// which returns `string[]` of signature strings, not the AbiEvent object
+// array above. Both shapes are valid ethers.InterfaceAbi, but we cache on
+// hashed content so the cache key spaces are disjoint. Tests here must
+// exercise the string-array shape that real listeners pass.
+const ERC20_EVENT_STRINGS = [
+  "event Transfer(address indexed from, address indexed to, uint256 value)",
+  "event Approval(address indexed owner, address indexed spender, uint256 value)",
+];
+
 describe("interface-cache", () => {
   beforeEach(() => {
     clearInterfaceCache();
@@ -102,5 +112,39 @@ describe("interface-cache", () => {
     expect(getInterfaceCacheSize()).toBe(2);
     clearInterfaceCache();
     expect(getInterfaceCacheSize()).toBe(0);
+  });
+
+  describe("production call shape (string[])", () => {
+    it("caches by content for the signature-string array shape", () => {
+      const a = getInterface(ERC20_EVENT_STRINGS);
+      const b = getInterface(ERC20_EVENT_STRINGS);
+      expect(a).toBe(b);
+      expect(getInterfaceCacheSize()).toBe(1);
+    });
+
+    it("produces an Interface that decodes logs correctly", () => {
+      const iface = getInterface(ERC20_EVENT_STRINGS);
+      const from = "0x0000000000000000000000000000000000000001";
+      const to = "0x0000000000000000000000000000000000000002";
+      const value = 42n;
+
+      const encoded = iface.encodeEventLog("Transfer", [from, to, value]);
+      const parsed = iface.parseLog({
+        topics: encoded.topics,
+        data: encoded.data,
+      });
+      expect(parsed?.name).toBe("Transfer");
+      expect(parsed?.args.value).toBe(value);
+    });
+
+    it("string shape and object shape hash to different cache keys", () => {
+      // Same logical ABI in two different representations. Both valid,
+      // but they serialise differently so they miss each other's cache.
+      // Documented-as-overhead behaviour; the assertion here locks it in.
+      const fromStrings = getInterface(ERC20_EVENT_STRINGS);
+      const fromObjects = getInterface(ERC20_EVENTS);
+      expect(fromStrings).not.toBe(fromObjects);
+      expect(getInterfaceCacheSize()).toBe(2);
+    });
   });
 });
