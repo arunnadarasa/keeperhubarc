@@ -1,6 +1,7 @@
-import { type SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
+import type { SQSClient } from "@aws-sdk/client-sqs";
 import type { ethers } from "ethers";
 import { logger } from "../../lib/utils/logger";
+import { enqueueWorkflowEventTrigger } from "../../lib/workflow-sqs";
 import {
   buildEventPayload,
   extractEventArgs,
@@ -169,25 +170,11 @@ export class EventListener {
   }
 
   private async sendToSqs(payload: unknown): Promise<void> {
-    const message = {
+    await enqueueWorkflowEventTrigger(this.opts.sqs, this.opts.sqsQueueUrl, {
       workflowId: this.opts.workflowId,
       userId: this.opts.userId,
-      triggerType: "event" as const,
       triggerData: payload,
-    };
-    await this.opts.sqs.send(
-      new SendMessageCommand({
-        QueueUrl: this.opts.sqsQueueUrl,
-        MessageBody: JSON.stringify(message),
-        MessageAttributes: {
-          TriggerType: { DataType: "String", StringValue: "event" },
-          WorkflowId: {
-            DataType: "String",
-            StringValue: this.opts.workflowId,
-          },
-        },
-      }),
-    );
+    });
     logger.log(`[EventListener:${this.opts.workflowId}] enqueued to SQS`);
   }
 }
