@@ -82,7 +82,7 @@ export class EventListener {
     });
     this.started = true;
     logger.log(
-      `[EventListener:${this.opts.workflowId}] started - chain=${this.opts.chainId} address=${this.opts.contractAddress} event=${this.opts.eventName}`,
+      `[EventListener:${this.opts.workflowId}] started - name="${this.opts.workflowName}" chain=${this.opts.chainId} address=${this.opts.contractAddress} event=${this.opts.eventName}`,
     );
   }
 
