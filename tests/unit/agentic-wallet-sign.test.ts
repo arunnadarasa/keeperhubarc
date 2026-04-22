@@ -34,7 +34,7 @@ vi.mock("@turnkey/sdk-server", () => ({
   }),
 }));
 
-const { signMppProof, signX402Challenge } = await import(
+const { PolicyBlockedError, signMppProof, signX402Challenge } = await import(
   "@/lib/agentic-wallet/sign"
 );
 
@@ -149,10 +149,14 @@ describe("signX402Challenge", () => {
     expect(sig.slice(-2)).toBe("1c");
   });
 
-  it("throws a PolicyBlockedError / POLICY_BLOCKED when Turnkey responds with ACTIVITY_STATUS_CONSENSUS_NEEDED", async () => {
+  it("throws PolicyBlockedError when Turnkey responds with ACTIVITY_STATUS_CONSENSUS_NEEDED", async () => {
     mockSignRawPayload.mockResolvedValueOnce({
       activity: { status: "ACTIVITY_STATUS_CONSENSUS_NEEDED" },
     });
+    // Callers (including the /sign route) discriminate via
+    // `instanceof PolicyBlockedError`, not by substring-matching .message.
+    // The HTTP `code: "POLICY_BLOCKED"` response is asserted separately in
+    // tests/integration/agentic-wallet-sign-route.test.ts.
     await expect(
       signX402Challenge(SUB_ORG, WALLET, {
         payTo: "0x1111111111111111111111111111111111111111",
@@ -161,12 +165,7 @@ describe("signX402Challenge", () => {
         validBefore: 1,
         nonce: `0x${"11".repeat(32)}`,
       })
-    ).rejects.toMatchObject({
-      // Plan 33-02 may ship a dedicated PolicyBlockedError class; until then
-      // the error message must contain POLICY_BLOCKED so Phase 34's hook
-      // layer can detect the condition by substring match.
-      message: expect.stringContaining("POLICY_BLOCKED"),
-    });
+    ).rejects.toBeInstanceOf(PolicyBlockedError);
   });
 });
 

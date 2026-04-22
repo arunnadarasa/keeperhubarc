@@ -345,10 +345,10 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ signature }, { status: 200 });
   } catch (error) {
     if (error instanceof PolicyBlockedError) {
-      // REVIEW HI-02: the error.message ("POLICY_BLOCKED: ...") is controlled
-      // server-side today, but returning a fixed string guards against future
-      // authors stuffing upstream detail into .message. Internal log still
-      // carries the full error via logSystemError for debugging.
+      // REVIEW HI-02: the `instanceof PolicyBlockedError` check is the
+      // contract; the public response returns a fixed string + code so
+      // upstream detail from error.message is never surfaced to callers.
+      // Internal log carries the full error via logSystemError for debugging.
       logSystemError(
         ErrorCategory.EXTERNAL_SERVICE,
         "[Agentic] /sign policy blocked",

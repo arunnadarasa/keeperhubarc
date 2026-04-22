@@ -32,11 +32,8 @@ import { getTurnkeyClientForOrg } from "@/lib/turnkey/agentic-wallet";
 import { BASE_CHAIN_ID, USDC_BASE_ADDRESS } from "./constants";
 
 export class PolicyBlockedError extends Error {
-  readonly name = "PolicyBlockedError";
+  override readonly name = "PolicyBlockedError";
   constructor(message: string) {
-    // The message must contain "POLICY_BLOCKED" so Phase 34 hook layers can
-    // substring-match on the upstream error before the route's explicit
-    // instanceof check is available.
     super(message);
   }
 }
@@ -140,7 +137,7 @@ async function signTypedData(
   const status = activity?.status;
   if (status === "ACTIVITY_STATUS_CONSENSUS_NEEDED") {
     throw new PolicyBlockedError(
-      "POLICY_BLOCKED: Turnkey policy requires consensus (denied)"
+      "Turnkey policy blocked the activity (CONSENSUS_NEEDED)"
     );
   }
   if (status !== "ACTIVITY_STATUS_COMPLETED") {
