@@ -162,10 +162,7 @@ export const agenticWalletHmacSecrets = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     expiresAt: timestamp("expires_at"),
   },
-  (table) => [
-    primaryKey({ columns: [table.subOrgId, table.keyVersion] }),
-    index("idx_agentic_wallet_hmac_secrets_sub_org").on(table.subOrgId),
-  ]
+  (table) => [primaryKey({ columns: [table.subOrgId, table.keyVersion] })]
 );
 
 /**

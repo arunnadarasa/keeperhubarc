@@ -392,23 +392,7 @@
           "notNull": false
         }
       },
-      "indexes": {
-        "idx_agentic_wallet_hmac_secrets_sub_org": {
-          "name": "idx_agentic_wallet_hmac_secrets_sub_org",
-          "columns": [
-            {
-              "expression": "sub_org_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "agentic_wallet_hmac_secrets_sub_org_id_agentic_wallets_sub_org_id_fk": {
           "name": "agentic_wallet_hmac_secrets_sub_org_id_agentic_wallets_sub_org_id_fk",
