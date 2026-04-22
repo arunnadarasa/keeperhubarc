@@ -108,9 +108,17 @@ vi.mock("@/lib/agentic-wallet/risk", () => ({
   classifyRisk: mockClassifyRisk,
 }));
 
-vi.mock("@/lib/agentic-wallet/approval", () => ({
-  createApprovalRequest: mockCreateApprovalRequest,
-}));
+// deriveApprovalBinding is a pure helper -- re-export the real implementation
+// so the sign route's ask-tier branch derives the binding the same way
+// /approval-request does. Only createApprovalRequest (DB-backed) is mocked.
+vi.mock("@/lib/agentic-wallet/approval", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/agentic-wallet/approval")>();
+  return {
+    ...actual,
+    createApprovalRequest: mockCreateApprovalRequest,
+  };
+});
 
 vi.mock("@/lib/agentic-wallet/workflow-binding", () => ({
   verifyWorkflowBinding: mockVerifyWorkflowBinding,
@@ -393,13 +401,15 @@ describe("POST /api/agentic-wallet/sign -- EIP-3009 ecrecover round-trip", () =>
   it("returns 202 approvalRequestId when risk=ask", async () => {
     mockClassifyRisk.mockReturnValue("ask");
     mockCreateApprovalRequest.mockResolvedValue({ id: "ar_test" });
+    const askPayTo = "0x3333333333333333333333333333333333333333";
+    const askAmount = "60000000"; // 60 USDC -- ask tier
     const nowTs = Math.floor(Date.now() / 1000);
     const body = JSON.stringify({
       chain: "base",
       workflowSlug: "test-slug",
       paymentChallenge: {
-        payTo: "0x0000000000000000000000000000000000000000",
-        amount: "60000000", // 60 USDC -- ask tier
+        payTo: askPayTo,
+        amount: askAmount,
         validAfter: nowTs,
         validBefore: nowTs + 300,
         nonce: `0x${"00".repeat(32)}`,
@@ -421,6 +431,21 @@ describe("POST /api/agentic-wallet/sign -- EIP-3009 ecrecover round-trip", () =>
     expect(json.approvalRequestId).toBe("ar_test");
     expect(json.status).toBe("pending");
     expect(mockCreateApprovalRequest).toHaveBeenCalledTimes(1);
+    // Phase 37 fix B1 (nit-fix): /sign ask-tier must pass a binding whose
+    // recipient/amountMicro/chain/contract all come from deriveApprovalBinding
+    // so /approve's Task 13 re-derivation compares against the exact same
+    // values. Asserting the shape here guards against the call site ever
+    // drifting back to inline String()/USDC-picking.
+    expect(mockCreateApprovalRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        binding: expect.objectContaining({
+          recipient: askPayTo,
+          amountMicro: askAmount,
+          chain: "base",
+          contract: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        }),
+      })
+    );
   });
 
   it("returns 403 RISK_BLOCKED when risk=block", async () => {

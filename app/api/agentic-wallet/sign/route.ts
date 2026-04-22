@@ -25,12 +25,13 @@
  * id -- never the raw body, the signature, or the HMAC secret.
  */
 import { eq } from "drizzle-orm";
-import { createApprovalRequest } from "@/lib/agentic-wallet/approval";
+import {
+  createApprovalRequest,
+  deriveApprovalBinding,
+} from "@/lib/agentic-wallet/approval";
 import {
   ALLOWED_TEMPO_CHAIN_IDS,
   TEMPO_MAINNET_CHAIN_ID,
-  USDC_BASE_ADDRESS,
-  USDC_TEMPO_ADDRESS,
 } from "@/lib/agentic-wallet/constants";
 import { verifyHmacRequest } from "@/lib/agentic-wallet/hmac";
 import { classifyRisk } from "@/lib/agentic-wallet/risk";
@@ -280,17 +281,27 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   if (risk === "ask") {
+    // Phase 37 fix B1 (nit-fix): delegate binding derivation to the shared
+    // helper so /sign's ask-tier and /approval-request agree on recipient /
+    // amount / chain / contract exactly. Tempo callers that supply
+    // `recipient` instead of `payTo` bind consistently here and on /approve.
+    const binding = deriveApprovalBinding(chain, challenge);
+    if (!binding) {
+      return Response.json(
+        {
+          error:
+            "paymentChallenge must include a valid recipient and positive integer amount",
+          code: "BINDING_REQUIRED",
+        },
+        { status: 422 }
+      );
+    }
     try {
       const ar = await createApprovalRequest({
         subOrgId: auth.subOrgId,
         riskLevel: "ask",
         operationPayload: { chain, paymentChallenge: challenge },
-        binding: {
-          recipient: String(challenge.payTo ?? ""),
-          amountMicro: String(challenge.amount ?? "0"),
-          chain,
-          contract: chain === "base" ? USDC_BASE_ADDRESS : USDC_TEMPO_ADDRESS,
-        },
+        binding,
       });
       return Response.json(
         { approvalRequestId: ar.id, status: "pending" },

@@ -103,11 +103,19 @@ const {
   };
 });
 
-vi.mock("@/lib/agentic-wallet/approval", () => ({
-  createApprovalRequest: mockCreateApprovalRequest,
-  getApprovalRequest: mockGetApprovalRequest,
-  resolveApprovalRequest: mockResolveApprovalRequest,
-}));
+// deriveApprovalBinding is a pure helper -- re-export the real implementation
+// so routes that import it alongside the mocked DB helpers still get the
+// production derivation rules.
+vi.mock("@/lib/agentic-wallet/approval", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/agentic-wallet/approval")>();
+  return {
+    ...actual,
+    createApprovalRequest: mockCreateApprovalRequest,
+    getApprovalRequest: mockGetApprovalRequest,
+    resolveApprovalRequest: mockResolveApprovalRequest,
+  };
+});
 
 vi.mock("@/lib/agentic-wallet/hmac-secret-store", () => ({
   lookupHmacSecret: mockLookupHmacSecret,
@@ -604,6 +612,145 @@ describe("agentic-wallet approval-request lifecycle", () => {
     expect(res.status).toBe(413);
     const json = (await res.json()) as { code: string };
     expect(json.code).toBe("PAYLOAD_TOO_LARGE");
+    expect(mockCreateApprovalRequest).not.toHaveBeenCalled();
+  });
+
+  it("accepts tempo approval-request that binds via paymentChallenge.recipient (Phase 37 fix B1)", async () => {
+    // The tempo (MPP) challenge shape uses `recipient` instead of `payTo`.
+    // deriveApprovalBinding must recognise both so that /sign, /approval-
+    // request, and the /approve re-derivation agree on the same wallet.
+    mockCreateApprovalRequest.mockClear();
+    const TEMPO_RECIPIENT = "0x1111111111111111111111111111111111111111";
+    const body = JSON.stringify({
+      riskLevel: "ask",
+      operationPayload: {
+        chain: "tempo",
+        paymentChallenge: {
+          recipient: TEMPO_RECIPIENT,
+          amount: BOUND_AMOUNT_FIXTURE,
+        },
+      },
+    });
+    const req = makeHmacRequest(
+      "POST",
+      "/api/agentic-wallet/approval-request",
+      body,
+      SUB_ORG,
+      HMAC_SECRET
+    );
+    const res = await postApprovalRequest(req);
+    expect(res.status).toBe(201);
+    expect(mockCreateApprovalRequest).toHaveBeenCalledTimes(1);
+    const callArgs = mockCreateApprovalRequest.mock.calls[0]?.[0] as {
+      binding: {
+        recipient: string;
+        amountMicro: string;
+        chain: string;
+        contract: string;
+      };
+    };
+    expect(callArgs.binding.recipient).toBe(TEMPO_RECIPIENT);
+    expect(callArgs.binding.chain).toBe("tempo");
+  });
+
+  it("rejects tempo approval-request when both payTo and recipient are missing (Phase 37 fix B1)", async () => {
+    mockCreateApprovalRequest.mockClear();
+    const body = JSON.stringify({
+      riskLevel: "ask",
+      operationPayload: {
+        chain: "tempo",
+        paymentChallenge: { amount: BOUND_AMOUNT_FIXTURE },
+      },
+    });
+    const req = makeHmacRequest(
+      "POST",
+      "/api/agentic-wallet/approval-request",
+      body,
+      SUB_ORG,
+      HMAC_SECRET
+    );
+    const res = await postApprovalRequest(req);
+    expect(res.status).toBe(422);
+    const json = (await res.json()) as { code: string };
+    expect(json.code).toBe("BINDING_REQUIRED");
+    expect(mockCreateApprovalRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects approval-request with capitalised chain 'Base' as BINDING_REQUIRED (Phase 37 fix B1)", async () => {
+    // deriveApprovalBinding matches chain case-sensitively; an input of "Base"
+    // (instead of "base") must fail binding derivation. Documents the
+    // intentional case-sensitivity of chain matching across the module.
+    mockCreateApprovalRequest.mockClear();
+    const body = JSON.stringify({
+      riskLevel: "ask",
+      operationPayload: {
+        chain: "Base",
+        paymentChallenge: {
+          payTo: BOUND_RECIPIENT_FIXTURE,
+          amount: BOUND_AMOUNT_FIXTURE,
+        },
+      },
+    });
+    const req = makeHmacRequest(
+      "POST",
+      "/api/agentic-wallet/approval-request",
+      body,
+      SUB_ORG,
+      HMAC_SECRET
+    );
+    const res = await postApprovalRequest(req);
+    expect(res.status).toBe(422);
+    const json = (await res.json()) as { code: string };
+    expect(json.code).toBe("BINDING_REQUIRED");
+    expect(mockCreateApprovalRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects approval-request when amount is an empty string (Phase 37 fix B1 amount-bypass)", async () => {
+    // Before the deriveApprovalBinding helper, amount="" slipped through the
+    // `String(... ?? "0") === "0"` guard because "" is not nullish and
+    // "" !== "0". The helper now rejects any non-digit or zero amount.
+    mockCreateApprovalRequest.mockClear();
+    const body = JSON.stringify({
+      riskLevel: "ask",
+      operationPayload: {
+        chain: "base",
+        paymentChallenge: { payTo: BOUND_RECIPIENT_FIXTURE, amount: "" },
+      },
+    });
+    const req = makeHmacRequest(
+      "POST",
+      "/api/agentic-wallet/approval-request",
+      body,
+      SUB_ORG,
+      HMAC_SECRET
+    );
+    const res = await postApprovalRequest(req);
+    expect(res.status).toBe(422);
+    const json = (await res.json()) as { code: string };
+    expect(json.code).toBe("BINDING_REQUIRED");
+    expect(mockCreateApprovalRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects approval-request when amount is a negative decimal string (Phase 37 fix B1 amount-bypass)", async () => {
+    mockCreateApprovalRequest.mockClear();
+    const body = JSON.stringify({
+      riskLevel: "ask",
+      operationPayload: {
+        chain: "base",
+        paymentChallenge: { payTo: BOUND_RECIPIENT_FIXTURE, amount: "-5" },
+      },
+    });
+    const req = makeHmacRequest(
+      "POST",
+      "/api/agentic-wallet/approval-request",
+      body,
+      SUB_ORG,
+      HMAC_SECRET
+    );
+    const res = await postApprovalRequest(req);
+    expect(res.status).toBe(422);
+    const json = (await res.json()) as { code: string };
+    expect(json.code).toBe("BINDING_REQUIRED");
     expect(mockCreateApprovalRequest).not.toHaveBeenCalled();
   });
 

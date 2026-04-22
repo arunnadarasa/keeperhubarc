@@ -17,6 +17,10 @@
  *       race.
  */
 import { and, eq } from "drizzle-orm";
+import {
+  USDC_BASE_ADDRESS,
+  USDC_TEMPO_ADDRESS,
+} from "@/lib/agentic-wallet/constants";
 import { db } from "@/lib/db";
 import {
   type WalletApprovalRequest,
@@ -35,6 +39,71 @@ export type ApprovalBinding = {
   chain: string;
   contract: string;
 };
+
+// Positive-integer decimal string matcher. Hoisted to module scope per
+// lint/performance/useTopLevelRegex.
+const DECIMAL_DIGITS_RE = /^\d+$/;
+
+/**
+ * Single source of truth for deriving the binding fields from a sign/approval
+ * request body. `/sign` (ask-tier), `/approval-request`, and Task 13's
+ * `checkApprovalForResolve` all funnel through this helper so that binding
+ * creation and binding re-derivation cannot drift apart.
+ *
+ * Returns `null` whenever the binding cannot be derived — callers map that
+ * to a 422 BINDING_REQUIRED response. The helper intentionally does NOT
+ * throw; callers are expected to decide the status code.
+ *
+ * Rules (matches Task 13 checkApprovalForResolve re-derivation):
+ *   - chain must be "base" or "tempo" (case-sensitive)
+ *   - challenge must be a non-null, non-array object
+ *   - recipient:
+ *       base  -> String(challenge.payTo)
+ *       tempo -> String(challenge.payTo ?? challenge.recipient)
+ *     Empty string after coercion rejects.
+ *   - amountMicro: String(challenge.amount) must be a non-empty
+ *     decimal-digit string parseable to a BigInt greater than zero.
+ *     Mirrors lib/agentic-wallet/workflow-binding.ts's BigInt parse idiom.
+ *   - contract: picked from USDC constants by chain.
+ */
+export function deriveApprovalBinding(
+  chain: unknown,
+  challenge: unknown
+): ApprovalBinding | null {
+  if (chain !== "base" && chain !== "tempo") {
+    return null;
+  }
+  if (!challenge || typeof challenge !== "object" || Array.isArray(challenge)) {
+    return null;
+  }
+  const c = challenge as Record<string, unknown>;
+
+  const recipient =
+    chain === "base"
+      ? String(c.payTo ?? "")
+      : String(c.payTo ?? c.recipient ?? "");
+  if (!recipient) {
+    return null;
+  }
+
+  const rawAmount = c.amount;
+  if (rawAmount === undefined || rawAmount === null) {
+    return null;
+  }
+  const amountMicro = String(rawAmount);
+  // Require a non-empty decimal-digit string. Rejects "", "0.0", "-5", "abc",
+  // whitespace, etc. BigInt("00") === 0 which falls through to the positive-
+  // amount guard below, so "00" is rejected as zero rather than as malformed.
+  if (!DECIMAL_DIGITS_RE.test(amountMicro)) {
+    return null;
+  }
+  if (BigInt(amountMicro) <= BigInt(0)) {
+    return null;
+  }
+
+  const contract = chain === "base" ? USDC_BASE_ADDRESS : USDC_TEMPO_ADDRESS;
+  return { recipient, amountMicro, chain, contract };
+}
 
 export type CreateApprovalRequestArgs = {
   subOrgId: string;
