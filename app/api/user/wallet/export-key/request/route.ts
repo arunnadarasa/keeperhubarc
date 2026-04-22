@@ -48,13 +48,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    if (activeMember.role !== "admin" && activeMember.role !== "owner") {
-      return NextResponse.json(
-        { error: "Only admins and owners can export wallet keys" },
-        { status: 403 }
-      );
-    }
-
     // Verify a Turnkey wallet exists (only Turnkey wallets are exportable;
     // Para wallets during migration are inactive and not exportable here)
     const turnkeyWallets = await db

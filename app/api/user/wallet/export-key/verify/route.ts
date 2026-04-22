@@ -44,13 +44,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    if (activeMember.role !== "admin" && activeMember.role !== "owner") {
-      return NextResponse.json(
-        { error: "Only admins and owners can export wallet keys" },
-        { status: 403 }
-      );
-    }
-
     const body: { code?: string } = await request.json();
     const { code } = body;
 
