@@ -15,19 +15,13 @@ A skill + npm package from KeeperHub. Custody is server-side in a per-wallet [Tu
 
 ### Install
 
-```bash
-npx @keeperhub/wallet skill install
-```
+Paste this into your agent:
 
-This writes the skill file into every detected agent skill directory (Claude Code, Cursor, Cline, Windsurf, OpenCode) and registers the `keeperhub-wallet-hook` `PreToolUse` safety hook in `~/.claude/settings.json`. Re-running is safe: the installer is idempotent and preserves any foreign keys already in `settings.json`. For agents without auto-registration support a copy-paste notice is printed.
+> Install the KeeperHub agentic wallet: run `npx @keeperhub/wallet skill install` to register the skill and safety hook, then `npx @keeperhub/wallet add` to provision a new wallet. Report the subOrgId and wallet address when done.
+
+Your agent runs both commands (about 60 seconds total). The install step writes the skill file into every detected agent skill directory (Claude Code, Cursor, Cline, Windsurf, OpenCode) and registers the `keeperhub-wallet-hook` `PreToolUse` safety hook in `~/.claude/settings.json`. The `add` step provisions a fresh Turnkey sub-organisation and writes your wallet credentials to `~/.keeperhub/wallet.json` (mode `0600`). Restart your agent session once after this so it picks up the newly installed skill.
 
 ### First payment
-
-Provision a wallet (zero-registration, under 60 seconds):
-
-```bash
-npx @keeperhub/wallet add
-```
 
 The wallet handles payment; the agent still needs a way to discover and call KeeperHub workflows. That comes from the [KeeperHub MCP server](/ai-tools/mcp-server), which exposes the `search_workflows` and `call_workflow` meta-tools to your agent. You can install the MCP server on its own (see the [MCP server](/ai-tools/mcp-server) page) or bundled with the [KeeperHub Claude Code plugin](/ai-tools/claude-code-plugin), which wires both the MCP server and (soon) the wallet skill in one step.
 
