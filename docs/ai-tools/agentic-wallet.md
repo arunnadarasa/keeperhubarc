@@ -15,11 +15,20 @@ A skill + npm package from KeeperHub. Custody is server-side in a per-wallet [Tu
 
 ### Install
 
-Paste this into your agent:
+Two steps: register the skill + safety hook, then provision a wallet. Run the commands yourself, or have your agent do it for you.
+
+**Manual:**
+
+```bash
+npx @keeperhub/wallet skill install
+npx @keeperhub/wallet add
+```
+
+**Have your agent do it:** paste this prompt:
 
 > Install the KeeperHub agentic wallet: run `npx @keeperhub/wallet skill install` to register the skill and safety hook, then `npx @keeperhub/wallet add` to provision a new wallet. Report the subOrgId and wallet address when done.
 
-Your agent runs both commands (about 60 seconds total). The install step writes the skill file into every detected agent skill directory (Claude Code, Cursor, Cline, Windsurf, OpenCode) and registers the `keeperhub-wallet-hook` `PreToolUse` safety hook in `~/.claude/settings.json`. The `add` step provisions a fresh Turnkey sub-organisation and writes your wallet credentials to `~/.keeperhub/wallet.json` (mode `0600`). Restart your agent session once after this so it picks up the newly installed skill.
+Either path takes about 60 seconds. The install step writes the skill file into every detected agent skill directory (Claude Code, Cursor, Cline, Windsurf, OpenCode) and registers the `keeperhub-wallet-hook` `PreToolUse` safety hook in `~/.claude/settings.json`. The `add` step provisions a fresh Turnkey sub-organisation and writes your wallet credentials to `~/.keeperhub/wallet.json` (mode `0600`). Restart your agent session once after this so it picks up the newly installed skill.
 
 ### First payment
 
