@@ -39,15 +39,13 @@ Provision a wallet (zero-registration, under 60 seconds):
 npx @keeperhub/wallet add
 ```
 
-The wallet handles payment; the agent still needs a way to discover and call KeeperHub workflows. That comes from the [KeeperHub MCP server](/ai-tools/mcp-server), which exposes the `search_workflows` and `call_workflow` meta-tools to your agent. Install it before running the examples below -- most users get it by installing the [KeeperHub Claude Code plugin](/ai-tools/claude-code-plugin), which wires both the MCP server and (soon) the wallet skill in one step.
+The wallet handles payment; the agent still needs a way to discover and call KeeperHub workflows. That comes from the [KeeperHub MCP server](/ai-tools/mcp-server), which exposes the `search_workflows` and `call_workflow` meta-tools to your agent. You can install the MCP server on its own (see the [MCP server](/ai-tools/mcp-server) page) or bundled with the [KeeperHub Claude Code plugin](/ai-tools/claude-code-plugin), which wires both the MCP server and (soon) the wallet skill in one step.
 
 With MCP + wallet both installed, ask your agent in plain language:
 
-> Use KeeperHub to find me the current floor price of the Pudgy Penguins NFT collection.
+> Use KeeperHub to check the ETH balance of `0xC300B53616532FDB0116bcE916c9307377362B51`.
 
-> Check if there's a listed KeeperHub workflow that fetches Base USDC token transfers for an address, and run it for `0x...`.
-
-> Send a Discord message via KeeperHub to #deploys saying "staging is green".
+> Run the KeeperHub `mcp-test` workflow for `0xC300...`.
 
 The agent discovers available workflows at runtime through the KeeperHub meta-tools (`search_workflows` + `call_workflow`) and picks the best match. When a paid workflow returns a `402`, the wallet intercepts the challenge, signs through the server-side proxy (x402 on Base USDC or MPP on Tempo USDC.e), and the call retries transparently. If both challenge types are offered it submits one MPP credential (cheaper, near-instant Tempo settlement). If the amount exceeds your `auto_approve_max_usd` the safety hook surfaces an inline permission prompt before any payment is authorised.
 
