@@ -28,7 +28,7 @@ npx @keeperhub/wallet add
 
 > Install the KeeperHub agentic wallet: run `npx @keeperhub/wallet skill install` to register the skill and safety hook, then `npx @keeperhub/wallet add` to provision a new wallet. Report the subOrgId and wallet address when done.
 
-Either path takes about 60 seconds. The install step writes the skill file into every detected agent skill directory (Claude Code, Cursor, Cline, Windsurf, OpenCode) and registers the `keeperhub-wallet-hook` `PreToolUse` safety hook in `~/.claude/settings.json`. The `add` step provisions a fresh Turnkey sub-organisation and writes your wallet credentials to `~/.keeperhub/wallet.json` (mode `0600`). Restart your agent session once after this so it picks up the newly installed skill.
+The install step writes the skill file into every detected agent skill directory (Claude Code, Cursor, Cline, Windsurf, OpenCode) and registers the `keeperhub-wallet-hook` `PreToolUse` safety hook in `~/.claude/settings.json`. The `add` step provisions a fresh Turnkey sub-organisation and writes your wallet credentials to `~/.keeperhub/wallet.json` (mode `0600`). Restart your agent session once after this so it picks up the newly installed skill.
 
 ### First payment
 
