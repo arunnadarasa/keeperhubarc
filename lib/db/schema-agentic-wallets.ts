@@ -168,6 +168,28 @@ export const agenticWalletHmacSecrets = pgTable(
   ]
 );
 
+/**
+ * Agentic wallet rate-limit buckets. Replaces the in-memory per-pod limiter
+ * in lib/mcp/rate-limit.ts for the /provision route. Phase 37 fix #7.
+ *
+ * key shape: `${routeName}:${trustedClientIp}` (e.g. "provision:1.2.3.4").
+ * bucket_start: hour-truncated timestamp via date_trunc('hour', now()).
+ * Hot-row contention is acceptable at /provision throughput (5/hour/IP).
+ * The cron sweeper deletes rows with bucket_start older than 24h.
+ */
+export const agenticWalletRateLimits = pgTable(
+  "agentic_wallet_rate_limits",
+  {
+    key: text("key").notNull(),
+    bucketStart: timestamp("bucket_start").notNull(),
+    requestCount: integer("request_count").notNull().default(0),
+  },
+  (table) => [
+    primaryKey({ columns: [table.key, table.bucketStart] }),
+    index("idx_agentic_wallet_rate_limits_bucket").on(table.bucketStart),
+  ]
+);
+
 export type AgenticWallet = typeof agenticWallets.$inferSelect;
 export type NewAgenticWallet = typeof agenticWallets.$inferInsert;
 export type WalletApprovalRequest = typeof walletApprovalRequests.$inferSelect;
@@ -177,3 +199,7 @@ export type AgenticWalletHmacSecret =
   typeof agenticWalletHmacSecrets.$inferSelect;
 export type NewAgenticWalletHmacSecret =
   typeof agenticWalletHmacSecrets.$inferInsert;
+export type AgenticWalletRateLimit =
+  typeof agenticWalletRateLimits.$inferSelect;
+export type NewAgenticWalletRateLimit =
+  typeof agenticWalletRateLimits.$inferInsert;
