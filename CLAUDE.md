@@ -188,6 +188,10 @@ The build script (`scripts/migrate-prod.ts`) runs `pnpm db:migrate` (file-based 
 
 Without the migration file, the table will not be created on deploy and you will get `relation does not exist` errors in staging/production.
 
+If your local dev DB was bootstrapped via `pnpm db:push` (instead of file migrations), `pnpm db:migrate` will fail on `relation already exists` because the journal table `drizzle.__drizzle_migrations` is empty. Run `pnpm tsx scripts/backfill-drizzle-migrations.ts` once to mark the existing migrations as applied without re-running their SQL — subsequent `pnpm db:migrate` calls will then cleanly apply only the new files.
+
+Note: a shell-set `DATABASE_URL` overrides the value in `.env` (drizzle.config.ts uses dotenv without `override: true`). If `pnpm db:migrate` connects to the wrong DB or port, run `unset DATABASE_URL` first or prefix the command with the right value.
+
 ## Branch Strategy
 
 - **Main branch**: `staging`
