@@ -124,17 +124,42 @@ export class EventListener {
         await new Promise((r) => setTimeout(r, Math.random() * maxJitter));
       }
 
-      if (await this.opts.dedup.isProcessed(this.opts.workflowId, txHash)) {
+      // Dedup is best-effort. If the read throws we fall through and
+      // forward the event anyway; the downstream workflow executor is the
+      // idempotency authority. If the read succeeds and reports a hit,
+      // skip forwarding.
+      let alreadyProcessed = false;
+      try {
+        alreadyProcessed = await this.opts.dedup.isProcessed(
+          this.opts.workflowId,
+          txHash,
+        );
+      } catch (err) {
+        logger.warn(
+          `[EventListener:${this.opts.workflowId}] dedup isProcessed failed, proceeding: ${String(err)}`,
+        );
+      }
+      if (alreadyProcessed) {
         logger.log(
           `[EventListener:${this.opts.workflowId}] ${txHash} already processed`,
         );
         return;
       }
-      await this.opts.dedup.markProcessed(this.opts.workflowId, txHash);
 
       const args = extractEventArgs(parsed, this.opts.rawEventsAbi);
       const payload = buildEventPayload(log, parsed, args);
       await this.sendToSqs(payload);
+
+      // Mark after the send. A crash between send and mark would re-fire
+      // the event on the next reconnect (documented best-effort trade).
+      // A mark failure here does not un-send SQS - fine, dedup is best-effort.
+      try {
+        await this.opts.dedup.markProcessed(this.opts.workflowId, txHash);
+      } catch (err) {
+        logger.warn(
+          `[EventListener:${this.opts.workflowId}] dedup markProcessed failed: ${String(err)}`,
+        );
+      }
     } catch (err) {
       logger.warn(
         `[EventListener:${this.opts.workflowId}] handler error: ${String(err)}`,

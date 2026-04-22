@@ -262,7 +262,10 @@ describe("EventListener", () => {
       expect(sqs.send).not.toHaveBeenCalled();
     });
 
-    it("handler errors are caught and do not throw", async () => {
+    it("dedup isProcessed failure -> still forwards to SQS (best-effort)", async () => {
+      // The dedup read failing must not drop the event. Downstream is the
+      // idempotency authority, so a duplicate is acceptable; a lost event
+      // is not.
       const providerMock = makeProviderManagerMock();
       const dedup = makeDedupMock();
       dedup.isProcessed.mockRejectedValue(new Error("redis down"));
@@ -286,7 +289,37 @@ describe("EventListener", () => {
           }),
         ),
       ).resolves.toBeUndefined();
-      expect(sqs.send).not.toHaveBeenCalled();
+      expect(sqs.send).toHaveBeenCalledTimes(1);
+    });
+
+    it("dedup markProcessed failure -> SQS send already happened, swallowed", async () => {
+      // The mark happens after the send. A mark failure must not throw out
+      // of the handler (it's logged and swallowed) and must not affect the
+      // SQS delivery we already made.
+      const providerMock = makeProviderManagerMock();
+      const dedup = makeDedupMock();
+      dedup.markProcessed.mockRejectedValue(new Error("redis down"));
+      const sqs = makeSqsMock();
+      const listener = new EventListener(
+        buildOptions({
+          providerManager: providerMock.manager,
+          dedup,
+          sqs,
+        }),
+      );
+      await listener.start();
+
+      await expect(
+        providerMock.capturedHandler!(
+          makeLog({
+            txHash:
+              "0xdede000000000000000000000000000000000000000000000000000000000000",
+            sender: SENDER,
+            value: 1n,
+          }),
+        ),
+      ).resolves.toBeUndefined();
+      expect(sqs.send).toHaveBeenCalledTimes(1);
     });
 
     it("SQS message contains the correct workflowId, triggerType, and payload", async () => {
