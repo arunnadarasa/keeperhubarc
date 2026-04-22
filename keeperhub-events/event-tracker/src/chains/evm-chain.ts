@@ -1,4 +1,4 @@
-import { ethers } from "ethers";
+import type { ethers } from "ethers";
 import {
   REDIS_HOST,
   REDIS_PASSWORD,
@@ -14,6 +14,7 @@ import {
   buildEventPayload,
   extractEventArgs,
 } from "./event-serializer";
+import { getInterface } from "./interface-cache";
 import { TransactionDedup } from "./transaction-dedup";
 import type { AbiEvent } from "./validation";
 import {
@@ -303,7 +304,7 @@ export class EvmChain extends AbstractChain {
       ({ type }: { type: string }) => type === "event",
     );
     const eventsAbi = rawEventsAbi.map(buildEventAbi);
-    const abiInterface = new ethers.Interface(eventsAbi);
+    const abiInterface = getInterface(eventsAbi);
 
     this.eventListener = this.connection!.on(
       filter,
