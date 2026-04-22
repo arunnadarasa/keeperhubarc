@@ -393,6 +393,13 @@
       "when": 1776849417865,
       "tag": "0055_agentic_wallet_approval_binding",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1776849593589,
+      "tag": "0056_agentic_wallet_approval_expiry",
+      "breakpoints": true
     }
   ]
 }

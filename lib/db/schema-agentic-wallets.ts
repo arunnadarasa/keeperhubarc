@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   index,
   jsonb,
@@ -110,6 +111,12 @@ export const walletApprovalRequests = pgTable(
     boundAmountMicro: text("bound_amount_micro"),
     boundChain: text("bound_chain"),
     boundContract: text("bound_contract"),
+    // Phase 37 fix B2: hard 15-minute TTL. /approve rejects with 410 GONE
+    // past this; the cron sweeper marks rows expired and deletes terminal
+    // rows older than 7 days.
+    expiresAt: timestamp("expires_at")
+      .notNull()
+      .default(sql`now() + interval '15 minutes'`),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     resolvedAt: timestamp("resolved_at"),
     // SET NULL preserves the approval audit trail if the approver's user is
