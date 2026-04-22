@@ -2,8 +2,9 @@
  * POST /api/agentic-wallet/:id/reject
  *
  * Session-authenticated rejection of a pending wallet approval request.
- * Identical lifecycle to /:id/approve (same ownership rule, same 409 on
- * already-resolved) except the terminal status is "rejected".
+ * Identical lifecycle to /:id/approve (same ownership rule, same 409
+ * ALREADY_RESOLVED, same 410 EXPIRED, same 422 BINDING_MISMATCH) except the
+ * terminal status is "rejected".
  */
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";

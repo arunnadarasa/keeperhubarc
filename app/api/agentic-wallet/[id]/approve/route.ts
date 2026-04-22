@@ -9,12 +9,18 @@
  * Lifecycle:
  *   1. 401 when there is no session.
  *   2. 404 when the approval request id is unknown.
- *   3. 404 when the wallet for row.subOrgId does not exist.
- *   4. 403 when the wallet exists but linked_user_id != session.user.id
+ *   3. 410 { code: "EXPIRED" } when expiresAt has passed -- the helper also
+ *      lazy-flips the row to status="expired" (guarded by status='pending').
+ *   4. 422 { code: "BINDING_MISMATCH" } when operationPayload has been
+ *      tampered after create and its re-derived binding no longer matches the
+ *      stored bound_* columns (recipient / amount / chain / contract).
+ *   5. 404 when the wallet for row.subOrgId does not exist.
+ *   6. 403 when the wallet exists but linked_user_id != session.user.id
  *      (covers unlinked wallets).
- *   5. 409 when resolveApprovalRequest returns null -- another approver (or
- *      a duplicate tab) already resolved the row (T-33-race-double-approve).
- *   6. 200 { ok: true, status: "approved" } on success.
+ *   7. 409 { code: "ALREADY_RESOLVED" } when the row is not pending OR when
+ *      resolveApprovalRequest returns null -- another approver (or a
+ *      duplicate tab) already resolved the row (T-33-race-double-approve).
+ *   8. 200 { ok: true, status: "approved" } on success.
  */
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";

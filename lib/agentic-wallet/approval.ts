@@ -212,13 +212,24 @@ export async function checkApprovalForResolve(
   if (row.status !== "pending") {
     return { ok: false, reason: "already-resolved" };
   }
-  if (row.expiresAt && row.expiresAt.getTime() <= Date.now()) {
+  if (row.expiresAt.getTime() <= Date.now()) {
     // Lazy-flip to "expired" so callers see a terminal row immediately; the
-    // cron sweeper can still catch rows that never get polled.
+    // cron sweeper can still catch rows that never get polled. The
+    // status='pending' guard in the WHERE clause prevents a TOCTOU race where
+    // a slow /approve call reads the row as pending, another caller resolves
+    // it to 'approved' first, then this unguarded UPDATE would silently
+    // overwrite the terminal status. With the guard, concurrent writers
+    // either both match (first lands, second no-ops) or the expired flip
+    // no-ops once the row is already terminal.
     await db
       .update(walletApprovalRequests)
       .set({ status: "expired", resolvedAt: new Date() })
-      .where(eq(walletApprovalRequests.id, id));
+      .where(
+        and(
+          eq(walletApprovalRequests.id, id),
+          eq(walletApprovalRequests.status, "pending")
+        )
+      );
     return { ok: false, reason: "expired" };
   }
 

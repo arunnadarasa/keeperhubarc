@@ -57,6 +57,7 @@ type ApprovalRow = {
 const BOUND_RECIPIENT_FIXTURE = "0x1111111111111111111111111111111111111111";
 const BOUND_AMOUNT_FIXTURE = "50000000";
 const BOUND_CONTRACT_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const BOUND_CONTRACT_TEMPO = "0x20c000000000000000000000b9537d11c60e8b50";
 
 function bindingFixture(): {
   recipient: string;
@@ -311,7 +312,10 @@ function wireApprovalStore(): void {
       approvalStore.set(id, row);
       return { ok: false, reason: "expired" };
     }
-    // Re-derive binding from the current operationPayload.
+    // Re-derive binding from the current operationPayload. Must mirror the
+    // production checkApprovalForResolve comparison, including contract, so
+    // that a regression where bound_contract drifts from the re-derived value
+    // cannot slip through the tests.
     const op = row.operationPayload as {
       chain?: unknown;
       paymentChallenge?: {
@@ -327,10 +331,21 @@ function wireApprovalStore(): void {
         : String(challenge?.payTo ?? challenge?.recipient ?? "");
     const currentAmount = String(challenge?.amount ?? "");
     const currentChain = String(op.chain ?? "");
+    const contractForChain = (chain: unknown): string => {
+      if (chain === "base") {
+        return BOUND_CONTRACT_BASE;
+      }
+      if (chain === "tempo") {
+        return BOUND_CONTRACT_TEMPO;
+      }
+      return "";
+    };
+    const currentContract = contractForChain(op.chain);
     if (
       currentRecipient !== row.boundRecipient ||
       currentAmount !== row.boundAmountMicro ||
-      currentChain !== row.boundChain
+      currentChain !== row.boundChain ||
+      currentContract !== row.boundContract
     ) {
       return { ok: false, reason: "binding-mismatch" };
     }
@@ -947,6 +962,66 @@ describe("agentic-wallet approval-request lifecycle", () => {
     expect(res.status).toBe(409);
     const body = (await res.json()) as { code: string };
     expect(body.code).toBe("ALREADY_RESOLVED");
+  });
+
+  it("does not overwrite a row already resolved to 'approved' when expiry elapsed (race guard)", async () => {
+    // Regression: the lazy expiry flip in checkApprovalForResolve must be
+    // guarded by status='pending' in its UPDATE. Simulate the TOCTOU race
+    // where caller B's resolveApprovalRequest already committed status
+    // 'approved' before caller A's expiry-flip lands; caller A must NOT
+    // overwrite the terminal status to 'expired'.
+    //
+    // The ordering inside checkApprovalForResolve is status-check before
+    // expiry-check, so the helper also short-circuits with
+    // 'already-resolved' in this shape. The mock mirrors that ordering.
+    const { id } = await mockCreateApprovalRequest({
+      subOrgId: SUB_ORG,
+      riskLevel: "ask",
+      operationPayload: baseOperationPayload(),
+      binding: bindingFixture(),
+    });
+    const seeded = approvalStore.get(id) as ApprovalRow;
+    seeded.status = "approved";
+    seeded.resolvedAt = new Date();
+    seeded.resolvedByUserId = OWNER_USER_ID;
+    seeded.expiresAt = new Date(Date.now() - 1000);
+    approvalStore.set(id, seeded);
+
+    const result = await mockCheckApprovalForResolve(id);
+    expect(result).toEqual({ ok: false, reason: "already-resolved" });
+
+    const after = approvalStore.get(id) as ApprovalRow;
+    expect(after.status).toBe("approved");
+    expect(after.resolvedByUserId).toBe(OWNER_USER_ID);
+  });
+
+  it("returns 422 BINDING_MISMATCH when boundContract is tampered (mock parity)", async () => {
+    // Regression: the mock checkApprovalForResolve must compare contract in
+    // addition to recipient/amount/chain so that a future bug where
+    // bound_contract drifts from the value deriveApprovalBinding returns on
+    // re-derivation cannot pass the test suite silently.
+    const { id } = await mockCreateApprovalRequest({
+      subOrgId: SUB_ORG,
+      riskLevel: "ask",
+      operationPayload: baseOperationPayload(),
+      binding: bindingFixture(),
+    });
+    const seeded = approvalStore.get(id) as ApprovalRow;
+    seeded.boundContract = "0x000000000000000000000000000000000000bad0";
+    approvalStore.set(id, seeded);
+
+    mockGetSession.mockResolvedValue({
+      user: { id: OWNER_USER_ID, email: "owner@test" },
+    });
+    const res = await postApprove(
+      makeSessionRequest(`/api/agentic-wallet/${id}/approve`),
+      paramCtx(id)
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { code: string };
+    expect(body.code).toBe("BINDING_MISMATCH");
+    const after = approvalStore.get(id) as ApprovalRow;
+    expect(after.status).toBe("pending");
   });
 
   it("writes binding fields from paymentChallenge into the approval row (Phase 37 fix B1)", async () => {
