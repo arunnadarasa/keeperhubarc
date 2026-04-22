@@ -150,6 +150,24 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
+  // Phase 37 fix #13: require the canonical `amount` key on the base path.
+  // The legacy `value` alias was dropped because it allowed silent bypass of
+  // the risk classifier (which reads `amount`) when callers used the wrong
+  // key. Tempo (MPP) challenges don't carry an amount in the typed-data, so
+  // the guard only fires on the base/x402 path.
+  if (chain === "base") {
+    const a = challenge.amount;
+    if (typeof a !== "string" && typeof a !== "number") {
+      return Response.json(
+        {
+          error: "paymentChallenge.amount must be a string or number",
+          code: "BAD_AMOUNT",
+        },
+        { status: 400 }
+      );
+    }
+  }
+
   // Caller-supplied payTo + amount are checked against the registry below.
   // String() normalises numeric/string amount inputs into the decimal-string
   // shape that downstream signing + the binding check both expect.
@@ -242,7 +260,7 @@ export async function POST(request: Request): Promise<Response> {
   const risk = classifyRisk({
     chain,
     challenge: {
-      amount: String(challenge.amount ?? challenge.value ?? "0"),
+      amount: String(challenge.amount ?? "0"),
       payTo: String(challenge.payTo ?? ""),
       selector:
         typeof challenge.selector === "string" ? challenge.selector : undefined,
@@ -291,7 +309,7 @@ export async function POST(request: Request): Promise<Response> {
     if (chain === "base") {
       signature = await signX402Challenge(auth.subOrgId, walletAddress, {
         payTo: String(challenge.payTo ?? ""),
-        amount: String(challenge.amount ?? challenge.value ?? "0"),
+        amount: String(challenge.amount ?? "0"),
         validAfter: Number(challenge.validAfter ?? 0),
         validBefore: Number(challenge.validBefore ?? 0),
         nonce: String(challenge.nonce ?? ""),

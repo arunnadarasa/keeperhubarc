@@ -732,3 +732,34 @@ describe("POST /api/agentic-wallet/sign -- MPP chainId enum (Phase 37 fix #3)", 
     expect(typedData.domain.chainId).toBe(4217);
   });
 });
+
+describe("POST /api/agentic-wallet/sign -- value-key alias dropped (Phase 37 fix #13)", () => {
+  it("rejects payment challenge with `value` key and no `amount` (400 BAD_AMOUNT)", async () => {
+    const nowTs = Math.floor(Date.now() / 1000);
+    const body = JSON.stringify({
+      chain: "base",
+      workflowSlug: "test-slug",
+      paymentChallenge: {
+        payTo: "0x0000000000000000000000000000000000000000",
+        value: "10000000", // wrong key: would previously alias to amount
+        validAfter: nowTs,
+        validBefore: nowTs + 300,
+        nonce: `0x${"00".repeat(32)}`,
+      },
+    });
+    const path = "/api/agentic-wallet/sign";
+    const res = await POST(
+      new Request(`http://localhost:3000${path}`, {
+        method: "POST",
+        headers: buildHmacHeaders("subOrg_test", "POST", path, body),
+        body,
+      })
+    );
+    expect(res.status).toBe(400);
+    const json = (await res.json()) as { code: string };
+    expect(json.code).toBe("BAD_AMOUNT");
+    // Early rejection: neither binding check nor Turnkey should be reached.
+    expect(mockVerifyWorkflowBinding).not.toHaveBeenCalled();
+    expect(mockSignRawPayload).not.toHaveBeenCalled();
+  });
+});
