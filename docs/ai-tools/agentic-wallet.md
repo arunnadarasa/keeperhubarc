@@ -1,27 +1,37 @@
 ---
-title: "KeeperHub Agentic Wallet"
-description: "Install the KeeperHub agentic wallet into your AI agent to auto-pay x402 and MPP 402 responses with server-side Turnkey custody and a three-tier safety hook."
+title: "Agentic Wallets"
+description: "Install an x402/MPP wallet in your AI agent to pay for KeeperHub workflows or any x402/MPP service. Covers the first-party KeeperHub agentic wallet plus the main third-party options."
 ---
 
-# KeeperHub Agentic Wallet
+# Agentic Wallets
 
-The KeeperHub agentic wallet is a skill + npm package that auto-pays any x402 or MPP 402 response. Custody is server-side in Turnkey -- no private keys on disk. A three-tier PreToolUse safety hook gates every signing call against user-configured auto/ask/block thresholds.
+KeeperHub paid workflows settle via [x402](https://docs.cdp.coinbase.com/x402) on Base USDC or MPP on Tempo USDC.e: each call carries a USDC payment, and the server returns a result only after the payment is verified. To call a paid workflow, your agent needs an x402/MPP wallet.
 
-## Install
+This page covers the first-party **KeeperHub agentic wallet** (skill + npm package, server-side Turnkey custody) and the main third-party alternatives. Every wallet listed works with KeeperHub and with any other x402/MPP-compliant service.
 
-```bash
-npx skills add keeperhub/agentic-wallet-skills
-```
+## KeeperHub agentic wallet
 
-Or install directly from the npm package:
+A skill + npm package from KeeperHub. Custody is server-side in a per-wallet Turnkey sub-organisation, so no private key lands on disk. A `PreToolUse` hook gates every signing call against a three-tier (auto / ask / block) policy sourced from `~/.keeperhub/safety.json`.
+
+### Install
+
+**Recommended -- one command, fully wired up:**
 
 ```bash
 npx @keeperhub/wallet skill install
 ```
 
-Either command writes the skill file into every detected agent skill directory (Claude Code, Cursor, Cline, Windsurf, OpenCode) and registers the `keeperhub-wallet-hook` `PreToolUse` hook in Claude Code automatically. For other agents a copy-paste notice is printed.
+This writes the skill file into every detected agent skill directory (Claude Code, Cursor, Cline, Windsurf, OpenCode) **and** registers the `keeperhub-wallet-hook` `PreToolUse` safety hook in `~/.claude/settings.json`. Re-running is safe: the installer is idempotent and preserves any foreign keys already in `settings.json`. For agents without auto-registration support a copy-paste notice is printed.
 
-## First Payment
+**Alternative -- `npx skills add` (skill file only):**
+
+```bash
+npx skills add keeperhub/agentic-wallet-skills
+```
+
+This installs the skill file via the vercel-labs/skills convention but **does not register the `PreToolUse` safety hook**. Without the hook, signing calls are not gated by your auto/ask/block thresholds. After running `skills add` you MUST also run `npx @keeperhub/wallet skill install` to activate the safety hook. The combination is safe: `skill install` is idempotent and will not duplicate the skill file written by `skills add`.
+
+### First payment
 
 Provision a wallet (zero-registration, under 60 seconds):
 
@@ -39,9 +49,9 @@ const paid = await paymentSigner.pay(response);
 const result = await paid.json();
 ```
 
-If `response.status === 402`, `paymentSigner.pay()` detects the challenge (x402 on Base USDC or MPP on Tempo USDC.e), signs through the server-side proxy, and retries. If both challenge types are offered it submits one MPP credential (cheaper + near-instant Tempo settlement).
+If `response.status === 402`, `paymentSigner.pay()` detects the challenge (x402 on Base USDC or MPP on Tempo USDC.e), signs through the server-side proxy, and retries. If both challenge types are offered it submits one MPP credential (cheaper, near-instant Tempo settlement).
 
-## Safety hooks
+### Safety hooks
 
 Every wallet signing call is gated by a `PreToolUse` hook that reads thresholds from `~/.keeperhub/safety.json` (never from the transaction payload):
 
@@ -65,49 +75,93 @@ Example `~/.keeperhub/safety.json`:
 }
 ```
 
-The hook reads only `tool_input.amount`, `tool_input.unit`, and `tool_input.to` from the tool payload. Forged fields such as `trust-level hint` or `admin-override` are ignored by design.
+The hook reads only the payment-challenge fields `amount`, `unit`, and the asset contract address from the tool payload. Forged fields like `trust-level hint` or `admin-override` are ignored by design.
 
-## Approval flow
+### Approval flow
 
 When a signing call falls into the `ask` tier, the hook:
 
 1. Creates an approval request via `POST /api/agentic-wallet/approval-request`.
 2. Surfaces the `ask` decision to the agent, which prints the approval URL `https://app.keeperhub.com/approve/{id}` into its chat.
-3. The user replies in chat after reviewing (no separate browser page is required -- the URL is optional for inspection).
+3. The user replies in chat after reviewing; the URL is optional for inspection.
 4. The hook polls `GET /api/agentic-wallet/approval-request/:id` until status is `approved` or `rejected`.
 5. On approval the original signing call proceeds; on rejection the hook returns `deny` and `/sign` is never called.
 
-## Compare
+## Alternatives
 
-| Feature                        | KeeperHub Agentic Wallet                            | agentcash                                                                 | Coinbase agentic-wallet-skills                                   |
-|--------------------------------|------------------------------------------------------|---------------------------------------------------------------------------|------------------------------------------------------------------|
-| Key custody                    | Server-side Turnkey enclave; agent holds HMAC secret | Plaintext JSON on disk (`~/.agentcash/wallet.json`)                       | Coinbase Developer Platform (CDP) managed or self-custody variants |
-| Private key on disk            | Never                                                | Yes (unencrypted)                                                         | Depends on variant                                               |
-| Payment protocols              | x402 (Base USDC) + MPP (Tempo USDC.e)                | x402                                                                      | x402 (Coinbase ecosystem)                                        |
-| PreToolUse safety hook         | Three-tier auto/ask/block built-in                   | Not bundled                                                               | Not bundled                                                      |
-| Onboarding                     | Zero-registration, under 60 seconds, $0.50 test credit | Zero-registration                                                         | Requires CDP account for managed variant                         |
-| Installs via                   | `npx skills add keeperhub/agentic-wallet-skills`      | `npx agentcash add https://app.keeperhub.com`                             | `npx skills add coinbase/agentic-wallet-skills`                  |
+### agentcash
 
-See the live [x402 Wallets for Agents](/ai-tools/agent-wallets) page for a broader comparison.
+`agentcash` is a CLI + skill bundle from [agentcash.dev](https://agentcash.dev). It maintains a local USDC wallet and signs x402 payments on the agent's behalf.
 
-### Tradeoffs
+```bash
+npx agentcash add https://app.keeperhub.com
+```
 
-- **KeeperHub** is a managed service: KeeperHub runs the Turnkey sub-organisation and proxies signing. You trust KeeperHub to honor the policy-engine limits and the PreToolUse hook decision. In return you get no-plaintext-key storage and the three-tier hook out of the box.
-- **agentcash** is fully self-custodial with plaintext key material. Appropriate for development and automation experiments with small balances; not a production wallet for meaningful funds.
-- **Coinbase agentic-wallet-skills** depends on the CDP ecosystem for its managed variant. Good fit if you already run on CDP; introduces Coinbase platform lock-in otherwise.
+This walks KeeperHub's `/openapi.json`, generates a `keeperhub` skill file, and symlinks it into every detected agent skill directory. After install, agents can call `search_workflows` and `call_workflow` as first-class tools; payment is routed through the agentcash wallet automatically.
 
-Pick based on your custody preferences and ecosystem fit; nothing prevents installing multiple wallets side by side.
+Supported agents (17 at time of writing): Claude Code, Cursor, Cline, Windsurf, Continue, Roo Code, Kilo Code, Goose, Trae, Junie, Crush, Kiro CLI, Qwen Code, OpenHands, Gemini CLI, Codex, GitHub Copilot.
+
+> **Testing only. Do not custody real funds.**
+> agentcash stores the wallet key as an **unencrypted plaintext file** at `~/.agentcash/wallet.json`. There is no passphrase, no keychain integration, and no seed-phrase backup: if the file is deleted, lost, or read by any process running as your user, the funds are gone or stolen. This is appropriate for development and automation experiments with small balances (a few dollars of USDC for test calls); it is not a production wallet.
+>
+> KeeperHub does not operate agentcash and is not responsible for funds stored in an agentcash wallet. Use it at your own risk and do not top it up beyond what you are willing to lose.
+
+### Coinbase agentic wallet skills
+
+Coinbase publishes a bundle of 9 general-purpose x402 skills that work with any x402-compliant service, KeeperHub included:
+
+```bash
+npx skills add coinbase/agentic-wallet-skills
+```
+
+This installs skills including `authenticate-wallet`, `fund`, `pay-for-service`, `search-for-service`, `send-usdc`, `trade`, `query-onchain-data`, and `x402`. The wallet is managed through Coinbase Developer Platform; payment flows route through the CDP infrastructure.
+
+Full documentation and security risk ratings: https://skills.sh/coinbase/agentic-wallet-skills
+
+## Comparison
+
+| Feature                 | KeeperHub Agentic Wallet                               | agentcash                                           | Coinbase agentic-wallet-skills                                     |
+|-------------------------|--------------------------------------------------------|-----------------------------------------------------|--------------------------------------------------------------------|
+| Key custody             | Server-side Turnkey enclave; agent holds HMAC secret   | Plaintext JSON on disk (`~/.agentcash/wallet.json`) | Coinbase Developer Platform (CDP) managed or self-custody variants |
+| Private key on disk     | Never                                                  | Yes (unencrypted)                                   | Depends on variant                                                 |
+| Payment protocols       | x402 (Base USDC) + MPP (Tempo USDC.e)                  | x402                                                | x402 (Coinbase ecosystem)                                          |
+| PreToolUse safety hook  | Three-tier auto/ask/block built-in                     | Not bundled                                         | Not bundled                                                        |
+| Onboarding              | Zero-registration, under 60 seconds                    | Zero-registration                                   | Requires CDP account for the managed variant                       |
+| Install                 | `npx @keeperhub/wallet skill install`                  | `npx agentcash add https://app.keeperhub.com`       | `npx skills add coinbase/agentic-wallet-skills`                    |
+
+## Choosing a wallet
+
+All three wallets call any x402-compliant service, KeeperHub included. The choice comes down to custody and ecosystem fit rather than anything KeeperHub-specific.
+
+The KeeperHub agentic wallet is a managed service: KeeperHub runs the Turnkey sub-organisation and proxies signing. You trust KeeperHub to honor the policy-engine limits and the `PreToolUse` hook decision. In return you get no-plaintext-key storage, a three-tier safety hook out of the box, and zero-registration onboarding.
+
+agentcash is fully self-custodial, with plaintext key material at rest. It fits development and automation experiments with small balances; it is not a production wallet for funds you care about.
+
+Coinbase agentic wallet skills assume the CDP ecosystem for the managed variant. A good fit if you already run on CDP; otherwise it introduces Coinbase platform lock-in.
+
+Nothing stops you installing multiple wallets side by side; they do not conflict.
+
+## What KeeperHub exposes to the agent
+
+Whichever wallet you install, the agent calls KeeperHub through two meta-tools (described in its OpenAPI at `/openapi.json`):
+
+- `search_workflows` -- find workflows by category, tag, or free text. Returns slug, description, inputSchema, and price for each match.
+- `call_workflow` -- execute a listed workflow by slug. For read workflows the call executes and returns the result; for write workflows it returns unsigned calldata `{to, data, value}` for the caller to submit.
+
+The meta-tool pattern keeps the agent's tool list small regardless of how many workflows are listed: the agent discovers available workflows at runtime instead of registering one tool per workflow.
+
+## Paying for calls
+
+Paid workflows settle in USDC on Base (via x402) or USDC.e on Tempo (via MPP). Most workflows cost under `$0.05` per call. See [Paid Workflows](/workflows/paid-workflows) for the creator-side view of the same settlement.
 
 ## Known limitations
 
 - Signing supported on Base and Tempo (chain 4217) only in v1.8. Solana, Arbitrum, Optimism, etc. are not yet supported.
 - Approval flow uses in-chat `ask` decisions; no email or SMS notification channel yet.
 - Anonymous wallets persist indefinitely until linked or explicitly deleted; sub-org cleanup is not automated.
-- The $0.50 onboarding credit is one-time per wallet and applies to KeeperHub paid workflows only.
 
 ## Links
 
 - npm: [`@keeperhub/wallet`](https://www.npmjs.com/package/@keeperhub/wallet)
 - Skills registry: [`keeperhub/agentic-wallet-skills`](https://skills.sh/keeperhub/agentic-wallet-skills)
 - Source: [`packages/wallet`](https://github.com/KeeperHub/keeperhub/tree/main/packages/wallet) in the KeeperHub monorepo.
-- Comparison of all agent wallets: [x402 Wallets for Agents](/ai-tools/agent-wallets).
