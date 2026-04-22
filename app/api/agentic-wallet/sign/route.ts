@@ -25,18 +25,20 @@
  * id -- never the raw body, the signature, or the HMAC secret.
  */
 import { eq } from "drizzle-orm";
+import { createApprovalRequest } from "@/lib/agentic-wallet/approval";
 import {
   ALLOWED_TEMPO_CHAIN_IDS,
   TEMPO_MAINNET_CHAIN_ID,
+  USDC_BASE_ADDRESS,
+  USDC_TEMPO_ADDRESS,
 } from "@/lib/agentic-wallet/constants";
 import { verifyHmacRequest } from "@/lib/agentic-wallet/hmac";
-import { createApprovalRequest } from "@/lib/agentic-wallet/approval";
 import { classifyRisk } from "@/lib/agentic-wallet/risk";
 import {
   PolicyBlockedError,
-  TurnkeyUpstreamError,
   signMppProof,
   signX402Challenge,
+  TurnkeyUpstreamError,
 } from "@/lib/agentic-wallet/sign";
 import { verifyWorkflowBinding } from "@/lib/agentic-wallet/workflow-binding";
 import { db } from "@/lib/db";
@@ -269,7 +271,10 @@ export async function POST(request: Request): Promise<Response> {
 
   if (risk === "block") {
     return Response.json(
-      { error: "Operation blocked by risk classification", code: "RISK_BLOCKED" },
+      {
+        error: "Operation blocked by risk classification",
+        code: "RISK_BLOCKED",
+      },
       { status: 403 }
     );
   }
@@ -280,6 +285,12 @@ export async function POST(request: Request): Promise<Response> {
         subOrgId: auth.subOrgId,
         riskLevel: "ask",
         operationPayload: { chain, paymentChallenge: challenge },
+        binding: {
+          recipient: String(challenge.payTo ?? ""),
+          amountMicro: String(challenge.amount ?? "0"),
+          chain,
+          contract: chain === "base" ? USDC_BASE_ADDRESS : USDC_TEMPO_ADDRESS,
+        },
       });
       return Response.json(
         { approvalRequestId: ar.id, status: "pending" },

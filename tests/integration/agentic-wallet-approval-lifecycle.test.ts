@@ -42,7 +42,42 @@ type ApprovalRow = {
   createdAt: Date;
   resolvedAt: Date | null;
   resolvedByUserId: string | null;
+  boundRecipient: string;
+  boundAmountMicro: string;
+  boundChain: string;
+  boundContract: string;
 };
+
+// Phase 37 fix B1: canonical binding fixture used by the seed helpers below.
+// The USDC Base address mirrors lib/agentic-wallet/constants.ts so direct
+// seed inserts match what the /approval-request route would write.
+const BOUND_RECIPIENT_FIXTURE = "0x1111111111111111111111111111111111111111";
+const BOUND_AMOUNT_FIXTURE = "50000000";
+const BOUND_CONTRACT_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+
+function bindingFixture(): {
+  recipient: string;
+  amountMicro: string;
+  chain: string;
+  contract: string;
+} {
+  return {
+    recipient: BOUND_RECIPIENT_FIXTURE,
+    amountMicro: BOUND_AMOUNT_FIXTURE,
+    chain: "base",
+    contract: BOUND_CONTRACT_BASE,
+  };
+}
+
+function baseOperationPayload(): Record<string, unknown> {
+  return {
+    chain: "base",
+    paymentChallenge: {
+      payTo: BOUND_RECIPIENT_FIXTURE,
+      amount: BOUND_AMOUNT_FIXTURE,
+    },
+  };
+}
 
 const HMAC_SECRET = "a".repeat(64); // 64 hex chars -- matches the provision output shape
 const OTHER_HMAC_SECRET = "b".repeat(64);
@@ -196,6 +231,12 @@ function wireApprovalStore(): void {
       subOrgId: string;
       riskLevel: "ask" | "block";
       operationPayload: Record<string, unknown>;
+      binding: {
+        recipient: string;
+        amountMicro: string;
+        chain: string;
+        contract: string;
+      };
     }) => {
       if ((args.riskLevel as string) === "auto") {
         throw new Error("createApprovalRequest: riskLevel 'auto' rejected");
@@ -210,6 +251,10 @@ function wireApprovalStore(): void {
         createdAt: new Date(),
         resolvedAt: null,
         resolvedByUserId: null,
+        boundRecipient: args.binding.recipient,
+        boundAmountMicro: args.binding.amountMicro,
+        boundChain: args.binding.chain,
+        boundContract: args.binding.contract,
       };
       approvalStore.set(id, row);
       return { id };
@@ -221,11 +266,7 @@ function wireApprovalStore(): void {
   });
 
   mockResolveApprovalRequest.mockImplementation(
-    async (
-      id: string,
-      userId: string,
-      decision: "approved" | "rejected"
-    ) => {
+    async (id: string, userId: string, decision: "approved" | "rejected") => {
       const row = approvalStore.get(id) as ApprovalRow | undefined;
       if (!row || row.status !== "pending") {
         return null;
@@ -265,9 +306,10 @@ describe("agentic-wallet approval-request lifecycle", () => {
   });
 
   it("create (HMAC) -> poll (HMAC) returns pending -> approve (session) -> poll returns approved", async () => {
+    const operationPayload = baseOperationPayload();
     const body = JSON.stringify({
       riskLevel: "ask",
-      operationPayload: { chain: "base", amount: "50000000" },
+      operationPayload,
     });
     const createReq = makeHmacRequest(
       "POST",
@@ -299,10 +341,7 @@ describe("agentic-wallet approval-request lifecycle", () => {
     };
     expect(pollBody1.status).toBe("pending");
     expect(pollBody1.riskLevel).toBe("ask");
-    expect(pollBody1.operationPayload).toEqual({
-      chain: "base",
-      amount: "50000000",
-    });
+    expect(pollBody1.operationPayload).toEqual(operationPayload);
 
     // Approve via session.
     mockGetSession.mockResolvedValue({
@@ -344,6 +383,7 @@ describe("agentic-wallet approval-request lifecycle", () => {
       subOrgId: SUB_ORG,
       riskLevel: "ask",
       operationPayload: { k: "v" },
+      binding: bindingFixture(),
     });
 
     mockGetSession.mockResolvedValue({
@@ -373,6 +413,7 @@ describe("agentic-wallet approval-request lifecycle", () => {
       subOrgId: SUB_ORG,
       riskLevel: "ask",
       operationPayload: { k: "v" },
+      binding: bindingFixture(),
     });
     // Ownership table says the wallet belongs to OWNER_USER_ID; the attacker
     // will not match.
@@ -395,6 +436,7 @@ describe("agentic-wallet approval-request lifecycle", () => {
       subOrgId: SUB_ORG,
       riskLevel: "ask",
       operationPayload: { k: "v" },
+      binding: bindingFixture(),
     });
     mockGetSession.mockResolvedValue(null);
     const res = await postApprove(
@@ -430,6 +472,7 @@ describe("agentic-wallet approval-request lifecycle", () => {
       subOrgId: SUB_ORG,
       riskLevel: "ask",
       operationPayload: { k: "v" },
+      binding: bindingFixture(),
     });
     // Caller signs with OTHER_SUB_ORG's secret -- valid HMAC, but for the
     // wrong sub-org. Must 404 (not 403) so the caller cannot learn the row
@@ -450,6 +493,7 @@ describe("agentic-wallet approval-request lifecycle", () => {
       subOrgId: SUB_ORG,
       riskLevel: "ask",
       operationPayload: { k: "v" },
+      binding: bindingFixture(),
     });
     mockGetSession.mockResolvedValue({
       user: { id: OWNER_USER_ID, email: "owner@test" },
@@ -485,5 +529,113 @@ describe("agentic-wallet approval-request lifecycle", () => {
       paramCtx("ar_nonexistent")
     );
     expect(res.status).toBe(404);
+  });
+
+  it("rejects approval-request without bound recipient/amount/chain/contract (Phase 37 fix B1)", async () => {
+    mockCreateApprovalRequest.mockClear();
+    // operationPayload has chain + paymentChallenge but the challenge is
+    // missing payTo AND amount. Route must 422 BINDING_REQUIRED without
+    // inserting the row.
+    const body = JSON.stringify({
+      riskLevel: "ask",
+      operationPayload: { chain: "base", paymentChallenge: {} },
+    });
+    const req = makeHmacRequest(
+      "POST",
+      "/api/agentic-wallet/approval-request",
+      body,
+      SUB_ORG,
+      HMAC_SECRET
+    );
+    const res = await postApprovalRequest(req);
+    expect(res.status).toBe(422);
+    const json = (await res.json()) as { code: string };
+    expect(json.code).toBe("BINDING_REQUIRED");
+    expect(mockCreateApprovalRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects approval-request with operationPayload missing chain (Phase 37 fix B1)", async () => {
+    mockCreateApprovalRequest.mockClear();
+    const body = JSON.stringify({
+      riskLevel: "ask",
+      operationPayload: {
+        paymentChallenge: {
+          payTo: BOUND_RECIPIENT_FIXTURE,
+          amount: BOUND_AMOUNT_FIXTURE,
+        },
+      },
+    });
+    const req = makeHmacRequest(
+      "POST",
+      "/api/agentic-wallet/approval-request",
+      body,
+      SUB_ORG,
+      HMAC_SECRET
+    );
+    const res = await postApprovalRequest(req);
+    expect(res.status).toBe(422);
+    const json = (await res.json()) as { code: string };
+    expect(json.code).toBe("BINDING_REQUIRED");
+    expect(mockCreateApprovalRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects approval-request with payload larger than 8 KiB (Phase 37 fix B3)", async () => {
+    mockCreateApprovalRequest.mockClear();
+    const bigString = "x".repeat(9 * 1024);
+    const body = JSON.stringify({
+      riskLevel: "ask",
+      operationPayload: {
+        chain: "base",
+        paymentChallenge: {
+          payTo: BOUND_RECIPIENT_FIXTURE,
+          amount: BOUND_AMOUNT_FIXTURE,
+          note: bigString,
+        },
+      },
+    });
+    const req = makeHmacRequest(
+      "POST",
+      "/api/agentic-wallet/approval-request",
+      body,
+      SUB_ORG,
+      HMAC_SECRET
+    );
+    const res = await postApprovalRequest(req);
+    expect(res.status).toBe(413);
+    const json = (await res.json()) as { code: string };
+    expect(json.code).toBe("PAYLOAD_TOO_LARGE");
+    expect(mockCreateApprovalRequest).not.toHaveBeenCalled();
+  });
+
+  it("writes binding fields from paymentChallenge into the approval row (Phase 37 fix B1)", async () => {
+    mockCreateApprovalRequest.mockClear();
+    const body = JSON.stringify({
+      riskLevel: "ask",
+      operationPayload: baseOperationPayload(),
+    });
+    const req = makeHmacRequest(
+      "POST",
+      "/api/agentic-wallet/approval-request",
+      body,
+      SUB_ORG,
+      HMAC_SECRET
+    );
+    const res = await postApprovalRequest(req);
+    expect(res.status).toBe(201);
+    expect(mockCreateApprovalRequest).toHaveBeenCalledTimes(1);
+    const callArgs = mockCreateApprovalRequest.mock.calls[0]?.[0] as {
+      binding: {
+        recipient: string;
+        amountMicro: string;
+        chain: string;
+        contract: string;
+      };
+    };
+    expect(callArgs.binding).toEqual({
+      recipient: BOUND_RECIPIENT_FIXTURE,
+      amountMicro: BOUND_AMOUNT_FIXTURE,
+      chain: "base",
+      contract: BOUND_CONTRACT_BASE,
+    });
   });
 });

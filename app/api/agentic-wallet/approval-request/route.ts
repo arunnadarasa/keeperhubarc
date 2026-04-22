@@ -13,6 +13,10 @@
  * endpoint + subOrgId -- never the raw body or the HMAC secret.
  */
 import { createApprovalRequest } from "@/lib/agentic-wallet/approval";
+import {
+  USDC_BASE_ADDRESS,
+  USDC_TEMPO_ADDRESS,
+} from "@/lib/agentic-wallet/constants";
 import { verifyHmacRequest } from "@/lib/agentic-wallet/hmac";
 import { ErrorCategory, logSystemError } from "@/lib/logging";
 
@@ -54,11 +58,59 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
+  // Phase 37 fix B1: extract + validate the binding fields from
+  // operationPayload. The server writes these to dedicated bound_* columns so
+  // /approve can refuse to resolve a row whose payload was mutated after
+  // create.
+  const op = body.operationPayload as Record<string, unknown>;
+  const chain = op.chain;
+  const challenge =
+    op.paymentChallenge && typeof op.paymentChallenge === "object"
+      ? (op.paymentChallenge as Record<string, unknown>)
+      : undefined;
+  if ((chain !== "base" && chain !== "tempo") || !challenge) {
+    return Response.json(
+      {
+        error: "operationPayload missing chain + paymentChallenge",
+        code: "BINDING_REQUIRED",
+      },
+      { status: 422 }
+    );
+  }
+  const recipient =
+    chain === "base"
+      ? String(challenge.payTo ?? "")
+      : String(challenge.payTo ?? challenge.recipient ?? "");
+  const amountMicro = String(challenge.amount ?? "0");
+  const contract = chain === "base" ? USDC_BASE_ADDRESS : USDC_TEMPO_ADDRESS;
+  if (!recipient || amountMicro === "0") {
+    return Response.json(
+      {
+        error: "operationPayload missing recipient or amount",
+        code: "BINDING_REQUIRED",
+      },
+      { status: 422 }
+    );
+  }
+
+  // Phase 37 fix B3: payload size cap. The per-sub-org pending-row count cap
+  // lands in Task 14.
+  if (JSON.stringify(body.operationPayload).length > 8 * 1024) {
+    return Response.json(
+      {
+        error: "operationPayload too large (>8 KiB)",
+        code: "PAYLOAD_TOO_LARGE",
+      },
+      { status: 413 }
+    );
+  }
+
   try {
     const { id } = await createApprovalRequest({
       subOrgId: auth.subOrgId,
       riskLevel: body.riskLevel,
       operationPayload: body.operationPayload as Record<string, unknown>,
+      binding: { recipient, amountMicro, chain, contract },
     });
     return Response.json({ id }, { status: 201 });
   } catch (error) {

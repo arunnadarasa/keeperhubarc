@@ -34,11 +34,20 @@ vi.mock("@/lib/db/schema", () => ({
   walletApprovalRequests: { _tableName: "wallet_approval_requests" },
 }));
 
-const { createApprovalRequest } = await import(
-  "@/lib/agentic-wallet/approval"
-);
+const { createApprovalRequest } = await import("@/lib/agentic-wallet/approval");
 
 const SUB_ORG = "subOrg_approval_test";
+
+// Phase 37 fix B1: the binding arg is required on every createApprovalRequest
+// call. Unit tests use a canonical fixture so they exercise the insert shape
+// rather than the route-level validation (which is covered in the integration
+// test).
+const BINDING_FIXTURE = {
+  recipient: "0x1111111111111111111111111111111111111111",
+  amountMicro: "50000000",
+  chain: "base",
+  contract: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+} as const;
 
 describe("createApprovalRequest", () => {
   beforeEach(() => {
@@ -56,6 +65,7 @@ describe("createApprovalRequest", () => {
       subOrgId: SUB_ORG,
       riskLevel: "ask",
       operationPayload: { foo: "bar" },
+      binding: { ...BINDING_FIXTURE },
     });
     expect(mockInsertCall).toHaveBeenCalledTimes(1);
     const payload = mockInsertCall.mock.calls[0]?.[1] as Record<
@@ -67,9 +77,13 @@ describe("createApprovalRequest", () => {
     expect(payload.operationPayload).toEqual({ foo: "bar" });
     // status is either omitted (relies on DB default "pending") or explicitly
     // set to "pending"; tolerate either.
-    const statusOrMissing =
-      (payload.status as string | undefined) ?? "pending";
+    const statusOrMissing = (payload.status as string | undefined) ?? "pending";
     expect(statusOrMissing).toBe("pending");
+    // Phase 37 fix B1: bound_* columns must be populated from the binding arg.
+    expect(payload.boundRecipient).toBe(BINDING_FIXTURE.recipient);
+    expect(payload.boundAmountMicro).toBe(BINDING_FIXTURE.amountMicro);
+    expect(payload.boundChain).toBe(BINDING_FIXTURE.chain);
+    expect(payload.boundContract).toBe(BINDING_FIXTURE.contract);
   });
 
   it("returns the inserted row id", async () => {
@@ -78,6 +92,7 @@ describe("createApprovalRequest", () => {
       subOrgId: SUB_ORG,
       riskLevel: "ask",
       operationPayload: { k: "v" },
+      binding: { ...BINDING_FIXTURE },
     });
     expect(result.id).toBe("ar_generated_xyz");
   });
@@ -87,6 +102,7 @@ describe("createApprovalRequest", () => {
       subOrgId: SUB_ORG,
       riskLevel: "block",
       operationPayload: { k: "v" },
+      binding: { ...BINDING_FIXTURE },
     });
     const payload = mockInsertCall.mock.calls[0]?.[1] as Record<
       string,
@@ -105,6 +121,7 @@ describe("createApprovalRequest", () => {
         // defensively if a caller ignores the type hint.
         riskLevel: "auto",
         operationPayload: { k: "v" },
+        binding: { ...BINDING_FIXTURE },
       })
     ).rejects.toThrow();
     expect(mockInsertCall).not.toHaveBeenCalled();

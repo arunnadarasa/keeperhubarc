@@ -19,14 +19,28 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
-  walletApprovalRequests,
   type WalletApprovalRequest,
+  walletApprovalRequests,
 } from "@/lib/db/schema";
+
+/**
+ * Phase 37 fix B1: Immutable binding for an approval request. The four fields
+ * are written into dedicated bound_* columns at create time and re-checked on
+ * /approve so a tampered operationPayload cannot resolve into a different
+ * recipient, amount, chain, or USDC contract.
+ */
+export type ApprovalBinding = {
+  recipient: string;
+  amountMicro: string; // decimal string (USDC micros)
+  chain: string;
+  contract: string;
+};
 
 export type CreateApprovalRequestArgs = {
   subOrgId: string;
   riskLevel: "ask" | "block";
   operationPayload: Record<string, unknown>;
+  binding: ApprovalBinding;
 };
 
 export async function createApprovalRequest(
@@ -47,6 +61,10 @@ export async function createApprovalRequest(
       subOrgId: args.subOrgId,
       riskLevel: args.riskLevel,
       operationPayload: args.operationPayload,
+      boundRecipient: args.binding.recipient,
+      boundAmountMicro: args.binding.amountMicro,
+      boundChain: args.binding.chain,
+      boundContract: args.binding.contract,
     })
     .returning({ id: walletApprovalRequests.id });
 
