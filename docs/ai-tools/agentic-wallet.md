@@ -15,21 +15,11 @@ A skill + npm package from KeeperHub. Custody is server-side in a per-wallet [Tu
 
 ### Install
 
-**Recommended -- one command, fully wired up:**
-
 ```bash
 npx @keeperhub/wallet skill install
 ```
 
-This writes the skill file into every detected agent skill directory (Claude Code, Cursor, Cline, Windsurf, OpenCode) **and** registers the `keeperhub-wallet-hook` `PreToolUse` safety hook in `~/.claude/settings.json`. Re-running is safe: the installer is idempotent and preserves any foreign keys already in `settings.json`. For agents without auto-registration support a copy-paste notice is printed.
-
-**Alternative -- `npx skills add` (skill file only):**
-
-```bash
-npx skills add keeperhub/agentic-wallet-skills
-```
-
-This installs the skill file via the vercel-labs/skills convention but **does not register the `PreToolUse` safety hook**. Without the hook, signing calls are not gated by your auto/ask/block thresholds. After running `skills add` you MUST also run `npx @keeperhub/wallet skill install` to activate the safety hook. The combination is safe: `skill install` is idempotent and will not duplicate the skill file written by `skills add`.
+This writes the skill file into every detected agent skill directory (Claude Code, Cursor, Cline, Windsurf, OpenCode) and registers the `keeperhub-wallet-hook` `PreToolUse` safety hook in `~/.claude/settings.json`. Re-running is safe: the installer is idempotent and preserves any foreign keys already in `settings.json`. For agents without auto-registration support a copy-paste notice is printed.
 
 ### First payment
 
