@@ -78,8 +78,8 @@ export async function verifySessionToken(
 export async function verifySessionTokenDetailed(
   token: string
 ): Promise<VerifyResult> {
-  const secret = getSessionSecret();
   try {
+    const secret = getSessionSecret();
     const { payload } = await jwtVerify(token, secret, {
       algorithms: ["HS256"],
       clockTolerance: MAX_RENEWAL_GRACE_SECONDS,

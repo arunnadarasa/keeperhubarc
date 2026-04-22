@@ -191,6 +191,20 @@ describe("verifySessionToken rejects invalid signature", () => {
   });
 });
 
+describe("verifySessionTokenDetailed handles config errors", () => {
+  it("returns malformed when no session secret is configured", async () => {
+    delete process.env.MCP_SESSION_SECRET;
+    delete process.env.OAUTH_JWT_SECRET;
+    delete process.env.BETTER_AUTH_SECRET;
+
+    const result = await verifySessionTokenDetailed("any.token.here");
+    expect(result.payload).toBeNull();
+    if (!result.payload) {
+      expect(result.reason).toBe("malformed");
+    }
+  });
+});
+
 describe("absolute max session lifetime", () => {
   it("MAX_SESSION_LIFETIME_SECONDS is 2592000 (30 days)", () => {
     expect(MAX_SESSION_LIFETIME_SECONDS).toBe(2_592_000);
