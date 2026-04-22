@@ -13,8 +13,7 @@
 import type { Turnkey } from "@turnkey/sdk-server";
 
 // USDC contract addresses — CONTEXT Resolution #2 (locked 2026-04-21).
-// Single source of truth lives in ./constants; re-exported here under the
-// historical names so existing callers keep working until the next refactor.
+// Single source of truth lives in ./constants.
 import {
   USDC_BASE_ADDRESS,
   USDC_BASE_LC,
@@ -22,12 +21,9 @@ import {
   USDC_TEMPO_LC,
 } from "./constants";
 
-export const USDC_BASE = USDC_BASE_ADDRESS;
-export const USDC_TEMPO = USDC_TEMPO_ADDRESS;
-
 export const FACILITATOR_ALLOWLIST: readonly string[] = [
-  USDC_BASE,
-  USDC_TEMPO,
+  USDC_BASE_ADDRESS,
+  USDC_TEMPO_ADDRESS,
 ] as const;
 
 export type BaselinePolicy = {

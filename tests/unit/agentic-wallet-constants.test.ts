@@ -23,6 +23,6 @@ describe("agentic-wallet constants", () => {
   it("chain ids are documented", () => {
     expect(BASE_CHAIN_ID).toBe(8453);
     expect(TEMPO_MAINNET_CHAIN_ID).toBe(4217);
-    expect(TEMPO_TESTNET_CHAIN_ID).toBeGreaterThan(0);
+    expect(TEMPO_TESTNET_CHAIN_ID).toBe(4218);
   });
 });

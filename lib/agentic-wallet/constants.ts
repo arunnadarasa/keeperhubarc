@@ -18,8 +18,3 @@ export const TEMPO_MAINNET_CHAIN_ID = 4217 as const;
 // Tempo testnet — matches the Tempo public testnet chain id. Confirmed
 // against the Tempo network docs at writing-plans research time.
 export const TEMPO_TESTNET_CHAIN_ID = 4218 as const;
-
-export const ALLOWED_TEMPO_CHAIN_IDS: readonly number[] = [
-  TEMPO_MAINNET_CHAIN_ID,
-  TEMPO_TESTNET_CHAIN_ID,
-] as const;
