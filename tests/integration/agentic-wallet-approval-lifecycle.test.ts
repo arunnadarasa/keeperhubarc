@@ -38,8 +38,11 @@ type ApprovalRow = {
   subOrgId: string;
   riskLevel: "ask" | "block";
   operationPayload: Record<string, unknown>;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "expired";
   createdAt: Date;
+  // Phase 37 fix B2: hard TTL. Seeded rows default to 15 minutes ahead so
+  // the existing happy-path tests never trip the expiry branch.
+  expiresAt: Date;
   resolvedAt: Date | null;
   resolvedByUserId: string | null;
   boundRecipient: string;
@@ -90,6 +93,7 @@ const {
   mockCreateApprovalRequest,
   mockGetApprovalRequest,
   mockResolveApprovalRequest,
+  mockCheckApprovalForResolve,
 } = vi.hoisted(() => {
   const store = new Map<string, unknown>();
   return {
@@ -100,6 +104,7 @@ const {
     mockCreateApprovalRequest: vi.fn(),
     mockGetApprovalRequest: vi.fn(),
     mockResolveApprovalRequest: vi.fn(),
+    mockCheckApprovalForResolve: vi.fn(),
   };
 });
 
@@ -114,6 +119,7 @@ vi.mock("@/lib/agentic-wallet/approval", async (importOriginal) => {
     createApprovalRequest: mockCreateApprovalRequest,
     getApprovalRequest: mockGetApprovalRequest,
     resolveApprovalRequest: mockResolveApprovalRequest,
+    checkApprovalForResolve: mockCheckApprovalForResolve,
   };
 });
 
@@ -257,6 +263,7 @@ function wireApprovalStore(): void {
         operationPayload: args.operationPayload,
         status: "pending",
         createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
         resolvedAt: null,
         resolvedByUserId: null,
         boundRecipient: args.binding.recipient,
@@ -286,6 +293,49 @@ function wireApprovalStore(): void {
       return row;
     }
   );
+
+  // Phase 37 fix B2: mirror the real checkApprovalForResolve lifecycle gate
+  // so route handlers see the same not-found / already-resolved / expired /
+  // binding-mismatch outcomes the production helper produces.
+  mockCheckApprovalForResolve.mockImplementation(async (id: string) => {
+    const row = approvalStore.get(id) as ApprovalRow | undefined;
+    if (!row) {
+      return { ok: false, reason: "not-found" };
+    }
+    if (row.status !== "pending") {
+      return { ok: false, reason: "already-resolved" };
+    }
+    if (row.expiresAt.getTime() <= Date.now()) {
+      row.status = "expired";
+      row.resolvedAt = new Date();
+      approvalStore.set(id, row);
+      return { ok: false, reason: "expired" };
+    }
+    // Re-derive binding from the current operationPayload.
+    const op = row.operationPayload as {
+      chain?: unknown;
+      paymentChallenge?: {
+        payTo?: unknown;
+        recipient?: unknown;
+        amount?: unknown;
+      };
+    };
+    const challenge = op.paymentChallenge;
+    const currentRecipient =
+      op.chain === "base"
+        ? String(challenge?.payTo ?? "")
+        : String(challenge?.payTo ?? challenge?.recipient ?? "");
+    const currentAmount = String(challenge?.amount ?? "");
+    const currentChain = String(op.chain ?? "");
+    if (
+      currentRecipient !== row.boundRecipient ||
+      currentAmount !== row.boundAmountMicro ||
+      currentChain !== row.boundChain
+    ) {
+      return { ok: false, reason: "binding-mismatch" };
+    }
+    return { ok: true, row };
+  });
 }
 
 const SUB_ORG = "subOrg_test_abc";
@@ -386,11 +436,13 @@ describe("agentic-wallet approval-request lifecycle", () => {
   });
 
   it("second approve on the same id returns 409 Already resolved", async () => {
-    // Seed: one pending row for SUB_ORG.
+    // Seed: one pending row for SUB_ORG. Binding must agree with the payload
+    // so Task 13's checkApprovalForResolve re-derivation does not flag the
+    // row as binding-mismatch.
     const { id } = await mockCreateApprovalRequest({
       subOrgId: SUB_ORG,
       riskLevel: "ask",
-      operationPayload: { k: "v" },
+      operationPayload: baseOperationPayload(),
       binding: bindingFixture(),
     });
 
@@ -420,7 +472,7 @@ describe("agentic-wallet approval-request lifecycle", () => {
     const { id } = await mockCreateApprovalRequest({
       subOrgId: SUB_ORG,
       riskLevel: "ask",
-      operationPayload: { k: "v" },
+      operationPayload: baseOperationPayload(),
       binding: bindingFixture(),
     });
     // Ownership table says the wallet belongs to OWNER_USER_ID; the attacker
@@ -443,7 +495,7 @@ describe("agentic-wallet approval-request lifecycle", () => {
     const { id } = await mockCreateApprovalRequest({
       subOrgId: SUB_ORG,
       riskLevel: "ask",
-      operationPayload: { k: "v" },
+      operationPayload: baseOperationPayload(),
       binding: bindingFixture(),
     });
     mockGetSession.mockResolvedValue(null);
@@ -500,7 +552,7 @@ describe("agentic-wallet approval-request lifecycle", () => {
     const { id } = await mockCreateApprovalRequest({
       subOrgId: SUB_ORG,
       riskLevel: "ask",
-      operationPayload: { k: "v" },
+      operationPayload: baseOperationPayload(),
       binding: bindingFixture(),
     });
     mockGetSession.mockResolvedValue({
@@ -752,6 +804,149 @@ describe("agentic-wallet approval-request lifecycle", () => {
     const json = (await res.json()) as { code: string };
     expect(json.code).toBe("BINDING_REQUIRED");
     expect(mockCreateApprovalRequest).not.toHaveBeenCalled();
+  });
+
+  it("returns 410 GONE and lazy-flips to expired when expires_at has passed (Phase 37 fix B2)", async () => {
+    const { id } = await mockCreateApprovalRequest({
+      subOrgId: SUB_ORG,
+      riskLevel: "ask",
+      operationPayload: baseOperationPayload(),
+      binding: bindingFixture(),
+    });
+    // Directly mutate the in-memory row to simulate a row whose TTL has
+    // elapsed without the cron sweeper reaching it yet.
+    const seeded = approvalStore.get(id) as ApprovalRow;
+    seeded.expiresAt = new Date(Date.now() - 1000);
+    approvalStore.set(id, seeded);
+
+    mockGetSession.mockResolvedValue({
+      user: { id: OWNER_USER_ID, email: "owner@test" },
+    });
+    const res = await postApprove(
+      makeSessionRequest(`/api/agentic-wallet/${id}/approve`),
+      paramCtx(id)
+    );
+    expect(res.status).toBe(410);
+    const body = (await res.json()) as { code: string };
+    expect(body.code).toBe("EXPIRED");
+
+    // Verify the lazy-flip: row should now be status="expired" and
+    // resolvedAt stamped so the cron sweeper is not the only path.
+    const flipped = approvalStore.get(id) as ApprovalRow;
+    expect(flipped.status).toBe("expired");
+    expect(flipped.resolvedAt).not.toBeNull();
+  });
+
+  it("returns 422 BINDING_MISMATCH when operationPayload is tampered after create (Phase 37 fix B2)", async () => {
+    const { id } = await mockCreateApprovalRequest({
+      subOrgId: SUB_ORG,
+      riskLevel: "ask",
+      operationPayload: baseOperationPayload(),
+      binding: bindingFixture(),
+    });
+    // Tamper: mutate the challenge recipient after the bound_* columns are
+    // locked in. checkApprovalForResolve re-derives from paymentChallenge and
+    // must refuse the resolve.
+    const seeded = approvalStore.get(id) as ApprovalRow;
+    const challenge = (
+      seeded.operationPayload as { paymentChallenge: Record<string, unknown> }
+    ).paymentChallenge;
+    challenge.payTo = "0x2222222222222222222222222222222222222222";
+    approvalStore.set(id, seeded);
+
+    mockGetSession.mockResolvedValue({
+      user: { id: OWNER_USER_ID, email: "owner@test" },
+    });
+    const res = await postApprove(
+      makeSessionRequest(`/api/agentic-wallet/${id}/approve`),
+      paramCtx(id)
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { code: string };
+    expect(body.code).toBe("BINDING_MISMATCH");
+
+    // A mismatch must NOT auto-flip the status -- only expiry does.
+    const after = approvalStore.get(id) as ApprovalRow;
+    expect(after.status).toBe("pending");
+  });
+
+  it("reject also returns 410 GONE for an expired approval request (Phase 37 fix B2)", async () => {
+    const { id } = await mockCreateApprovalRequest({
+      subOrgId: SUB_ORG,
+      riskLevel: "ask",
+      operationPayload: baseOperationPayload(),
+      binding: bindingFixture(),
+    });
+    const seeded = approvalStore.get(id) as ApprovalRow;
+    seeded.expiresAt = new Date(Date.now() - 1000);
+    approvalStore.set(id, seeded);
+
+    mockGetSession.mockResolvedValue({
+      user: { id: OWNER_USER_ID, email: "owner@test" },
+    });
+    const res = await postReject(
+      makeSessionRequest(`/api/agentic-wallet/${id}/reject`),
+      paramCtx(id)
+    );
+    expect(res.status).toBe(410);
+    const body = (await res.json()) as { code: string };
+    expect(body.code).toBe("EXPIRED");
+    const flipped = approvalStore.get(id) as ApprovalRow;
+    expect(flipped.status).toBe("expired");
+  });
+
+  it("reject also returns 422 BINDING_MISMATCH when payload tampered (Phase 37 fix B2)", async () => {
+    const { id } = await mockCreateApprovalRequest({
+      subOrgId: SUB_ORG,
+      riskLevel: "ask",
+      operationPayload: baseOperationPayload(),
+      binding: bindingFixture(),
+    });
+    const seeded = approvalStore.get(id) as ApprovalRow;
+    const challenge = (
+      seeded.operationPayload as { paymentChallenge: Record<string, unknown> }
+    ).paymentChallenge;
+    challenge.amount = "99999999";
+    approvalStore.set(id, seeded);
+
+    mockGetSession.mockResolvedValue({
+      user: { id: OWNER_USER_ID, email: "owner@test" },
+    });
+    const res = await postReject(
+      makeSessionRequest(`/api/agentic-wallet/${id}/reject`),
+      paramCtx(id)
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { code: string };
+    expect(body.code).toBe("BINDING_MISMATCH");
+    const after = approvalStore.get(id) as ApprovalRow;
+    expect(after.status).toBe("pending");
+  });
+
+  it("returns 409 ALREADY_RESOLVED when approving a row already resolved (Phase 37 fix B2)", async () => {
+    const { id } = await mockCreateApprovalRequest({
+      subOrgId: SUB_ORG,
+      riskLevel: "ask",
+      operationPayload: baseOperationPayload(),
+      binding: bindingFixture(),
+    });
+    // Pre-resolve the row out-of-band.
+    const seeded = approvalStore.get(id) as ApprovalRow;
+    seeded.status = "approved";
+    seeded.resolvedAt = new Date();
+    seeded.resolvedByUserId = OWNER_USER_ID;
+    approvalStore.set(id, seeded);
+
+    mockGetSession.mockResolvedValue({
+      user: { id: OWNER_USER_ID, email: "owner@test" },
+    });
+    const res = await postApprove(
+      makeSessionRequest(`/api/agentic-wallet/${id}/approve`),
+      paramCtx(id)
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { code: string };
+    expect(body.code).toBe("ALREADY_RESOLVED");
   });
 
   it("writes binding fields from paymentChallenge into the approval row (Phase 37 fix B1)", async () => {

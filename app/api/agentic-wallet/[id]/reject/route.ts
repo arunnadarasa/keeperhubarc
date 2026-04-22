@@ -8,7 +8,7 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import {
-  getApprovalRequest,
+  checkApprovalForResolve,
   resolveApprovalRequest,
 } from "@/lib/agentic-wallet/approval";
 import { auth } from "@/lib/auth";
@@ -53,10 +53,34 @@ export async function POST(
   const userId = session.user.id;
 
   try {
-    const row = await getApprovalRequest(id);
-    if (!row) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const check = await checkApprovalForResolve(id);
+    if (!check.ok) {
+      if (check.reason === "not-found") {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+      if (check.reason === "expired") {
+        return NextResponse.json(
+          { error: "Approval request expired", code: "EXPIRED" },
+          { status: 410 }
+        );
+      }
+      if (check.reason === "binding-mismatch") {
+        return NextResponse.json(
+          {
+            error: "Approval payload no longer matches the stored binding",
+            code: "BINDING_MISMATCH",
+          },
+          { status: 422 }
+        );
+      }
+      // already-resolved
+      return NextResponse.json(
+        { error: "Already resolved", code: "ALREADY_RESOLVED" },
+        { status: 409 }
+      );
     }
+
+    const row = check.row;
     const owner = await ownerCheck(row.subOrgId, userId);
     if (owner === "not-found") {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -68,7 +92,7 @@ export async function POST(
     const resolved = await resolveApprovalRequest(id, userId, "rejected");
     if (!resolved) {
       return NextResponse.json(
-        { error: "Already resolved" },
+        { error: "Already resolved", code: "ALREADY_RESOLVED" },
         { status: 409 }
       );
     }

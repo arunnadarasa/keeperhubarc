@@ -176,3 +176,66 @@ export async function resolveApprovalRequest(
     .returning();
   return rows[0] ?? null;
 }
+
+/**
+ * Phase 37 fix B2: unified gate guarding /approve and /reject against:
+ *   - `not-found`         -> 404, row id unknown
+ *   - `already-resolved`  -> 409, row status is not "pending"
+ *   - `expired`           -> 410 GONE, expiresAt has passed; lazy-flip the row
+ *                            to status="expired" so the cron sweeper is not
+ *                            the only path that marks the row terminal
+ *   - `binding-mismatch`  -> 422, operationPayload's re-derived
+ *                            recipient/amount/chain/contract diverges from the
+ *                            stored bound_* columns (payload was tampered with
+ *                            after create)
+ *
+ * Binding re-derivation funnels through `deriveApprovalBinding` so the same
+ * rules apply at /sign, at /approval-request, and here. A `null` result from
+ * the helper is also classed as `binding-mismatch` -- the payload can no
+ * longer be turned into a valid binding, therefore it cannot match what the
+ * row committed to at create time.
+ */
+export type ApprovalCheckResult =
+  | { ok: true; row: WalletApprovalRequest }
+  | {
+      ok: false;
+      reason: "not-found" | "expired" | "binding-mismatch" | "already-resolved";
+    };
+
+export async function checkApprovalForResolve(
+  id: string
+): Promise<ApprovalCheckResult> {
+  const row = await getApprovalRequest(id);
+  if (!row) {
+    return { ok: false, reason: "not-found" };
+  }
+  if (row.status !== "pending") {
+    return { ok: false, reason: "already-resolved" };
+  }
+  if (row.expiresAt && row.expiresAt.getTime() <= Date.now()) {
+    // Lazy-flip to "expired" so callers see a terminal row immediately; the
+    // cron sweeper can still catch rows that never get polled.
+    await db
+      .update(walletApprovalRequests)
+      .set({ status: "expired", resolvedAt: new Date() })
+      .where(eq(walletApprovalRequests.id, id));
+    return { ok: false, reason: "expired" };
+  }
+
+  const op = row.operationPayload as Record<string, unknown>;
+  const challenge = op?.paymentChallenge;
+  const current = deriveApprovalBinding(op?.chain, challenge);
+  if (!current) {
+    return { ok: false, reason: "binding-mismatch" };
+  }
+  if (
+    current.recipient !== row.boundRecipient ||
+    current.amountMicro !== row.boundAmountMicro ||
+    current.chain !== row.boundChain ||
+    current.contract !== row.boundContract
+  ) {
+    return { ok: false, reason: "binding-mismatch" };
+  }
+
+  return { ok: true, row };
+}
