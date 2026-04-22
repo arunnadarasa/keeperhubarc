@@ -4,6 +4,7 @@ import type { ChainProviderManager } from "../chains/provider-manager";
 import type { AbiEvent } from "../chains/validation";
 import type { DedupStore } from "./dedup";
 import { EventListener } from "./event-listener";
+import { formatError } from "./format-error";
 
 /**
  * In-process registry of EventListener instances, keyed by workflow ID.
@@ -63,7 +64,7 @@ export class ListenerRegistry {
       await listener.start();
     } catch (err) {
       logger.warn(
-        `[ListenerRegistry] failed to start listener ${reg.workflowId}: ${String(err)}`,
+        `[ListenerRegistry] failed to start listener ${reg.workflowId}: ${formatError(err)}`,
       );
       return;
     }

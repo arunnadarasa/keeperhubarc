@@ -12,6 +12,7 @@ import type {
 } from "../chains/provider-manager";
 import type { AbiEvent } from "../chains/validation";
 import type { DedupStore } from "./dedup";
+import { formatError } from "./format-error";
 
 /**
  * EventListener encapsulates a single workflow's contract-event listener
@@ -136,7 +137,7 @@ export class EventListener {
         );
       } catch (err) {
         logger.warn(
-          `[EventListener:${this.opts.workflowId}] dedup isProcessed failed, proceeding: ${String(err)}`,
+          `[EventListener:${this.opts.workflowId}] dedup isProcessed failed, proceeding: ${formatError(err)}`,
         );
       }
       if (alreadyProcessed) {
@@ -157,12 +158,12 @@ export class EventListener {
         await this.opts.dedup.markProcessed(this.opts.workflowId, txHash);
       } catch (err) {
         logger.warn(
-          `[EventListener:${this.opts.workflowId}] dedup markProcessed failed: ${String(err)}`,
+          `[EventListener:${this.opts.workflowId}] dedup markProcessed failed: ${formatError(err)}`,
         );
       }
     } catch (err) {
       logger.warn(
-        `[EventListener:${this.opts.workflowId}] handler error: ${String(err)}`,
+        `[EventListener:${this.opts.workflowId}] handler error: ${formatError(err)}`,
       );
     }
   }
