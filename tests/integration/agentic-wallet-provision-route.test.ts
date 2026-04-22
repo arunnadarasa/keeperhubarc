@@ -25,6 +25,8 @@ const {
   mockDeletePolicy,
   mockDbInsert,
   mockDbValues,
+  mockDbTransaction,
+  mockInsertHmacSecret,
 } = vi.hoisted(() => {
   const createSubOrg = vi.fn();
   const createPolicy = vi.fn();
@@ -32,6 +34,20 @@ const {
   const deletePolicy = vi.fn();
   const dbValues = vi.fn();
   const dbInsert = vi.fn(() => ({ values: dbValues }));
+  // Phase 37 Wave 4 Task 19: the provision path now calls
+  // db.transaction(async (tx) => { tx.insert(...).values(...) x2 }). The
+  // mock transaction invokes the callback with a tx handle that routes
+  // back through mockDbInsert/mockDbValues, so the existing assertions on
+  // values() continue to fire. insertHmacSecret is mocked separately so
+  // the route does not need AGENTIC_WALLET_HMAC_KMS_KEY.
+  const dbTransaction = vi.fn(
+    async (
+      cb: (tx: { insert: typeof dbInsert }) => Promise<void>
+    ): Promise<void> => {
+      await cb({ insert: dbInsert });
+    }
+  );
+  const insertHmacSecret = vi.fn().mockResolvedValue(undefined);
   return {
     mockCreateSubOrg: createSubOrg,
     mockCreatePolicy: createPolicy,
@@ -39,6 +55,8 @@ const {
     mockDeletePolicy: deletePolicy,
     mockDbInsert: dbInsert,
     mockDbValues: dbValues,
+    mockDbTransaction: dbTransaction,
+    mockInsertHmacSecret: insertHmacSecret,
   };
 });
 
@@ -79,7 +97,19 @@ vi.mock("@turnkey/sdk-server", () => ({
 vi.mock("@/lib/db", () => ({
   db: {
     insert: mockDbInsert,
+    transaction: mockDbTransaction,
   },
+}));
+
+// Phase 37 Wave 4 Task 19: provisionAgenticWallet now calls
+// insertHmacSecret after the wallet/credit txn commits. Mock the whole
+// hmac-secret-store module so the route doesn't try to read
+// AGENTIC_WALLET_HMAC_KMS_KEY during the integration test run. Note that
+// the sign-route/credit-route/link-route tests mock only lookupHmacSecret
+// from this module — those paths don't touch insertHmacSecret, so keeping
+// the mock shape narrow to exactly what each test uses is fine.
+vi.mock("@/lib/agentic-wallet/hmac-secret-store", () => ({
+  insertHmacSecret: mockInsertHmacSecret,
 }));
 
 // Turnkey env must be set before route import (provisionAgenticWallet reads
@@ -109,6 +139,9 @@ describe("POST /api/agentic-wallet/provision", () => {
     mockDeletePolicy.mockReset();
     mockDbValues.mockReset();
     mockDbInsert.mockClear();
+    mockDbTransaction.mockClear();
+    mockInsertHmacSecret.mockClear();
+    mockInsertHmacSecret.mockResolvedValue(undefined);
     mockDbValues.mockResolvedValue(undefined);
     mockCreateSubOrg.mockResolvedValue({
       subOrganizationId: "subOrg_test_123",
@@ -183,11 +216,13 @@ describe("POST /api/agentic-wallet/provision", () => {
     expect(policyNames).toEqual(expectedNames);
   });
 
-  it("inserts rows into agentic_wallets and agentic_wallet_credits", async () => {
+  it("inserts rows into agentic_wallets and agentic_wallet_credits inside a single db.transaction (Phase 37 Wave 4 Task 19)", async () => {
     await POST(makeRequest("203.0.113.13"));
-    // provisionAgenticWallet() performs two independent inserts in parallel:
-    // one into agentic_wallets (with hmac_secret), one into
-    // agentic_wallet_credits via grantInitialCredit.
+    // Task 19: wallet + credit inserts land atomically inside one
+    // db.transaction. The tx mock invokes the callback with tx.insert ==
+    // the same mockDbInsert fn, so mockDbInsert still fires twice inside
+    // the single mockDbTransaction call.
+    expect(mockDbTransaction).toHaveBeenCalledTimes(1);
     expect(mockDbInsert.mock.calls.length).toBeGreaterThanOrEqual(2);
     // Assert the credit grant carried the ONBOARD-03 $0.50 amount.
     const creditValuesCall = mockDbValues.mock.calls.find(
@@ -200,6 +235,32 @@ describe("POST /api/agentic-wallet/provision", () => {
     expect(
       (creditValuesCall?.[0] as { amountUsdcCents: number }).amountUsdcCents
     ).toBe(50);
+    // Legacy hmac_secret column is no longer written (Task 19 drop column
+    // deferred per SPEC.md line 117).
+    const walletValuesCall = mockDbValues.mock.calls.find(
+      (call) =>
+        typeof call[0] === "object" &&
+        call[0] !== null &&
+        "walletAddressBase" in (call[0] as Record<string, unknown>)
+    );
+    expect(walletValuesCall).toBeDefined();
+    expect(
+      "hmacSecret" in (walletValuesCall?.[0] as Record<string, unknown>)
+    ).toBe(false);
+  });
+
+  it("writes the HMAC secret to the hmac_secrets table at keyVersion=1 after the txn commits", async () => {
+    const res = await POST(makeRequest("203.0.113.14"));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { subOrgId: string; hmacSecret: string };
+    expect(mockInsertHmacSecret).toHaveBeenCalledTimes(1);
+    const [subOrg, keyVersion, plaintext] =
+      mockInsertHmacSecret.mock.calls[0] ?? [];
+    expect(subOrg).toBe(body.subOrgId);
+    expect(keyVersion).toBe(1);
+    // The plaintext handed to the store must equal the one returned to the
+    // caller — the return value is the only channel for the secret.
+    expect(plaintext).toBe(body.hmacSecret);
   });
 
   it("rate-limits the 6th request from the same IP within the hour", async () => {

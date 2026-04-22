@@ -7,29 +7,41 @@
  *      CONTEXT Resolution #1)
  *   2. Apply 3 baseline Turnkey policies via applyBaselinePolicies (parallelized
  *      inside that helper)
- *   3. DB insert into agentic_wallets (with hmac_secret) + agentic_wallet_credits
- *      ($0.50 seed credit) in parallel
- *   4. Return { subOrgId, walletAddress, hmacSecret } — single wallet address
+ *   3. DB transaction: insert agentic_wallets row (without the legacy
+ *      hmac_secret column — Phase 37 moved the secret to
+ *      agentic_wallet_hmac_secrets) + insert the ONBOARD-03 $0.50 seed
+ *      credit against the same transaction handle (atomic: both land or
+ *      neither does).
+ *   4. Outside the transaction, call insertHmacSecret(subOrgId, 1, hmacSecret):
+ *      the secret store owns its own at-rest encryption boundary and a
+ *      partial failure here is recoverable by a rotation rather than
+ *      requiring the wallet row to roll back. If it still fails we log
+ *      AGENTIC_WALLET_HMAC_INSERT_FAILED (distinct from the txn-failure
+ *      AGENTIC_WALLET_LEAKED_SUBORG path) so ops can tell "wallet + credit
+ *      persisted, sub-org can deposit but cannot sign" from the outer
+ *      Turnkey / DB failure modes.
+ *   5. Return { subOrgId, walletAddress, hmacSecret } — single wallet address
  *      per CONTEXT Resolution #1 (Base + Tempo share the same EVM address)
  *
  * T-33-02 (Information Disclosure): hmacSecret NEVER surfaces in logs or
  * errors. The return value is the only channel. logSystemError metadata
  * carries only service name + subOrgId.
  *
- * T-33-leaked-suborg (Repudiation): if sub-org creation succeeds but DB
- * insert fails, log AGENTIC_WALLET_LEAKED_SUBORG with the sub-org id so
- * ops can clean up manually (RESEARCH Pitfall 6).
+ * T-33-leaked-suborg (Repudiation): if sub-org creation succeeds but the
+ * wallet/credit transaction fails, log AGENTIC_WALLET_LEAKED_SUBORG with
+ * the sub-org id so ops can clean up manually (RESEARCH Pitfall 6).
  */
 import { randomBytes } from "node:crypto";
 import { db } from "@/lib/db";
-import { agenticWallets } from "@/lib/db/schema";
+import { agenticWalletCredits, agenticWallets } from "@/lib/db/schema";
 import { ErrorCategory, logSystemError } from "@/lib/logging";
 import {
   getTurnkeyClientForOrg,
   getTurnkeyParentClient,
 } from "@/lib/turnkey/agentic-wallet";
 import { generateId } from "@/lib/utils/id";
-import { grantInitialCredit } from "./credit";
+import { ONBOARD_INITIAL_CREDIT_CENTS } from "./credit";
+import { insertHmacSecret } from "./hmac-secret-store";
 import { applyBaselinePolicies, PolicyIncompleteError } from "./policy";
 
 export type ProvisionAgenticWalletResult = {
@@ -129,31 +141,58 @@ export async function provisionAgenticWallet(): Promise<ProvisionAgenticWalletRe
       throw policyError;
     }
 
-    // REVIEW ME-06: the wallet row must land before the credit FK check.
-    // Previously these ran in parallel via Promise.all; if the credit insert
-    // happened to begin before the wallet insert committed, the FK check
-    // could fail with a violation message that included the sub-org id.
-    // Serialising is effectively free (<10ms extra on the 10s ONBOARD-01
-    // budget) and removes the ordering hazard. A future transaction wrap
-    // (db.transaction) would be strictly better but requires deeper test
-    // mock refactoring -- deferred per review.
+    // Phase 37 Wave 4 Task 19: the wallet + credit inserts run inside a
+    // single db.transaction so that a failing credit insert rolls the
+    // wallet row back (atomic). Previously these were serialised (after
+    // REVIEW ME-06) but not transactional — a credit FK / UNIQUE failure
+    // could leave an orphaned wallet row with no credit ledger entry.
+    //
+    // The legacy agentic_wallets.hmac_secret column is intentionally not
+    // written: migration 0057 deferred the drop (see SPEC.md line 117) so
+    // older rows still carry their plaintext, but new rows leave the
+    // column NULL and the secret lives in agentic_wallet_hmac_secrets.
+    const subOrgIdStable: string = subOrgId;
+    const walletAddressStable: string = walletAddress;
     try {
-      await db.insert(agenticWallets).values({
-        subOrgId,
-        // CONTEXT Resolution #1: single path => same address on both chains.
-        walletAddressBase: walletAddress,
-        walletAddressTempo: walletAddress,
-        hmacSecret,
+      await db.transaction(async (tx) => {
+        await tx.insert(agenticWallets).values({
+          subOrgId: subOrgIdStable,
+          // CONTEXT Resolution #1: single path => same address on both chains.
+          walletAddressBase: walletAddressStable,
+          walletAddressTempo: walletAddressStable,
+        });
+        await tx.insert(agenticWalletCredits).values({
+          subOrgId: subOrgIdStable,
+          amountUsdcCents: ONBOARD_INITIAL_CREDIT_CENTS,
+          allocationReason: "onboard_initial",
+        });
       });
-      await grantInitialCredit(subOrgId);
     } catch (dbError) {
       logSystemError(
         ErrorCategory.DATABASE,
         "[Agentic] AGENTIC_WALLET_LEAKED_SUBORG — Turnkey sub-org created but DB insert failed",
         dbError,
-        { service: "agentic-wallet", subOrgId }
+        { service: "agentic-wallet", subOrgId: subOrgIdStable }
       );
       throw dbError;
+    }
+
+    // HMAC secret insert lives OUTSIDE the wallet/credit txn (plan Task 19):
+    // the store has its own at-rest encryption boundary, and a failure here
+    // leaves a usable-for-deposit wallet that cannot sign. We log with a
+    // distinct prefix so ops can distinguish this recoverable failure mode
+    // (wallet row exists; retry rotation surfaces the issue) from the
+    // leaked-sub-org mode above (no wallet row, sub-org orphaned in Turnkey).
+    try {
+      await insertHmacSecret(subOrgIdStable, 1, hmacSecret);
+    } catch (hmacError) {
+      logSystemError(
+        ErrorCategory.DATABASE,
+        "[Agentic] AGENTIC_WALLET_HMAC_INSERT_FAILED — wallet + credit committed but HMAC secret insert failed; sub-org can deposit but cannot sign until a rotation lands a v1 row",
+        hmacError,
+        { service: "agentic-wallet", subOrgId: subOrgIdStable, keyVersion: "1" }
+      );
+      throw hmacError;
     }
 
     return { subOrgId, walletAddress, hmacSecret };
