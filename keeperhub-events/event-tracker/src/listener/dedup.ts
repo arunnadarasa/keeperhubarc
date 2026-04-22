@@ -19,6 +19,19 @@
  * through `factory.ts`.
  */
 
+/**
+ * Concurrency note: the check-then-set shape (isProcessed + markProcessed)
+ * is deliberately non-atomic. The refactor chose ordering "read -> send ->
+ * mark" inside EventListener so a send failure does not leave a marked-
+ * but-undelivered event. Atomic `SET NX EX` semantics would force mark-
+ * before-send and trade a benign race for a lost-event risk.
+ *
+ * The race window only matters for a single listener receiving the same
+ * txHash twice (WSS reconnect or chain reorg), since the dedup key
+ * includes workflowId - two workflows on the same (address, topic0) hash
+ * to different keys and do not interfere. The downstream executor is the
+ * idempotency authority; the occasional duplicate is acceptable.
+ */
 export interface DedupStore {
   isProcessed(workflowId: string, txHash: string): Promise<boolean>;
   markProcessed(workflowId: string, txHash: string): Promise<void>;
