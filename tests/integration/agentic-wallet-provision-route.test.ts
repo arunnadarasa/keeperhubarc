@@ -7,11 +7,13 @@
  *   - GUARD-06 baseline policies applied for all entries
  *   - DB inserts into agentic_wallets + agentic_wallet_credits
  *   - IP rate limit returns 429 on the 6th call within the hour window
+ *     (Phase 37 Wave 5 Task 21: Postgres-backed + trusted-proxy XFF)
  *   - Turnkey 5xx surfaces as 502 with code="TURNKEY_UPSTREAM"
  *
- * NOTE: the in-memory rate limiter in lib/mcp/rate-limit is shared across
- * tests in this file. Each scenario uses a UNIQUE x-forwarded-for value so
- * the 5/hour budget doesn't leak between tests.
+ * NOTE: the Postgres rate limiter is emulated by an in-memory Map on the
+ * mocked `db.execute`. Each scenario uses a UNIQUE peer IP (x-real-ip) so
+ * the 5/hour budget doesn't leak between tests; the rate-limit store is
+ * also cleared in `beforeEach`.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -27,6 +29,7 @@ const {
   mockDbValues,
   mockDbTransaction,
   mockInsertHmacSecret,
+  rateLimitStore,
 } = vi.hoisted(() => {
   const createSubOrg = vi.fn();
   const createPolicy = vi.fn();
@@ -48,6 +51,12 @@ const {
     }
   );
   const insertHmacSecret = vi.fn().mockResolvedValue(undefined);
+  // Phase 37 Wave 5 Task 21: Postgres rate-limiter emulation. The production
+  // code calls `db.execute(sql\`INSERT ... ON CONFLICT ... RETURNING request_count\`)`.
+  // We cannot interpret the SQL here, but we CAN walk the drizzle SQL node's
+  // queryChunks to recover the `${key}` interpolation in source order — the
+  // same trick the unit test uses. Keyed by `"key|bucket_start"`.
+  const store = new Map<string, number>();
   return {
     mockCreateSubOrg: createSubOrg,
     mockCreatePolicy: createPolicy,
@@ -57,8 +66,35 @@ const {
     mockDbValues: dbValues,
     mockDbTransaction: dbTransaction,
     mockInsertHmacSecret: insertHmacSecret,
+    rateLimitStore: store,
   };
 });
+
+function extractStringInterpolations(node: unknown): string[] {
+  if (!node || typeof node !== "object") {
+    return [];
+  }
+  const chunks = (node as { queryChunks?: unknown[] }).queryChunks;
+  if (!Array.isArray(chunks)) {
+    return [];
+  }
+  const values: string[] = [];
+  for (const chunk of chunks) {
+    if (typeof chunk === "string") {
+      values.push(chunk);
+    }
+  }
+  return values;
+}
+
+function truncateToHour(date: Date): string {
+  const copy = new Date(date);
+  copy.setMinutes(0, 0, 0);
+  return copy.toISOString();
+}
+
+// Hoisted so Biome's `lint/performance/useTopLevelRegex` is satisfied.
+const DIGITS_ONLY = /^\d+$/;
 
 // Stand-in classes for the Turnkey SDK error types. The production route uses
 // `instanceof` against the real exports from @turnkey/sdk-server, but tests
@@ -98,6 +134,21 @@ vi.mock("@/lib/db", () => ({
   db: {
     insert: mockDbInsert,
     transaction: mockDbTransaction,
+    // Phase 37 Wave 5 Task 21: the rate limiter calls
+    // `db.execute(sql\`INSERT ... ON CONFLICT ... RETURNING request_count\`)`.
+    // Emulate UPSERT-and-increment by recovering the `${key}` interpolation
+    // from the drizzle SQL node and bumping an in-memory Map keyed by
+    // `key|bucket_start`. Returns the new count as postgres-js would:
+    // `[{ request_count: n }]`.
+    execute: vi.fn((sqlValue: unknown) => {
+      const interpolations = extractStringInterpolations(sqlValue);
+      const key = interpolations[0] ?? "";
+      const bucketStart = truncateToHour(new Date());
+      const composite = `${key}|${bucketStart}`;
+      const next = (rateLimitStore.get(composite) ?? 0) + 1;
+      rateLimitStore.set(composite, next);
+      return Promise.resolve([{ request_count: next }]);
+    }),
   },
 }));
 
@@ -121,13 +172,41 @@ process.env.TURNKEY_ORGANIZATION_ID = "org_test";
 const { POST } = await import("@/app/api/agentic-wallet/provision/route");
 const { BASELINE_POLICIES } = await import("@/lib/agentic-wallet/policy");
 
-function makeRequest(ip: string): Request {
+/**
+ * Build a provision POST. Phase 37 Wave 5 Task 21: the route now reads the
+ * peer IP from `NextRequest.ip` or the `x-real-ip` fallback, and only honors
+ * `x-forwarded-for` when the peer is a known Cloudflare IPv4. Tests drive
+ * `peerIp` via `x-real-ip` and optionally set a separate `xff`.
+ */
+function makeRequest(peerIp: string, xff?: string): Request {
+  const headers: Record<string, string> = {
+    "x-real-ip": peerIp,
+    "Content-Type": "application/json",
+  };
+  if (xff !== undefined) {
+    headers["x-forwarded-for"] = xff;
+  }
   return new Request("http://localhost:3000/api/agentic-wallet/provision", {
     method: "POST",
-    headers: {
-      "x-forwarded-for": ip,
-      "Content-Type": "application/json",
-    },
+    headers,
+  });
+}
+
+/**
+ * Build a provision POST with no peer IP at all — no `x-real-ip`, no
+ * `NextRequest.ip`. Exercises the `resolveTrustedClientIp` branch that
+ * returns `"unknown"`.
+ */
+function makeRequestNoPeer(xff?: string): Request {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (xff !== undefined) {
+    headers["x-forwarded-for"] = xff;
+  }
+  return new Request("http://localhost:3000/api/agentic-wallet/provision", {
+    method: "POST",
+    headers,
   });
 }
 
@@ -143,6 +222,9 @@ describe("POST /api/agentic-wallet/provision", () => {
     mockInsertHmacSecret.mockClear();
     mockInsertHmacSecret.mockResolvedValue(undefined);
     mockDbValues.mockResolvedValue(undefined);
+    // Phase 37 Wave 5 Task 21: reset the emulated Postgres rate-limit store
+    // between tests so each scenario starts with an empty bucket.
+    rateLimitStore.clear();
     mockCreateSubOrg.mockResolvedValue({
       subOrganizationId: "subOrg_test_123",
       wallet: { addresses: ["0xabc0000000000000000000000000000000dead01"] },
@@ -265,16 +347,95 @@ describe("POST /api/agentic-wallet/provision", () => {
 
   it("rate-limits the 6th request from the same IP within the hour", async () => {
     const ip = "203.0.113.99";
-    for (let i = 0; i < 5; i++) {
+    for (const _ of Array.from({ length: 5 })) {
       const r = await POST(makeRequest(ip));
       expect(r.status).toBe(200);
     }
     const sixth = await POST(makeRequest(ip));
     expect(sixth.status).toBe(429);
-    expect(sixth.headers.get("Retry-After")).toMatch(/^\d+$/);
+    const retryAfterHeader = sixth.headers.get("Retry-After");
+    expect(retryAfterHeader).toMatch(DIGITS_ONLY);
     const body = (await sixth.json()) as { error: string; retryAfter: number };
     expect(body.error).toMatch(/rate limit/i);
     expect(body.retryAfter).toBeGreaterThan(0);
+    // Retry-After header mirrors the body field exactly (per spec).
+    expect(retryAfterHeader).toBe(String(body.retryAfter));
+  });
+
+  it("ignores spoofed X-Forwarded-For when peer is not a trusted proxy (Task 21)", async () => {
+    // Peer is 8.8.8.8 (untrusted); XFF claims 1.1.1.1. The real bucket is
+    // 8.8.8.8. After 5 POSTs, the 6th from the same peer 429s even though
+    // it carries the identical spoofed XFF.
+    const peer = "8.8.8.8";
+    const spoofedXff = "1.1.1.1";
+    for (const _ of Array.from({ length: 5 })) {
+      const r = await POST(makeRequest(peer, spoofedXff));
+      expect(r.status).toBe(200);
+    }
+    const sixth = await POST(makeRequest(peer, spoofedXff));
+    expect(sixth.status).toBe(429);
+    // Sanity: a brand-new peer IP is still unthrottled — confirms the
+    // bucket was really keyed on the peer, not the XFF.
+    const fresh = await POST(makeRequest("9.9.9.9", spoofedXff));
+    expect(fresh.status).toBe(200);
+  });
+
+  it("honors X-Forwarded-For when peer IS a trusted Cloudflare proxy (Task 21)", async () => {
+    // 104.16.0.5 sits in 104.16.0.0/13 (Cloudflare). XFF leftmost = the
+    // real client. Two different XFFs from the SAME Cloudflare peer must
+    // land in two separate buckets.
+    const cfPeer = "104.16.0.5";
+    const xffClientA = "1.1.1.1";
+    const xffClientB = "2.2.2.2";
+    for (const _ of Array.from({ length: 5 })) {
+      const r = await POST(makeRequest(cfPeer, xffClientA));
+      expect(r.status).toBe(200);
+    }
+    const sixthA = await POST(makeRequest(cfPeer, xffClientA));
+    expect(sixthA.status).toBe(429);
+    // Client B has never been seen — 200 even though the Cloudflare peer
+    // is saturated on client A's behalf.
+    const firstB = await POST(makeRequest(cfPeer, xffClientB));
+    expect(firstB.status).toBe(200);
+  });
+
+  it("buckets all no-peer callers under 'unknown' and 429s the 6th (Task 21)", async () => {
+    // No `x-real-ip`, no XFF, no NextRequest.ip → resolveTrustedClientIp
+    // returns the sentinel "unknown". All unknown-peer callers share one
+    // bucket by design; 5 in an hour, then 429.
+    for (const _ of Array.from({ length: 5 })) {
+      const r = await POST(makeRequestNoPeer());
+      expect(r.status).toBe(200);
+    }
+    const sixth = await POST(makeRequestNoPeer());
+    expect(sixth.status).toBe(429);
+  });
+
+  it("survives cross-pod restarts because the limiter is Postgres-backed (Task 21)", async () => {
+    // Simulate a pod restart by clearing any mock fn call history but
+    // leaving `rateLimitStore` intact — which is what the real DB does
+    // across pods. The 6th call still 429s because the row persists.
+    const ip = "203.0.113.77";
+    for (const _ of Array.from({ length: 5 })) {
+      const r = await POST(makeRequest(ip));
+      expect(r.status).toBe(200);
+    }
+    // "Restart": wipe per-pod transient mock state (NOT rateLimitStore,
+    // which stands in for the DB). Re-seed the Turnkey/DB happy-path so
+    // any request that does make it past the limiter still looks normal.
+    mockCreateSubOrg.mockClear();
+    mockCreatePolicy.mockClear();
+    mockGetPolicies.mockClear();
+    mockDbInsert.mockClear();
+    mockDbValues.mockClear();
+    mockDbTransaction.mockClear();
+    const sixth = await POST(makeRequest(ip));
+    expect(sixth.status).toBe(429);
+    // Turnkey/DB must NOT be touched when the limiter rejects — the
+    // cross-pod contract is that the DB-backed row short-circuits before
+    // we burn a Turnkey call.
+    expect(mockCreateSubOrg).not.toHaveBeenCalled();
+    expect(mockDbTransaction).not.toHaveBeenCalled();
   });
 
   it("returns 502 TURNKEY_UPSTREAM with opaque message when Turnkey throws a typed error (HI-03)", async () => {

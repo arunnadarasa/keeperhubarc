@@ -4,8 +4,13 @@
  * ONBOARD-01 public entry point for agentic-wallet creation.
  *
  * - No auth headers. IP rate-limited (5 / hour / IP) via
- *   lib/mcp/rate-limit::checkIpRateLimit to bound unauthenticated abuse
- *   (T-33-01).
+ *   lib/agentic-wallet/rate-limit::incrementAndCheck (Postgres-backed so the
+ *   limit survives pod restarts and is shared across replicas) to bound
+ *   unauthenticated abuse (T-33-01, Phase 37 Wave 5 Task 21).
+ * - Client IP is resolved via lib/security/trusted-proxies::resolveTrustedClientIp
+ *   which only honors X-Forwarded-For when the TCP peer is a known Cloudflare
+ *   IPv4 range — otherwise the header is ignored and the peer IP is used.
+ *   This blocks spoofed XFF headers from dodging the per-IP bucket.
  * - Delegates the Turnkey + DB pipeline to provisionAgenticWallet()
  *   (Plan 33-01a).
  * - 200 response body: { subOrgId, walletAddress, hmacSecret }. The 10s
@@ -25,17 +30,28 @@ import {
   TurnkeyRequestError,
 } from "@turnkey/sdk-server";
 import { provisionAgenticWallet } from "@/lib/agentic-wallet/provision";
+import { incrementAndCheck } from "@/lib/agentic-wallet/rate-limit";
 import { ErrorCategory, logSystemError } from "@/lib/logging";
-import { checkIpRateLimit, getClientIp } from "@/lib/mcp/rate-limit";
+import { resolveTrustedClientIp } from "@/lib/security/trusted-proxies";
 
 export const dynamic = "force-dynamic";
 
 const RATE_LIMIT_MAX = 5;
-const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+
+function getPeerIp(request: Request): string | null {
+  // Vercel populates NextRequest.ip at runtime; tests/dev fall back to
+  // X-Real-IP which the ingress sets to the true TCP peer.
+  const ip = (request as unknown as { ip?: string }).ip;
+  return ip ?? request.headers.get("x-real-ip");
+}
 
 export async function POST(request: Request): Promise<Response> {
-  const ip = getClientIp(request);
-  const rate = checkIpRateLimit(ip, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_MS);
+  const peerIp = getPeerIp(request);
+  const trustedIp = resolveTrustedClientIp(request, peerIp);
+  const rate = await incrementAndCheck(
+    `provision:${trustedIp}`,
+    RATE_LIMIT_MAX
+  );
   if (!rate.allowed) {
     return Response.json(
       { error: "Rate limit exceeded", retryAfter: rate.retryAfter },
