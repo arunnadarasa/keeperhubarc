@@ -1,0 +1,166 @@
+import { describe, expect, it } from "vitest";
+import type { NetworkConfig, NetworksMap } from "../../lib/types";
+import { buildRegistration } from "../../src/listener/workflow-mapper";
+
+const CHAIN_ID = 31_337;
+
+const NETWORK: NetworkConfig = {
+  id: "local",
+  chainId: CHAIN_ID,
+  name: "Anvil",
+  symbol: "ETH",
+  chainType: "evm",
+  defaultPrimaryRpc: "http://localhost:8546",
+  defaultFallbackRpc: "http://localhost:8546",
+  defaultPrimaryWss: "ws://localhost:8546",
+  defaultFallbackWss: "ws://localhost:8546",
+  isTestnet: true,
+  isEnabled: true,
+  createdAt: "2026-01-01T00:00:00Z",
+  updatedAt: "2026-01-01T00:00:00Z",
+};
+
+const NETWORKS: NetworksMap = { [CHAIN_ID]: NETWORK };
+
+const ERC20_ABI = JSON.stringify([
+  {
+    type: "event",
+    name: "Transfer",
+    inputs: [
+      { name: "from", type: "address", indexed: true },
+      { name: "to", type: "address", indexed: true },
+      { name: "value", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    type: "function",
+    name: "transfer",
+    inputs: [],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+]);
+
+function makeWorkflow(
+  overrides: Record<string, unknown> = {},
+  configOverrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    id: "wf-1",
+    name: "Test Workflow",
+    userId: "user-1",
+    nodes: [
+      {
+        data: {
+          config: {
+            network: String(CHAIN_ID),
+            eventName: "Transfer",
+            contractABI: ERC20_ABI,
+            contractAddress: "0x1111111111111111111111111111111111111111",
+            ...configOverrides,
+          },
+        },
+      },
+    ],
+    ...overrides,
+  };
+}
+
+describe("buildRegistration", () => {
+  it("maps a valid workflow into a WorkflowRegistration", () => {
+    const reg = buildRegistration(makeWorkflow(), NETWORKS);
+    expect(reg).not.toBeNull();
+    expect(reg).toMatchObject({
+      workflowId: "wf-1",
+      userId: "user-1",
+      workflowName: "Test Workflow",
+      chainId: CHAIN_ID,
+      wssUrl: "ws://localhost:8546",
+      contractAddress: "0x1111111111111111111111111111111111111111",
+      eventName: "Transfer",
+    });
+    expect(reg?.rawEventsAbi).toHaveLength(1);
+    expect(reg?.rawEventsAbi[0].name).toBe("Transfer");
+    expect(reg?.eventsAbiStrings[0]).toBe(
+      "event Transfer(address indexed from, address indexed to, uint256 value)",
+    );
+  });
+
+  it("filters non-event entries out of rawEventsAbi", () => {
+    const reg = buildRegistration(makeWorkflow(), NETWORKS);
+    expect(reg?.rawEventsAbi.every((e) => e.type === "event")).toBe(true);
+  });
+
+  it("returns null when id is missing", () => {
+    expect(
+      buildRegistration(makeWorkflow({ id: undefined }), NETWORKS),
+    ).toBeNull();
+  });
+
+  it("returns null when there are no nodes", () => {
+    expect(buildRegistration(makeWorkflow({ nodes: [] }), NETWORKS)).toBeNull();
+  });
+
+  it("returns null when node.data.config is missing", () => {
+    expect(
+      buildRegistration(makeWorkflow({ nodes: [{ data: {} }] }), NETWORKS),
+    ).toBeNull();
+  });
+
+  it("returns null when chainId references an unknown network", () => {
+    expect(
+      buildRegistration(makeWorkflow({}, { network: "9999" }), NETWORKS),
+    ).toBeNull();
+  });
+
+  it("returns null when chainId is not numeric", () => {
+    expect(
+      buildRegistration(
+        makeWorkflow({}, { network: "not-a-number" }),
+        NETWORKS,
+      ),
+    ).toBeNull();
+  });
+
+  it("returns null when contractAddress is missing", () => {
+    expect(
+      buildRegistration(
+        makeWorkflow({}, { contractAddress: undefined }),
+        NETWORKS,
+      ),
+    ).toBeNull();
+  });
+
+  it("returns null when eventName is missing", () => {
+    expect(
+      buildRegistration(makeWorkflow({}, { eventName: undefined }), NETWORKS),
+    ).toBeNull();
+  });
+
+  it("returns null when contractABI is not valid JSON", () => {
+    expect(
+      buildRegistration(
+        makeWorkflow({}, { contractABI: "{not valid json" }),
+        NETWORKS,
+      ),
+    ).toBeNull();
+  });
+
+  it("returns null when contractABI has no event entries", () => {
+    const onlyFunctions = JSON.stringify([
+      {
+        type: "function",
+        name: "foo",
+        inputs: [],
+        outputs: [],
+        stateMutability: "view",
+      },
+    ]);
+    expect(
+      buildRegistration(
+        makeWorkflow({}, { contractABI: onlyFunctions }),
+        NETWORKS,
+      ),
+    ).toBeNull();
+  });
+});
