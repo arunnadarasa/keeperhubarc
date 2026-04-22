@@ -13,17 +13,17 @@
 import type { Turnkey } from "@turnkey/sdk-server";
 
 // USDC contract addresses — CONTEXT Resolution #2 (locked 2026-04-21).
-// Base USDC source: lib/x402/reconcile.ts:4
-// Tempo USDC source: lib/mpp/server.ts:3
-export const USDC_BASE =
-  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
-export const USDC_TEMPO =
-  "0x20c000000000000000000000b9537d11c60e8b50" as const;
+// Single source of truth lives in ./constants; re-exported here under the
+// historical names so existing callers keep working until the next refactor.
+import {
+  USDC_BASE_ADDRESS,
+  USDC_BASE_LC,
+  USDC_TEMPO_ADDRESS,
+  USDC_TEMPO_LC,
+} from "./constants";
 
-// Lowercase copies for Turnkey DSL `eth.tx.to in [...]` membership comparisons.
-// Turnkey normalizes `eth.tx.to` to lowercase hex; allowlist entries MUST match.
-const USDC_BASE_LC = USDC_BASE.toLowerCase();
-const USDC_TEMPO_LC = USDC_TEMPO.toLowerCase();
+export const USDC_BASE = USDC_BASE_ADDRESS;
+export const USDC_TEMPO = USDC_TEMPO_ADDRESS;
 
 export const FACILITATOR_ALLOWLIST: readonly string[] = [
   USDC_BASE,

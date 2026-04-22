@@ -29,6 +29,7 @@
  */
 import { serializeSignature } from "@turnkey/ethers";
 import { getTurnkeyClientForOrg } from "@/lib/turnkey/agentic-wallet";
+import { BASE_CHAIN_ID, USDC_BASE_ADDRESS } from "./constants";
 
 export class PolicyBlockedError extends Error {
   readonly name = "PolicyBlockedError";
@@ -52,8 +53,8 @@ export class TurnkeyUpstreamError extends Error {
 export const BASE_USDC_DOMAIN = {
   name: "USD Coin",
   version: "2",
-  chainId: 8453,
-  verifyingContract: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  chainId: BASE_CHAIN_ID,
+  verifyingContract: USDC_BASE_ADDRESS,
 } as const;
 
 export const AUTHORIZATION_TYPES = {
