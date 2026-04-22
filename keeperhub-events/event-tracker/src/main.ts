@@ -64,10 +64,11 @@ async function reconcileInproc(
     }
   }
 
-  // Add listeners for active workflows that are not yet registered.
+  // Add listeners for active workflows that are not yet registered, and
+  // restart listeners whose config has changed since last reconcile.
   for (const workflow of workflows) {
     const id = (workflow as { id?: unknown }).id;
-    if (typeof id !== "string" || reg.has(id)) {
+    if (typeof id !== "string") {
       continue;
     }
     const registration = buildRegistration(
@@ -76,6 +77,17 @@ async function reconcileInproc(
     );
     if (!registration) {
       continue;
+    }
+    const existingHash = reg.getConfigHash(registration.workflowId);
+    if (existingHash === registration.configHash) {
+      // Listener already running with the same config; nothing to do.
+      continue;
+    }
+    if (existingHash !== undefined) {
+      logger.log(
+        `[Reconciler] config changed for ${registration.workflowId}; restarting listener`,
+      );
+      reg.remove(registration.workflowId);
     }
     await reg.add(registration);
   }

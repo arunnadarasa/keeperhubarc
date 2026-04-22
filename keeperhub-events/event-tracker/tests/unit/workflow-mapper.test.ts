@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { NetworkConfig, NetworksMap } from "../../lib/types";
-import { buildRegistration } from "../../src/listener/workflow-mapper";
+import {
+  buildRegistration,
+  hashRegistration,
+} from "../../src/listener/workflow-mapper";
 
 const CHAIN_ID = 31_337;
 
@@ -89,6 +92,76 @@ describe("buildRegistration", () => {
   it("filters non-event entries out of rawEventsAbi", () => {
     const reg = buildRegistration(makeWorkflow(), NETWORKS);
     expect(reg?.rawEventsAbi.every((e) => e.type === "event")).toBe(true);
+  });
+
+  describe("configHash", () => {
+    it("attaches a configHash to the built registration", () => {
+      const reg = buildRegistration(makeWorkflow(), NETWORKS);
+      expect(reg?.configHash).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it("is stable across identical inputs", () => {
+      const a = buildRegistration(makeWorkflow(), NETWORKS);
+      const b = buildRegistration(makeWorkflow(), NETWORKS);
+      expect(a?.configHash).toBe(b?.configHash);
+    });
+
+    it("ignores workflowName (cosmetic)", () => {
+      const a = buildRegistration(makeWorkflow({ name: "A" }), NETWORKS);
+      const b = buildRegistration(makeWorkflow({ name: "B" }), NETWORKS);
+      expect(a?.configHash).toBe(b?.configHash);
+    });
+
+    it("changes when contractAddress changes", () => {
+      const a = buildRegistration(makeWorkflow(), NETWORKS);
+      const b = buildRegistration(
+        makeWorkflow(
+          {},
+          { contractAddress: "0x2222222222222222222222222222222222222222" },
+        ),
+        NETWORKS,
+      );
+      expect(a?.configHash).not.toBe(b?.configHash);
+    });
+
+    it("changes when eventName changes", () => {
+      const a = buildRegistration(makeWorkflow(), NETWORKS);
+      const b = buildRegistration(
+        makeWorkflow({}, { eventName: "Approval" }),
+        NETWORKS,
+      );
+      expect(a?.configHash).not.toBe(b?.configHash);
+    });
+
+    it("changes when chainId changes", () => {
+      const otherNetworks: NetworksMap = {
+        ...NETWORKS,
+        1: { ...NETWORK, chainId: 1 },
+      };
+      const a = buildRegistration(makeWorkflow(), NETWORKS);
+      const b = buildRegistration(
+        makeWorkflow({}, { network: "1" }),
+        otherNetworks,
+      );
+      expect(a?.configHash).not.toBe(b?.configHash);
+    });
+
+    it("changes when userId changes", () => {
+      const a = buildRegistration(makeWorkflow(), NETWORKS);
+      const b = buildRegistration(makeWorkflow({ userId: "user-2" }), NETWORKS);
+      expect(a?.configHash).not.toBe(b?.configHash);
+    });
+
+    it("hashRegistration matches the hash in the built registration", () => {
+      const reg = buildRegistration(makeWorkflow(), NETWORKS);
+      expect(reg).not.toBeNull();
+      if (!reg) {
+        return;
+      }
+      // Re-compute the hash from the registration fields; it should match
+      // the embedded hash. Locks in the contract.
+      expect(hashRegistration(reg)).toBe(reg.configHash);
+    });
   });
 
   it("returns null when id is missing", () => {

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { NetworksMap } from "../../lib/types";
 import { logger } from "../../lib/utils/logger";
 import { buildEventAbi } from "../chains/event-serializer";
@@ -129,7 +130,7 @@ export function buildRegistration(
   const userId = typeof workflow.userId === "string" ? workflow.userId : "";
   const workflowName = typeof workflow.name === "string" ? workflow.name : "";
 
-  return {
+  const registration: Omit<WorkflowRegistration, "configHash"> = {
     workflowId,
     userId,
     workflowName,
@@ -140,4 +141,31 @@ export function buildRegistration(
     eventsAbiStrings,
     rawEventsAbi,
   };
+  return {
+    ...registration,
+    configHash: hashRegistration(registration),
+  };
+}
+
+/**
+ * Content hash over the fields that affect listener behaviour. Used by the
+ * reconciler to detect config changes (contract address swap, event name
+ * rename, ABI update, user reassignment) and restart the listener. Excludes
+ * `workflowId` (the lookup key) and `workflowName` (cosmetic).
+ *
+ * Stable across JSON round-trips because the input shape is fixed by
+ * buildRegistration and all values are primitives or arrays of primitives.
+ */
+export function hashRegistration(
+  reg: Omit<WorkflowRegistration, "configHash">,
+): string {
+  const canonical = JSON.stringify({
+    chainId: reg.chainId,
+    wssUrl: reg.wssUrl,
+    contractAddress: reg.contractAddress,
+    eventName: reg.eventName,
+    eventsAbiStrings: reg.eventsAbiStrings,
+    userId: reg.userId,
+  });
+  return createHash("sha256").update(canonical).digest("hex");
 }
