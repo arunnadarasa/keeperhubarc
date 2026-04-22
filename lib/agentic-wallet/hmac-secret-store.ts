@@ -5,12 +5,19 @@
  * (sub_org_id, key_version). Stored as AES-256-GCM ciphertext encoded as
  *   base64(iv) + ":" + base64(authTag) + ":" + base64(ciphertext)
  *
+ * AAD binding: each envelope is authenticated against
+ *   AAD = `${subOrgId}:${keyVersion}` (utf-8)
+ * so a ciphertext copied into a different (sub_org_id, key_version) row by a
+ * DB-level attacker fails the GCM tag check instead of silently decrypting
+ * as if it belonged to that row.
+ *
  * Encryption key: process.env.AGENTIC_WALLET_HMAC_KMS_KEY (base64, 32 bytes).
  * Boot fails loudly if missing or wrong size.
  *
  * Backfill compat: rows inserted by migration 0057 carry the prefix
  * "__PLAINTEXT_BACKFILL__:" before the original plaintext. decryptSecret
- * strips the prefix and lookupHmacSecret performs an in-place re-encrypt
+ * strips the prefix BEFORE touching AES-GCM (so AAD is irrelevant for those
+ * rows) and lookupHmacSecret performs an in-place re-encrypt with AAD bound
  * so the marker disappears after first read.
  *
  * NEVER log secret material. Log only sub-org id and key version.
@@ -19,6 +26,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { and, eq, gt, isNull, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { agenticWalletHmacSecrets } from "@/lib/db/schema";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 const PLAINTEXT_BACKFILL_PREFIX = "__PLAINTEXT_BACKFILL__:";
 
@@ -38,10 +46,19 @@ function getKey(): Buffer {
   return buf;
 }
 
-export function encryptSecret(plaintext: string): string {
+function buildAad(subOrgId: string, keyVersion: number): Buffer {
+  return Buffer.from(`${subOrgId}:${keyVersion}`, "utf8");
+}
+
+export function encryptSecret(
+  plaintext: string,
+  subOrgId: string,
+  keyVersion: number
+): string {
   const key = getKey();
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
+  cipher.setAAD(buildAad(subOrgId, keyVersion));
   const enc = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
   return [
@@ -51,7 +68,11 @@ export function encryptSecret(plaintext: string): string {
   ].join(":");
 }
 
-export function decryptSecret(envelope: string): string {
+export function decryptSecret(
+  envelope: string,
+  subOrgId: string,
+  keyVersion: number
+): string {
   if (envelope.startsWith(PLAINTEXT_BACKFILL_PREFIX)) {
     return envelope.slice(PLAINTEXT_BACKFILL_PREFIX.length);
   }
@@ -65,6 +86,7 @@ export function decryptSecret(envelope: string): string {
   const tag = Buffer.from(tagB64, "base64");
   const body = Buffer.from(bodyB64, "base64");
   const decipher = createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAAD(buildAad(subOrgId, keyVersion));
   decipher.setAuthTag(tag);
   const dec = Buffer.concat([decipher.update(body), decipher.final()]);
   return dec.toString("utf8");
@@ -81,29 +103,25 @@ export type LookupResult = {
  * (active = expires_at IS NULL OR expires_at > now()).
  *
  * Lazy backfill: if the row's ciphertext starts with the plaintext-backfill
- * prefix, re-encrypt and write back before returning.
+ * prefix, re-encrypt (with AAD bound to this row's identity) and write back
+ * before returning.
  */
 export async function lookupHmacSecret(
   subOrgId: string,
   keyVersion?: number
 ): Promise<LookupResult> {
   const now = new Date();
+  const activeFilter = or(
+    isNull(agenticWalletHmacSecrets.expiresAt),
+    gt(agenticWalletHmacSecrets.expiresAt, now)
+  );
   const where =
     keyVersion === undefined
-      ? and(
-          eq(agenticWalletHmacSecrets.subOrgId, subOrgId),
-          or(
-            isNull(agenticWalletHmacSecrets.expiresAt),
-            gt(agenticWalletHmacSecrets.expiresAt, now)
-          )
-        )
+      ? and(eq(agenticWalletHmacSecrets.subOrgId, subOrgId), activeFilter)
       : and(
           eq(agenticWalletHmacSecrets.subOrgId, subOrgId),
           eq(agenticWalletHmacSecrets.keyVersion, keyVersion),
-          or(
-            isNull(agenticWalletHmacSecrets.expiresAt),
-            gt(agenticWalletHmacSecrets.expiresAt, now)
-          )
+          activeFilter
         );
 
   const rows = await db
@@ -119,21 +137,26 @@ export async function lookupHmacSecret(
     return null;
   }
   // Highest active version wins (rows are ordered ascending by key_version).
-  const row = rows.at(-1);
-  if (!row) {
-    return null;
-  }
+  // rows.at(-1) is non-null given the length check above.
+  const row = rows.at(-1) as {
+    keyVersion: number;
+    secretCiphertext: string;
+  };
 
   let plaintext: string;
   try {
-    plaintext = decryptSecret(row.secretCiphertext);
-  } catch {
+    plaintext = decryptSecret(row.secretCiphertext, subOrgId, row.keyVersion);
+  } catch (error) {
+    logSystemError(ErrorCategory.AUTH, "[Agentic] hmac decrypt failed", error, {
+      subOrgId,
+      keyVersion: String(row.keyVersion),
+    });
     return null;
   }
 
   // Lazy backfill: re-encrypt and update if the row was a plaintext backfill.
   if (row.secretCiphertext.startsWith(PLAINTEXT_BACKFILL_PREFIX)) {
-    const reEncrypted = encryptSecret(plaintext);
+    const reEncrypted = encryptSecret(plaintext, subOrgId, row.keyVersion);
     await db
       .update(agenticWalletHmacSecrets)
       .set({ secretCiphertext: reEncrypted })
@@ -157,7 +180,7 @@ export async function insertHmacSecret(
   await db.insert(agenticWalletHmacSecrets).values({
     subOrgId,
     keyVersion,
-    secretCiphertext: encryptSecret(plaintext),
+    secretCiphertext: encryptSecret(plaintext, subOrgId, keyVersion),
     expiresAt,
   });
 }

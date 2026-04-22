@@ -484,27 +484,50 @@ describe("hmac-secret-store envelope encryption (Phase 37 fix C2)", () => {
       typeof import("@/lib/agentic-wallet/hmac-secret-store")
     >("@/lib/agentic-wallet/hmac-secret-store");
     const secret = "deadbeef".repeat(8); // 64 hex chars
-    const ct = encryptSecret(secret);
+    const ct = encryptSecret(secret, "so_test", 1);
     expect(ct).not.toContain(secret);
     expect(ct.split(":").length).toBe(3);
-    expect(decryptSecret(ct)).toBe(secret);
+    expect(decryptSecret(ct, "so_test", 1)).toBe(secret);
   });
 
   it("decryptSecret detects + strips the __PLAINTEXT_BACKFILL__ marker", async () => {
     const { decryptSecret } = await vi.importActual<
       typeof import("@/lib/agentic-wallet/hmac-secret-store")
     >("@/lib/agentic-wallet/hmac-secret-store");
-    expect(decryptSecret("__PLAINTEXT_BACKFILL__:abc123")).toBe("abc123");
+    // Backfill prefix is stripped BEFORE AES-GCM, so AAD is irrelevant here.
+    expect(decryptSecret("__PLAINTEXT_BACKFILL__:abc123", "so_test", 1)).toBe(
+      "abc123"
+    );
   });
 
   it("rejects ciphertext with bad auth tag", async () => {
     const { encryptSecret, decryptSecret } = await vi.importActual<
       typeof import("@/lib/agentic-wallet/hmac-secret-store")
     >("@/lib/agentic-wallet/hmac-secret-store");
-    const ct = encryptSecret("secret");
+    const ct = encryptSecret("secret", "so_test", 1);
     const [iv, _tag, body] = ct.split(":");
     const tampered = `${iv}:${Buffer.alloc(16, 0).toString("base64")}:${body}`;
-    expect(() => decryptSecret(tampered)).toThrow();
+    expect(() => decryptSecret(tampered, "so_test", 1)).toThrow();
+  });
+
+  it("rejects ciphertext replayed into a different sub-org (AAD binding)", async () => {
+    const { encryptSecret, decryptSecret } = await vi.importActual<
+      typeof import("@/lib/agentic-wallet/hmac-secret-store")
+    >("@/lib/agentic-wallet/hmac-secret-store");
+    const ct = encryptSecret("secret-A", "so_a", 1);
+    // Same envelope, same key version — but decrypting as if it belonged to
+    // a different sub-org must fail the GCM tag check.
+    expect(() => decryptSecret(ct, "so_b", 1)).toThrow();
+  });
+
+  it("rejects ciphertext replayed into a different keyVersion (AAD binding)", async () => {
+    const { encryptSecret, decryptSecret } = await vi.importActual<
+      typeof import("@/lib/agentic-wallet/hmac-secret-store")
+    >("@/lib/agentic-wallet/hmac-secret-store");
+    const ct = encryptSecret("secret-v1", "so_a", 1);
+    // Same sub-org, same envelope — but claiming a different key version
+    // must fail the GCM tag check.
+    expect(() => decryptSecret(ct, "so_a", 2)).toThrow();
   });
 
   it("lookupHmacSecret returns highest active version, skipping expired rows", async () => {
@@ -519,19 +542,19 @@ describe("hmac-secret-store envelope encryption (Phase 37 fix C2)", () => {
       {
         subOrgId: "subOrg_versioned",
         keyVersion: 1,
-        secretCiphertext: encryptSecret("v1-secret"),
+        secretCiphertext: encryptSecret("v1-secret", "subOrg_versioned", 1),
         expiresAt: past,
       },
       {
         subOrgId: "subOrg_versioned",
         keyVersion: 2,
-        secretCiphertext: encryptSecret("v2-secret"),
+        secretCiphertext: encryptSecret("v2-secret", "subOrg_versioned", 2),
         expiresAt: null,
       },
       {
         subOrgId: "subOrg_versioned",
         keyVersion: 3,
-        secretCiphertext: encryptSecret("v3-secret"),
+        secretCiphertext: encryptSecret("v3-secret", "subOrg_versioned", 3),
         expiresAt: future,
       }
     );
