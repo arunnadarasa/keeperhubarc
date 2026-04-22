@@ -39,6 +39,26 @@ const REDIS_HOST = process.env.REDIS_HOST ?? "localhost";
 const REDIS_PORT = Number(process.env.REDIS_PORT ?? 6380);
 const TEST_QUEUE_NAME = "keeperhub-event-tracker-test-queue";
 const WORKFLOW_ID = "test-workflow-keep-295";
+const EMITTED_VALUE = 42n;
+
+// Shape of the payload emitted by AbstractChain.executeWorkflow. Kept loose
+// because event-serializer output is the production contract; tighten in
+// later phases if we want to assert more aggressively.
+interface TypedValue {
+  value: string;
+  type: string;
+}
+interface TriggerData {
+  eventName: string;
+  args: Record<string, TypedValue>;
+  address: string;
+  transactionHash: string;
+}
+interface SqsBody {
+  workflowId: string;
+  triggerType: string;
+  triggerData: TriggerData;
+}
 
 function buildWorkflow(address: string, abi: unknown[]): unknown {
   return {
@@ -123,6 +143,14 @@ describe.skipIf(SKIP_INFRA_TESTS)(
         networks: buildNetworks(),
       });
 
+      // Env vars below are mutated and intentionally not restored in afterAll.
+      // This is safe because the event-tracker modules capture them at import
+      // time (e.g. lib/config/environment.ts, lib/sync/redis.ts constructs
+      // its Redis client eagerly). A restore after import would have no effect
+      // on the captured values, so it is not worth the noise. If another test
+      // file is added that imports event-tracker modules with different env,
+      // run test files in separate vitest processes (isolate: true) or move
+      // this setup to a global setup file.
       process.env.KEEPERHUB_API_URL = mockApi.url;
       process.env.KEEPERHUB_API_KEY = "test-key";
       process.env.SQS_QUEUE_URL = queueUrl;
@@ -163,8 +191,12 @@ describe.skipIf(SKIP_INFRA_TESTS)(
         // ignore
       }
       try {
-        // SyncModule holds its Redis client as a protected `rtStorage` field.
-        // Closing it lets vitest exit without hanging on open handles.
+        // Reaches into SyncModule's `rtStorage` field, which is declared
+        // `protected` on SyncManager. This is brittle but acceptable:
+        // event-tracker has no public disconnect API today, vitest hangs on
+        // the open ioredis connection if we don't close it, and Phase 6 of
+        // the KEEP-295 plan deletes SyncModule/Redis entirely. When this
+        // bracket goes, so does the need for this access.
         await syncModule?.rtStorage?.quit?.();
       } catch {
         // ignore
@@ -176,24 +208,50 @@ describe.skipIf(SKIP_INFRA_TESTS)(
     it("forwards an emitted contract event to SQS", async () => {
       await synchronizeData();
 
-      // Give the forked child time to boot, connect WSS, and register the
-      // filter before we emit. 5s is generous for local anvil.
-      await new Promise((r) => setTimeout(r, 5_000));
-
+      // The child process forks, connects its WSS provider, validates the
+      // contract, and attaches its filter asynchronously. Anvil WSS
+      // subscriptions only deliver events from blocks AFTER the subscribe
+      // call, so an event emitted before the child is ready is lost forever.
+      //
+      // There is no production hook to await "child is listening" from the
+      // test process (IPC is consumed inside WorkflowHandler). Instead: emit
+      // in a retry loop, polling SQS after each emit. Each emit is a new
+      // transaction with a new tx_hash, so Redis dedup never interferes.
+      // Once the listener is up, the next emit lands in SQS. First-attempt
+      // success is the typical case; retries only kick in if the child is
+      // slow to boot on a busy machine.
+      const MAX_ATTEMPTS = 10;
+      const PER_ATTEMPT_MS = 3_000;
       const emitEvent = fixture.contract.getFunction("emitEvent");
-      const tx = await emitEvent(42n);
-      await tx.wait();
 
-      const message = await pollForMessage(sqsClient, queueUrl, 20_000);
-      expect(message, "no SQS message received within timeout").not.toBeNull();
-      const body = JSON.parse(message?.Body ?? "{}") as {
-        workflowId: string;
-        triggerType: string;
-        triggerData: unknown;
-      };
+      let received: Awaited<ReturnType<typeof pollForMessage>> = null;
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        const tx = await emitEvent(EMITTED_VALUE);
+        await tx.wait();
+        received = await pollForMessage(sqsClient, queueUrl, PER_ATTEMPT_MS);
+        if (received) {
+          break;
+        }
+      }
+
+      expect(
+        received,
+        `no SQS message received after ${MAX_ATTEMPTS} emits; listener likely never attached`,
+      ).not.toBeNull();
+
+      const body = JSON.parse(received?.Body ?? "{}") as SqsBody;
       expect(body.workflowId).toBe(WORKFLOW_ID);
       expect(body.triggerType).toBe("event");
-      expect(body.triggerData).toBeDefined();
+      expect(body.triggerData.eventName).toBe("Emitted");
+      expect(body.triggerData.address.toLowerCase()).toBe(
+        fixture.address.toLowerCase(),
+      );
+      expect(body.triggerData.args.value.type).toBe("uint256");
+      expect(body.triggerData.args.value.value).toBe(String(EMITTED_VALUE));
+      expect(body.triggerData.args.sender.type).toBe("address");
+      expect(body.triggerData.args.sender.value.toLowerCase()).toBe(
+        wallet.address.toLowerCase(),
+      );
     }, 90_000);
   },
 );
