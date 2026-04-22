@@ -13,6 +13,8 @@ export const SESSION_TTL_SECONDS = 24 * 60 * 60; // 24 hours
 export const MAX_RENEWAL_GRACE_SECONDS = 48 * 60 * 60; // 48 hours
 export const MAX_SESSION_LIFETIME_SECONDS = 30 * 24 * 60 * 60; // 30 days
 
+let cachedSessionSecret: { raw: string; encoded: Uint8Array } | null = null;
+
 function getSessionSecret(): Uint8Array {
   const secret =
     process.env.MCP_SESSION_SECRET ??
@@ -23,7 +25,12 @@ function getSessionSecret(): Uint8Array {
       "No session secret configured. Set MCP_SESSION_SECRET, OAUTH_JWT_SECRET, or BETTER_AUTH_SECRET."
     );
   }
-  return new TextEncoder().encode(secret);
+  if (cachedSessionSecret?.raw === secret) {
+    return cachedSessionSecret.encoded;
+  }
+  const encoded = new TextEncoder().encode(secret);
+  cachedSessionSecret = { raw: secret, encoded };
+  return encoded;
 }
 
 export async function createSessionToken(

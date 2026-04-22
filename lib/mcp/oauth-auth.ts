@@ -17,12 +17,19 @@ export type OAuthAuthResult = {
   statusCode?: number;
 };
 
+let cachedJwtSecret: { raw: string; encoded: Uint8Array } | null = null;
+
 function getJwtSecret(): Uint8Array {
   const secret = process.env.OAUTH_JWT_SECRET;
   if (!secret) {
     throw new Error("OAUTH_JWT_SECRET environment variable is not set");
   }
-  return new TextEncoder().encode(secret);
+  if (cachedJwtSecret?.raw === secret) {
+    return cachedJwtSecret.encoded;
+  }
+  const encoded = new TextEncoder().encode(secret);
+  cachedJwtSecret = { raw: secret, encoded };
+  return encoded;
 }
 
 export async function createAccessToken(payload: {
