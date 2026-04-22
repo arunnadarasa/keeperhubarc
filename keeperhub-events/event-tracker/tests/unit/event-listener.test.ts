@@ -292,6 +292,52 @@ describe("EventListener", () => {
       expect(sqs.send).toHaveBeenCalledTimes(1);
     });
 
+    it("applies jitter up to the configured cap before forwarding", async () => {
+      // Pin Math.random() to 1 so the jitter is exactly the cap, and use
+      // fake timers so the test does not actually wait. The goal is to
+      // verify the jitter branch executes and respects the cap; precise
+      // timing is out of scope.
+      const randomSpy = vi.spyOn(Math, "random").mockReturnValue(1);
+      vi.useFakeTimers();
+      try {
+        const providerMock = makeProviderManagerMock();
+        const sqs = makeSqsMock();
+        const listener = new EventListener(
+          buildOptions({
+            providerManager: providerMock.manager,
+            sqs,
+            jitterMs: 7_000,
+          }),
+        );
+        await listener.start();
+
+        const handlerPromise = providerMock.capturedHandler!(
+          makeLog({
+            txHash:
+              "0xffff000000000000000000000000000000000000000000000000000000000000",
+            sender: SENDER,
+            value: 9n,
+          }),
+        );
+
+        // Before advancing timers the handler has not reached SQS.
+        await Promise.resolve();
+        expect(sqs.send).not.toHaveBeenCalled();
+
+        // Advance to just under the cap - still no send.
+        await vi.advanceTimersByTimeAsync(6_999);
+        expect(sqs.send).not.toHaveBeenCalled();
+
+        // Advance past the cap - send happens.
+        await vi.advanceTimersByTimeAsync(1);
+        await handlerPromise;
+        expect(sqs.send).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+        randomSpy.mockRestore();
+      }
+    });
+
     it("dedup markProcessed failure -> SQS send already happened, swallowed", async () => {
       // The mark happens after the send. A mark failure must not throw out
       // of the handler (it's logged and swallowed) and must not affect the
