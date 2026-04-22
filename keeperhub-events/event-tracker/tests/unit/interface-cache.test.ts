@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   clearInterfaceCache,
   getInterface,
+  getInterfaceCacheMaxSize,
   getInterfaceCacheSize,
 } from "../../src/chains/interface-cache";
 
@@ -112,6 +113,61 @@ describe("interface-cache", () => {
     expect(getInterfaceCacheSize()).toBe(2);
     clearInterfaceCache();
     expect(getInterfaceCacheSize()).toBe(0);
+  });
+
+  describe("LRU eviction", () => {
+    // Helper: build a cheap unique signature-string ABI for the Nth entry.
+    function uniqueAbi(n: number): string[] {
+      return [`event Unique${n}(uint256 value)`];
+    }
+
+    it("evicts the least-recently-used entry once full", () => {
+      const cap = getInterfaceCacheMaxSize();
+      // Fill the cache to capacity.
+      for (let i = 0; i < cap; i++) {
+        getInterface(uniqueAbi(i));
+      }
+      expect(getInterfaceCacheSize()).toBe(cap);
+
+      const oldest = getInterface(uniqueAbi(0));
+
+      // One more insertion forces an eviction. The LRU is abi(1) because
+      // abi(0) was just touched above.
+      getInterface(uniqueAbi(cap));
+      expect(getInterfaceCacheSize()).toBe(cap);
+
+      // abi(0) should still be there (and be the same instance).
+      expect(getInterface(uniqueAbi(0))).toBe(oldest);
+
+      // abi(1) should have been evicted, so requesting it produces a new
+      // Interface instance.
+      const refreshed = getInterface(uniqueAbi(1));
+      expect(refreshed).not.toBe(oldest);
+    });
+
+    it("cache-hit touch moves entry to most-recently-used position", () => {
+      // Simpler scenario, easier to reason about than the cap-sized one.
+      // Fill 3 entries, touch the first, force one eviction; the second
+      // (oldest untouched) is what should go.
+      const first = getInterface(uniqueAbi(1));
+      getInterface(uniqueAbi(2));
+      getInterface(uniqueAbi(3));
+
+      // Touch #1.
+      expect(getInterface(uniqueAbi(1))).toBe(first);
+
+      // Force enough inserts to evict exactly one entry: we need cap-2
+      // more new inserts beyond the 3 we already placed.
+      const cap = getInterfaceCacheMaxSize();
+      for (let i = 4; i <= cap + 1; i++) {
+        getInterface(uniqueAbi(i));
+      }
+      expect(getInterfaceCacheSize()).toBe(cap);
+
+      // #1 survives (touched); #2 should have been evicted (oldest
+      // untouched at the point of first overflow).
+      expect(getInterface(uniqueAbi(1))).toBe(first);
+    });
   });
 
   describe("production call shape (string[])", () => {
