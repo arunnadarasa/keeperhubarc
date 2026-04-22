@@ -1,6 +1,6 @@
 import { ENABLE_INPROC_LISTENERS } from "../lib/config/environment";
 import { syncModule } from "../lib/sync/redis";
-import type { ChildProcessMap, NetworksMap } from "../lib/types";
+import type { ChildProcessMap, NetworksMap, RawWorkflow } from "../lib/types";
 import { fetchActiveWorkflows } from "../lib/utils/fetch-utils";
 import { logger } from "../lib/utils/logger";
 import { createRegistry } from "./listener/factory";
@@ -25,18 +25,18 @@ function getRegistry(): ListenerRegistry {
 }
 
 async function reconcileForked(
-  workflows: unknown[],
+  workflows: RawWorkflow[],
   networks: NetworksMap,
 ): Promise<void> {
   await removeExcessProcesses({
-    workflows: workflows as never[],
+    workflows,
     childProcesses,
     syncService: syncModule,
     logger,
   });
 
   await handleActiveWorkflows({
-    workflows: workflows as never[],
+    workflows,
     childProcesses,
     networks: { networks },
     syncService: syncModule,
@@ -45,14 +45,14 @@ async function reconcileForked(
 }
 
 async function reconcileInproc(
-  workflows: unknown[],
+  workflows: RawWorkflow[],
   networks: NetworksMap,
 ): Promise<void> {
   const reg = getRegistry();
 
   const activeIds = new Set<string>(
     workflows
-      .map((w) => (w as { id?: unknown }).id)
+      .map((w) => w.id)
       .filter((id): id is string => typeof id === "string"),
   );
 
@@ -67,14 +67,7 @@ async function reconcileInproc(
   // Add listeners for active workflows that are not yet registered, and
   // restart listeners whose config has changed since last reconcile.
   for (const workflow of workflows) {
-    const id = (workflow as { id?: unknown }).id;
-    if (typeof id !== "string") {
-      continue;
-    }
-    const registration = buildRegistration(
-      workflow as Parameters<typeof buildRegistration>[0],
-      networks,
-    );
+    const registration = buildRegistration(workflow, networks);
     if (!registration) {
       continue;
     }

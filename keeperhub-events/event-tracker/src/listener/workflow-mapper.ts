@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { NetworksMap } from "../../lib/types";
+import type { NetworksMap, RawWorkflow } from "../../lib/types";
 import { logger } from "../../lib/utils/logger";
 import { buildEventAbi } from "../chains/event-serializer";
 import type { AbiEvent } from "../chains/validation";
@@ -11,28 +11,12 @@ import type { WorkflowRegistration } from "./registry";
  * malformed (missing nodes, bad ABI JSON, unknown chainId). Callers should
  * skip null-returning workflows rather than throw.
  *
+ * The input type (`RawWorkflow` from lib/types) has every field optional to
+ * reflect that the KeeperHub API response is not runtime-validated; the
+ * defensive per-field checks below are load-bearing, not dead-code.
+ *
  * Extracted from main.ts so it can be unit-tested in isolation.
  */
-
-interface RawNodeConfig {
-  network?: unknown;
-  eventName?: unknown;
-  contractABI?: unknown;
-  contractAddress?: unknown;
-}
-
-interface RawNode {
-  data?: {
-    config?: RawNodeConfig;
-  };
-}
-
-interface RawWorkflow {
-  id?: unknown;
-  name?: unknown;
-  userId?: unknown;
-  nodes?: RawNode[];
-}
 
 export function buildRegistration(
   workflow: RawWorkflow,
