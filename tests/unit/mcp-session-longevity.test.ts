@@ -203,7 +203,7 @@ describe("verifySessionTokenDetailed wire compatibility", () => {
     payload: Record<string, unknown>,
     secret: string
   ): string {
-      const b64url = (s: string): string =>
+    const b64url = (s: string): string =>
       Buffer.from(s)
         .toString("base64")
         .replace(/\+/g, "-")
