@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   createSessionToken,
@@ -84,7 +85,6 @@ async function createTokenWithOverrides(
     .replace(/\//g, "_")
     .replace(/=/g, "");
 
-  const { createHmac } = require("node:crypto") as typeof import("node:crypto");
   const signingInput = `${header}.${newBody}`;
   const signature = createHmac("sha256", TEST_SECRET)
     .update(signingInput)
@@ -203,8 +203,7 @@ describe("verifySessionTokenDetailed wire compatibility", () => {
     payload: Record<string, unknown>,
     secret: string
   ): string {
-    const { createHmac } = require("node:crypto") as typeof import("node:crypto");
-    const b64url = (s: string): string =>
+      const b64url = (s: string): string =>
       Buffer.from(s)
         .toString("base64")
         .replace(/\+/g, "-")
