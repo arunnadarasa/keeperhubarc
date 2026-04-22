@@ -167,7 +167,10 @@ describe("verifyWorkflowBinding", () => {
   });
 
   it("returns 403 UNKNOWN_WORKFLOW when slug exists but isListed=false", async () => {
-    queueWorkflow({ isListed: false });
+    // The SQL `where` filters on isListed=true at the DB level, so an
+    // unlisted row never reaches the code. Simulate by queueing an empty
+    // result for the workflow lookup.
+    queueWorkflow(null);
     const r = await verifyWorkflowBinding(SLUG, CREATOR, "50000");
     expect(r).toMatchObject({
       ok: false,

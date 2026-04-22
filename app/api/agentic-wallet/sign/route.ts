@@ -260,8 +260,8 @@ export async function POST(request: Request): Promise<Response> {
   const risk = classifyRisk({
     chain,
     challenge: {
-      amount: String(challenge.amount ?? "0"),
-      payTo: String(challenge.payTo ?? ""),
+      amount: amountMicro,
+      payTo: callerPayTo,
       selector:
         typeof challenge.selector === "string" ? challenge.selector : undefined,
     },
@@ -308,8 +308,8 @@ export async function POST(request: Request): Promise<Response> {
     let signature: string;
     if (chain === "base") {
       signature = await signX402Challenge(auth.subOrgId, walletAddress, {
-        payTo: String(challenge.payTo ?? ""),
-        amount: String(challenge.amount ?? "0"),
+        payTo: callerPayTo,
+        amount: amountMicro,
         validAfter: Number(challenge.validAfter ?? 0),
         validBefore: Number(challenge.validBefore ?? 0),
         nonce: String(challenge.nonce ?? ""),

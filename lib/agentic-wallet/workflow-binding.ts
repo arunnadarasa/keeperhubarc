@@ -67,14 +67,13 @@ export async function verifyWorkflowBinding(
       id: workflows.id,
       organizationId: workflows.organizationId,
       priceUsdcPerCall: workflows.priceUsdcPerCall,
-      isListed: workflows.isListed,
     })
     .from(workflows)
-    .where(eq(workflows.listedSlug, slug))
+    .where(and(eq(workflows.listedSlug, slug), eq(workflows.isListed, true)))
     .limit(1);
 
   const wf = rows[0];
-  if (!wf || !wf.isListed) {
+  if (!wf) {
     return {
       ok: false,
       status: 403,
