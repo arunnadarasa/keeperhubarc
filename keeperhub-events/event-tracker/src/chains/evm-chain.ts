@@ -64,7 +64,12 @@ export class EvmChain extends AbstractChain {
     this.isInitialized = false;
     this.connection = null;
 
-    this.dedup = new TransactionDedup(this.options.id!, REDIS_HOST, REDIS_PORT, REDIS_PASSWORD);
+    this.dedup = new TransactionDedup(
+      this.options.id!,
+      REDIS_HOST,
+      REDIS_PORT,
+      REDIS_PASSWORD,
+    );
   }
 
   async initializeProvider(): Promise<void> {
