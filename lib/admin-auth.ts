@@ -65,3 +65,27 @@ export function validateTestEmail(email: string): string | null {
   }
   return null;
 }
+
+type RateLimitRule = { window: number; max: number };
+
+// better-auth rateLimit.customRules["/*"] handler. Disables rate limiting
+// when the request carries a valid X-Test-API-Key header AND test endpoints
+// are enabled (build-time + runtime gates via testEndpointsEnabled). Returns
+// the default rule otherwise. Extracted from lib/auth.ts for unit testing.
+export function rateLimitBypassRule(
+  req: Request,
+  currentRule: RateLimitRule
+): RateLimitRule | false {
+  if (!testEndpointsEnabled()) {
+    return currentRule;
+  }
+  const testApiKey = process.env.TEST_API_KEY;
+  if (!testApiKey) {
+    return currentRule;
+  }
+  const authHeader = req.headers.get("X-Test-API-Key");
+  if (authHeader && authHeader === testApiKey) {
+    return false;
+  }
+  return currentRule;
+}

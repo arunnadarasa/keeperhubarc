@@ -12,10 +12,17 @@ const nextConfig = {
     process.env.INCLUDE_TEST_ENDPOINTS === "true"
       ? ["ts", "tsx", "staging.ts", "staging.tsx"]
       : ["ts", "tsx"],
-  // Bake INCLUDE_TEST_ENDPOINTS into the server bundle so lib/admin-auth.ts
-  // and lib/auth.ts can gate runtime behavior (admin routes, rate-limit
-  // bypass) on the build-time flag. Runtime env cannot override the baked
-  // value. See KEEP-237.
+  // Bake INCLUDE_TEST_ENDPOINTS so lib/admin-auth.ts and lib/auth.ts can
+  // gate runtime behavior (admin routes, rate-limit bypass) on the build-
+  // time flag. The bundler (Turbopack / webpack) replaces
+  // `process.env.INCLUDE_TEST_ENDPOINTS` with the literal captured here, so
+  // runtime env cannot override the baked value.
+  //
+  // NOTE: `env` config inlines into BOTH server and client bundles. The
+  // value ("true" or "") is a non-sensitive feature flag, so this is fine.
+  // Never put secrets in this block.
+  //
+  // See KEEP-237.
   env: {
     INCLUDE_TEST_ENDPOINTS: process.env.INCLUDE_TEST_ENDPOINTS ?? "",
   },

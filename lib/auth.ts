@@ -14,7 +14,7 @@ import {
 import { createAccessControl } from "better-auth/plugins/access";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { testEndpointsEnabled } from "@/lib/admin-auth";
+import { rateLimitBypassRule } from "@/lib/admin-auth";
 import { sendInvitationEmail, sendVerificationOTP } from "@/lib/email";
 import { isAiGatewayManagedKeysEnabled } from "./ai-gateway/config";
 import { db } from "./db";
@@ -531,23 +531,10 @@ export const auth = betterAuth({
   rateLimit: {
     enabled: !(process.env.CI || process.env.NODE_ENV === "test"),
     customRules: {
-      "/*": (req: Request, currentRule: { window: number; max: number }) => {
-        // Rate-limit bypass is gated by the same predicate as admin test
-        // routes. Prod builds without INCLUDE_TEST_ENDPOINTS cannot bypass
-        // even if TEST_API_KEY is provisioned. See KEEP-237.
-        if (!testEndpointsEnabled()) {
-          return currentRule;
-        }
-        const testApiKey = process.env.TEST_API_KEY;
-        if (!testApiKey) {
-          return currentRule;
-        }
-        const authHeader = req.headers.get("X-Test-API-Key");
-        if (authHeader && authHeader === testApiKey) {
-          return false;
-        }
-        return currentRule;
-      },
+      // Rate-limit bypass is gated by the same predicate as admin test
+      // routes (build-time + runtime). See lib/admin-auth.ts for the gate
+      // and KEEP-237 for context.
+      "/*": rateLimitBypassRule,
     },
   },
   advanced: {
