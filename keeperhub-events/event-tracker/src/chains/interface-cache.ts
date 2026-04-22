@@ -27,7 +27,7 @@ const MAX_CACHE_SIZE = 1000;
 
 const cache = new Map<string, ethers.Interface>();
 
-function hashAbi(abi: readonly unknown[]): string {
+function hashAbi(abi: ethers.InterfaceAbi): string {
   // JSON.stringify is deterministic for the object shapes produced by
   // rawEventsAbi.map(buildEventAbi). If two callers pass semantically
   // equivalent ABIs with different key orderings, they will miss the cache
@@ -35,7 +35,7 @@ function hashAbi(abi: readonly unknown[]): string {
   return createHash("sha256").update(JSON.stringify(abi)).digest("hex");
 }
 
-export function getInterface(abi: readonly unknown[]): ethers.Interface {
+export function getInterface(abi: ethers.InterfaceAbi): ethers.Interface {
   const key = hashAbi(abi);
   const existing = cache.get(key);
   if (existing) {
@@ -45,7 +45,7 @@ export function getInterface(abi: readonly unknown[]): ethers.Interface {
     cache.set(key, existing);
     return existing;
   }
-  const created = new ethers.Interface(abi as ethers.InterfaceAbi);
+  const created = new ethers.Interface(abi);
   if (cache.size >= MAX_CACHE_SIZE) {
     // Map iteration order is insertion order, so the first key is the LRU
     // entry. next() on the keys iterator is O(1) and does not materialise
