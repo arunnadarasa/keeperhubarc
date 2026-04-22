@@ -91,6 +91,7 @@ const {
   mockGetSession,
   mockLookupHmacSecret,
   mockDbSelectLimit,
+  mockDbSelectWhereAwait,
   mockCreateApprovalRequest,
   mockGetApprovalRequest,
   mockResolveApprovalRequest,
@@ -102,6 +103,10 @@ const {
     mockGetSession: vi.fn(),
     mockLookupHmacSecret: vi.fn(),
     mockDbSelectLimit: vi.fn(),
+    // Phase 37 fix B3 Task 14: `db.select(...).from(...).where(...)` is
+    // awaited directly by the pending-row count query (no `.limit()` call).
+    // This mock produces the rows returned when `.where()` is awaited.
+    mockDbSelectWhereAwait: vi.fn(),
     mockCreateApprovalRequest: vi.fn(),
     mockGetApprovalRequest: vi.fn(),
     mockResolveApprovalRequest: vi.fn(),
@@ -136,14 +141,32 @@ vi.mock("@/lib/auth", () => ({
   },
 }));
 
+// The `.where()` return value must support BOTH shapes: `.limit(1)` (used by
+// the ownership check in /approve and /reject) AND being awaited directly
+// (used by the Task 14 pending-count query). A thenable with a `.limit`
+// property covers both.
+type WhereShape = {
+  limit: typeof mockDbSelectLimit;
+  then: (
+    onFulfilled: (value: unknown) => unknown,
+    onRejected?: (reason: unknown) => unknown
+  ) => Promise<unknown>;
+};
+
 vi.mock("@/lib/db", () => ({
   db: {
     select: (): {
-      from: () => { where: () => { limit: typeof mockDbSelectLimit } };
+      from: () => { where: () => WhereShape };
     } => ({
       from: () => ({
-        where: () => ({
+        where: (): WhereShape => ({
           limit: mockDbSelectLimit,
+          // biome-ignore lint/suspicious/noThenProperty: drizzle's query builder is itself a thenable; this mock intentionally mirrors that shape so `await db.select(...).from(...).where(...)` resolves.
+          then: (onFulfilled, onRejected) =>
+            Promise.resolve(mockDbSelectWhereAwait()).then(
+              onFulfilled,
+              onRejected
+            ),
         }),
       }),
     }),
@@ -364,6 +387,7 @@ describe("agentic-wallet approval-request lifecycle", () => {
     mockGetSession.mockReset();
     mockLookupHmacSecret.mockReset();
     mockDbSelectLimit.mockReset();
+    mockDbSelectWhereAwait.mockReset();
     // Default secret resolver: SUB_ORG -> HMAC_SECRET, OTHER_SUB_ORG -> OTHER_HMAC_SECRET.
     mockLookupHmacSecret.mockImplementation(async (subOrgId: string) => {
       if (subOrgId === SUB_ORG) {
@@ -376,6 +400,20 @@ describe("agentic-wallet approval-request lifecycle", () => {
     });
     // Default ownership: SUB_ORG is owned by OWNER_USER_ID.
     mockDbSelectLimit.mockResolvedValue([{ linkedUserId: OWNER_USER_ID }]);
+    // Default pending-count query: read the in-memory approval store and
+    // return the rows that match status='pending' for the currently-verified
+    // sub-org. Tests that seed rows in the store will see those reflected in
+    // the count without needing per-test overrides. See Task 14.
+    mockDbSelectWhereAwait.mockImplementation((): [{ n: number }] => {
+      let pending = 0;
+      for (const row of approvalStore.values()) {
+        const r = row as ApprovalRow;
+        if (r.subOrgId === SUB_ORG && r.status === "pending") {
+          pending += 1;
+        }
+      }
+      return [{ n: pending }];
+    });
   });
 
   it("create (HMAC) -> poll (HMAC) returns pending -> approve (session) -> poll returns approved", async () => {
@@ -1054,5 +1092,126 @@ describe("agentic-wallet approval-request lifecycle", () => {
       chain: "base",
       contract: BOUND_CONTRACT_BASE,
     });
+  });
+
+  // Phase 37 fix B3 Task 14: per-sub-org pending-row count cap ---------------
+
+  it("accepts the 10th pending approval request (boundary, Phase 37 fix B3)", async () => {
+    // Seed 9 pending rows. PENDING_QUOTA_PER_SUB_ORG=10 and the check is
+    // `count >= quota`, so count=9 must still pass and the insert goes through.
+    for (const _ of Array.from({ length: 9 })) {
+      await mockCreateApprovalRequest({
+        subOrgId: SUB_ORG,
+        riskLevel: "ask",
+        operationPayload: baseOperationPayload(),
+        binding: bindingFixture(),
+      });
+    }
+    mockCreateApprovalRequest.mockClear();
+
+    const body = JSON.stringify({
+      riskLevel: "ask",
+      operationPayload: baseOperationPayload(),
+    });
+    const req = makeHmacRequest(
+      "POST",
+      "/api/agentic-wallet/approval-request",
+      body,
+      SUB_ORG,
+      HMAC_SECRET
+    );
+    const res = await postApprovalRequest(req);
+    expect(res.status).toBe(201);
+    expect(mockCreateApprovalRequest).toHaveBeenCalledTimes(1);
+    // Store now holds 10 pending rows -- still at the cap boundary.
+    expect(approvalStore.size).toBe(10);
+  });
+
+  it("returns 429 PENDING_QUOTA_EXCEEDED on the 11th pending approval request (Phase 37 fix B3)", async () => {
+    // Seed 10 pending rows. The 11th create must 429 without inserting.
+    for (const _ of Array.from({ length: 10 })) {
+      await mockCreateApprovalRequest({
+        subOrgId: SUB_ORG,
+        riskLevel: "ask",
+        operationPayload: baseOperationPayload(),
+        binding: bindingFixture(),
+      });
+    }
+    mockCreateApprovalRequest.mockClear();
+
+    const body = JSON.stringify({
+      riskLevel: "ask",
+      operationPayload: baseOperationPayload(),
+    });
+    const req = makeHmacRequest(
+      "POST",
+      "/api/agentic-wallet/approval-request",
+      body,
+      SUB_ORG,
+      HMAC_SECRET
+    );
+    const res = await postApprovalRequest(req);
+    expect(res.status).toBe(429);
+    const json = (await res.json()) as { code: string; error: string };
+    expect(json.code).toBe("PENDING_QUOTA_EXCEEDED");
+    expect(mockCreateApprovalRequest).not.toHaveBeenCalled();
+    // Store must be unchanged -- no 11th row was inserted.
+    expect(approvalStore.size).toBe(10);
+  });
+
+  it("does not count approved/rejected/expired rows against the pending cap (Phase 37 fix B3)", async () => {
+    // Seed 10 terminal rows (mix of approved/rejected/expired) + 1 pending.
+    // The non-pending rows must NOT count toward the quota, so a new create
+    // succeeds: pending count is 1, well below the cap.
+    const terminalStatusSequence: readonly (
+      | "approved"
+      | "rejected"
+      | "expired"
+    )[] = [
+      "approved",
+      "rejected",
+      "expired",
+      "approved",
+      "rejected",
+      "expired",
+      "approved",
+      "rejected",
+      "expired",
+      "approved",
+    ];
+    for (const status of terminalStatusSequence) {
+      const { id } = await mockCreateApprovalRequest({
+        subOrgId: SUB_ORG,
+        riskLevel: "ask",
+        operationPayload: baseOperationPayload(),
+        binding: bindingFixture(),
+      });
+      const row = approvalStore.get(id) as ApprovalRow;
+      row.status = status;
+      row.resolvedAt = new Date();
+      approvalStore.set(id, row);
+    }
+    await mockCreateApprovalRequest({
+      subOrgId: SUB_ORG,
+      riskLevel: "ask",
+      operationPayload: baseOperationPayload(),
+      binding: bindingFixture(),
+    });
+    mockCreateApprovalRequest.mockClear();
+
+    const body = JSON.stringify({
+      riskLevel: "ask",
+      operationPayload: baseOperationPayload(),
+    });
+    const req = makeHmacRequest(
+      "POST",
+      "/api/agentic-wallet/approval-request",
+      body,
+      SUB_ORG,
+      HMAC_SECRET
+    );
+    const res = await postApprovalRequest(req);
+    expect(res.status).toBe(201);
+    expect(mockCreateApprovalRequest).toHaveBeenCalledTimes(1);
   });
 });

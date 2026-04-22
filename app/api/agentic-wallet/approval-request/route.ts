@@ -12,14 +12,23 @@
  * T-33-02 (Information Disclosure): logSystemError metadata carries only
  * endpoint + subOrgId -- never the raw body or the HMAC secret.
  */
+import { and, count, eq } from "drizzle-orm";
 import {
   createApprovalRequest,
   deriveApprovalBinding,
 } from "@/lib/agentic-wallet/approval";
 import { verifyHmacRequest } from "@/lib/agentic-wallet/hmac";
+import { db } from "@/lib/db";
+import { walletApprovalRequests } from "@/lib/db/schema";
 import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 export const dynamic = "force-dynamic";
+
+// Phase 37 fix B3: upper bound on simultaneous pending approval requests per
+// sub-org. Caps DoS/noise vectors where an attacker (or a bug) floods the
+// table with never-resolved rows. Pending-only -- approved/rejected/expired
+// rows do not count against the quota.
+const PENDING_QUOTA_PER_SUB_ORG = 10;
 
 type CreateRequestBody = {
   riskLevel?: unknown;
@@ -76,8 +85,7 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  // Phase 37 fix B3: payload size cap. The per-sub-org pending-row count cap
-  // lands in Task 14.
+  // Phase 37 fix B3: payload size cap.
   if (JSON.stringify(body.operationPayload).length > 8 * 1024) {
     return Response.json(
       {
@@ -85,6 +93,29 @@ export async function POST(request: Request): Promise<Response> {
         code: "PAYLOAD_TOO_LARGE",
       },
       { status: 413 }
+    );
+  }
+
+  // Phase 37 fix B3: per-sub-org pending-row count cap. Blocks flooding the
+  // approval table with unresolved rows before we even attempt the insert.
+  // Only status='pending' counts toward the quota -- terminal rows
+  // (approved/rejected/expired) are ignored.
+  const pendingCountRows = await db
+    .select({ n: count() })
+    .from(walletApprovalRequests)
+    .where(
+      and(
+        eq(walletApprovalRequests.subOrgId, auth.subOrgId),
+        eq(walletApprovalRequests.status, "pending")
+      )
+    );
+  if ((pendingCountRows[0]?.n ?? 0) >= PENDING_QUOTA_PER_SUB_ORG) {
+    return Response.json(
+      {
+        error: "Pending approval quota exceeded",
+        code: "PENDING_QUOTA_EXCEEDED",
+      },
+      { status: 429 }
     );
   }
 
