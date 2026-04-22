@@ -120,22 +120,19 @@ async function signTypedData(
   typedData: unknown
 ): Promise<string> {
   const client = getTurnkeyClientForOrg(subOrgId).apiClient();
-  // The Turnkey SDK types are strict unions; cast via unknown to let the
-  // shared signing primitive accept both x402 and MPP typed-data bodies.
+  // Turnkey SDK v5.3.0's `signRawPayload` expects parameters FLAT (not nested
+  // under a `parameters` object as the raw v1 activity API required). The
+  // original v1 envelope `{type, organizationId, timestampMs, parameters}`
+  // was rejected with "field required: signWith / payload / encoding".
   const response = (await (
     client as unknown as {
       signRawPayload: (args: unknown) => Promise<TurnkeyActivityResponse>;
     }
   ).signRawPayload({
-    type: "ACTIVITY_TYPE_SIGN_RAW_PAYLOAD_V2",
-    organizationId: subOrgId,
-    timestampMs: String(Date.now()),
-    parameters: {
-      signWith: walletAddress,
-      payload: JSON.stringify(typedData),
-      encoding: "PAYLOAD_ENCODING_EIP712",
-      hashFunction: "HASH_FUNCTION_NO_OP",
-    },
+    signWith: walletAddress,
+    payload: JSON.stringify(typedData),
+    encoding: "PAYLOAD_ENCODING_EIP712",
+    hashFunction: "HASH_FUNCTION_NO_OP",
   })) as TurnkeyActivityResponse;
 
   const activity = response?.activity;
