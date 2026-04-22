@@ -35,7 +35,7 @@ const mockWalletSelectLimit = vi.fn();
 const mockCodeSelectLimit = vi.fn();
 const mockDelete = vi.fn();
 const mockInsertValues = vi.fn().mockResolvedValue(undefined);
-const mockUpdateSetWhere = vi.fn().mockResolvedValue(undefined);
+const mockUpdateReturning = vi.fn().mockResolvedValue([{ attempts: 1 }]);
 
 vi.mock("@/lib/db", () => ({
   db: {
@@ -57,7 +57,9 @@ vi.mock("@/lib/db", () => ({
     })),
     update: vi.fn(() => ({
       set: vi.fn(() => ({
-        where: (...args: unknown[]) => mockUpdateSetWhere(...args),
+        where: vi.fn(() => ({
+          returning: (...args: unknown[]) => mockUpdateReturning(...args),
+        })),
       })),
     })),
   },
@@ -218,5 +220,63 @@ describe("POST /api/user/wallet/export-key/verify", () => {
       "Only the wallet creator can export its private key"
     );
     expect(mockExportTurnkeyPrivateKey).not.toHaveBeenCalled();
+  });
+
+  it("returns 429 and deletes the code when post-increment attempts reach MAX_ATTEMPTS", async () => {
+    // Use a fresh user id so the per-user rate limiter window stays clean.
+    mockGetSession.mockResolvedValue({
+      user: { id: "verify-user-toctou", email: "x@x.com" },
+      session: { activeOrganizationId: ORG_ID },
+    });
+    mockGetActiveOrgId.mockReturnValue(ORG_ID);
+    mockGetActiveMember.mockResolvedValue({ role: "owner" });
+
+    const code = "123456";
+    const codeHash = crypto.createHash("sha256").update(code).digest("hex");
+    mockCodeSelectLimit.mockResolvedValueOnce([
+      {
+        id: "code-1",
+        organizationId: ORG_ID,
+        codeHash,
+        attempts: 4,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    ]);
+    mockUpdateReturning.mockResolvedValueOnce([{ attempts: 5 }]);
+
+    const res = await verifyPost(createJsonRequest({ code }));
+
+    expect(res.status).toBe(429);
+    expect(mockDelete).toHaveBeenCalled();
+    expect(mockExportTurnkeyPrivateKey).not.toHaveBeenCalled();
+  });
+});
+
+describe("Wallet export rate limiting", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockWalletSelectLimit.mockReset();
+  });
+
+  it("returns 429 on the 4th request call within the window", async () => {
+    const userId = "rate-request-user";
+    mockGetSession.mockResolvedValue({
+      user: { id: userId, email: "rr@x.com" },
+      session: { activeOrganizationId: ORG_ID },
+    });
+    mockGetActiveOrgId.mockReturnValue(ORG_ID);
+    mockGetActiveMember.mockResolvedValue({ role: "owner" });
+    mockWalletSelectLimit.mockResolvedValue([
+      { id: "wallet-1", userId, email: WALLET_EMAIL },
+    ]);
+
+    for (const _ of Array.from({ length: 3 })) {
+      const ok = await requestPost(createJsonRequest());
+      expect(ok.status).toBe(200);
+    }
+    const over = await requestPost(createJsonRequest());
+    expect(over.status).toBe(429);
+    const data = await over.json();
+    expect(data.retryAfter).toBeGreaterThan(0);
   });
 });

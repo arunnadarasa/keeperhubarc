@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { keyExportCodes, organizationWallets } from "@/lib/db/schema";
 import { sendEmail } from "@/lib/email";
 import { getActiveOrgId } from "@/lib/middleware/org-context";
+import { checkRequestRateLimit } from "../_lib/rate-limit";
 
 const CODE_EXPIRY_MINUTES = 5;
 
@@ -45,6 +46,20 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json(
         { error: "You are not a member of the active organization" },
         { status: 403 }
+      );
+    }
+
+    const rateLimit = checkRequestRateLimit(session.user.id);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          error: "Too many export requests. Please wait before trying again.",
+          retryAfter: rateLimit.retryAfter,
+        },
+        {
+          status: 429,
+          headers: { "Retry-After": String(rateLimit.retryAfter) },
+        }
       );
     }
 
