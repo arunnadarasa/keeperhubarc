@@ -14,6 +14,12 @@
  * signed string makes the binding explicit and robust to future refactors.
  *
  * Headers: X-KH-Sub-Org, X-KH-Timestamp (unix seconds), X-KH-Signature (hex).
+ * Optional: X-KH-Key-Version (positive integer) pins secret selection to a
+ * specific row in agentic_wallet_hmac_secrets. When absent, the highest active
+ * version is used. The key version is NOT part of the signing string — it
+ * only affects which secret gets looked up. An attacker who tampered with the
+ * header to force a different version would still need the correct secret for
+ * that version to produce a matching signature.
  * Replay window: 300 seconds, symmetric (|now - ts| <= 300).
  *
  * Replay within the 300-second window is INTENTIONALLY accepted — see
@@ -84,7 +90,17 @@ export async function verifyHmacRequest(
     return { ok: false, status: 401, error: "Invalid signature" };
   }
 
-  const lookup = await lookupHmacSecret(subOrgId);
+  const versionHeader = request.headers.get("X-KH-Key-Version");
+  let pinnedVersion: number | undefined;
+  if (versionHeader !== null) {
+    const v = Number.parseInt(versionHeader, 10);
+    if (!Number.isInteger(v) || v <= 0 || String(v) !== versionHeader.trim()) {
+      return { ok: false, status: 401, error: "Invalid key version" };
+    }
+    pinnedVersion = v;
+  }
+
+  const lookup = await lookupHmacSecret(subOrgId, pinnedVersion);
   if (!lookup) {
     return { ok: false, status: 404, error: "Unknown sub-org" };
   }

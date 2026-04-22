@@ -468,6 +468,170 @@ describe("verifyHmacRequest", () => {
   });
 });
 
+describe("verifyHmacRequest X-KH-Key-Version header", () => {
+  // Versioned secrets keyed on the pin. v1 is still active but superseded; v2
+  // is the highest active. Mirrors a mid-rotation state where v1 has a grace
+  // window (expires_at = now + 24h) and v2 is the new default (expires_at
+  // null).
+  const V1_SECRET = "v1secret";
+  const V2_SECRET = "v2secret";
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(FROZEN_NOW_ISO));
+    mockLookupSecret.mockReset();
+    // Multi-version lookup: honours the pin when passed, otherwise returns the
+    // highest active (v2). Mirrors the real hmac-secret-store contract.
+    mockLookupSecret.mockImplementation(
+      (_subOrgId: string, keyVersion?: number) => {
+        if (keyVersion === 1) {
+          return Promise.resolve({ secret: V1_SECRET, keyVersion: 1 });
+        }
+        if (keyVersion === 2 || keyVersion === undefined) {
+          return Promise.resolve({ secret: V2_SECRET, keyVersion: 2 });
+        }
+        return Promise.resolve(null);
+      }
+    );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("verifies with v1 secret when X-KH-Key-Version: 1 is supplied", async () => {
+    const body = '{"chain":"base"}';
+    const sig = expectedSig(
+      V1_SECRET,
+      signingString("POST", TEST_PATH, TEST_SUB_ORG, body, FROZEN_NOW_UNIX)
+    );
+    const request = buildRequest({
+      headers: {
+        "X-KH-Sub-Org": TEST_SUB_ORG,
+        "X-KH-Timestamp": FROZEN_NOW_UNIX,
+        "X-KH-Signature": sig,
+        "X-KH-Key-Version": "1",
+      },
+    });
+    const result = await verifyHmacRequest(request, body);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.subOrgId).toBe(TEST_SUB_ORG);
+    }
+  });
+
+  it("rejects v1-signed request when no X-KH-Key-Version header is sent (lookup defaults to v2)", async () => {
+    const body = '{"chain":"base"}';
+    // Sign with v1 but omit the pin: the verifier pulls v2 (highest active) and
+    // the signature no longer matches.
+    const sig = expectedSig(
+      V1_SECRET,
+      signingString("POST", TEST_PATH, TEST_SUB_ORG, body, FROZEN_NOW_UNIX)
+    );
+    const request = buildRequest({
+      headers: {
+        "X-KH-Sub-Org": TEST_SUB_ORG,
+        "X-KH-Timestamp": FROZEN_NOW_UNIX,
+        "X-KH-Signature": sig,
+      },
+    });
+    const result = await verifyHmacRequest(request, body);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(401);
+    }
+  });
+
+  it.each([
+    "abc",
+    "0",
+    "-1",
+    "1.5",
+    " ",
+    "1e2",
+    "01",
+  ])("rejects invalid X-KH-Key-Version value %j with 401 Invalid key version", async (badVersion) => {
+    const body = '{"chain":"base"}';
+    // Signature correctness is irrelevant — the version guard fires first.
+    const sig = expectedSig(
+      V1_SECRET,
+      signingString("POST", TEST_PATH, TEST_SUB_ORG, body, FROZEN_NOW_UNIX)
+    );
+    const request = buildRequest({
+      headers: {
+        "X-KH-Sub-Org": TEST_SUB_ORG,
+        "X-KH-Timestamp": FROZEN_NOW_UNIX,
+        "X-KH-Signature": sig,
+        "X-KH-Key-Version": badVersion,
+      },
+    });
+    const result = await verifyHmacRequest(request, body);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(401);
+      expect(result.error).toBe("Invalid key version");
+    }
+  });
+
+  it("returns ok:false status:404 when pinned X-KH-Key-Version does not exist", async () => {
+    const body = '{"chain":"base"}';
+    const sig = expectedSig(
+      V1_SECRET,
+      signingString("POST", TEST_PATH, TEST_SUB_ORG, body, FROZEN_NOW_UNIX)
+    );
+    const request = buildRequest({
+      headers: {
+        "X-KH-Sub-Org": TEST_SUB_ORG,
+        "X-KH-Timestamp": FROZEN_NOW_UNIX,
+        "X-KH-Signature": sig,
+        "X-KH-Key-Version": "5",
+      },
+    });
+    const result = await verifyHmacRequest(request, body);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(404);
+      expect(result.error).toBe("Unknown sub-org");
+    }
+  });
+
+  it("passes the parsed pinned version through to lookupHmacSecret", async () => {
+    const body = '{"chain":"base"}';
+    const sig = expectedSig(
+      V1_SECRET,
+      signingString("POST", TEST_PATH, TEST_SUB_ORG, body, FROZEN_NOW_UNIX)
+    );
+    const request = buildRequest({
+      headers: {
+        "X-KH-Sub-Org": TEST_SUB_ORG,
+        "X-KH-Timestamp": FROZEN_NOW_UNIX,
+        "X-KH-Signature": sig,
+        "X-KH-Key-Version": "1",
+      },
+    });
+    await verifyHmacRequest(request, body);
+    expect(mockLookupSecret).toHaveBeenCalledWith(TEST_SUB_ORG, 1);
+  });
+
+  it("omits the pin when the header is absent (highest-active selection)", async () => {
+    const body = '{"chain":"base"}';
+    const sig = expectedSig(
+      V2_SECRET,
+      signingString("POST", TEST_PATH, TEST_SUB_ORG, body, FROZEN_NOW_UNIX)
+    );
+    const request = buildRequest({
+      headers: {
+        "X-KH-Sub-Org": TEST_SUB_ORG,
+        "X-KH-Timestamp": FROZEN_NOW_UNIX,
+        "X-KH-Signature": sig,
+      },
+    });
+    const result = await verifyHmacRequest(request, body);
+    expect(result.ok).toBe(true);
+    expect(mockLookupSecret).toHaveBeenCalledWith(TEST_SUB_ORG, undefined);
+  });
+});
+
 describe("hmac-secret-store envelope encryption (Phase 37 fix C2)", () => {
   beforeAll(() => {
     process.env.AGENTIC_WALLET_HMAC_KMS_KEY = Buffer.alloc(32, 1).toString(
