@@ -81,12 +81,12 @@ When `~/.keeperhub/safety.json` is absent the hook applies these defaults:
 }
 ```
 
-The two allowlisted addresses are the only tokens the hook will authorise out of the box:
+The two allowlisted addresses are the only tokens the client-side hook will authorise out of the box:
 
 - `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` -- **Base USDC**. Canonical Circle USDC contract on Base mainnet (chain id 8453). Used by x402 challenges from KeeperHub and any other x402-compliant service.
 - `0x20C000000000000000000000B9537D11c60E8b50` -- **Tempo USDC.e**. USDC bridge token on Tempo mainnet (chain id 4217). Used by MPP challenges from KeeperHub paid workflows that settle on Tempo.
 
-Adding other ERC-20 contracts to `allowlisted_contracts` allows your agent to sign against them too -- at your own risk. To verify an address, paste it into [BaseScan](https://basescan.org) (Base) or the Tempo block explorer; the contract page shows the token name, issuer, and verification status.
+`allowlisted_contracts` in `safety.json` is a client-side first-pass filter -- the hook rejects signing calls whose target contract is not in this list. You can **narrow** it further (for example, remove Tempo USDC.e if your agent only pays on Base). You cannot **widen** it: adding a third contract here has no effect because the [server-side hard limits](#server-side-hard-limits) still restrict every signature to Base USDC + Tempo USDC.e. For access to other contracts, contact KeeperHub support so a sub-organisation with a different server-side allowlist can be provisioned.
 
 ## Alternatives
 
