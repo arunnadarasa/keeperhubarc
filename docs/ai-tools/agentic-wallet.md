@@ -28,7 +28,9 @@ npx @keeperhub/wallet add
 
 > Install the KeeperHub agentic wallet: run `npx @keeperhub/wallet skill install` to register the skill and safety hook, then `npx @keeperhub/wallet add` to provision a new wallet. Report the subOrgId and wallet address when done.
 
-The install step writes the skill file into every detected agent skill directory (Claude Code, Cursor, Cline, Windsurf, OpenCode) and registers the `keeperhub-wallet-hook` `PreToolUse` safety hook in `~/.claude/settings.json`. The `add` step provisions a fresh Turnkey sub-organisation and writes your wallet credentials to `~/.keeperhub/wallet.json` (mode `0600`). Restart your agent session once after this so it picks up the newly installed skill.
+The install step writes the skill file into every detected agent skill directory (Claude Code, Cursor, Cline, Windsurf, OpenCode) and registers the `keeperhub-wallet-hook` `PreToolUse` safety hook in `~/.claude/settings.json`. The `add` step provisions a fresh Turnkey sub-organisation and writes `~/.keeperhub/wallet.json` (mode `0600`). The file contains only your sub-org identifier, your EVM wallet address, and an HMAC shared secret used to authenticate signing requests against KeeperHub -- **no private key**. The signing key material is generated inside [Turnkey's secure enclave](https://docs.turnkey.com/concepts/overview#the-system-level-threat-model-we-solve) and never leaves it; nothing in `wallet.json` alone is enough to sign a transaction.
+
+Restart your agent session once after this so it picks up the newly installed skill.
 
 ### First payment
 
