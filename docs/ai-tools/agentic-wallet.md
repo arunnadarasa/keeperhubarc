@@ -39,7 +39,9 @@ Provision a wallet (zero-registration, under 60 seconds):
 npx @keeperhub/wallet add
 ```
 
-Once the wallet is provisioned, your agent can call paid KeeperHub workflows directly. Ask it in plain language:
+The wallet handles payment; the agent still needs a way to discover and call KeeperHub workflows. That comes from the [KeeperHub MCP server](/ai-tools/mcp-server), which exposes the `search_workflows` and `call_workflow` meta-tools to your agent. Install it before running the examples below -- most users get it by installing the [KeeperHub Claude Code plugin](/ai-tools/claude-code-plugin), which wires both the MCP server and (soon) the wallet skill in one step.
+
+With MCP + wallet both installed, ask your agent in plain language:
 
 > Use KeeperHub to find me the current floor price of the Pudgy Penguins NFT collection.
 
