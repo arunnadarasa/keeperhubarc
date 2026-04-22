@@ -56,6 +56,16 @@ Every wallet signing call is gated by a `PreToolUse` hook that reads thresholds 
 
 The hook reads only the payment-challenge fields `amount`, `unit`, and the asset contract address from the tool payload. Forged fields like `trust-level hint` or `admin-override` are ignored by design.
 
+### Server-side hard limits
+
+Beyond the client-side hook, three Turnkey-enforced policies apply to every wallet and cannot be bypassed by editing `safety.json` or changing the agent's hook. They are created per sub-organisation at provision time and enforced by Turnkey itself on every signing activity:
+
+- **Contract allowlist.** Signing is denied on any call whose target contract is not Base USDC (`0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`) or Tempo USDC.e (`0x20C000000000000000000000B9537D11c60E8b50`).
+- **Per-transfer cap.** `transfer()` or `transferFrom()` of more than 100 USDC is denied.
+- **Unlimited-approval block.** `approve()` with an allowance at or above 2³² (any practical "max uint256" approval) is denied.
+
+These are defence-in-depth: even if an attacker bypassed the client-side hook entirely, Turnkey rejects the signature. They are also **not user-configurable today**. If you have a legitimate need to sign transfers above 100 USDC or to interact with contracts outside the USDC allowlist, contact KeeperHub support -- a sub-organisation with a different policy set is possible but requires an operator action. Self-serve higher-cap configuration is on the roadmap.
+
 ### Default safety config
 
 When `~/.keeperhub/safety.json` is absent the hook applies these defaults:
@@ -124,7 +134,7 @@ Full documentation and security risk ratings: https://skills.sh/coinbase/agentic
 
 All three wallets call any x402-compliant service, KeeperHub included. The choice comes down to custody and ecosystem fit rather than anything KeeperHub-specific.
 
-The KeeperHub agentic wallet is a managed service: KeeperHub runs the Turnkey sub-organisation and proxies signing. You trust KeeperHub to honor the policy-engine limits and the `PreToolUse` hook decision. In return you get no-plaintext-key storage, a three-tier safety hook out of the box, and zero-registration onboarding.
+The KeeperHub agentic wallet is a managed service: KeeperHub runs the Turnkey sub-organisation and proxies signing. You trust KeeperHub to honour the [server-side hard limits](#server-side-hard-limits) and the `PreToolUse` hook decision. In return you get no-plaintext-key storage, a three-tier safety hook out of the box, and zero-registration onboarding.
 
 agentcash is fully self-custodial, with plaintext key material at rest. It fits development and automation experiments with small balances; it is not a production wallet for funds you care about.
 
@@ -161,11 +171,7 @@ This is a custodial model. You are trusting KeeperHub to honour the policy limit
 
 ### What stops KeeperHub signing whatever it wants?
 
-Three hard policies are applied to every sub-org at provision time and enforced by Turnkey itself, not by application code:
-
-1. Signing is only allowed against the ERC-20 contracts in your `allowlisted_contracts` -- Base USDC and Tempo USDC.e by default.
-2. Unlimited ERC-20 approvals are blocked outright. Even KeeperHub cannot sign a `max uint256` spend allowance.
-3. Transfers can only target facilitator addresses the wallet is configured to recognise.
+Three Turnkey policies, applied per sub-organisation at provision time and enforced by Turnkey itself (not by application code). Full list above under [Server-side hard limits](#server-side-hard-limits). Briefly: signing only against the Base USDC / Tempo USDC.e contracts, no `approve()` at or above 2³², no `transfer()` or `transferFrom()` above 100 USDC.
 
 If KeeperHub's operator key is compromised, the attacker is still bound by these policies. They cannot drain funds to an arbitrary address or approve an arbitrary contract to spend your balance.
 
