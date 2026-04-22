@@ -183,7 +183,7 @@ describe("provisionAgenticWallet", () => {
       const arg = call[0];
       expect(arg.organizationId).toBe(MOCK_SUB_ORG_ID);
       expect(arg.effect).toBe("EFFECT_DENY");
-      expect(arg.consensus ?? "").toBe("");
+      expect(arg.consensus).toBe("true");
     }
   });
 

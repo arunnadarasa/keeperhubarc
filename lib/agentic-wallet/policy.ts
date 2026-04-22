@@ -122,7 +122,13 @@ export async function applyBaselinePolicies(
         policyName: p.policyName,
         effect: p.effect,
         condition: p.condition,
-        consensus: "",
+        // Turnkey v5.3.0 requires a valid expression for consensus even on
+        // EFFECT_DENY policies; the empty-string shortcut noted in the original
+        // 33-RESEARCH.md Pitfall 7 was incorrect. "true" means "consensus is
+        // always satisfied" — combined with EFFECT_DENY this unconditionally
+        // denies the operation whenever the condition matches, which is the
+        // intended GUARD-06 behaviour.
+        consensus: "true",
         notes: p.notes,
       })
     )

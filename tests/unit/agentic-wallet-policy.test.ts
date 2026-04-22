@@ -62,11 +62,10 @@ describe("BASELINE_POLICIES", () => {
     expect(p?.effect).toBe("EFFECT_DENY");
   });
 
-  it("every policy has empty-or-absent consensus (no CONSENSUS_NEEDED surprise)", () => {
+  it("BaselinePolicy type does not carry a consensus field (set at createPolicy call site)", () => {
     for (const p of BASELINE_POLICIES) {
-      const consensus =
-        (p as unknown as { consensus?: string }).consensus ?? "";
-      expect(consensus).toBe("");
+      const hasConsensus = "consensus" in (p as Record<string, unknown>);
+      expect(hasConsensus).toBe(false);
     }
   });
 
