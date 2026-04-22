@@ -136,6 +136,14 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const wallet = wallets[0];
 
+    // Export must be completed by the wallet creator, not just any org admin.
+    if (wallet.userId !== session.user.id) {
+      return NextResponse.json(
+        { error: "Only the wallet creator can export its private key" },
+        { status: 403 }
+      );
+    }
+
     if (!wallet.turnkeySubOrgId) {
       return NextResponse.json(
         { error: "Turnkey wallet configuration is incomplete" },
