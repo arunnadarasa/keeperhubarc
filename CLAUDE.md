@@ -6,6 +6,7 @@
 - **No File Structure**: Do not include file/folder structure diagrams in README files
 - **No Random Documentation**: Do not create markdown documentation files unless explicitly requested by the user. This includes integration guides, feature documentation, or any other .md files
 - **`docs/` is public-facing**: The `docs/` directory is published to docs.keeperhub.com. Never put internal specs, notes, or working documents there. Internal documentation and specs go in `specs/`
+- **No internal references in public docs**: In `docs/` and `docs-site/content/` (anything published to docs.keeperhub.com), NEVER mention phase numbers (e.g. `Phase 33`), internal version tags (e.g. `v1.8`, `v0.1.4`), Linear ticket IDs (`KEEP-XXX`), PR numbers (`PR #917`), or internal branch names. Write about capabilities in terms of what's supported today vs not yet supported. Internal tracking belongs in `.planning/`, `specs/`, commit messages, and Linear — not on the public docs site.
 - **No co-authored with Claude in PR descriptions and git commits**
 - **Do not git push or create Github PRs without user's confirmation**
 - **Do not leave code comments with summaries of user's prompt**

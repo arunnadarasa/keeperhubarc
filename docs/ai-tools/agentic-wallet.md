@@ -154,9 +154,9 @@ Paid workflows settle in USDC on Base (via x402) or USDC.e on Tempo (via MPP). M
 
 ## Known limitations
 
-- Signing supported on Base and Tempo (chain 4217) only in v1.8. Solana, Arbitrum, Optimism, etc. are not yet supported.
-- Ask-tier approvals are surfaced inline via Claude Code's permission prompt. A server-side approval flow (browser-based review for larger amounts) was built in Phase 33 but not exposed to users -- see KEEP-307 for the permanent design decision.
-- Wallets persist indefinitely until explicitly deleted; sub-org cleanup is not automated. Linking a wallet to a KeeperHub account is not supported in v1.8 pending a device-code auth flow and UI work (KEEP-308).
+- Signing is supported on Base and Tempo (chain 4217) today. Solana, Arbitrum, Optimism and other chains are not yet supported.
+- Ask-tier approvals are surfaced inline via the agent's permission prompt. A browser-based review flow for larger amounts exists server-side but is not exposed to users.
+- Wallets persist indefinitely until explicitly deleted; sub-org cleanup is not automated. Linking a wallet to a KeeperHub account is not currently supported pending a better auth flow and account-UI integration.
 
 ## Links
 
