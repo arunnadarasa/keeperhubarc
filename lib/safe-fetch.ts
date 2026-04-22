@@ -1,7 +1,7 @@
 import "server-only";
 
 import { lookup as dnsLookup } from "node:dns";
-import { BlockList, isIP } from "node:net";
+import { BlockList, isIP, type LookupFunction } from "node:net";
 import { Agent, fetch as undiciFetch } from "undici";
 import { ErrorCategory, logSystemError, logUserError } from "@/lib/logging";
 import { getMetricsCollector } from "@/lib/metrics";
@@ -197,13 +197,17 @@ function recordBlock(ctx: BlockContext, shadow: boolean): void {
     shadow: shadow ? "true" : "false",
   });
 
-  const payload = {
+  const payload: Record<string, string> = {
     hostname: ctx.hostname,
-    resolved_ip: ctx.resolvedIp,
     reason: ctx.reason,
-    plugin_name: ctx.plugin,
-    shadow_mode: shadow,
+    shadow_mode: String(shadow),
   };
+  if (ctx.resolvedIp !== undefined) {
+    payload.resolved_ip = ctx.resolvedIp;
+  }
+  if (ctx.plugin !== undefined) {
+    payload.plugin_name = ctx.plugin;
+  }
 
   if (shadow) {
     logSystemError(
@@ -249,20 +253,17 @@ function extractUrlString(input: RequestInfo | URL): string {
  * redirect hops. The socket connects using the exact IP returned here, closing
  * the TOCTOU window between DNS resolution and the TCP handshake.
  */
-function validatingLookup(
-  hostname: string,
-  options: Parameters<typeof dnsLookup>[1],
-  callback: Parameters<typeof dnsLookup>[2]
-): void {
+const validatingLookup: LookupFunction = (hostname, options, callback) => {
   dnsLookup(hostname, options, (err, address, family) => {
     if (err) {
       callback(err, "", 0);
       return;
     }
     const resolved = String(address);
+    const resolvedFamily = family ?? isIP(resolved);
     const check = isBlockedIp(resolved);
     if (!check.blocked) {
-      callback(null, resolved, family ?? (isIP(resolved) || 0));
+      callback(null, resolved, resolvedFamily);
       return;
     }
     const shadow = isShadowMode();
@@ -271,7 +272,7 @@ function validatingLookup(
       shadow
     );
     if (shadow) {
-      callback(null, resolved, family ?? (isIP(resolved) || 0));
+      callback(null, resolved, resolvedFamily);
       return;
     }
     callback(
@@ -289,7 +290,7 @@ function validatingLookup(
       0
     );
   });
-}
+};
 
 /**
  * Module-level Agent. Pooling outbound sockets across requests is fine because
@@ -369,12 +370,14 @@ export async function safeFetch(
   const { plugin: _omit, ...fetchInit } = init ?? {};
 
   // undici's fetch accepts a `dispatcher` option at runtime that is not part
-  // of the DOM `RequestInit` type. Cast through `unknown` to avoid `any`
-  // while still passing the dispatcher to undici.
+  // of the DOM `RequestInit` type, and undici's own `RequestInit` differs
+  // from the DOM's on `body` nullability. Build the call args via the
+  // parameter type of the function we're calling to avoid `any`.
+  type UndiciFetchInit = Parameters<typeof undiciFetch>[1];
   const initWithDispatcher = {
     ...fetchInit,
     dispatcher: safeAgent,
-  } as unknown as RequestInit;
+  } as unknown as UndiciFetchInit;
 
   return (await undiciFetch(rawUrl, initWithDispatcher)) as unknown as Response;
 }
