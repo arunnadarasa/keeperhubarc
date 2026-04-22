@@ -25,6 +25,10 @@
  * id -- never the raw body, the signature, or the HMAC secret.
  */
 import { eq } from "drizzle-orm";
+import {
+  ALLOWED_TEMPO_CHAIN_IDS,
+  TEMPO_MAINNET_CHAIN_ID,
+} from "@/lib/agentic-wallet/constants";
 import { verifyHmacRequest } from "@/lib/agentic-wallet/hmac";
 import { createApprovalRequest } from "@/lib/agentic-wallet/approval";
 import { classifyRisk } from "@/lib/agentic-wallet/risk";
@@ -40,10 +44,6 @@ import { agenticWallets } from "@/lib/db/schema";
 import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 export const dynamic = "force-dynamic";
-
-// Tempo mainnet chain id. signMppProof accepts the chainId via the challenge
-// so the same route can extend to Tempo testnet without a signature change.
-const TEMPO_CHAIN_ID = 4217;
 
 type SignRequestBody = {
   chain?: unknown;
@@ -179,6 +179,32 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
+  // Phase 37 fix #3: caller-supplied chainId restricted to the Tempo
+  // mainnet/testnet enum on the tempo (MPP) path. The eth.eip_712.foreign-
+  // chainid Turnkey policy is the upstream gate; this is the route-side
+  // defence in depth and also catches malformed inputs before round-tripping
+  // to Turnkey.
+  let resolvedTempoChainId: number = TEMPO_MAINNET_CHAIN_ID;
+  if (chain === "tempo") {
+    const rawChainId = challenge.chainId;
+    if (rawChainId === undefined) {
+      resolvedTempoChainId = TEMPO_MAINNET_CHAIN_ID;
+    } else if (
+      typeof rawChainId === "number" &&
+      ALLOWED_TEMPO_CHAIN_IDS.includes(rawChainId)
+    ) {
+      resolvedTempoChainId = rawChainId;
+    } else {
+      return Response.json(
+        {
+          error: `chainId must be one of ${ALLOWED_TEMPO_CHAIN_IDS.join(", ")}`,
+          code: "BAD_CHAIN_ID",
+        },
+        { status: 400 }
+      );
+    }
+  }
+
   // Phase 37 fix #2: server-derived recipient + amount via workflow registry.
   // The eth.eip_712.* Turnkey policy catches domain mismatches; this route-
   // side check is the recipient + amount gate that the policy DSL cannot
@@ -272,10 +298,7 @@ export async function POST(request: Request): Promise<Response> {
       });
     } else {
       signature = await signMppProof(auth.subOrgId, walletAddress, {
-        chainId:
-          typeof challenge.chainId === "number"
-            ? challenge.chainId
-            : TEMPO_CHAIN_ID,
+        chainId: resolvedTempoChainId,
         challengeId: String(challenge.challengeId ?? ""),
       });
     }

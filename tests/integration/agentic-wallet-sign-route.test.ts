@@ -619,3 +619,116 @@ describe("POST /api/agentic-wallet/sign -- workflow-slug binding (Phase 37 fix #
     expect(mockSignRawPayload).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("POST /api/agentic-wallet/sign -- MPP chainId enum (Phase 37 fix #3)", () => {
+  it("rejects MPP chainId=1 (Ethereum mainnet) with 400 BAD_CHAIN_ID", async () => {
+    const body = JSON.stringify({
+      chain: "tempo",
+      workflowSlug: "test-slug",
+      paymentChallenge: {
+        chainId: 1,
+        challengeId: "abc",
+        payTo: "0x0000000000000000000000000000000000000001",
+        amount: "0",
+      },
+    });
+    const path = "/api/agentic-wallet/sign";
+    const res = await POST(
+      new Request(`http://localhost:3000${path}`, {
+        method: "POST",
+        headers: buildHmacHeaders("subOrg_test", "POST", path, body),
+        body,
+      })
+    );
+    expect(res.status).toBe(400);
+    const json = (await res.json()) as { code: string };
+    expect(json.code).toBe("BAD_CHAIN_ID");
+    // The chainId guard fires before binding check + Turnkey.
+    expect(mockSignRawPayload).not.toHaveBeenCalled();
+  });
+
+  it("accepts MPP chainId=4218 (Tempo testnet) and forwards it to the signer", async () => {
+    // We don't assert HTTP 200 here -- the fake Turnkey signature does not
+    // deserialize via viem -- but we DO assert that the route reached the
+    // signer with the caller-supplied chainId, which proves the enum guard
+    // accepted 4218.
+    mockSignRawPayload.mockResolvedValue({
+      activity: {
+        status: "ACTIVITY_STATUS_COMPLETED",
+        result: {
+          signRawPayloadResult: {
+            r: "ab".repeat(32),
+            s: "cd".repeat(32),
+            v: "00",
+          },
+        },
+      },
+    });
+    const body = JSON.stringify({
+      chain: "tempo",
+      workflowSlug: "test-slug",
+      paymentChallenge: {
+        chainId: 4218,
+        challengeId: "abc",
+        payTo: "0x0000000000000000000000000000000000000001",
+        amount: "0",
+      },
+    });
+    const path = "/api/agentic-wallet/sign";
+    await POST(
+      new Request(`http://localhost:3000${path}`, {
+        method: "POST",
+        headers: buildHmacHeaders("subOrg_test", "POST", path, body),
+        body,
+      })
+    );
+    expect(mockSignRawPayload).toHaveBeenCalledTimes(1);
+    const call = mockSignRawPayload.mock.calls[0]?.[0] as {
+      payload: string;
+    };
+    const typedData = JSON.parse(call.payload) as {
+      domain: { chainId: number };
+    };
+    expect(typedData.domain.chainId).toBe(4218);
+  });
+
+  it("defaults to Tempo mainnet when chainId omitted", async () => {
+    mockSignRawPayload.mockResolvedValue({
+      activity: {
+        status: "ACTIVITY_STATUS_COMPLETED",
+        result: {
+          signRawPayloadResult: {
+            r: "ab".repeat(32),
+            s: "cd".repeat(32),
+            v: "00",
+          },
+        },
+      },
+    });
+    const body = JSON.stringify({
+      chain: "tempo",
+      workflowSlug: "test-slug",
+      paymentChallenge: {
+        challengeId: "abc",
+        payTo: "0x0000000000000000000000000000000000000001",
+        amount: "0",
+      },
+    });
+    const path = "/api/agentic-wallet/sign";
+    await POST(
+      new Request(`http://localhost:3000${path}`, {
+        method: "POST",
+        headers: buildHmacHeaders("subOrg_test", "POST", path, body),
+        body,
+      })
+    );
+    expect(mockSignRawPayload).toHaveBeenCalledTimes(1);
+    const call = mockSignRawPayload.mock.calls[0]?.[0] as {
+      payload: string;
+    };
+    const typedData = JSON.parse(call.payload) as {
+      domain: { chainId: number };
+    };
+    expect(typedData.domain.chainId).toBe(4217);
+  });
+});

@@ -18,3 +18,12 @@ export const TEMPO_MAINNET_CHAIN_ID = 4217 as const;
 // Tempo testnet — matches the Tempo public testnet chain id. Confirmed
 // against the Tempo network docs at writing-plans research time.
 export const TEMPO_TESTNET_CHAIN_ID = 4218 as const;
+
+// Phase 37 fix #3: MPP chainId enum. /sign rejects any chainId not in this
+// list with 400 BAD_CHAIN_ID — defence in depth for the eth.eip_712 Turnkey
+// policy and a guard against malformed inputs that would otherwise round-trip
+// to Turnkey before being rejected.
+export const ALLOWED_TEMPO_CHAIN_IDS: readonly number[] = [
+  TEMPO_MAINNET_CHAIN_ID,
+  TEMPO_TESTNET_CHAIN_ID,
+] as const;
