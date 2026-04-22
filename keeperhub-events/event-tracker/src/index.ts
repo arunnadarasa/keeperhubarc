@@ -1,7 +1,7 @@
 import os from "node:os";
 import { syncModule } from "../lib/sync/redis";
 import { logger } from "../lib/utils/logger";
-import { synchronizeData } from "./main";
+import { shutdownRegistry, synchronizeData } from "./main";
 
 // Fatal-error handlers: an uncaught exception or unhandled rejection inside a
 // listener callback is almost always a bug that leaves the process in an
@@ -18,6 +18,28 @@ process.on("unhandledRejection", (reason: unknown) => {
   const stack = reason instanceof Error ? (reason.stack ?? "") : "";
   logger.error(`[Fatal] unhandledRejection: ${message}\n${stack}`);
   process.exit(1);
+});
+
+// Graceful shutdown: K8s sends SIGTERM on pod rotation. Under the fork model
+// `child-handler.ts` handles this per-child; under the in-process model the
+// parent owns every listener, so we must stop them here. No-op for fork-mode
+// pods because the registry is only lazily constructed when the feature flag
+// is on. Best-effort - if stopAll throws we still exit so K8s can restart.
+async function shutdown(signal: string): Promise<void> {
+  logger.log(`[Shutdown] received ${signal}; stopping listeners`);
+  try {
+    await shutdownRegistry();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error(`[Shutdown] error during registry shutdown: ${message}`);
+  }
+  process.exit(0);
+}
+process.on("SIGTERM", () => {
+  void shutdown("SIGTERM");
+});
+process.on("SIGINT", () => {
+  void shutdown("SIGINT");
 });
 
 logger.log(`Initializing container: ${os.hostname()}`);

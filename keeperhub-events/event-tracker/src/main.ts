@@ -24,6 +24,19 @@ function getRegistry(): ListenerRegistry {
   return registry;
 }
 
+/**
+ * Stops every listener in the registry if one was constructed. No-op when
+ * the registry was never touched (fork-mode pods, or in-proc pods that
+ * received a signal before the first reconcile). Kept separate from
+ * `getRegistry` so shutdown does not lazily construct a registry just to
+ * tear it down - that would open a Redis connection for no reason.
+ */
+async function shutdownRegistry(): Promise<void> {
+  if (registry) {
+    await registry.stopAll();
+  }
+}
+
 async function reconcileForked(
   workflows: RawWorkflow[],
   networks: NetworksMap,
@@ -115,4 +128,4 @@ async function synchronizeData(): Promise<void> {
   }
 }
 
-export { getRegistry, synchronizeData };
+export { getRegistry, shutdownRegistry, synchronizeData };
