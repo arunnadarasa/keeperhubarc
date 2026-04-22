@@ -277,6 +277,26 @@ describe("verifySessionTokenDetailed rejects alg:none attack", () => {
   });
 });
 
+describe("verifySessionTokenDetailed rejects malformed payloads", () => {
+  it("returns malformed when org claim is the wrong type", async () => {
+    const token = await createTokenWithOverrides({ org: 42 });
+    const result = await verifySessionTokenDetailed(token);
+    expect(result.payload).toBeNull();
+    if (!result.payload) {
+      expect(result.reason).toBe("malformed");
+    }
+  });
+
+  it("returns malformed when a required claim is missing", async () => {
+    const token = await createTokenWithOverrides({ key: null });
+    const result = await verifySessionTokenDetailed(token);
+    expect(result.payload).toBeNull();
+    if (!result.payload) {
+      expect(result.reason).toBe("malformed");
+    }
+  });
+});
+
 describe("verifySessionTokenDetailed handles config errors", () => {
   it("returns malformed when no session secret is configured", async () => {
     delete process.env.MCP_SESSION_SECRET;

@@ -82,6 +82,21 @@ export async function verifySessionToken(
   return result.payload;
 }
 
+function isSessionPayload(value: unknown): value is SessionPayload {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const p = value as Record<string, unknown>;
+  return (
+    typeof p.org === "string" &&
+    typeof p.key === "string" &&
+    typeof p.iat === "number" &&
+    typeof p.exp === "number" &&
+    (p.scope === undefined || typeof p.scope === "string") &&
+    (p.original_iat === undefined || typeof p.original_iat === "number")
+  );
+}
+
 export async function verifySessionTokenDetailed(
   token: string
 ): Promise<VerifyResult> {
@@ -96,7 +111,10 @@ export async function verifySessionTokenDetailed(
       clockTolerance: MAX_RENEWAL_GRACE_SECONDS,
     });
 
-    const claims = payload as unknown as SessionPayload;
+    if (!isSessionPayload(payload)) {
+      return { payload: null, expired: false, reason: "malformed" };
+    }
+    const claims = payload;
     const now = Math.floor(Date.now() / 1000);
     const sessionOrigin = claims.original_iat ?? claims.iat;
     if (now - sessionOrigin > MAX_SESSION_LIFETIME_SECONDS) {

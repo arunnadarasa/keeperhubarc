@@ -50,6 +50,20 @@ export async function createAccessToken(payload: {
     .sign(secret);
 }
 
+function isOAuthTokenPayload(value: unknown): value is OAuthTokenPayload {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const p = value as Record<string, unknown>;
+  return (
+    typeof p.sub === "string" &&
+    typeof p.org === "string" &&
+    typeof p.scope === "string" &&
+    typeof p.iat === "number" &&
+    typeof p.exp === "number"
+  );
+}
+
 export async function verifyAccessToken(
   token: string
 ): Promise<OAuthTokenPayload | null> {
@@ -58,7 +72,10 @@ export async function verifyAccessToken(
     const { payload } = await jwtVerify(token, secret, {
       algorithms: ["HS256"],
     });
-    return payload as unknown as OAuthTokenPayload;
+    if (!isOAuthTokenPayload(payload)) {
+      return null;
+    }
+    return payload;
   } catch {
     return null;
   }
