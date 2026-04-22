@@ -28,7 +28,7 @@ npx @keeperhub/wallet add
 
 > Install the KeeperHub agentic wallet: run `npx @keeperhub/wallet skill install` to register the skill and safety hook, then `npx @keeperhub/wallet add` to provision a new wallet. Report the subOrgId and wallet address when done.
 
-The install step writes the skill file into every detected agent skill directory (Claude Code, Cursor, Cline, Windsurf, OpenCode) and registers the `keeperhub-wallet-hook` `PreToolUse` safety hook in `~/.claude/settings.json`. The `add` step provisions a fresh Turnkey sub-organisation and writes `~/.keeperhub/wallet.json` (mode `0600`). The file contains only your sub-org identifier, your EVM wallet address, and an HMAC shared secret used to authenticate signing requests against KeeperHub -- **no private key**. The signing key material is generated inside [Turnkey's secure enclave](https://docs.turnkey.com/concepts/overview#the-system-level-threat-model-we-solve) and never leaves it; nothing in `wallet.json` alone is enough to sign a transaction.
+The install step writes the skill file into every detected agent skill directory (Claude Code, Cursor, Cline, Windsurf, OpenCode) and registers the `keeperhub-wallet-hook` `PreToolUse` safety hook in `~/.claude/settings.json`. The `add` step provisions a fresh Turnkey sub-organisation and writes `~/.keeperhub/wallet.json` (mode `0600`). The file contains only your sub-org identifier, your EVM wallet address, and an HMAC shared secret used to authenticate signing requests against KeeperHub — **no private key**. The signing key material is generated inside [Turnkey's secure enclave](https://docs.turnkey.com/concepts/overview#the-system-level-threat-model-we-solve) and never leaves it; nothing in `wallet.json` alone is enough to sign a transaction.
 
 Restart your agent session once after this so it picks up the newly installed skill.
 
@@ -64,7 +64,7 @@ Beyond the client-side hook, three Turnkey-enforced policies apply to every wall
 - **Per-transfer cap.** `transfer()` or `transferFrom()` of more than 100 USDC is denied.
 - **Unlimited-approval block.** `approve()` with an allowance at or above 2³² (any practical "max uint256" approval) is denied.
 
-These are defence-in-depth: even if an attacker bypassed the client-side hook entirely, Turnkey rejects the signature. They are also **not user-configurable today**. If you have a legitimate need to sign transfers above 100 USDC or to interact with contracts outside the USDC allowlist, contact KeeperHub support -- a sub-organisation with a different policy set is possible but requires an operator action. Self-serve higher-cap configuration is on the roadmap.
+These are defence-in-depth: even if an attacker bypassed the client-side hook entirely, Turnkey rejects the signature. They are also **not user-configurable today**. If you have a legitimate need to sign transfers above 100 USDC or to interact with contracts outside the USDC allowlist, contact KeeperHub support — a sub-organisation with a different policy set is possible but requires an operator action. Self-serve higher-cap configuration is on the roadmap.
 
 ### Default safety config
 
@@ -83,10 +83,10 @@ When `~/.keeperhub/safety.json` is absent the hook applies these defaults:
 
 The two allowlisted addresses are the only tokens the client-side hook will authorise out of the box:
 
-- `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` -- **Base USDC**. Canonical Circle USDC contract on Base mainnet (chain id 8453). Used by x402 challenges from KeeperHub and any other x402-compliant service.
-- `0x20C000000000000000000000B9537D11c60E8b50` -- **Tempo USDC.e**. USDC bridge token on Tempo mainnet (chain id 4217). Used by MPP challenges from KeeperHub paid workflows that settle on Tempo.
+- `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` — **Base USDC**. Canonical Circle USDC contract on Base mainnet (chain id 8453). Used by x402 challenges from KeeperHub and any other x402-compliant service.
+- `0x20C000000000000000000000B9537D11c60E8b50` — **Tempo USDC.e**. USDC bridge token on Tempo mainnet (chain id 4217). Used by MPP challenges from KeeperHub paid workflows that settle on Tempo.
 
-`allowlisted_contracts` in `safety.json` is a client-side first-pass filter -- the hook rejects signing calls whose target contract is not in this list. You can **narrow** it further (for example, remove Tempo USDC.e if your agent only pays on Base). You cannot **widen** it: adding a third contract here has no effect because the [server-side hard limits](#server-side-hard-limits) still restrict every signature to Base USDC + Tempo USDC.e. For access to other contracts, contact KeeperHub support so a sub-organisation with a different server-side allowlist can be provisioned.
+`allowlisted_contracts` in `safety.json` is a client-side first-pass filter — the hook rejects signing calls whose target contract is not in this list. You can **narrow** it further (for example, remove Tempo USDC.e if your agent only pays on Base). You cannot **widen** it: adding a third contract here has no effect because the [server-side hard limits](#server-side-hard-limits) still restrict every signature to Base USDC + Tempo USDC.e. For access to other contracts, contact KeeperHub support so a sub-organisation with a different server-side allowlist can be provisioned.
 
 ## Alternatives
 
@@ -146,8 +146,8 @@ Nothing stops you installing multiple wallets side by side; they do not conflict
 
 Whichever wallet you install, the agent calls KeeperHub through two meta-tools (described in its OpenAPI at `/openapi.json`):
 
-- `search_workflows` -- find workflows by category, tag, or free text. Returns slug, description, inputSchema, and price for each match.
-- `call_workflow` -- execute a listed workflow by slug. For read workflows the call executes and returns the result; for write workflows it returns unsigned calldata `{to, data, value}` for the caller to submit.
+- `search_workflows` — find workflows by category, tag, or free text. Returns slug, description, inputSchema, and price for each match.
+- `call_workflow` — execute a listed workflow by slug. For read workflows the call executes and returns the result; for write workflows it returns unsigned calldata `{to, data, value}` for the caller to submit.
 
 The meta-tool pattern keeps the agent's tool list small regardless of how many workflows are listed: the agent discovers available workflows at runtime instead of registering one tool per workflow.
 
@@ -165,7 +165,7 @@ Paid workflows settle in USDC on Base (via x402) or USDC.e on Tempo (via MPP). M
 
 ### Who controls my wallet?
 
-KeeperHub does, today. Each wallet is a [Turnkey sub-organisation](https://docs.turnkey.com/concepts/sub-organizations) where KeeperHub holds the only root user -- a server-side API key inside a Turnkey enclave. Your agent does not hold a private key. When your agent needs to pay, it sends a signed request to KeeperHub, KeeperHub checks it against the safety policy engine, and Turnkey produces the signature.
+KeeperHub does, today. Each wallet is a [Turnkey sub-organisation](https://docs.turnkey.com/concepts/sub-organizations) where KeeperHub holds the only root user — a server-side API key inside a Turnkey enclave. Your agent does not hold a private key. When your agent needs to pay, it sends a signed request to KeeperHub, KeeperHub checks it against the safety policy engine, and Turnkey produces the signature.
 
 This is a custodial model. You are trusting KeeperHub to honour the policy limits on every signing call. In exchange you get zero-registration onboarding, no private keys on disk, and no seed phrase to back up.
 
@@ -187,24 +187,24 @@ Yes. `wallet.json` is the wallet from your agent's perspective. Copy it to anoth
 
 ### Does KeeperHub have access to my funds?
 
-KeeperHub can produce signatures for your wallet, but only within the limits of the three policies above. KeeperHub never sees a private key -- the key material lives inside Turnkey's secure enclave, and Turnkey is the one that produces signatures after KeeperHub's API key passes the policy engine.
+KeeperHub can produce signatures for your wallet, but only within the limits of the three policies above. KeeperHub never sees a private key — the key material lives inside Turnkey's secure enclave, and Turnkey is the one that produces signatures after KeeperHub's API key passes the policy engine.
 
 ### Why don't I have a passkey or 2FA option?
 
-Passkey-backed sub-orgs are a more secure option Turnkey supports natively, and it's on the roadmap as an opt-in enrolment. The default today is convenience-first -- onboard in under a minute, no ceremony -- because that's what unblocks trying an agent-paid workflow. Users who want a break-glass signing authority and a recovery path will get a `--with-passkey` provisioning mode in a future release.
+Passkey-backed sub-orgs are a more secure option Turnkey supports natively, and it's on the roadmap as an opt-in enrolment. The default today is convenience-first — onboard in under a minute, no ceremony — because that's what unblocks trying an agent-paid workflow. Users who want a break-glass signing authority and a recovery path will get a `--with-passkey` provisioning mode in a future release.
 
 ### Can I change the safety thresholds or the allowed contracts?
 
-Yes. Edit `~/.keeperhub/safety.json` (mode `0644`). You can raise or lower `auto_approve_max_usd` and `block_threshold_usd`, and you can add your own ERC-20 contract addresses to `allowlisted_contracts`. The hook picks up changes on its next invocation.
+You can edit `~/.keeperhub/safety.json` (mode `0644`) to raise or lower `auto_approve_max_usd` and `block_threshold_usd`, or to narrow `allowlisted_contracts` (for example, drop Tempo USDC.e if your agent only pays on Base). The hook picks up changes on its next invocation.
 
-Raising thresholds raises your exposure. Adding contracts means the hook will authorise signing against them -- verify any address on [BaseScan](https://basescan.org) (Base) or the Tempo block explorer before adding it.
+Raising thresholds raises your exposure. Widening the contract allowlist past the server-side default (Base USDC + Tempo USDC.e) has no effect on its own — the [server-side hard limits](#server-side-hard-limits) still block signatures against any other contract. If you need access to a different contract, contact KeeperHub support.
 
 ### How are signing decisions actually enforced?
 
 Two layers, and they're independent:
 
 1. **Client-side hook**, running inside your agent (Claude Code, etc.). Reads `~/.keeperhub/safety.json`, classifies the amount, and either allows, asks you inline, or denies the call before it ever hits the network. This is what keeps your agent from being manipulated into calling `/sign` for amounts you didn't authorise.
-2. **Server-side Turnkey policies**, enforced inside Turnkey for every signing activity. These are the three policies above. They are the hard floor -- a misconfigured hook or a compromised agent still cannot sign outside them.
+2. **Server-side Turnkey policies**, enforced inside Turnkey for every signing activity. These are the three policies above. They are the hard floor — a misconfigured hook or a compromised agent still cannot sign outside them.
 
 Either layer alone isn't enough. The hook stops an agent from asking for a bad signature; the policies stop any signature from being produced outside the rules.
 
@@ -225,10 +225,10 @@ Not through the CLI today. If you've stopped using a wallet and want the sub-org
 
 No ETH, no gas out of your wallet for normal agentic wallet use.
 
-- **x402 on Base.** You sign an EIP-3009 `TransferWithAuthorization` -- a pre-signed authorisation that lets the x402 facilitator move USDC on your behalf. The facilitator submits the on-chain transaction and pays the gas. Your wallet only debits the USDC amount.
+- **x402 on Base.** You sign an EIP-3009 `TransferWithAuthorization` — a pre-signed authorisation that lets the x402 facilitator move USDC on your behalf. The facilitator submits the on-chain transaction and pays the gas. Your wallet only debits the USDC amount.
 - **MPP on Tempo.** You sign a payment proof; Tempo settles the transfer through the MPP facilitator, which pays the network fees. Your wallet only debits the USDC.e amount.
 
-So for a `$0.05` paid workflow, `$0.05` of USDC (or USDC.e) leaves your wallet -- nothing else.
+So for a `$0.05` paid workflow, `$0.05` of USDC (or USDC.e) leaves your wallet — nothing else.
 
 If in future you use the wallet to sign a direct on-chain transaction outside the agentic workflow pattern (e.g. a manual ERC-20 transfer), you'd need native gas for that chain the same way any wallet would.
 
