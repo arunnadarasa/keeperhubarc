@@ -39,17 +39,15 @@ Provision a wallet (zero-registration, under 60 seconds):
 npx @keeperhub/wallet add
 ```
 
-Then, in any Node/TS codebase:
+Once the wallet is provisioned, your agent can call paid KeeperHub workflows directly. Ask it in plain language:
 
-```ts
-import { paymentSigner } from "@keeperhub/wallet";
+> Use KeeperHub to find me the current floor price of the Pudgy Penguins NFT collection.
 
-const response = await fetch("https://app.keeperhub.com/w/some-paid-workflow", { method: "POST" });
-const paid = await paymentSigner.pay(response);
-const result = await paid.json();
-```
+> Check if there's a listed KeeperHub workflow that fetches Base USDC token transfers for an address, and run it for `0x...`.
 
-If `response.status === 402`, `paymentSigner.pay()` detects the challenge (x402 on Base USDC or MPP on Tempo USDC.e), signs through the server-side proxy, and retries. If both challenge types are offered it submits one MPP credential (cheaper, near-instant Tempo settlement).
+> Send a Discord message via KeeperHub to #deploys saying "staging is green".
+
+The agent discovers available workflows at runtime through the KeeperHub meta-tools (`search_workflows` + `call_workflow`) and picks the best match. When a paid workflow returns a `402`, the wallet intercepts the challenge, signs through the server-side proxy (x402 on Base USDC or MPP on Tempo USDC.e), and the call retries transparently. If both challenge types are offered it submits one MPP credential (cheaper, near-instant Tempo settlement). If the amount exceeds your `auto_approve_max_usd` the safety hook surfaces an inline permission prompt before any payment is authorised.
 
 ### Safety hooks
 
