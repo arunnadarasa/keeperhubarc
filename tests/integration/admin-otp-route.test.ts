@@ -33,7 +33,7 @@ vi.mock("@/lib/db/schema", () => ({
   },
 }));
 
-import { GET } from "@/app/api/admin/test/otp/route";
+import { GET } from "@/app/api/admin/test/otp/route.staging";
 
 function createRequest(email?: string, token?: string): Request {
   const url = new URL("http://localhost:3000/api/admin/test/otp");

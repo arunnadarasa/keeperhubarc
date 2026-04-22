@@ -4,6 +4,14 @@ import { withWorkflow } from "workflow/next";
 
 const nextConfig = {
   output: "standalone",
+  // Admin test routes (app/api/admin/test/**/route.staging.ts) are excluded
+  // from the prod bundle by omitting "staging.ts" from pageExtensions. See
+  // KEEP-237. Staging/PR builds set INCLUDE_TEST_ENDPOINTS=true via the build
+  // workflow to compile them in.
+  pageExtensions:
+    process.env.INCLUDE_TEST_ENDPOINTS === "true"
+      ? ["ts", "tsx", "staging.ts", "staging.tsx"]
+      : ["ts", "tsx"],
   // The SDK loads @workflow/world-postgres via dynamic
   // require(process.env.WORKFLOW_TARGET_WORLD) which the standalone output
   // tracer cannot follow. serverExternalPackages keeps it out of the bundle
