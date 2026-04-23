@@ -33,6 +33,7 @@ import {
   ALLOWED_TEMPO_CHAIN_IDS,
   TEMPO_MAINNET_CHAIN_ID,
 } from "@/lib/agentic-wallet/constants";
+import { reserveSpend, rollbackSpend } from "@/lib/agentic-wallet/daily-spend";
 import { verifyHmacRequest } from "@/lib/agentic-wallet/hmac";
 import { classifyRisk } from "@/lib/agentic-wallet/risk";
 import {
@@ -229,9 +230,12 @@ export async function POST(request: Request): Promise<Response> {
   // Phase 37 fix #2: server-derived recipient + amount via workflow registry.
   // The eth.eip_712.* Turnkey policy catches domain mismatches; this route-
   // side check is the recipient + amount gate that the policy DSL cannot
-  // express.
+  // express. Fix-pack-2 R2: binding is chain-aware — tempo MPP proofs don't
+  // carry payTo/amount, so tempo skips the equality checks but still looks up
+  // the workflow's price (used for the R1 daily-spend deduction below).
   const binding = await verifyWorkflowBinding(
     workflowSlug,
+    chain,
     callerPayTo,
     amountMicro
   );
@@ -325,7 +329,27 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
-  // risk === "auto": proxy to Turnkey.
+  // risk === "auto": reserve daily spend before Turnkey. Phase 37 fix-pack-2 R1
+  // bounds the HMAC-compromise drain. Amount comes from the server-derived
+  // binding (never the caller) so a caller-supplied value can't understate the
+  // reserved amount. On Turnkey success the reserve stays; on any failure the
+  // rollback refunds the quota so transient upstream errors don't burn budget.
+  const reserveAmountMicros = BigInt(binding.expectedAmountMicro);
+  const reservation = await reserveSpend(auth.subOrgId, reserveAmountMicros);
+  if (!reservation.ok) {
+    return Response.json(
+      {
+        error: "Daily spend cap exceeded",
+        code: "DAILY_CAP_EXCEEDED",
+        retryAfter: reservation.retryAfter,
+      },
+      {
+        status: 429,
+        headers: { "Retry-After": String(reservation.retryAfter) },
+      }
+    );
+  }
+
   try {
     let signature: string;
     if (chain === "base") {
@@ -344,6 +368,7 @@ export async function POST(request: Request): Promise<Response> {
     }
     return Response.json({ signature }, { status: 200 });
   } catch (error) {
+    await rollbackSpend(auth.subOrgId, reserveAmountMicros);
     if (error instanceof PolicyBlockedError) {
       // REVIEW HI-02: the `instanceof PolicyBlockedError` check is the
       // contract; the public response returns a fixed string + code so

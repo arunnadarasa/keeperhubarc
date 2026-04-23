@@ -40,20 +40,33 @@ type RateLimitRow = {
   bucketStart: Date;
 };
 
+// Fix-pack-2 R1: daily-spend rows are pruned by a fourth delete chain in the
+// sweeper. dayUtc is a YYYY-MM-DD string matching the Postgres date column.
+type DailySpendRow = {
+  subOrgId: string;
+  dayUtc: string;
+};
+
 type DbStore = {
   approvals: ApprovalRow[];
   rateLimits: RateLimitRow[];
+  dailySpend: DailySpendRow[];
 };
 
 const { store, schemaTables } = vi.hoisted(() => {
-  const backing: DbStore = { approvals: [], rateLimits: [] };
+  const backing: DbStore = {
+    approvals: [],
+    rateLimits: [],
+    dailySpend: [],
+  };
   // Sentinel table refs. The sweeper calls `db.update(walletApprovalRequests)`
-  // and `db.delete(walletApprovalRequests | agenticWalletRateLimits)`; the
-  // mock branches on identity so each chain operates on the right slice of
-  // the in-memory store.
+  // and `db.delete(walletApprovalRequests | agenticWalletRateLimits |
+  // agenticWalletDailySpend)`; the mock branches on identity so each chain
+  // operates on the right slice of the in-memory store.
   const tables = {
     walletApprovalRequests: { __table: "walletApprovalRequests" as const },
     agenticWalletRateLimits: { __table: "agenticWalletRateLimits" as const },
+    agenticWalletDailySpend: { __table: "agenticWalletDailySpend" as const },
   };
   return { store: backing, schemaTables: tables };
 });
@@ -70,6 +83,11 @@ vi.mock("@/lib/db/schema", () => ({
     ...schemaTables.agenticWalletRateLimits,
     key: "key",
     bucketStart: "bucket_start",
+  },
+  agenticWalletDailySpend: {
+    ...schemaTables.agenticWalletDailySpend,
+    subOrgId: "sub_org_id",
+    dayUtc: "day_utc",
   },
 }));
 
@@ -126,6 +144,10 @@ type DeleteApprovalsChain = {
 
 type DeleteRateLimitsChain = {
   where: () => { returning: () => Promise<Array<{ key: string }>> };
+};
+
+type DeleteDailySpendChain = {
+  where: () => { returning: () => Promise<Array<{ subOrgId: string }>> };
 };
 
 function buildUpdateChain(now: Date): UpdateChain {
@@ -198,6 +220,32 @@ function buildDeleteRateLimitsChain(now: Date): DeleteRateLimitsChain {
   };
 }
 
+// Fix-pack-2 R1: the sweeper prunes daily-spend rows whose `day_utc` is
+// more than 2 calendar days before today. Cutoff is a YYYY-MM-DD string
+// that matches the route's JS-side computation.
+function buildDeleteDailySpendChain(now: Date): DeleteDailySpendChain {
+  const cutoffDate = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  return {
+    where: () => ({
+      returning: (): Promise<Array<{ subOrgId: string }>> => {
+        const pruned: Array<{ subOrgId: string }> = [];
+        const kept: DailySpendRow[] = [];
+        for (const row of store.dailySpend) {
+          if (row.dayUtc < cutoffDate) {
+            pruned.push({ subOrgId: row.subOrgId });
+          } else {
+            kept.push(row);
+          }
+        }
+        store.dailySpend = kept;
+        return Promise.resolve(pruned);
+      },
+    }),
+  };
+}
+
 vi.mock("@/lib/db", () => ({
   db: {
     update: (table: { __table: string }): UpdateChain => {
@@ -210,13 +258,19 @@ vi.mock("@/lib/db", () => ({
     },
     delete: (table: {
       __table: string;
-    }): DeleteApprovalsChain | DeleteRateLimitsChain => {
+    }):
+      | DeleteApprovalsChain
+      | DeleteRateLimitsChain
+      | DeleteDailySpendChain => {
       const now = new Date();
       if (table.__table === "walletApprovalRequests") {
         return buildDeleteApprovalsChain(now);
       }
       if (table.__table === "agenticWalletRateLimits") {
         return buildDeleteRateLimitsChain(now);
+      }
+      if (table.__table === "agenticWalletDailySpend") {
+        return buildDeleteDailySpendChain(now);
       }
       throw new Error(
         `Unexpected delete() target in sweeper test: ${table.__table}`
@@ -234,6 +288,7 @@ const { GET } = await import("@/app/api/cron/agentic-wallet-sweeper/route");
 function resetStore(): void {
   store.approvals = [];
   store.rateLimits = [];
+  store.dailySpend = [];
 }
 
 function makeGetRequest(headers: Record<string, string> = {}): Request {
@@ -271,8 +326,14 @@ describe("agentic-wallet-sweeper", () => {
       expired: number;
       pruned: number;
       prunedBuckets: number;
+      prunedDailySpend: number;
     };
-    expect(body).toEqual({ expired: 1, pruned: 0, prunedBuckets: 0 });
+    expect(body).toEqual({
+      expired: 1,
+      pruned: 0,
+      prunedBuckets: 0,
+      prunedDailySpend: 0,
+    });
 
     const row = store.approvals.find((r) => r.id === "ar_stale_pending");
     expect(row?.status).toBe("expired");
@@ -371,6 +432,32 @@ describe("agentic-wallet-sweeper", () => {
     const body = (await res.json()) as { prunedBuckets: number };
     expect(body.prunedBuckets).toBe(1);
     expect(store.rateLimits.map((r) => r.key)).toEqual(["provision:5.6.7.8"]);
+  });
+
+  // Fix-pack-2 R1: daily-spend rows whose `day_utc` is more than 2 calendar
+  // days behind today are pruned; today's + yesterday's rows are retained.
+  it("deletes daily-spend rows older than 2 days", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    store.dailySpend.push(
+      { subOrgId: "sub-today", dayUtc: today },
+      { subOrgId: "sub-yesterday", dayUtc: yesterday },
+      { subOrgId: "sub-old", dayUtc: threeDaysAgo }
+    );
+
+    const res = await GET(makeGetRequest());
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { prunedDailySpend: number };
+    expect(body.prunedDailySpend).toBe(1);
+    expect(store.dailySpend.map((r) => r.subOrgId).sort()).toEqual([
+      "sub-today",
+      "sub-yesterday",
+    ]);
   });
 
   it("requires CRON_SECRET header in production", async () => {

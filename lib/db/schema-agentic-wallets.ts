@@ -1,5 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
+  date,
   index,
   integer,
   jsonb,
@@ -187,6 +189,39 @@ export const agenticWalletRateLimits = pgTable(
   ]
 );
 
+/**
+ * Agentic wallet per-sub-org per-day spend cap. Phase 37 fix-pack-2 R1.
+ *
+ * HMAC compromise on its own does not let an attacker drain a wallet: /sign
+ * binds payTo + amount to a listed workflow in the registry. But an attacker
+ * who also lists their own workflow at a below-ask-tier price ($49.99 <
+ * the $50 ask threshold in risk.ts) can point a stolen HMAC at that workflow
+ * and auto-tier-sign repeatedly. This table bounds the total daily drain via
+ * an atomic reserve-and-rollback pattern keyed on the authenticated sub-org.
+ *
+ * Composite PK (sub_org_id, day_utc) serializes concurrent /sign calls on
+ * the row lock. The cron sweeper deletes rows with day_utc older than 2 days.
+ *
+ * spent_micros is bigint so the cap can scale beyond int4 (2.1 billion
+ * micros = ~$2147) without schema change.
+ */
+export const agenticWalletDailySpend = pgTable(
+  "agentic_wallet_daily_spend",
+  {
+    subOrgId: text("sub_org_id")
+      .notNull()
+      .references(() => agenticWallets.subOrgId, { onDelete: "cascade" }),
+    dayUtc: date("day_utc").notNull(),
+    spentMicros: bigint("spent_micros", { mode: "bigint" })
+      .notNull()
+      .default(BigInt(0)),
+  },
+  (table) => [
+    primaryKey({ columns: [table.subOrgId, table.dayUtc] }),
+    index("idx_agentic_wallet_daily_spend_day").on(table.dayUtc),
+  ]
+);
+
 export type AgenticWallet = typeof agenticWallets.$inferSelect;
 export type NewAgenticWallet = typeof agenticWallets.$inferInsert;
 export type WalletApprovalRequest = typeof walletApprovalRequests.$inferSelect;
@@ -200,3 +235,7 @@ export type AgenticWalletRateLimit =
   typeof agenticWalletRateLimits.$inferSelect;
 export type NewAgenticWalletRateLimit =
   typeof agenticWalletRateLimits.$inferInsert;
+export type AgenticWalletDailySpend =
+  typeof agenticWalletDailySpend.$inferSelect;
+export type NewAgenticWalletDailySpend =
+  typeof agenticWalletDailySpend.$inferInsert;

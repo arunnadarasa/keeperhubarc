@@ -22,9 +22,9 @@
  * risk=block -> 403 RISK_BLOCKED.
  */
 import { createHash, createHmac } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { recoverTypedDataAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { extractPayerAddress } from "@/lib/x402/payment-gate";
 
 const TEST_PRIVATE_KEY =
@@ -100,8 +100,26 @@ vi.mock("@turnkey/sdk-server", () => ({
   }),
 }));
 
+type LookupReturn = { secret: string; keyVersion: number } | null;
+type LookupFn = (
+  subOrgId: string,
+  keyVersion?: number
+) => Promise<LookupReturn>;
+
 vi.mock("@/lib/agentic-wallet/hmac-secret-store", () => ({
   lookupHmacSecret: mockLookupSecret,
+  // Fix-pack-2 R3: verifyHmacRequest now uses listActiveHmacSecrets on the
+  // unpinned path. Shim delegates to the same mockLookupSecret fixture so
+  // existing mockResolvedValue calls in this suite keep working unchanged.
+  listActiveHmacSecrets: async (
+    subOrgId: string
+  ): Promise<{ secret: string; keyVersion: number }[]> => {
+    const one = await (mockLookupSecret as unknown as LookupFn)(
+      subOrgId,
+      undefined
+    );
+    return one ? [one] : [];
+  },
 }));
 
 vi.mock("@/lib/agentic-wallet/risk", () => ({
@@ -119,6 +137,23 @@ vi.mock("@/lib/agentic-wallet/approval", async (importOriginal) => {
     createApprovalRequest: mockCreateApprovalRequest,
   };
 });
+
+// Fix-pack-2 R1: /sign reserves daily spend before Turnkey. Mock to no-op
+// so this suite keeps focus on the auth + binding + risk + Turnkey flow.
+vi.mock("@/lib/agentic-wallet/daily-spend", () => ({
+  reserveSpend: async (): Promise<{
+    ok: true;
+    totalAfterMicros: bigint;
+    capMicros: bigint;
+  }> => ({
+    ok: true,
+    totalAfterMicros: BigInt(0),
+    capMicros: BigInt(200_000_000),
+  }),
+  rollbackSpend: async (): Promise<void> => {
+    /* no-op */
+  },
+}));
 
 vi.mock("@/lib/agentic-wallet/workflow-binding", () => ({
   verifyWorkflowBinding: mockVerifyWorkflowBinding,
@@ -234,9 +269,7 @@ describe("POST /api/agentic-wallet/sign -- EIP-3009 ecrecover round-trip", () =>
     const vByte = Number.parseInt(canonicalSig.slice(130, 132), 16);
     // Turnkey returns v as "00" or "01"; serializeSignature adds +27. Reverse
     // that here so the mock hands the signer Turnkey-shape v.
-    const v = (vByte >= 27 ? vByte - 27 : vByte)
-      .toString(16)
-      .padStart(2, "0");
+    const v = (vByte >= 27 ? vByte - 27 : vByte).toString(16).padStart(2, "0");
 
     mockSignRawPayload.mockResolvedValue({
       activity: {
@@ -548,6 +581,7 @@ describe("POST /api/agentic-wallet/sign -- workflow-slug binding (Phase 37 fix #
     // Binding check sees the attacker's payTo and the slug from the body.
     expect(mockVerifyWorkflowBinding).toHaveBeenCalledWith(
       "test-slug",
+      "base",
       ATTACKER_PAYTO,
       REGISTRY_AMOUNT
     );
@@ -580,6 +614,7 @@ describe("POST /api/agentic-wallet/sign -- workflow-slug binding (Phase 37 fix #
     expect(mockSignRawPayload).not.toHaveBeenCalled();
     expect(mockVerifyWorkflowBinding).toHaveBeenCalledWith(
       "test-slug",
+      "base",
       REGISTRY_PAYTO,
       wrongAmount
     );
@@ -615,9 +650,7 @@ describe("POST /api/agentic-wallet/sign -- workflow-slug binding (Phase 37 fix #
     const r = canonicalSig.slice(2, 66);
     const s = canonicalSig.slice(66, 130);
     const vByte = Number.parseInt(canonicalSig.slice(130, 132), 16);
-    const v = (vByte >= 27 ? vByte - 27 : vByte)
-      .toString(16)
-      .padStart(2, "0");
+    const v = (vByte >= 27 ? vByte - 27 : vByte).toString(16).padStart(2, "0");
     mockSignRawPayload.mockResolvedValue({
       activity: {
         status: "ACTIVITY_STATUS_COMPLETED",
@@ -641,6 +674,7 @@ describe("POST /api/agentic-wallet/sign -- workflow-slug binding (Phase 37 fix #
     expect(res.status).toBe(200);
     expect(mockVerifyWorkflowBinding).toHaveBeenCalledWith(
       "test-slug",
+      "base",
       account.address,
       REGISTRY_AMOUNT
     );

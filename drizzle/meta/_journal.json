@@ -414,6 +414,13 @@
       "when": 1776849796926,
       "tag": "0058_agentic_wallet_rate_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1776908908648,
+      "tag": "0059_agentic_wallet_daily_spend",
+      "breakpoints": true
     }
   ]
 }

@@ -6,6 +6,15 @@
  * the caller-supplied paymentChallenge. The wallet client (v0.1.5+)
  * forwards the workflowSlug extracted from the x402 resource.url.
  *
+ * Phase 37 fix-pack-2 R2: the binding is now chain-aware. Base (x402) still
+ * requires caller payTo + amount to match the registry. Tempo (MPP) proofs
+ * carry neither field -- they prove ownership of a sub-org wallet for a
+ * challenge id, and settlement happens elsewhere -- so the tempo path looks
+ * up the workflow + price (still required for the fix-pack-2 R1 daily-spend
+ * deduction) but skips the caller-side equality checks. This closes the
+ * regression that made every priced tempo workflow 403 with PAYTO_MISMATCH
+ * after fix #2 landed.
+ *
  * Lookup chain mirrors lib/x402/payment-gate.ts:resolveCreatorWallet.
  */
 import { and, eq } from "drizzle-orm";
@@ -33,6 +42,8 @@ export type BindingOk = {
 
 export type BindingResult = BindingOk | BindingFailure;
 
+export type BindingChain = "base" | "tempo";
+
 const USDC_DECIMALS = 6;
 
 function priceToMicro(
@@ -50,6 +61,7 @@ function priceToMicro(
 
 export async function verifyWorkflowBinding(
   slug: string | undefined | null,
+  chain: BindingChain,
   payTo: string,
   amountMicro: string
 ): Promise<BindingResult> {
@@ -114,33 +126,35 @@ export async function verifyWorkflowBinding(
     };
   }
 
-  if (payTo.toLowerCase() !== expectedPayTo.toLowerCase()) {
-    return {
-      ok: false,
-      status: 403,
-      code: "PAYTO_MISMATCH",
-      error: "payTo does not match workflow creator wallet",
-    };
-  }
+  if (chain === "base") {
+    if (payTo.toLowerCase() !== expectedPayTo.toLowerCase()) {
+      return {
+        ok: false,
+        status: 403,
+        code: "PAYTO_MISMATCH",
+        error: "payTo does not match workflow creator wallet",
+      };
+    }
 
-  let actualMicro: bigint;
-  try {
-    actualMicro = BigInt(amountMicro);
-  } catch {
-    return {
-      ok: false,
-      status: 403,
-      code: "AMOUNT_MISMATCH",
-      error: "amount is not a valid integer",
-    };
-  }
-  if (actualMicro !== expectedMicro) {
-    return {
-      ok: false,
-      status: 403,
-      code: "AMOUNT_MISMATCH",
-      error: "amount does not match workflow priceUsdcPerCall",
-    };
+    let actualMicro: bigint;
+    try {
+      actualMicro = BigInt(amountMicro);
+    } catch {
+      return {
+        ok: false,
+        status: 403,
+        code: "AMOUNT_MISMATCH",
+        error: "amount is not a valid integer",
+      };
+    }
+    if (actualMicro !== expectedMicro) {
+      return {
+        ok: false,
+        status: 403,
+        code: "AMOUNT_MISMATCH",
+        error: "amount does not match workflow priceUsdcPerCall",
+      };
+    }
   }
 
   return {

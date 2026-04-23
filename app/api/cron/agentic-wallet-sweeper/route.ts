@@ -13,6 +13,9 @@
  *      older than 7 days.
  *   3. Delete agentic_wallet_rate_limits rows whose bucket_start is older
  *      than 24h.
+ *   4. Delete agentic_wallet_daily_spend rows whose day_utc is older than
+ *      2 days (fix-pack-2 R1). Two-day retention keeps yesterday's row
+ *      visible for debugging without unbounded growth.
  *
  * Deployment: this endpoint is an HTTP GET handler. It must be invoked by an
  * external scheduler (Kubernetes CronJob, GitHub Actions scheduled workflow,
@@ -23,6 +26,7 @@
 import { and, eq, lt, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
+  agenticWalletDailySpend,
   agenticWalletRateLimits,
   walletApprovalRequests,
 } from "@/lib/db/schema";
@@ -37,6 +41,7 @@ type SweeperResponse = {
   expired: number;
   pruned: number;
   prunedBuckets: number;
+  prunedDailySpend: number;
 };
 
 export async function GET(request: Request): Promise<Response> {
@@ -88,10 +93,23 @@ export async function GET(request: Request): Promise<Response> {
       .where(lt(agenticWalletRateLimits.bucketStart, rateCutoff))
       .returning({ key: agenticWalletRateLimits.key });
 
+    // 4. Prune daily-spend rows older than 2 days (fix-pack-2 R1). The cap
+    // is enforced on today's row only; yesterday's row is retained for
+    // short-term debugging and then dropped. Cutoff is computed JS-side as
+    // a UTC date string (YYYY-MM-DD) so drizzle passes it through the same
+    // parameterised path as other lt(...) comparisons.
+    const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+    const cutoffDate = twoDaysAgo.toISOString().slice(0, 10);
+    const prunedDailySpend = await db
+      .delete(agenticWalletDailySpend)
+      .where(lt(agenticWalletDailySpend.dayUtc, cutoffDate))
+      .returning({ subOrgId: agenticWalletDailySpend.subOrgId });
+
     const body: SweeperResponse = {
       expired: expiredRows.length,
       pruned: prunedRows.length,
       prunedBuckets: prunedBuckets.length,
+      prunedDailySpend: prunedDailySpend.length,
     };
     return Response.json(body);
   } catch (error) {

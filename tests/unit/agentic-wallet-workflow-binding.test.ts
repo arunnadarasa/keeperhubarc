@@ -98,7 +98,7 @@ describe("verifyWorkflowBinding", () => {
   it("returns ok when slug + payTo + amount all match", async () => {
     queueWorkflow({});
     queueWallet({});
-    const r = await verifyWorkflowBinding(SLUG, CREATOR, "50000");
+    const r = await verifyWorkflowBinding(SLUG, "base", CREATOR, "50000");
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.expectedPayTo).toBe(CREATOR);
@@ -110,7 +110,7 @@ describe("verifyWorkflowBinding", () => {
   it("returns 403 PAYTO_MISMATCH when payTo differs from registry", async () => {
     queueWorkflow({});
     queueWallet({});
-    const r = await verifyWorkflowBinding(SLUG, ATTACKER, "50000");
+    const r = await verifyWorkflowBinding(SLUG, "base", ATTACKER, "50000");
     expect(r).toMatchObject({
       ok: false,
       status: 403,
@@ -121,7 +121,7 @@ describe("verifyWorkflowBinding", () => {
   it("returns 403 AMOUNT_MISMATCH when amount differs from priceUsdcPerCall", async () => {
     queueWorkflow({});
     queueWallet({});
-    const r = await verifyWorkflowBinding(SLUG, CREATOR, "100000");
+    const r = await verifyWorkflowBinding(SLUG, "base", CREATOR, "100000");
     expect(r).toMatchObject({
       ok: false,
       status: 403,
@@ -131,7 +131,7 @@ describe("verifyWorkflowBinding", () => {
 
   it("returns 403 UNKNOWN_WORKFLOW for an unknown slug", async () => {
     queueWorkflow(null);
-    const r = await verifyWorkflowBinding("nope", CREATOR, "50000");
+    const r = await verifyWorkflowBinding("nope", "base", CREATOR, "50000");
     expect(r).toMatchObject({
       ok: false,
       status: 403,
@@ -142,7 +142,7 @@ describe("verifyWorkflowBinding", () => {
   it("returns 403 WORKFLOW_NOT_PAYABLE when workflow has no active org wallet", async () => {
     queueWorkflow({});
     queueWallet(null);
-    const r = await verifyWorkflowBinding(SLUG, CREATOR, "50000");
+    const r = await verifyWorkflowBinding(SLUG, "base", CREATOR, "50000");
     expect(r).toMatchObject({
       ok: false,
       status: 403,
@@ -153,12 +153,17 @@ describe("verifyWorkflowBinding", () => {
   it("compares addresses case-insensitively", async () => {
     queueWorkflow({});
     queueWallet({ walletAddress: CREATOR.toUpperCase() });
-    const r = await verifyWorkflowBinding(SLUG, CREATOR.toLowerCase(), "50000");
+    const r = await verifyWorkflowBinding(
+      SLUG,
+      "base",
+      CREATOR.toLowerCase(),
+      "50000"
+    );
     expect(r.ok).toBe(true);
   });
 
   it("returns 400 WORKFLOW_SLUG_REQUIRED when slug is empty", async () => {
-    const r = await verifyWorkflowBinding("", CREATOR, "50000");
+    const r = await verifyWorkflowBinding("", "base", CREATOR, "50000");
     expect(r).toMatchObject({
       ok: false,
       status: 400,
@@ -171,7 +176,33 @@ describe("verifyWorkflowBinding", () => {
     // unlisted row never reaches the code. Simulate by queueing an empty
     // result for the workflow lookup.
     queueWorkflow(null);
-    const r = await verifyWorkflowBinding(SLUG, CREATOR, "50000");
+    const r = await verifyWorkflowBinding(SLUG, "base", CREATOR, "50000");
+    expect(r).toMatchObject({
+      ok: false,
+      status: 403,
+      code: "UNKNOWN_WORKFLOW",
+    });
+  });
+
+  // Fix-pack-2 R2: tempo MPP proofs don't carry payTo/amount in their
+  // typed-data (only chainId + challengeId). The binding lookup still runs to
+  // resolve the workflow's price for the R1 daily-spend deduction, but the
+  // caller-side payTo/amount equality checks MUST be skipped — otherwise
+  // every priced tempo workflow 403s on PAYTO_MISMATCH.
+  it("tempo: returns ok with empty payTo + amount (skips equality checks)", async () => {
+    queueWorkflow({});
+    queueWallet({});
+    const r = await verifyWorkflowBinding(SLUG, "tempo", "", "0");
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.expectedAmountMicro).toBe("50000");
+      expect(r.expectedPayTo).toBe(CREATOR);
+    }
+  });
+
+  it("tempo: still returns UNKNOWN_WORKFLOW for an unknown slug", async () => {
+    queueWorkflow(null);
+    const r = await verifyWorkflowBinding("nope", "tempo", "", "0");
     expect(r).toMatchObject({
       ok: false,
       status: 403,
