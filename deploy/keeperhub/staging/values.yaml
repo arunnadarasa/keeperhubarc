@@ -409,6 +409,9 @@ env:
   ALLOW_TEST_ENDPOINTS:
     type: kv
     value: "true"
+  SAFE_FETCH_ENFORCE:
+    type: kv
+    value: "true"
 
 externalSecrets:
   clusterSecretStoreName: techops-staging
