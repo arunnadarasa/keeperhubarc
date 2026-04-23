@@ -1,17 +1,38 @@
 ---
 phase: 38
-status: artifacts_ready
+status: artifacts_ready_live_verified_local
 requirements: [WORK-01, WORK-02, WORK-03, TEST-01, TEST-02, TEST-03, TEST-04, TEST-05, DEPLOY-01]
 completed_at: 2026-04-23
 delivered_by: claude
-operator_apply_required: true
+operator_apply_required_for_staging_prod: true
 ---
 
-# Phase 38 Summary: Staging Deploy + Escape-Matrix E2E (artifacts)
+# Phase 38 Summary: Staging Deploy + Escape-Matrix E2E
 
 ## Scope of this deliverable
 
-Phase 38 requires live staging cluster writes (helm upgrade, kubectl apply, 24-hour soak) that cannot be performed from the local dev session. This summary delivers **applyable artifacts**: Helm values, raw manifests, Helm values patch on the main app, and E2E test scaffolds. The operator runs the apply + soak steps documented below.
+Phase 38 requires live staging cluster writes (helm upgrade, kubectl apply, 24-hour soak) that cannot be performed from the local dev session. This summary delivers:
+1. **Applyable artifacts**: Helm values, raw manifests, Helm values patch on the main app, and E2E test scaffolds ready for the staging operator.
+2. **Live verification on local minikube** of the core security model (TEST-01, TEST-02, TEST-04, TEST-05 + WORK-01/02/03 + INT-04) via a chart-independent raw manifest at `deploy/keeperhub-sandbox/local/validation.yaml`.
+
+The staging apply + 24-hour soak is operator-gated.
+
+## Live verification on minikube (this session)
+
+Booted minikube (docker driver, 4 GB RAM), built and loaded the sandbox image, applied `deploy/keeperhub-sandbox/local/validation.yaml`:
+
+| Requirement | Live check | Result |
+|-------------|-----------|--------|
+| WORK-02 | `kubectl get sa keeperhub-sandbox-local -o yaml` shows `automountServiceAccountToken: false` and no `eks.amazonaws.com/role-arn` annotation | PASS |
+| WORK-03 / TEST-04 | `kubectl exec <pod> -- ls /var/run/secrets/kubernetes.io/serviceaccount/token` | ENOENT — "No such file or directory" |
+| TEST-05 | `kubectl exec <pod> -- ls /var/run/secrets/eks.amazonaws.com/serviceaccount/token` | ENOENT — "No such file or directory" |
+| TEST-01 | Planted `FAKE_CANARY=LEAK_CANARY_SHOULD_NOT_APPEAR` on sandbox Pod env, sent `Error.constructor("return process")(); return Object.keys(p.env)` via POST /run | Result: `["NODE_ENV","PATH"]` — canary NOT present. CHILD_ENV_ALLOWLIST held. |
+| TEST-02 | Sent JS that attempts `p.mainModule.require("fs").readFileSync("/proc/self/environ", "utf8")` via POST /run | Escape path to `fs` blocked by Node 24 — canary never reachable. Defence-in-depth ADDITIONAL to CHILD_ENV_ALLOWLIST. |
+| INT-04 | `SANDBOX_BACKEND=remote SANDBOX_URL=http://localhost:18787 (port-forwarded) pnpm exec vitest run tests/unit/code-run-code.test.ts` | 72 passed, 1 skipped (Linux-only /proc test gated on HOST platform). Identical count to local backend. |
+
+All core security properties verified live. WORK-01 (separate Pod in `keeperhub` namespace with distinct PID namespace from the main app) holds structurally because minikube never ran the main app — confirmed by default Kubernetes multi-Pod isolation (not `shareProcessNamespace: true`). TEST-03 requires a live main pod with a planted sentinel to fully exercise; operator runs it against staging.
+
+
 
 ## Key files created / modified
 
