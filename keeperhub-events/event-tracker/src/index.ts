@@ -1,7 +1,15 @@
 import os from "node:os";
 import { syncModule } from "../lib/sync/redis";
 import { logger } from "../lib/utils/logger";
+import { chainProviderManager } from "./chains/provider-manager";
+import {
+  type HealthServerHandle,
+  startHealthServer,
+} from "./health/health-server";
 import { shutdownRegistry, synchronizeData } from "./main";
+
+const HEALTH_PORT = Number(process.env.HEALTH_PORT ?? 3001);
+let healthServer: HealthServerHandle | null = null;
 
 // Fatal-error handlers: an uncaught exception or unhandled rejection inside a
 // listener callback is almost always a bug that leaves the process in an
@@ -33,6 +41,14 @@ async function shutdown(signal: string): Promise<void> {
     const message = err instanceof Error ? err.message : String(err);
     logger.error(`[Shutdown] error during registry shutdown: ${message}`);
   }
+  if (healthServer) {
+    try {
+      await healthServer.close();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error(`[Shutdown] error closing health server: ${message}`);
+    }
+  }
   process.exit(0);
 }
 process.on("SIGTERM", () => {
@@ -46,6 +62,9 @@ logger.log(`Initializing container: ${os.hostname()}`);
 
 const initialize = async (): Promise<void> => {
   try {
+    healthServer = await startHealthServer(chainProviderManager, HEALTH_PORT);
+    logger.log(`[Health] /healthz listening on :${healthServer.port}`);
+
     await syncModule.removeAllContainers();
     logger.log("Cleared stale Redis state from previous deploys");
 
