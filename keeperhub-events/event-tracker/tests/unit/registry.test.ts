@@ -41,6 +41,9 @@ function makeWorkflow(
     eventName: "Emitted",
     eventsAbiStrings: EVENTS_ABI_STRINGS,
     rawEventsAbi: RAW_EVENTS_ABI,
+    // Stable dummy hash. Registry tests assert add/remove behaviour; the
+    // real hash is produced by workflow-mapper and covered in its own tests.
+    configHash: `hash-${id}`,
     ...overrides,
   };
 }
@@ -140,5 +143,38 @@ describe("ListenerRegistry", () => {
     await registry.add(makeWorkflow("wf-2"));
     expect(deps.subscribeToLogs).toHaveBeenCalledTimes(2);
     expect(new Set(registry.ids())).toEqual(new Set(["wf-1", "wf-2"]));
+  });
+
+  describe("getConfigHash", () => {
+    it("returns the configHash that was added", async () => {
+      await registry.add(makeWorkflow("wf-1", { configHash: "abc123" }));
+      expect(registry.getConfigHash("wf-1")).toBe("abc123");
+    });
+
+    it("returns undefined for unknown workflowId", () => {
+      expect(registry.getConfigHash("unknown")).toBeUndefined();
+    });
+
+    it("returns undefined after remove", async () => {
+      await registry.add(makeWorkflow("wf-1", { configHash: "abc123" }));
+      registry.remove("wf-1");
+      expect(registry.getConfigHash("wf-1")).toBeUndefined();
+    });
+
+    it("does not change when add is idempotent (same id, different hash)", async () => {
+      // A second add for the same workflowId is a no-op - the new config
+      // is NOT picked up. Callers must remove+add to update. This locks
+      // in the expected behaviour the reconciler relies on.
+      await registry.add(makeWorkflow("wf-1", { configHash: "first" }));
+      await registry.add(makeWorkflow("wf-1", { configHash: "second" }));
+      expect(registry.getConfigHash("wf-1")).toBe("first");
+    });
+
+    it("reflects the new hash after remove+add (config change flow)", async () => {
+      await registry.add(makeWorkflow("wf-1", { configHash: "first" }));
+      registry.remove("wf-1");
+      await registry.add(makeWorkflow("wf-1", { configHash: "second" }));
+      expect(registry.getConfigHash("wf-1")).toBe("second");
+    });
   });
 });

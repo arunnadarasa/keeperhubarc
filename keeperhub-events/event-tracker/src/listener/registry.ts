@@ -30,6 +30,14 @@ export interface WorkflowRegistration {
   eventName: string;
   eventsAbiStrings: string[];
   rawEventsAbi: AbiEvent[];
+  /**
+   * Stable hash over the listener-affecting fields of this registration.
+   * Produced by `workflow-mapper.hashRegistration` and used by the Phase 4
+   * reconciler to detect config changes (contract swap, event rename, ABI
+   * update, user reassignment) and restart the listener rather than leave
+   * it running with stale config.
+   */
+  configHash: string;
 }
 
 export interface RegistryDeps {
@@ -39,8 +47,13 @@ export interface RegistryDeps {
   sqsQueueUrl: string;
 }
 
+interface RegistryEntry {
+  listener: EventListener;
+  configHash: string;
+}
+
 export class ListenerRegistry {
-  private readonly listeners = new Map<string, EventListener>();
+  private readonly entries = new Map<string, RegistryEntry>();
   private readonly deps: RegistryDeps;
 
   constructor(deps: RegistryDeps) {
@@ -60,7 +73,7 @@ export class ListenerRegistry {
    * Registry access in a serialising queue at the call site.
    */
   async add(reg: WorkflowRegistration): Promise<void> {
-    if (this.listeners.has(reg.workflowId)) {
+    if (this.entries.has(reg.workflowId)) {
       // Idempotent: Phase 4 reconciler handles config changes via
       // remove+add rather than in-place mutation.
       return;
@@ -80,34 +93,47 @@ export class ListenerRegistry {
       );
       return;
     }
-    this.listeners.set(reg.workflowId, listener);
+    this.entries.set(reg.workflowId, {
+      listener,
+      configHash: reg.configHash,
+    });
   }
 
   remove(workflowId: string): void {
-    const listener = this.listeners.get(workflowId);
-    if (!listener) {
+    const entry = this.entries.get(workflowId);
+    if (!entry) {
       return;
     }
-    listener.stop();
-    this.listeners.delete(workflowId);
+    entry.listener.stop();
+    this.entries.delete(workflowId);
   }
 
   has(workflowId: string): boolean {
-    return this.listeners.has(workflowId);
+    return this.entries.has(workflowId);
+  }
+
+  /**
+   * Returns the configHash stored when the listener was registered, or
+   * `undefined` if no listener is registered under that id. Callers compare
+   * this to a fresh registration's configHash to detect workflow config
+   * changes and trigger a remove+add restart.
+   */
+  getConfigHash(workflowId: string): string | undefined {
+    return this.entries.get(workflowId)?.configHash;
   }
 
   ids(): string[] {
-    return [...this.listeners.keys()];
+    return [...this.entries.keys()];
   }
 
   size(): number {
-    return this.listeners.size;
+    return this.entries.size;
   }
 
   async stopAll(): Promise<void> {
-    for (const listener of this.listeners.values()) {
-      listener.stop();
+    for (const entry of this.entries.values()) {
+      entry.listener.stop();
     }
-    this.listeners.clear();
+    this.entries.clear();
   }
 }
