@@ -2,13 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-vi.mock("@/lib/logging", () => ({
-  ErrorCategory: {
-    VALIDATION: "validation",
-    INFRASTRUCTURE: "infrastructure",
-  },
-  logUserError: vi.fn(),
-  logSystemError: vi.fn(),
+// vi.hoisted ensures the spy exists before the mock factory runs — the
+// factory is invoked when safe-fetch.ts imports @sentry/nextjs during ES
+// module graph resolution, which is before top-level test file statements
+// execute. A bare `const` would hit TDZ.
+const { captureException } = vi.hoisted(() => ({
+  captureException: vi.fn(),
+}));
+vi.mock("@sentry/nextjs", () => ({
+  captureException,
 }));
 
 const incrementCounter = vi.fn();
@@ -27,6 +29,8 @@ import {
   type SsrfBlockReason,
   safeFetch,
 } from "@/lib/safe-fetch";
+
+const LABELSET_ERROR_RE = /initial labelset/i;
 
 describe("isBlockedIp", () => {
   const blockedV4: [string, SsrfBlockReason][] = [
@@ -118,6 +122,7 @@ describe("safeFetch (enforce mode)", () => {
   beforeEach(() => {
     process.env.SAFE_FETCH_ENFORCE = "true";
     incrementCounter.mockClear();
+    captureException.mockClear();
   });
 
   afterEach(() => {
@@ -209,6 +214,7 @@ describe("safeFetch (shadow mode)", () => {
     // biome-ignore lint/performance/noDelete: default shadow requires unset
     delete process.env.SAFE_FETCH_ENFORCE;
     incrementCounter.mockClear();
+    captureException.mockClear();
   });
 
   afterEach(() => {
@@ -234,6 +240,16 @@ describe("safeFetch (shadow mode)", () => {
       "safe_fetch.blocks.total",
       expect.objectContaining({ reason: "loopback", shadow: "true" })
     );
+    expect(captureException).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        level: "warning",
+        tags: expect.objectContaining({
+          safe_fetch_reason: "loopback",
+          safe_fetch_shadow: "true",
+        }),
+      })
+    );
   });
 
   it("records scheme block with shadow=true on non-http URL", async () => {
@@ -242,6 +258,51 @@ describe("safeFetch (shadow mode)", () => {
     expect(incrementCounter).toHaveBeenCalledWith(
       "safe_fetch.blocks.total",
       expect.objectContaining({ reason: "scheme", shadow: "true" })
+    );
+    expect(captureException).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        level: "warning",
+        tags: expect.objectContaining({
+          safe_fetch_reason: "scheme",
+          safe_fetch_shadow: "true",
+        }),
+      })
+    );
+  });
+
+  it("does not throw a Prometheus labelset error from recordBlock (regression)", async () => {
+    // Regression for KEEP-314: recordBlock originally routed the block log
+    // through logUserError, which forwarded caller-supplied labels
+    // (hostname, resolved_ip, shadow_mode) to a Prometheus error metric
+    // with a fixed initial labelset. prom-client then threw "Added label
+    // not included in initial labelset" from inside the fetch pipeline,
+    // making shadow mode fatal for any workflow that hit a blocked IP.
+    //
+    // Uses loopback rather than link-local to avoid network-layer flake
+    // (connect timeouts on 169.254.x.x vary by runner). recordBlock runs
+    // synchronously before any network call, so the bug reproduces
+    // regardless of which reason the block carries.
+    let thrown: unknown;
+    try {
+      await safeFetch("http://127.0.0.1:9999/", { plugin: "code" });
+    } catch (err) {
+      thrown = err;
+    }
+    if (thrown !== undefined) {
+      const message = thrown instanceof Error ? thrown.message : String(thrown);
+      expect(message).not.toMatch(LABELSET_ERROR_RE);
+    }
+    expect(captureException).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        level: "warning",
+        tags: expect.objectContaining({
+          safe_fetch_reason: "loopback",
+          safe_fetch_shadow: "true",
+          plugin_name: "code",
+        }),
+      })
     );
   });
 });
