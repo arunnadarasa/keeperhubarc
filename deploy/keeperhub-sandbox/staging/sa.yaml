@@ -1,4 +1,4 @@
-# Scrubbed ServiceAccount for the keeperhub-sandbox-staging release.
+# Scrubbed ServiceAccount for the keeperhub-sandbox release (staging cluster).
 #
 # Why this is a raw manifest and not Helm-generated:
 # techops-services/common chart v0.0.35 does not support
@@ -17,16 +17,17 @@
 # Why no RoleBindings anywhere:
 # Even with the SA token unprojected, an admission bypass that re-projects
 # it would grant no permissions because no RoleBinding or ClusterRoleBinding
-# targets this SA. Grep in this repo for `keeperhub-sandbox-staging` —
-# exactly one match, this file, confirms no RBAC escalates it.
+# targets this SA. Grep in this repo for `keeperhub-sandbox` under the
+# keeperhub namespace - no RoleBinding or ClusterRoleBinding references
+# the sandbox SA.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: keeperhub-sandbox-staging
+  name: keeperhub-sandbox
   namespace: keeperhub
   labels:
     app.kubernetes.io/name: keeperhub-sandbox
-    app.kubernetes.io/instance: keeperhub-sandbox-staging
+    app.kubernetes.io/instance: keeperhub-sandbox
     app.kubernetes.io/component: sandbox
     app.kubernetes.io/part-of: keeperhub
   # Intentionally no annotations. In particular: NO

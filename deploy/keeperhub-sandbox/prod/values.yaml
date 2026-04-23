@@ -1,5 +1,6 @@
-# Helm values for keeperhub-sandbox-prod via techops-services/common@0.2.1.
-# See deploy/keeperhub-sandbox/staging/values.yaml for commentary.
+# Helm values for the keeperhub-sandbox release (prod cluster) via
+# techops-services/common@0.2.1. See
+# deploy/keeperhub-sandbox/staging/values.yaml for commentary.
 #
 # Prod differences:
 # - replicaCount: 2 (HA)
@@ -9,7 +10,7 @@ replicaCount: 2
 
 service:
   enabled: true
-  name: keeperhub-sandbox-prod
+  name: keeperhub-sandbox
   port: 8787
   type: ClusterIP
   containerPort: 8787
@@ -29,7 +30,7 @@ deployment:
 
 serviceAccount:
   create: false
-  name: keeperhub-sandbox-prod
+  name: keeperhub-sandbox
 
 podAnnotations:
   reloader.stakater.com/auto: "true"

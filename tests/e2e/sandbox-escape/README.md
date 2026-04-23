@@ -69,14 +69,14 @@ aws ssm delete-parameter \
 If `make setup-local-kubernetes` has installed minikube (see `deploy/local/README.md`), apply the staging manifests against the local cluster:
 
 ```bash
-helm upgrade --install keeperhub-sandbox-staging \
+helm upgrade --install keeperhub-sandbox \
   techops-services/common \
   --namespace keeperhub \
   -f deploy/keeperhub-sandbox/staging/values.yaml
 
 kubectl apply -f deploy/keeperhub-sandbox/staging/sa.yaml
 
-kubectl -n keeperhub patch deployment keeperhub-sandbox-staging \
+kubectl -n keeperhub patch deployment keeperhub-sandbox \
   --patch-file deploy/keeperhub-sandbox/staging/pod-automount-patch.yaml
 
 # Plant a local canary directly in the main app Deployment:
@@ -98,7 +98,7 @@ Then run the same `pnpm exec vitest run tests/e2e/sandbox-escape/...` with the m
 
 ## Failure triage
 
-- **TEST-01 fails (sentinel found in process.env):** The main-app Deployment's env is leaking into the sandbox Pod — likely a values.yaml misconfiguration that added shared_env to the sandbox release, or a `shareProcessNamespace: true` somewhere. Check `kubectl describe pod keeperhub-sandbox-staging-...`.
+- **TEST-01 fails (sentinel found in process.env):** The main-app Deployment's env is leaking into the sandbox Pod — likely a values.yaml misconfiguration that added shared_env to the sandbox release, or a `shareProcessNamespace: true` somewhere. Check `kubectl describe pod keeperhub-sandbox-...`.
 - **TEST-02 fails (sentinel in `/proc/self/environ`):** CHILD_ENV_ALLOWLIST was augmented with a non-allowlisted var, OR the sandbox is running as PID 1 inside the Pod without the child_process wrapper. Verify `plugins/code/steps/run-code.ts` still uses spawn + buildChildEnv.
 - **TEST-03 fails:** Two Pods are in the same PID namespace (`shareProcessNamespace`). Banned by cluster admission policy; if this fails the fix is a k8s audit, not a code change.
 - **TEST-04 fails:** `automountServiceAccountToken: false` is missing from either the SA or the Pod spec. Check both `sa.yaml` and the `pod-automount-patch.yaml` were applied.

@@ -37,7 +37,7 @@ jobs:
       SANDBOX_HELM_FILE: deploy/keeperhub-sandbox/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/values.yaml
       SANDBOX_SA_FILE: deploy/keeperhub-sandbox/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/sa.yaml
       SANDBOX_POD_PATCH_FILE: deploy/keeperhub-sandbox/${{ github.ref_name == 'prod' && 'prod' || 'staging' }}/pod-automount-patch.yaml
-      RELEASE_NAME: keeperhub-sandbox-${{ github.ref_name == 'prod' && 'prod' || 'staging' }}
+      RELEASE_NAME: keeperhub-sandbox
 
     steps:
       - name: Checkout
