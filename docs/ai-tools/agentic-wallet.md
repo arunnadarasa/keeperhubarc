@@ -58,11 +58,12 @@ The hook reads only the payment-challenge fields `amount`, `unit`, and the asset
 
 ### Server-side hard limits
 
-Beyond the client-side hook, three Turnkey-enforced policies apply to every wallet and cannot be bypassed by editing `safety.json` or changing the agent's hook. They are created per sub-organisation at provision time and enforced by Turnkey itself on every signing activity:
+Beyond the client-side hook, a set of Turnkey-enforced policies apply to every wallet and cannot be bypassed by editing `safety.json` or changing the agent's hook. They are created per sub-organisation at provision time and enforced by Turnkey itself on every signing activity:
 
-- **Contract allowlist.** Signing is denied on any call whose target contract is not Base USDC (`0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`) or Tempo USDC.e (`0x20C000000000000000000000B9537D11c60E8b50`).
-- **Per-transfer cap.** `transfer()` or `transferFrom()` of more than 100 USDC is denied.
-- **Unlimited-approval block.** `approve()` with an allowance at or above 2³² (any practical "max uint256" approval) is denied.
+- **Contract allowlist.** Signing is denied on any call whose target contract is not Base USDC (`0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`) or Tempo USDC.e (`0x20C000000000000000000000B9537D11c60E8b50`). On the EIP-712 (x402) signing path the same restriction is applied against the typed-data domain's verifying contract.
+- **Per-transfer cap.** `transfer()` or `transferFrom()` of more than 100 USDC is denied. The same 100 USDC ceiling applies to EIP-3009 `TransferWithAuthorization` typed-data signing.
+- **Approval cap.** `approve()` above 100 USDC is denied. Anything over the same 100 USDC per-transfer ceiling is rejected.
+- **Chain allowlist.** EIP-712 signing is denied for any `domain.chainId` outside Base (8453), Tempo mainnet (4217), and Tempo testnet (4218).
 
 These are defence-in-depth: even if an attacker bypassed the client-side hook entirely, Turnkey rejects the signature. They are also **not user-configurable today**. If you have a legitimate need to sign transfers above 100 USDC or to interact with contracts outside the USDC allowlist, contact KeeperHub support — a sub-organisation with a different policy set is possible but requires an operator action. Self-serve higher-cap configuration is on the roadmap.
 
@@ -171,7 +172,7 @@ This is a custodial model. You are trusting KeeperHub to honour the policy limit
 
 ### What stops KeeperHub signing whatever it wants?
 
-Three Turnkey policies, applied per sub-organisation at provision time and enforced by Turnkey itself (not by application code). Full list above under [Server-side hard limits](#server-side-hard-limits). Briefly: signing only against the Base USDC / Tempo USDC.e contracts, no `approve()` at or above 2³², no `transfer()` or `transferFrom()` above 100 USDC.
+A set of Turnkey policies, applied per sub-organisation at provision time and enforced by Turnkey itself (not by application code). Full list above under [Server-side hard limits](#server-side-hard-limits). Briefly: signing only against the Base USDC / Tempo USDC.e contracts, no `approve()` above 100 USDC, no `transfer()` or `transferFrom()` above 100 USDC, and EIP-712 signing restricted to allowlisted chain ids and verifying contracts.
 
 If KeeperHub's operator key is compromised, the attacker is still bound by these policies. They cannot drain funds to an arbitrary address or approve an arbitrary contract to spend your balance.
 
