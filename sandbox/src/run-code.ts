@@ -1,61 +1,28 @@
-import "server-only";
-
 import { spawn } from "node:child_process";
 import { deserialize } from "node:v8";
-import { ErrorCategory, logUserError } from "@/lib/logging";
-import { withPluginMetrics } from "@/lib/metrics/instrumentation/plugin";
-import { runRemote } from "@/lib/sandbox-client";
-import { type StepInput, withStepLogging } from "@/lib/steps/step-handler";
 
 type LogEntry = {
   level: "log" | "warn" | "error";
   args: unknown[];
 };
 
-type RunCodeResult =
-  | { success: true; result: unknown; logs: LogEntry[] }
-  | { success: false; error: string; logs: LogEntry[]; line?: number };
-
-export type RunCodeCoreInput = {
-  code: string;
-  timeout?: number;
-};
-
-export type RunCodeInput = StepInput & RunCodeCoreInput;
-
-const DEFAULT_TIMEOUT_SECONDS = 60;
-const MAX_TIMEOUT_SECONDS = 120;
-const UNRESOLVED_TEMPLATE_REGEX = /\{\{@?[^}]+\}\}/g;
-const VM_LINE_REGEX = /user-code\.js:(\d+)/;
+export type ChildOutcome =
+  | { ok: true; result: unknown; logs: LogEntry[] }
+  | {
+      ok: false;
+      errorMessage: string;
+      errorStack?: string;
+      logs: LogEntry[];
+    };
 
 /**
- * Backend selector read once at module init — "local" means the in-pod
- * child_process path (the PR #953 runner inlined below), "remote" dispatches
- * to the standalone sandbox HTTP service via `lib/sandbox-client.ts`. Default
- * is "local" so dev and unit tests stay on the in-pod runner without extra
- * env wiring.
+ * Environment variables forwarded to the sandbox child process. Everything
+ * else is dropped so that a sandbox escape cannot read pod secrets from
+ * process.env nor from /proc/self/environ (the child is a fresh OS process
+ * started with execve, so its kernel-level environ is exactly this set).
+ * Keep minimal: only what Node itself needs to start and make TLS calls.
+ * Do NOT add application secrets here.
  */
-const SANDBOX_BACKEND = process.env.SANDBOX_BACKEND ?? "local";
-
-const JS_STRING_LITERAL_REGEX =
-  /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/g;
-
-function stripStringLiterals(code: string): string {
-  return code.replace(JS_STRING_LITERAL_REGEX, "");
-}
-
-function extractLineNumber(stack: string | undefined): number | undefined {
-  if (!stack) {
-    return undefined;
-  }
-  const match = stack.match(VM_LINE_REGEX);
-  if (match?.[1]) {
-    const rawLine = Number.parseInt(match[1], 10);
-    return Math.max(1, rawLine - 1);
-  }
-  return undefined;
-}
-
 const CHILD_ENV_ALLOWLIST = [
   "NODE_ENV",
   "NODE_EXTRA_CA_CERTS",
@@ -76,6 +43,14 @@ function buildChildEnv(): NodeJS.ProcessEnv {
   return out as NodeJS.ProcessEnv;
 }
 
+/**
+ * Script executed by the child node process. Reads a single JSON payload
+ * from stdin, runs the user code in a vm.createContext sandbox, and writes
+ * the outcome to stdout as a base64-encoded v8-serialized buffer so that
+ * BigInt, Date, Map, Set, and typed arrays round-trip without JSON loss.
+ * Inlined here so the Next.js bundler does not have to emit and resolve a
+ * separate worker module at runtime.
+ */
 const CHILD_SOURCE = `
 "use strict";
 const { createContext, runInContext } = require("node:vm");
@@ -229,6 +204,12 @@ function run(input) {
     }
   );
 
+  // In-child wall-clock timeout. The vm \`timeout\` option only covers sync
+  // CPU; a user promise that never settles (e.g. \`await new Promise(() => {})\`)
+  // would otherwise let the child exit cleanly with code 0 the moment stdin
+  // EOFs and no handles remain, producing a no-result outcome in the parent
+  // instead of a timeout. The timer also keeps the event loop alive until a
+  // race resolution.
   let timeoutTimer;
   const timeoutPromise = new Promise(function onTimeoutRace(resolveRace) {
     timeoutTimer = setTimeout(function onTimeoutFire() {
@@ -264,6 +245,8 @@ function writeResult(message) {
       })
       .toString("base64");
   }
+  // Prefix with sentinel so the parent can ignore stray writes from user code
+  // that reaches process.stdout via a sandbox escape.
   process.stdout.write("\\x01RESULT\\x02" + payload + "\\n");
 }
 
@@ -300,15 +283,6 @@ process.stdin.on("end", async function onEnd() {
 
 const RESULT_SENTINEL = "\u0001RESULT\u0002";
 
-type ChildOutcome =
-  | { ok: true; result: unknown; logs: LogEntry[] }
-  | {
-      ok: false;
-      errorMessage: string;
-      errorStack?: string;
-      logs: LogEntry[];
-    };
-
 function parseChildOutput(stdout: string): ChildOutcome {
   const idx = stdout.lastIndexOf(RESULT_SENTINEL);
   if (idx === -1) {
@@ -332,10 +306,14 @@ function parseChildOutput(stdout: string): ChildOutcome {
   }
 }
 
+/**
+ * Spawn a child Node process with a scrubbed env, run the user code inside
+ * it, and return the child's outcome. Kills the child on timeout.
+ */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: single cohesive spawner with timeout + stream aggregation + graceful teardown
 async function runInChild(
   code: string,
-  timeoutMs: number
+  timeoutMs: number,
 ): Promise<ChildOutcome> {
   return await new Promise<ChildOutcome>((resolve) => {
     const child = spawn(process.execPath, ["-e", CHILD_SOURCE], {
@@ -391,6 +369,7 @@ async function runInChild(
         finish(parsed);
         return;
       }
+      // Non-zero exit with no parseable result; surface stderr as a hint.
       finish({
         ok: false,
         errorMessage:
@@ -415,143 +394,13 @@ async function runInChild(
 }
 
 /**
- * Pre-flight input validation shared by both backends. Returns a failure
- * RunCodeResult if the input is unrunnable, otherwise null — callers branch
- * on the return value.
+ * Public API: run `code` in a fresh scrubbed child process with a wall-clock
+ * timeout of `timeoutMs` milliseconds. Resolves with a ChildOutcome describing
+ * either the user result (v8-deserialized) or a structured error.
  */
-function validateInput(input: RunCodeCoreInput): RunCodeResult | null {
-  const { code } = input;
-  if (!code || code.trim() === "") {
-    return { success: false, error: "No code provided", logs: [] };
-  }
-  const unresolvedTemplates = stripStringLiterals(code).match(
-    UNRESOLVED_TEMPLATE_REGEX,
-  );
-  if (unresolvedTemplates) {
-    const unique = [...new Set(unresolvedTemplates)];
-    return {
-      success: false,
-      error: `Unresolved template variables: ${unique.join(", ")}. Make sure upstream nodes have executed and their outputs are available.`,
-      logs: [],
-    };
-  }
-  return null;
+export async function runCode(input: {
+  code: string;
+  timeoutMs: number;
+}): Promise<ChildOutcome> {
+  return runInChild(input.code, input.timeoutMs);
 }
-
-/**
- * In-pod child_process runner preserved verbatim from PR #953. When
- * SANDBOX_BACKEND is "local" (default) or unset, the main app evaluates user
- * code via this runner — a spawned Node process with a scrubbed env and
- * node:vm.runInContext inside a single-use context.
- */
-async function runLocal(
-  input: RunCodeCoreInput,
-  timeoutSeconds: number,
-): Promise<RunCodeResult> {
-  const timeoutMs = timeoutSeconds * 1000;
-  const outcome = await runInChild(input.code, timeoutMs);
-
-  if (outcome.ok) {
-    return { success: true, result: outcome.result, logs: outcome.logs };
-  }
-
-  const isTimeout =
-    outcome.errorMessage.includes("Script execution timed out") ||
-    outcome.errorMessage === "WALL_CLOCK_TIMEOUT";
-
-  const errorMessage = isTimeout
-    ? `Code execution timed out after ${String(timeoutSeconds)} second${timeoutSeconds === 1 ? "" : "s"}`
-    : `Code execution failed: ${outcome.errorMessage}`;
-
-  logUserError(
-    ErrorCategory.VALIDATION,
-    "[Code] Execution error:",
-    new Error(outcome.errorMessage),
-    {
-      plugin_name: "code",
-      action_name: "run-code",
-    },
-  );
-
-  const line = extractLineNumber(outcome.errorStack);
-
-  return {
-    success: false,
-    error: errorMessage,
-    logs: outcome.logs,
-    ...(line !== undefined ? { line } : {}),
-  };
-}
-
-/**
- * Normalize a runRemote() RunCodeResult to match the error-message shape
- * runLocal emits. The sandbox-client translator ferries ChildOutcome
- * error text through unchanged; the main-app contract wants "Code
- * execution failed: ..." for general errors and "Code execution timed
- * out after N second(s)" for timeouts so downstream consumers (UI,
- * alerting) see identical copy across backends.
- */
-function normalizeRemoteError(
-  outcome: RunCodeResult,
-  timeoutSeconds: number,
-): RunCodeResult {
-  if (outcome.success) {
-    return outcome;
-  }
-  const raw = outcome.error;
-  const isTimeout =
-    raw.includes("Script execution timed out") ||
-    raw === "WALL_CLOCK_TIMEOUT" ||
-    raw.includes("timed out after");
-  const rewritten = isTimeout
-    ? `Code execution timed out after ${String(timeoutSeconds)} second${timeoutSeconds === 1 ? "" : "s"}`
-    : raw.startsWith("Code execution failed:") ||
-        raw.startsWith("sandbox client error:") ||
-        raw.startsWith("No code provided") ||
-        raw.startsWith("Unresolved template variables:")
-      ? raw
-      : `Code execution failed: ${raw}`;
-  return { ...outcome, error: rewritten };
-}
-
-/**
- * Backend dispatcher. SANDBOX_BACKEND is read once at module init; when
- * "remote" we delegate to lib/sandbox-client.ts, otherwise runLocal handles
- * the invocation via the in-pod child_process path.
- */
-async function stepHandler(input: RunCodeCoreInput): Promise<RunCodeResult> {
-  const validationError = validateInput(input);
-  if (validationError) {
-    return validationError;
-  }
-  const rawTimeout = input.timeout ?? DEFAULT_TIMEOUT_SECONDS;
-  const clampedSeconds = Math.min(
-    Math.max(1, rawTimeout),
-    MAX_TIMEOUT_SECONDS,
-  );
-  if (SANDBOX_BACKEND === "remote") {
-    const outcome = await runRemote({
-      code: input.code,
-      timeoutMs: clampedSeconds * 1000,
-    });
-    return normalizeRemoteError(outcome, clampedSeconds);
-  }
-  return runLocal(input, clampedSeconds);
-}
-
-// biome-ignore lint/suspicious/useAwait: "use step" directive requires async
-export async function runCodeStep(input: RunCodeInput): Promise<RunCodeResult> {
-  "use step";
-
-  return withPluginMetrics(
-    {
-      pluginName: "code",
-      actionName: "run-code",
-      executionId: input._context?.executionId,
-    },
-    () => withStepLogging(input, () => stepHandler(input)),
-  );
-}
-runCodeStep.maxRetries = 0;
-
-export const _integrationType = "code";
