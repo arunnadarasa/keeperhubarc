@@ -60,6 +60,8 @@ type MockLookupSecret = ReturnType<typeof vi.fn>;
 type MockClassifyRisk = ReturnType<typeof vi.fn>;
 type MockCreateApproval = ReturnType<typeof vi.fn>;
 type MockVerifyWorkflowBinding = ReturnType<typeof vi.fn>;
+type MockReserveSpend = ReturnType<typeof vi.fn>;
+type MockRollbackSpend = ReturnType<typeof vi.fn>;
 
 const {
   mockSignRawPayload,
@@ -68,6 +70,8 @@ const {
   mockClassifyRisk,
   mockCreateApprovalRequest,
   mockVerifyWorkflowBinding,
+  mockReserveSpend,
+  mockRollbackSpend,
 } = vi.hoisted(
   (): {
     mockSignRawPayload: MockSignRawPayload;
@@ -76,6 +80,8 @@ const {
     mockClassifyRisk: MockClassifyRisk;
     mockCreateApprovalRequest: MockCreateApproval;
     mockVerifyWorkflowBinding: MockVerifyWorkflowBinding;
+    mockReserveSpend: MockReserveSpend;
+    mockRollbackSpend: MockRollbackSpend;
   } => ({
     mockSignRawPayload: vi.fn(),
     mockLookupSecret: vi.fn(),
@@ -83,6 +89,8 @@ const {
     mockClassifyRisk: vi.fn(),
     mockCreateApprovalRequest: vi.fn(),
     mockVerifyWorkflowBinding: vi.fn(),
+    mockReserveSpend: vi.fn(),
+    mockRollbackSpend: vi.fn(),
   })
 );
 
@@ -138,21 +146,13 @@ vi.mock("@/lib/agentic-wallet/approval", async (importOriginal) => {
   };
 });
 
-// Fix-pack-2 R1: /sign reserves daily spend before Turnkey. Mock to no-op
-// so this suite keeps focus on the auth + binding + risk + Turnkey flow.
+// Fix-pack-2 R1: /sign reserves daily spend before Turnkey. Default reserve
+// is ok; rollback is a no-op. Fix-pack-3 N-2 tests override these to assert
+// rollback is skipped on PolicyBlockedError and invoked on transient upstream
+// failure.
 vi.mock("@/lib/agentic-wallet/daily-spend", () => ({
-  reserveSpend: async (): Promise<{
-    ok: true;
-    totalAfterMicros: bigint;
-    capMicros: bigint;
-  }> => ({
-    ok: true,
-    totalAfterMicros: BigInt(0),
-    capMicros: BigInt(200_000_000),
-  }),
-  rollbackSpend: async (): Promise<void> => {
-    /* no-op */
-  },
+  reserveSpend: mockReserveSpend,
+  rollbackSpend: mockRollbackSpend,
 }));
 
 vi.mock("@/lib/agentic-wallet/workflow-binding", () => ({
@@ -214,6 +214,8 @@ beforeEach(() => {
   mockClassifyRisk.mockReset();
   mockCreateApprovalRequest.mockReset();
   mockVerifyWorkflowBinding.mockReset();
+  mockReserveSpend.mockReset();
+  mockRollbackSpend.mockReset();
 
   mockLookupSecret.mockResolvedValue({
     secret: TEST_HMAC_SECRET,
@@ -234,6 +236,12 @@ beforeEach(() => {
     expectedAmountMicro: "0",
     workflowId: "wf_test",
   });
+  mockReserveSpend.mockResolvedValue({
+    ok: true,
+    totalAfterMicros: BigInt(0),
+    capMicros: BigInt(200_000_000),
+  });
+  mockRollbackSpend.mockResolvedValue(undefined);
 });
 
 describe("POST /api/agentic-wallet/sign -- EIP-3009 ecrecover round-trip", () => {
@@ -377,6 +385,102 @@ describe("POST /api/agentic-wallet/sign -- EIP-3009 ecrecover round-trip", () =>
     expect(res.status).toBe(403);
     const json = (await res.json()) as { code: string };
     expect(json.code).toBe("POLICY_BLOCKED");
+  });
+
+  // Fix-pack-3 N-2: a hard POLICY_BLOCKED is the caller proving they tried a
+  // denied signature. Refunding quota would let a stolen HMAC probe policy
+  // boundaries for free — so rollbackSpend MUST NOT run on PolicyBlockedError.
+  it("does NOT rollback daily spend when Turnkey returns POLICY_BLOCKED", async () => {
+    mockSignRawPayload.mockResolvedValue({
+      activity: { status: "ACTIVITY_STATUS_CONSENSUS_NEEDED" },
+    });
+    const nowTs = Math.floor(Date.now() / 1000);
+    const body = JSON.stringify({
+      chain: "base",
+      workflowSlug: "test-slug",
+      paymentChallenge: {
+        payTo: "0x0000000000000000000000000000000000000000",
+        amount: "1000000",
+        validAfter: nowTs,
+        validBefore: nowTs + 300,
+        nonce: `0x${"00".repeat(32)}`,
+      },
+    });
+    const path = "/api/agentic-wallet/sign";
+    const res = await POST(
+      new Request(`http://localhost:3000${path}`, {
+        method: "POST",
+        headers: buildHmacHeaders("subOrg_test", "POST", path, body),
+        body,
+      })
+    );
+    expect(res.status).toBe(403);
+    expect(mockReserveSpend).toHaveBeenCalledOnce();
+    expect(mockRollbackSpend).not.toHaveBeenCalled();
+  });
+
+  // Fix-pack-3 N-2: transient upstream failure IS a legitimate rollback path —
+  // quota should be refunded so one Turnkey hiccup doesn't burn the caller's
+  // daily budget.
+  it("rolls back daily spend when Turnkey returns a non-policy upstream error", async () => {
+    mockSignRawPayload.mockResolvedValue({
+      activity: { status: "ACTIVITY_STATUS_FAILED", failure: { message: "t" } },
+    });
+    const nowTs = Math.floor(Date.now() / 1000);
+    const body = JSON.stringify({
+      chain: "base",
+      workflowSlug: "test-slug",
+      paymentChallenge: {
+        payTo: "0x0000000000000000000000000000000000000000",
+        amount: "1000000",
+        validAfter: nowTs,
+        validBefore: nowTs + 300,
+        nonce: `0x${"00".repeat(32)}`,
+      },
+    });
+    const path = "/api/agentic-wallet/sign";
+    const res = await POST(
+      new Request(`http://localhost:3000${path}`, {
+        method: "POST",
+        headers: buildHmacHeaders("subOrg_test", "POST", path, body),
+        body,
+      })
+    );
+    expect(res.status).toBe(502);
+    expect(mockReserveSpend).toHaveBeenCalledOnce();
+    expect(mockRollbackSpend).toHaveBeenCalledOnce();
+  });
+
+  // Fix-pack-3 N-2: a rollback DB hiccup must not leak past the instanceof
+  // classification and turn a clean 502 into an uncontrolled 500.
+  it("classifies upstream error correctly even when rollbackSpend throws", async () => {
+    mockSignRawPayload.mockResolvedValue({
+      activity: { status: "ACTIVITY_STATUS_FAILED", failure: { message: "t" } },
+    });
+    mockRollbackSpend.mockRejectedValueOnce(new Error("db down"));
+    const nowTs = Math.floor(Date.now() / 1000);
+    const body = JSON.stringify({
+      chain: "base",
+      workflowSlug: "test-slug",
+      paymentChallenge: {
+        payTo: "0x0000000000000000000000000000000000000000",
+        amount: "1000000",
+        validAfter: nowTs,
+        validBefore: nowTs + 300,
+        nonce: `0x${"00".repeat(32)}`,
+      },
+    });
+    const path = "/api/agentic-wallet/sign";
+    const res = await POST(
+      new Request(`http://localhost:3000${path}`, {
+        method: "POST",
+        headers: buildHmacHeaders("subOrg_test", "POST", path, body),
+        body,
+      })
+    );
+    expect(res.status).toBe(502);
+    const json = (await res.json()) as { code: string };
+    expect(json.code).toBe("TURNKEY_UPSTREAM");
   });
 
   it("returns 400 INVALID_VALIDITY_WINDOW when validBefore is too far in the future (HI-01)", async () => {

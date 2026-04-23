@@ -368,7 +368,28 @@ export async function POST(request: Request): Promise<Response> {
     }
     return Response.json({ signature }, { status: 200 });
   } catch (error) {
-    await rollbackSpend(auth.subOrgId, reserveAmountMicros);
+    // Fix-pack-3 N-2: only refund quota on TRANSIENT upstream failures. A
+    // PolicyBlockedError is the attacker/caller proving they tried a denied
+    // signature -- refunding quota would let a stolen HMAC probe policy
+    // boundaries for free. Wrap rollback itself in a try/catch so a DB
+    // hiccup during rollback doesn't escape this catch and leak an
+    // uncontrolled 500 past the `instanceof` classification below.
+    if (!(error instanceof PolicyBlockedError)) {
+      try {
+        await rollbackSpend(auth.subOrgId, reserveAmountMicros);
+      } catch (rollbackError) {
+        logSystemError(
+          ErrorCategory.DATABASE,
+          "[Agentic] /sign rollbackSpend failed",
+          rollbackError,
+          {
+            endpoint: "/api/agentic-wallet/sign",
+            operation: "sign",
+            subOrgId: auth.subOrgId,
+          }
+        );
+      }
+    }
     if (error instanceof PolicyBlockedError) {
       // REVIEW HI-02: the `instanceof PolicyBlockedError` check is the
       // contract; the public response returns a fixed string + code so
