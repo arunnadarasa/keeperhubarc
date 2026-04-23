@@ -87,7 +87,7 @@ async function authenticate(request: Request): Promise<ApiKeyAuthResult> {
     return await authenticateApiKey(request);
   }
 
-  const oauthResult = authenticateOAuthToken(request);
+  const oauthResult = await authenticateOAuthToken(request);
   if (oauthResult.authenticated) {
     return {
       authenticated: true,
@@ -220,7 +220,7 @@ async function resolveSession(
   // Slow path: verify JWT and reconstruct transport+server (different pod or restart).
   // Accept expired-but-valid-signature JWTs so sessions survive pod restarts
   // and idle periods within the 24h sliding window.
-  const result = verifySessionTokenDetailed(sessionId);
+  const result = await verifySessionTokenDetailed(sessionId);
 
   if (!result.payload) {
     const isExpiredBeyondRenewal =
@@ -276,7 +276,7 @@ async function resolveSession(
   // The client adopts the new session ID from the Mcp-Session-Id response header.
   let renewedSessionId: string | undefined;
   if (result.expired) {
-    renewedSessionId = createSessionToken({
+    renewedSessionId = await createSessionToken({
       org: result.payload.org,
       key: result.payload.key,
       scope: result.payload.scope,
@@ -392,7 +392,7 @@ export async function POST(request: Request): Promise<Response> {
 
   // Mint the JWT that becomes the Mcp-Session-Id returned to the client.
   // Any pod can verify and reconstruct state from this token on future requests.
-  const newSessionId = createSessionToken({
+  const newSessionId = await createSessionToken({
     org: organizationId,
     key: apiKeyId,
     scope,
@@ -483,7 +483,7 @@ export async function DELETE(request: Request): Promise<Response> {
 
   // Verify ownership via JWT before touching anything in the local cache.
   // Accept expired JWTs so clients can clean up old sessions.
-  const payload = verifySessionToken(sessionId, { allowExpired: true });
+  const payload = await verifySessionToken(sessionId, { allowExpired: true });
   if (!payload || payload.org !== organizationId) {
     return new Response(sessionErrorBody("session_not_found"), {
       status: 404,
