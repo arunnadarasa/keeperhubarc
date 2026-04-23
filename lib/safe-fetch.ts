@@ -1,9 +1,10 @@
 import "server-only";
 
+import { AsyncLocalStorage } from "node:async_hooks";
 import { lookup as dnsLookup } from "node:dns";
-import { BlockList, isIP, type LookupFunction } from "node:net";
-import { Agent, fetch as undiciFetch } from "undici";
-import { ErrorCategory, logSystemError, logUserError } from "@/lib/logging";
+import { BlockList, isIP } from "node:net";
+import { Agent, buildConnector, fetch as undiciFetch } from "undici";
+import { ErrorCategory, logUserError } from "@/lib/logging";
 import { getMetricsCollector } from "@/lib/metrics";
 
 export type SsrfBlockReason =
@@ -189,6 +190,19 @@ type BlockContext = {
   plugin?: string;
 };
 
+/**
+ * Carries the calling plugin label across the async boundary into the
+ * module-level Agent's lookup callback, where the original `safeFetch`
+ * closure is out of scope. Without this, DNS-path blocks record
+ * plugin_name="unknown" — precisely the case the shadow-mode soak needs
+ * to attribute.
+ */
+const pluginContext = new AsyncLocalStorage<{ plugin?: string }>();
+
+function currentPlugin(): string | undefined {
+  return pluginContext.getStore()?.plugin;
+}
+
 function recordBlock(ctx: BlockContext, shadow: boolean): void {
   const metrics = getMetricsCollector();
   metrics.incrementCounter("safe_fetch.blocks.total", {
@@ -209,21 +223,13 @@ function recordBlock(ctx: BlockContext, shadow: boolean): void {
     payload.plugin_name = ctx.plugin;
   }
 
-  if (shadow) {
-    logSystemError(
-      ErrorCategory.INFRASTRUCTURE,
-      "[safe-fetch] Would block (shadow mode)",
-      new Error(`safe-fetch shadow: ${ctx.reason}`),
-      payload
-    );
-  } else {
-    logUserError(
-      ErrorCategory.VALIDATION,
-      "[safe-fetch] Blocked outbound request",
-      new Error(`safe-fetch block: ${ctx.reason}`),
-      payload
-    );
-  }
+  const suffix = shadow ? " (shadow mode)" : "";
+  logUserError(
+    ErrorCategory.VALIDATION,
+    `[safe-fetch] Blocked outbound request${suffix}`,
+    new Error(`safe-fetch block: ${ctx.reason}`),
+    payload
+  );
 }
 
 function blockedMessage(ctx: BlockContext): string {
@@ -249,54 +255,73 @@ function extractUrlString(input: RequestInfo | URL): string {
 }
 
 /**
- * Validating DNS lookup. Undici's Agent invokes this per connection, including
- * redirect hops. The socket connects using the exact IP returned here, closing
- * the TOCTOU window between DNS resolution and the TCP handshake.
+ * Custom undici connector that resolves DNS, validates the resolved IP, and
+ * only then hands off to the default TCP/TLS connector. Invoked per TCP
+ * connection including redirect hops, so validation fires every time.
+ *
+ * The base connector is given the already-resolved IP as `hostname`, so it
+ * does not perform a second DNS lookup — this closes the TOCTOU window
+ * between our check and the socket handshake.
  */
-const validatingLookup: LookupFunction = (hostname, options, callback) => {
-  dnsLookup(hostname, options, (err, address, family) => {
+type ConnectOptions = Parameters<ReturnType<typeof buildConnector>>[0];
+type ConnectCallback = Parameters<ReturnType<typeof buildConnector>>[1];
+
+const baseConnector = buildConnector({});
+
+function validatingConnect(
+  options: ConnectOptions,
+  callback: ConnectCallback
+): void {
+  const { hostname } = options;
+
+  // IP literals are caught at the URL-entry check in `safeFetch` already,
+  // so `hostname` here is expected to be a domain name. Still, resolve it
+  // and re-check defensively — covers any code path that might feed an IP
+  // through the connector directly.
+  dnsLookup(hostname, { family: 0 }, (err, address) => {
     if (err) {
-      callback(err, "", 0);
+      callback(err as Error, null);
       return;
     }
     const resolved = String(address);
-    const resolvedFamily = family ?? isIP(resolved);
     const check = isBlockedIp(resolved);
-    if (!check.blocked) {
-      callback(null, resolved, resolvedFamily);
-      return;
-    }
     const shadow = isShadowMode();
-    recordBlock(
-      { hostname, resolvedIp: resolved, reason: check.reason },
-      shadow
-    );
-    if (shadow) {
-      callback(null, resolved, resolvedFamily);
-      return;
+    const plugin = currentPlugin();
+
+    if (check.blocked) {
+      recordBlock(
+        { hostname, resolvedIp: resolved, reason: check.reason, plugin },
+        shadow
+      );
+      if (!shadow) {
+        callback(
+          new SsrfBlockedError({
+            hostname,
+            resolvedIp: resolved,
+            reason: check.reason,
+            message: blockedMessage({
+              hostname,
+              resolvedIp: resolved,
+              reason: check.reason,
+              plugin,
+            }),
+          }),
+          null
+        );
+        return;
+      }
     }
-    callback(
-      new SsrfBlockedError({
-        hostname,
-        resolvedIp: resolved,
-        reason: check.reason,
-        message: blockedMessage({
-          hostname,
-          resolvedIp: resolved,
-          reason: check.reason,
-        }),
-      }),
-      "",
-      0
-    );
+
+    // Hand off to the default connector with the already-resolved address.
+    baseConnector({ ...options, hostname: resolved }, callback);
   });
-};
+}
 
 /**
  * Module-level Agent. Pooling outbound sockets across requests is fine because
- * the lookup fires per connection, not per Agent.
+ * the connector fires per connection, not per Agent.
  */
-const safeAgent = new Agent({ connect: { lookup: validatingLookup } });
+const safeAgent = new Agent({ connect: validatingConnect });
 
 export type SafeFetchOptions = RequestInit & {
   /** Plugin identifier for observability (e.g. "code", "webhook"). */
@@ -379,5 +404,10 @@ export async function safeFetch(
     dispatcher: safeAgent,
   } as unknown as UndiciFetchInit;
 
-  return (await undiciFetch(rawUrl, initWithDispatcher)) as unknown as Response;
+  // Run the fetch inside the plugin-context store so the shared Agent's
+  // DNS lookup can attribute blocks to the calling plugin.
+  const response = await pluginContext.run({ plugin }, () =>
+    undiciFetch(rawUrl, initWithDispatcher)
+  );
+  return response as unknown as Response;
 }

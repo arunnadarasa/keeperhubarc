@@ -180,6 +180,23 @@ describe("safeFetch (enforce mode)", () => {
     );
   });
 
+  it("attributes plugin on DNS-resolved private IP (localhost)", async () => {
+    // `localhost` is not an IP literal, so it reaches the DNS path and is
+    // resolved inside the Agent's connector to 127.0.0.1 or ::1. The plugin
+    // label must propagate there via AsyncLocalStorage. Port 9999 avoids
+    // the WHATWG fetch "bad port" list (which includes port 1).
+    await expect(
+      safeFetch("http://localhost:9999/", { plugin: "webhook" })
+    ).rejects.toThrow();
+    expect(incrementCounter).toHaveBeenCalledWith(
+      "safe_fetch.blocks.total",
+      expect.objectContaining({
+        plugin_name: "webhook",
+        reason: "loopback",
+      })
+    );
+  });
+
   it("throws TypeError for malformed URLs", async () => {
     await expect(safeFetch("not a url")).rejects.toBeInstanceOf(TypeError);
   });
@@ -204,11 +221,12 @@ describe("safeFetch (shadow mode)", () => {
   });
 
   it("records a block with shadow=true but does not throw SsrfBlockedError on IP literal", async () => {
-    // Note: the fetch itself will still fail to connect to 127.0.0.1 in the
-    // test env (no listener). The important behaviour is that safe-fetch
-    // does not short-circuit with SsrfBlockedError.
+    // The fetch itself will still fail to connect to 127.0.0.1 in the test
+    // env (no listener). The important behaviour is that safe-fetch does
+    // not short-circuit with SsrfBlockedError. Port 9999 avoids the
+    // WHATWG fetch "bad port" list.
     try {
-      await safeFetch("http://127.0.0.1:1/");
+      await safeFetch("http://127.0.0.1:9999/");
     } catch (err) {
       expect(err).not.toBeInstanceOf(SsrfBlockedError);
     }
