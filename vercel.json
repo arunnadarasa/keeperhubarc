@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/agentic-wallet-sweeper",
-      "schedule": "*/5 * * * *"
-    }
-  ]
-}

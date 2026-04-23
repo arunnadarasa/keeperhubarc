@@ -1,6 +1,6 @@
 /**
- * Vercel cron sweeper for the agentic-wallet tables (Phase 37 fix B2/B3,
- * Task 15). Runs every 5 minutes.
+ * Scheduled sweeper for the agentic-wallet tables (Phase 37 fix B2/B3,
+ * Task 15). Expected trigger cadence: every 5 minutes.
  *
  * Jobs:
  *   1. Mark wallet_approval_requests rows past expires_at as "expired"
@@ -14,9 +14,11 @@
  *   3. Delete agentic_wallet_rate_limits rows whose bucket_start is older
  *      than 24h.
  *
- * Auth: in production, Authorization: Bearer $CRON_SECRET is required
- * (Vercel cron injects this header). In dev/test, the check is bypassed so
- * local testing via curl works.
+ * Deployment: this endpoint is an HTTP GET handler. It must be invoked by an
+ * external scheduler (Kubernetes CronJob, GitHub Actions scheduled workflow,
+ * or equivalent) every 5 minutes. Configure the scheduler to send
+ * `Authorization: Bearer $CRON_SECRET` in production; in dev/test the auth
+ * check is bypassed so local testing via curl works.
  */
 import { and, eq, lt, or } from "drizzle-orm";
 import { db } from "@/lib/db";
