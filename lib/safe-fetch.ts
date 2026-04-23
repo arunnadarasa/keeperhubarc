@@ -3,8 +3,8 @@ import "server-only";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { lookup as dnsLookup } from "node:dns";
 import { BlockList, isIP } from "node:net";
+import { captureException } from "@sentry/nextjs";
 import { Agent, buildConnector, fetch as undiciFetch } from "undici";
-import { ErrorCategory, logUserError } from "@/lib/logging";
 import { getMetricsCollector } from "@/lib/metrics";
 
 export type SsrfBlockReason =
@@ -211,25 +211,33 @@ function recordBlock(ctx: BlockContext, shadow: boolean): void {
     shadow: shadow ? "true" : "false",
   });
 
-  const payload: Record<string, string> = {
-    hostname: ctx.hostname,
-    reason: ctx.reason,
-    shadow_mode: String(shadow),
-  };
-  if (ctx.resolvedIp !== undefined) {
-    payload.resolved_ip = ctx.resolvedIp;
-  }
-  if (ctx.plugin !== undefined) {
-    payload.plugin_name = ctx.plugin;
-  }
-
-  const suffix = shadow ? " (shadow mode)" : "";
-  logUserError(
-    ErrorCategory.VALIDATION,
-    `[safe-fetch] Blocked outbound request${suffix}`,
-    new Error(`safe-fetch block: ${ctx.reason}`),
-    payload
+  // Do NOT route through logUserError: it forwards caller labels to a
+  // Prometheus error metric with a fixed initial labelset, which rejects
+  // hostname/resolved_ip with "Added label not included in initial labelset"
+  // and turns shadow mode into a synchronous throw.
+  const modeSuffix = shadow ? " (shadow mode)" : "";
+  const resolvedSuffix =
+    ctx.resolvedIp !== undefined && ctx.resolvedIp !== ctx.hostname
+      ? ` -> ${ctx.resolvedIp}`
+      : "";
+  const pluginSuffix =
+    ctx.plugin === undefined ? "" : ` [plugin=${ctx.plugin}]`;
+  console.warn(
+    `[safe-fetch] Blocked outbound request${modeSuffix}: ${ctx.hostname}${resolvedSuffix} (reason=${ctx.reason})${pluginSuffix}`
   );
+
+  captureException(new Error(`safe-fetch block: ${ctx.reason}`), {
+    level: "warning",
+    tags: {
+      safe_fetch_reason: ctx.reason,
+      safe_fetch_shadow: shadow ? "true" : "false",
+      plugin_name: ctx.plugin ?? "unknown",
+    },
+    extra: {
+      hostname: ctx.hostname,
+      resolved_ip: ctx.resolvedIp,
+    },
+  });
 }
 
 function blockedMessage(ctx: BlockContext): string {
