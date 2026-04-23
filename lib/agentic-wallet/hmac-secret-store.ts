@@ -23,7 +23,7 @@
  * NEVER log secret material. Log only sub-org id and key version.
  */
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
-import { and, eq, gt, isNull, or } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { agenticWalletHmacSecrets } from "@/lib/db/schema";
 import { ErrorCategory, logSystemError } from "@/lib/logging";
@@ -186,6 +186,16 @@ export async function insertHmacSecret(
 }
 
 /**
+ * Maximum number of active HMAC secrets returned per sub-org. Fix-pack-3 N-3:
+ * /rotate-hmac has no rate limit today, so without a bound, an attacker with
+ * a valid HMAC could spam rotations to inflate the active-version set and
+ * force every subsequent /sign (without X-KH-Key-Version) to do O(N) HMAC
+ * computes. Bounding at 8 keeps the grace iteration cheap and well above any
+ * legitimate rotation cadence (one every 24h at the 24h grace TTL).
+ */
+const MAX_ACTIVE_HMAC_CANDIDATES = 8;
+
+/**
  * Return ALL active (non-expired) HMAC secrets for a sub-org, newest version
  * first. Fix-pack-2 R3: the 24-hour rotation grace window only works if the
  * verifier tries every active version when the client doesn't pin one via
@@ -193,6 +203,9 @@ export async function insertHmacSecret(
  * behaviour makes rotation immediately break every legacy client that hasn't
  * been retrofitted to send the version header — turning the grace window into
  * a grace mirage.
+ *
+ * Fix-pack-3 N-3: capped at MAX_ACTIVE_HMAC_CANDIDATES rows (newest first) so
+ * the /sign iteration cost is bounded regardless of rotation rate.
  *
  * Decrypt failures on individual rows are logged and skipped (not fatal) so
  * one corrupted row doesn't lock out an otherwise-valid sub-org.
@@ -216,12 +229,14 @@ export async function listActiveHmacSecrets(
         )
       )
     )
-    .orderBy(agenticWalletHmacSecrets.keyVersion);
+    .orderBy(desc(agenticWalletHmacSecrets.keyVersion))
+    .limit(MAX_ACTIVE_HMAC_CANDIDATES);
 
   const out: { secret: string; keyVersion: number }[] = [];
-  // Newest-first so the verifier tries the current secret before any
-  // still-active prior versions in the grace window.
-  for (const row of [...rows].reverse()) {
+  // Query orders desc(keyVersion) so rows are already newest-first: the
+  // verifier tries the current secret before any still-active prior versions
+  // in the grace window.
+  for (const row of rows) {
     try {
       const plaintext = decryptSecret(
         row.secretCiphertext,
