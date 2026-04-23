@@ -84,17 +84,32 @@ class MockProvider {
 // MockProvider implements the ethers.WebSocketProvider surface that
 // ChainProviderManager actually uses. The factory casts through unknown to
 // satisfy the type without pulling in the rest of ethers' provider surface.
+//
+// `setPersistentFailure` makes every subsequent factory call throw until
+// cleared - used to exercise the exhausted-attempts path without reaching
+// into the manager's private `factory` field.
 function makeFactory(): {
   factory: ProviderFactory;
   created: MockProvider[];
+  setPersistentFailure: (err: Error | null) => void;
 } {
   const created: MockProvider[] = [];
+  let persistentFailure: Error | null = null;
   const factory: ProviderFactory = (_wssUrl: string) => {
+    if (persistentFailure) {
+      throw persistentFailure;
+    }
     const mock = new MockProvider();
     created.push(mock);
     return mock as unknown as ethers.WebSocketProvider;
   };
-  return { factory, created };
+  return {
+    factory,
+    created,
+    setPersistentFailure: (err) => {
+      persistentFailure = err;
+    },
+  };
 }
 
 const CHAIN_A = 31337;
@@ -708,16 +723,16 @@ describe("ChainProviderManager", () => {
     });
 
     it("exhausted attempts call onPermanentFailure (injected)", async () => {
-      // Fail the second provider factory call and every attempt after it.
-      const failingFactory: ProviderFactory = () => {
-        throw new Error("upstream down");
-      };
-      await manager.getOrCreateProvider(CHAIN_A, "ws://a");
-      // Hot-swap the factory for the reconnect attempts by reaching into
-      // the manager. Cleaner alternative would be to make factory
-      // dynamic; this preserves the simpler public API.
-      (manager as unknown as { factory: ProviderFactory }).factory =
-        failingFactory;
+      await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_A,
+        topic0: TOPIC_EMITTED,
+        handler: vi.fn(),
+      });
+      // Make every subsequent factory call throw so the reconnect loop
+      // burns through all 10 attempts.
+      factoryBundle.setPersistentFailure(new Error("upstream down"));
 
       factoryBundle.created[0].emitError(new Error("drop"));
       // Fast-forward through all reconnect attempts (1s + 2s + 4s + ...,
@@ -726,6 +741,98 @@ describe("ChainProviderManager", () => {
 
       expect(onPermanentFailure).toHaveBeenCalledTimes(1);
       expect(onPermanentFailure).toHaveBeenCalledWith(CHAIN_A);
+    });
+
+    it("concurrent subscribe during reconnect does not fire a second factory call (race fix)", async () => {
+      // Without the reconnectPromise guard, a new subscribe arriving
+      // while reconnect has torn down the old provider (entry.provider
+      // null, entry.readyPromise null) would call createProvider and
+      // produce a second factory call. The race was this test's reason
+      // to exist.
+      await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_A,
+        topic0: TOPIC_EMITTED,
+        handler: vi.fn(),
+      });
+      expect(factoryBundle.created).toHaveLength(1);
+
+      factoryBundle.created[0].emitError(new Error("drop"));
+      // Start a second subscription mid-reconnect. The call should
+      // block on entry.reconnectPromise and resolve only once the
+      // reconnect has assigned the new provider.
+      const subscribePromise = manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_B,
+        topic0: TOPIC_EMITTED,
+        handler: vi.fn(),
+      });
+
+      // Before the delay elapses, no reconnect has completed.
+      await Promise.resolve();
+      expect(factoryBundle.created).toHaveLength(1);
+
+      await vi.advanceTimersByTimeAsync(1_500);
+      await subscribePromise;
+
+      // Exactly one reconnect-time factory call, not two.
+      expect(factoryBundle.created).toHaveLength(2);
+      expect(manager.subscriberCount(CHAIN_A)).toBe(2);
+    });
+
+    it("destroy during reconnect tears down any provider created after destroy wins the race", async () => {
+      await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_A,
+        topic0: TOPIC_EMITTED,
+        handler: vi.fn(),
+      });
+      const first = factoryBundle.created[0];
+
+      first.emitError(new Error("drop"));
+      // Advance to just before the reconnect attempt fires.
+      await vi.advanceTimersByTimeAsync(999);
+
+      // Call destroy; the reconnect is still pending its first attempt.
+      const destroyPromise = manager.destroy();
+
+      // Now let the reconnect's setTimeout elapse - the reconnect will
+      // see isDestroyed and bail before creating a new provider, OR
+      // will create one and then destroy it immediately.
+      await vi.advanceTimersByTimeAsync(100);
+      await destroyPromise;
+
+      // Either path is acceptable: no orphan provider should be running.
+      // If a second provider was created, it must be destroyed.
+      for (const p of factoryBundle.created) {
+        expect(p.destroyed).toBe(true);
+      }
+    });
+
+    it("a second drop after successful reconnect triggers another reconnect cycle", async () => {
+      await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_A,
+        topic0: TOPIC_EMITTED,
+        handler: vi.fn(),
+      });
+
+      factoryBundle.created[0].emitError(new Error("drop 1"));
+      await vi.advanceTimersByTimeAsync(1_500);
+      expect(factoryBundle.created).toHaveLength(2);
+      expect(manager.isHealthy(CHAIN_A)).toBe(true);
+
+      // Drop again on the new provider.
+      factoryBundle.created[1].emitError(new Error("drop 2"));
+      await vi.advanceTimersByTimeAsync(1_500);
+
+      expect(factoryBundle.created).toHaveLength(3);
+      expect(manager.isHealthy(CHAIN_A)).toBe(true);
+      expect(manager.subscriberCount(CHAIN_A)).toBe(1);
     });
   });
 
@@ -737,8 +844,29 @@ describe("ChainProviderManager", () => {
       vi.useRealTimers();
     });
 
-    it("pings eth_blockNumber periodically", async () => {
+    it("does not ping when no subscribers are registered", async () => {
+      // Heartbeat is subscriber-scoped: creating a provider without
+      // subscribing leaves it silent. Previously the heartbeat started
+      // on provider creation, wasting RPC calls on idle providers.
       await manager.getOrCreateProvider(CHAIN_A, "ws://a");
+      const provider = factoryBundle.created[0];
+
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      const pings = provider.sendCalls.filter(
+        (c) => c.method === "eth_blockNumber",
+      ).length;
+      expect(pings).toBe(0);
+    });
+
+    it("pings eth_blockNumber periodically once a subscriber is added", async () => {
+      await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_A,
+        topic0: TOPIC_EMITTED,
+        handler: vi.fn(),
+      });
       const provider = factoryBundle.created[0];
       const pingsBefore = provider.sendCalls.filter(
         (c) => c.method === "eth_blockNumber",
@@ -752,8 +880,35 @@ describe("ChainProviderManager", () => {
       expect(pingsAfter).toBeGreaterThan(pingsBefore);
     });
 
+    it("stops when the last subscriber unsubscribes", async () => {
+      const unsub = await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_A,
+        topic0: TOPIC_EMITTED,
+        handler: vi.fn(),
+      });
+      const provider = factoryBundle.created[0];
+      unsub();
+
+      const pingsBefore = provider.sendCalls.filter(
+        (c) => c.method === "eth_blockNumber",
+      ).length;
+      await vi.advanceTimersByTimeAsync(60_000);
+      const pingsAfter = provider.sendCalls.filter(
+        (c) => c.method === "eth_blockNumber",
+      ).length;
+      expect(pingsAfter).toBe(pingsBefore);
+    });
+
     it("thrown eth_blockNumber triggers reconnect with heartbeat_failure reason", async () => {
-      await manager.getOrCreateProvider(CHAIN_A, "ws://a");
+      await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_A,
+        topic0: TOPIC_EMITTED,
+        handler: vi.fn(),
+      });
       const provider = factoryBundle.created[0];
       const reasons: string[] = [];
       manager.onDisconnect(CHAIN_A, (ev) => {
@@ -767,7 +922,13 @@ describe("ChainProviderManager", () => {
     });
 
     it("timeout triggers reconnect with heartbeat_timeout reason", async () => {
-      await manager.getOrCreateProvider(CHAIN_A, "ws://a");
+      await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_A,
+        topic0: TOPIC_EMITTED,
+        handler: vi.fn(),
+      });
       const provider = factoryBundle.created[0];
       const reasons: string[] = [];
       manager.onDisconnect(CHAIN_A, (ev) => {

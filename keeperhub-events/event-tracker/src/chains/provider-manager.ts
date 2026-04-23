@@ -91,6 +91,13 @@ interface ChainEntry {
   wssUrl: string;
   provider: ethers.WebSocketProvider | null;
   readyPromise: Promise<ethers.WebSocketProvider> | null;
+  /**
+   * Live while a reconnect loop is running. Callers awaiting a provider
+   * (`getOrCreateProvider`) must wait on this first so they do not fire a
+   * second `createProvider` that races with the reconnect's own factory
+   * call and produces two parallel providers on the same chain.
+   */
+  reconnectPromise: Promise<void> | null;
   subscribers: Set<Subscriber>;
   blockListener: ((blockNumber: number) => Promise<void>) | null;
   errorListener: ((err: Error) => void) | null;
@@ -116,16 +123,10 @@ export class ChainProviderManager {
   private readonly onPermanentFailure: (chainId: number) => void;
   private isDestroyed = false;
 
-  constructor(opts: ChainProviderManagerOptions | ProviderFactory = {}) {
-    // Backward-compatible: the old signature accepted a bare factory function.
-    if (typeof opts === "function") {
-      this.factory = opts;
-      this.onPermanentFailure = defaultOnPermanentFailure;
-    } else {
-      this.factory = opts.factory ?? defaultFactory;
-      this.onPermanentFailure =
-        opts.onPermanentFailure ?? defaultOnPermanentFailure;
-    }
+  constructor(opts: ChainProviderManagerOptions = {}) {
+    this.factory = opts.factory ?? defaultFactory;
+    this.onPermanentFailure =
+      opts.onPermanentFailure ?? defaultOnPermanentFailure;
   }
 
   async getOrCreateProvider(
@@ -133,6 +134,15 @@ export class ChainProviderManager {
     wssUrl: string,
   ): Promise<ethers.WebSocketProvider> {
     const entry = this.ensureEntry(chainId, wssUrl);
+
+    // If a reconnect loop is live, wait for it to settle before checking
+    // the provider. Without this, a new subscriber arriving while the
+    // old provider has been torn down but the new one is not yet
+    // assigned races the reconnect's factory call and produces a second
+    // orphaned provider.
+    if (entry.reconnectPromise) {
+      await entry.reconnectPromise;
+    }
 
     if (entry.provider) {
       return entry.provider;
@@ -155,16 +165,24 @@ export class ChainProviderManager {
       topic0: opts.topic0.toLowerCase(),
       handler: opts.handler,
     };
+    const wasEmpty = entry.subscribers.size === 0;
     entry.subscribers.add(subscriber);
 
-    if (!entry.blockListener) {
+    // Block listener and heartbeat are lifecycle-tied to subscribers:
+    // attach on the first, detach on the last. Heartbeat on an idle
+    // provider is wasted RPC calls, so creating a provider via bare
+    // `getOrCreateProvider` without subscribing leaves it silent until
+    // the first subscribe.
+    if (wasEmpty) {
       this.attachBlockListener(entry);
+      this.startHeartbeat(entry);
     }
 
     return () => {
       entry.subscribers.delete(subscriber);
       if (entry.subscribers.size === 0) {
         this.detachBlockListener(entry);
+        this.stopHeartbeat(entry);
       }
     };
   }
@@ -206,6 +224,14 @@ export class ChainProviderManager {
     return this.chains.get(chainId)?.subscribers.size ?? 0;
   }
 
+  /**
+   * Returns true iff the manager has an active provider for `chainId`
+   * and is not currently reconnecting. Deliberately asymmetric with the
+   * `/healthz` endpoint's "no chains registered = 200 OK" rule: per-chain
+   * `isHealthy` answers *"do I affirmatively know this chain is up"* (so
+   * unknown chains return false), while `/healthz` answers *"is the
+   * system degraded"* (so zero chains is not a degradation).
+   */
   isHealthy(chainId: number): boolean {
     const entry = this.chains.get(chainId);
     if (!entry) {
@@ -288,6 +314,7 @@ export class ChainProviderManager {
       wssUrl,
       provider: null,
       readyPromise: null,
+      reconnectPromise: null,
       subscribers: new Set(),
       blockListener: null,
       errorListener: null,
@@ -307,7 +334,8 @@ export class ChainProviderManager {
     await provider.ready;
     entry.provider = provider;
     this.attachErrorListener(entry);
-    this.startHeartbeat(entry);
+    // Heartbeat is subscriber-scoped (started on first subscribe, stopped
+    // on last unsubscribe) to avoid wasted pings on an idle chain.
     return provider;
   }
 
@@ -398,38 +426,62 @@ export class ChainProviderManager {
     }
   }
 
-  private async triggerReconnect(
+  private triggerReconnect(
     entry: ChainEntry,
     reason: DisconnectReason,
     message: string,
-  ): Promise<void> {
+  ): void {
     if (this.isDestroyed || entry.isReconnecting) {
       return;
     }
     entry.isReconnecting = true;
     this.stopHeartbeat(entry);
 
-    // Fire disconnect handlers before attempting reconnect. Handler errors
-    // are isolated so one bad consumer cannot block the reconnect.
-    for (const handler of entry.disconnectHandlers) {
-      try {
-        await handler({ chainId: entry.chainId, reason, message });
-      } catch (err) {
-        logger.warn(
-          `[ChainProviderManager] chain=${entry.chainId} disconnect handler threw: ${String(err)}`,
-        );
-      }
-    }
+    // Publish the reconnect promise on the entry BEFORE starting the
+    // work. `getOrCreateProvider` awaits this to avoid creating a second
+    // parallel provider while the reconnect is replacing the first.
+    // `.catch` before assigning so the stored promise never rejects: any
+    // bug in reconnectLoop surfaces via the logger, not by rejecting an
+    // await that callers would have to handle.
+    const loop = this.reconnectLoop(entry, reason, message).catch((err) => {
+      logger.error(
+        `[ChainProviderManager] chain=${entry.chainId} reconnect loop crashed: ${String(err)}`,
+      );
+    });
+    entry.reconnectPromise = loop;
+    void loop.finally(() => {
+      entry.reconnectPromise = null;
+      entry.isReconnecting = false;
+    });
+  }
+
+  private async reconnectLoop(
+    entry: ChainEntry,
+    reason: DisconnectReason,
+    message: string,
+  ): Promise<void> {
+    // Fire disconnect handlers in parallel before the backoff begins.
+    // Sequential await here lets one slow handler delay reconnect start
+    // by its latency; Promise.all matches the dispatchLog pattern.
+    await Promise.all(
+      [...entry.disconnectHandlers].map(async (handler) => {
+        try {
+          await handler({ chainId: entry.chainId, reason, message });
+        } catch (err) {
+          logger.warn(
+            `[ChainProviderManager] chain=${entry.chainId} disconnect handler threw: ${String(err)}`,
+          );
+        }
+      }),
+    );
 
     let delay = INITIAL_RECONNECT_DELAY_MS;
     for (let attempt = 1; attempt <= MAX_RECONNECT_ATTEMPTS; attempt++) {
       if (this.isDestroyed) {
-        entry.isReconnecting = false;
         return;
       }
       await sleep(delay);
       if (this.isDestroyed) {
-        entry.isReconnecting = false;
         return;
       }
       try {
@@ -437,7 +489,6 @@ export class ChainProviderManager {
         logger.log(
           `[ChainProviderManager] chain=${entry.chainId} reconnected on attempt ${attempt}`,
         );
-        entry.isReconnecting = false;
         return;
       } catch (err) {
         logger.warn(
@@ -450,14 +501,16 @@ export class ChainProviderManager {
     logger.error(
       `[ChainProviderManager] chain=${entry.chainId} exhausted ${MAX_RECONNECT_ATTEMPTS} reconnect attempts`,
     );
-    entry.isReconnecting = false;
     this.onPermanentFailure(entry.chainId);
   }
 
   private async reconnect(entry: ChainEntry): Promise<void> {
-    // Tear down the old provider (best-effort) and unhook listeners so the
-    // old provider cannot trigger another reconnect while we are building
-    // the new one.
+    if (this.isDestroyed) {
+      return;
+    }
+    // Tear down the old provider (best-effort) and unhook listeners so
+    // the old provider cannot trigger another reconnect while we are
+    // building the new one.
     if (entry.provider) {
       this.detachBlockListener(entry);
       this.detachErrorListener(entry);
@@ -470,17 +523,39 @@ export class ChainProviderManager {
     entry.provider = null;
     entry.readyPromise = null;
 
-    // Re-create. Any throw here propagates to triggerReconnect which
-    // handles backoff.
+    if (this.isDestroyed) {
+      return;
+    }
+
+    // Re-create. Any throw here propagates to the loop which handles
+    // backoff.
     const provider = this.factory(entry.wssUrl);
     await provider.ready;
+
+    // Destroy may have run while we were waiting for `ready`. If so, the
+    // entry we are about to populate is no longer in `this.chains` and
+    // attaching listeners would leak a provider that never gets
+    // destroyed by the second pass.
+    if (this.isDestroyed) {
+      try {
+        await provider.destroy();
+      } catch {
+        // ignore
+      }
+      return;
+    }
+
     entry.provider = provider;
 
     this.attachErrorListener(entry);
+    // Block listener and heartbeat only if this chain has subscribers.
+    // Both are subscriber-scoped; if every subscriber unsubscribed
+    // during the reconnect, the new provider stays quiet until someone
+    // subscribes again.
     if (entry.subscribers.size > 0) {
       this.attachBlockListener(entry);
+      this.startHeartbeat(entry);
     }
-    this.startHeartbeat(entry);
   }
 
   private async processBlock(
