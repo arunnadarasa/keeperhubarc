@@ -28,7 +28,7 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
   "Access-Control-Allow-Headers":
     "Authorization, Content-Type, Mcp-Session-Id, Mcp-Protocol-Version",
-  "Access-Control-Expose-Headers": "Mcp-Session-Id",
+  "Access-Control-Expose-Headers": "Mcp-Session-Id, WWW-Authenticate",
 } as const;
 
 // Start the local-cache cleanup interval once per process lifetime.
@@ -77,6 +77,23 @@ function getBaseUrl(request: Request): string {
   }
   const url = new URL(request.url);
   return `${url.protocol}//${url.host}`;
+}
+
+// RFC 9728 / MCP 2025-06-18 require a WWW-Authenticate header on 401 responses
+// so clients can discover the Protected Resource Metadata document. Without it,
+// strict MCP clients (e.g. Claude Desktop) report "Couldn't reach the MCP server"
+// because they cannot locate the authorization server.
+function unauthorizedResponse(request: Request, error: string): Response {
+  const baseUrl = getBaseUrl(request);
+  const resourceMetadataUrl = `${baseUrl}/.well-known/oauth-protected-resource`;
+  return new Response(JSON.stringify({ error }), {
+    status: 401,
+    headers: {
+      "Content-Type": "application/json",
+      "WWW-Authenticate": `Bearer realm="keeperhub-mcp", resource_metadata="${resourceMetadataUrl}"`,
+      ...CORS_HEADERS,
+    },
+  });
 }
 
 async function authenticate(request: Request): Promise<ApiKeyAuthResult> {
@@ -317,14 +334,15 @@ function withRenewedSessionHeader(
 export async function POST(request: Request): Promise<Response> {
   const auth = await authenticate(request);
   if (!auth.authenticated) {
-    logMcpEvent("mcp.auth.failed", { reason: auth.error ?? "Unauthorized" });
-    return new Response(
-      JSON.stringify({ error: auth.error ?? "Unauthorized" }),
-      {
-        status: auth.statusCode ?? 401,
-        headers: { "Content-Type": "application/json", ...CORS_HEADERS },
-      }
-    );
+    const reason = auth.error ?? "Unauthorized";
+    logMcpEvent("mcp.auth.failed", { reason });
+    if ((auth.statusCode ?? 401) === 401) {
+      return unauthorizedResponse(request, reason);
+    }
+    return new Response(JSON.stringify({ error: reason }), {
+      status: auth.statusCode,
+      headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    });
   }
 
   const organizationId = auth.organizationId ?? "";
@@ -419,14 +437,15 @@ export async function POST(request: Request): Promise<Response> {
 export async function GET(request: Request): Promise<Response> {
   const auth = await authenticate(request);
   if (!auth.authenticated) {
-    logMcpEvent("mcp.auth.failed", { reason: auth.error ?? "Unauthorized" });
-    return new Response(
-      JSON.stringify({ error: auth.error ?? "Unauthorized" }),
-      {
-        status: auth.statusCode ?? 401,
-        headers: { "Content-Type": "application/json", ...CORS_HEADERS },
-      }
-    );
+    const reason = auth.error ?? "Unauthorized";
+    logMcpEvent("mcp.auth.failed", { reason });
+    if ((auth.statusCode ?? 401) === 401) {
+      return unauthorizedResponse(request, reason);
+    }
+    return new Response(JSON.stringify({ error: reason }), {
+      status: auth.statusCode,
+      headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    });
   }
 
   const sessionId = request.headers.get("mcp-session-id");
@@ -458,14 +477,15 @@ export async function GET(request: Request): Promise<Response> {
 export async function DELETE(request: Request): Promise<Response> {
   const auth = await authenticate(request);
   if (!auth.authenticated) {
-    logMcpEvent("mcp.auth.failed", { reason: auth.error ?? "Unauthorized" });
-    return new Response(
-      JSON.stringify({ error: auth.error ?? "Unauthorized" }),
-      {
-        status: auth.statusCode ?? 401,
-        headers: { "Content-Type": "application/json", ...CORS_HEADERS },
-      }
-    );
+    const reason = auth.error ?? "Unauthorized";
+    logMcpEvent("mcp.auth.failed", { reason });
+    if ((auth.statusCode ?? 401) === 401) {
+      return unauthorizedResponse(request, reason);
+    }
+    return new Response(JSON.stringify({ error: reason }), {
+      status: auth.statusCode,
+      headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    });
   }
 
   const sessionId = request.headers.get("mcp-session-id");
