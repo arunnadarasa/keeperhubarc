@@ -61,10 +61,15 @@ process.on("SIGINT", () => {
 logger.log(`Initializing container: ${os.hostname()}`);
 
 const initialize = async (): Promise<void> => {
-  try {
-    healthServer = await startHealthServer(chainProviderManager, HEALTH_PORT);
-    logger.log(`[Health] /healthz listening on :${healthServer.port}`);
+  // Health server bind must succeed for K8s probes to work. Kept outside
+  // the try/catch below so a bind failure (port taken, EACCES) rejects
+  // initialize(), which the unhandledRejection handler turns into
+  // exit(1) for K8s restart. A silent bind failure would zombify the
+  // pod: process alive, no workflows running, no probe.
+  healthServer = await startHealthServer(chainProviderManager, HEALTH_PORT);
+  logger.log(`[Health] /healthz listening on :${healthServer.port}`);
 
+  try {
     await syncModule.removeAllContainers();
     logger.log("Cleared stale Redis state from previous deploys");
 
