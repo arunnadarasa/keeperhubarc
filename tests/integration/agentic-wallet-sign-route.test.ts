@@ -22,10 +22,35 @@
  * risk=block -> 403 RISK_BLOCKED.
  */
 import { createHash, createHmac } from "node:crypto";
+import { Challenge } from "mppx";
 import { recoverTypedDataAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { extractPayerAddress } from "@/lib/x402/payment-gate";
+
+// A realistic mppx-issued Tempo challenge the route can deserialize. Zero
+// amount intentionally routes to proof-mode (signMppProof) so the existing
+// assertions can continue reading EIP-712 typed-data JSON from Turnkey's
+// payload argument. Charge-intent / transaction-mode coverage lives in
+// tests/unit/agentic-wallet-sign.test.ts so it can stub Turnkey
+// independently (the transaction-mode payload is a raw hex hash, not JSON).
+const MPP_TEST_SERIALIZED = ((): string => {
+  const full = Challenge.serialize(
+    Challenge.from({
+      secretKey: "mpp-route-test-secret",
+      realm: "test.keeperhub.local",
+      method: "tempo",
+      intent: "session",
+      request: {
+        amount: "0",
+        currency: "0x20c000000000000000000000b9537d11c60e8b50",
+        recipient: "0x0000000000000000000000000000000000000001",
+        methodDetails: { chainId: 4217 },
+      },
+    })
+  );
+  return full.startsWith("Payment ") ? full.slice("Payment ".length) : full;
+})();
 
 const TEST_PRIVATE_KEY =
   "0x1111111111111111111111111111111111111111111111111111111111111111";
@@ -793,7 +818,7 @@ describe("POST /api/agentic-wallet/sign -- MPP chainId enum (Phase 37 fix #3)", 
       workflowSlug: "test-slug",
       paymentChallenge: {
         chainId: 1,
-        challengeId: "abc",
+        serialized: MPP_TEST_SERIALIZED,
         payTo: "0x0000000000000000000000000000000000000001",
         amount: "0",
       },
@@ -835,7 +860,7 @@ describe("POST /api/agentic-wallet/sign -- MPP chainId enum (Phase 37 fix #3)", 
       workflowSlug: "test-slug",
       paymentChallenge: {
         chainId: 4218,
-        challengeId: "abc",
+        serialized: MPP_TEST_SERIALIZED,
         payTo: "0x0000000000000000000000000000000000000001",
         amount: "0",
       },
@@ -875,7 +900,7 @@ describe("POST /api/agentic-wallet/sign -- MPP chainId enum (Phase 37 fix #3)", 
       chain: "tempo",
       workflowSlug: "test-slug",
       paymentChallenge: {
-        challengeId: "abc",
+        serialized: MPP_TEST_SERIALIZED,
         payTo: "0x0000000000000000000000000000000000000001",
         amount: "0",
       },

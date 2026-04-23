@@ -39,9 +39,11 @@ import { classifyRisk } from "@/lib/agentic-wallet/risk";
 import {
   PolicyBlockedError,
   signMppProof,
+  signMppTransaction,
   signX402Challenge,
   TurnkeyUpstreamError,
 } from "@/lib/agentic-wallet/sign";
+import { Challenge } from "mppx";
 import { verifyWorkflowBinding } from "@/lib/agentic-wallet/workflow-binding";
 import { db } from "@/lib/db";
 import { agenticWallets } from "@/lib/db/schema";
@@ -361,10 +363,39 @@ export async function POST(request: Request): Promise<Response> {
         nonce: String(challenge.nonce ?? ""),
       });
     } else {
-      signature = await signMppProof(auth.subOrgId, walletAddress, {
-        chainId: resolvedTempoChainId,
-        challengeId: String(challenge.challengeId ?? ""),
-      });
+      const serialized =
+        typeof challenge.serialized === "string" ? challenge.serialized : "";
+      if (!serialized) {
+        return Response.json(
+          {
+            error: "paymentChallenge.serialized is required for tempo",
+            code: "MPP_CHALLENGE_MISSING",
+          },
+          { status: 400 }
+        );
+      }
+      // Dispatch on MPP intent: zero-amount challenges use proof-mode
+      // (EIP-712 Proof typed-data); non-zero charge intents use
+      // transaction-mode (Tempo 0x76 transferWithMemo tx signed via raw
+      // payload). `Challenge.deserialize` requires the full `Payment `
+      // scheme prefix; signMppTransaction / signMppProof restore it
+      // internally, so we peek at intent here with the client's form.
+      const peeked = Challenge.deserialize(
+        serialized.startsWith("Payment ")
+          ? serialized
+          : `Payment ${serialized}`
+      );
+      if (peeked.intent === "charge") {
+        signature = await signMppTransaction(auth.subOrgId, walletAddress, {
+          chainId: resolvedTempoChainId,
+          serialized,
+        });
+      } else {
+        signature = await signMppProof(auth.subOrgId, walletAddress, {
+          chainId: resolvedTempoChainId,
+          serialized,
+        });
+      }
     }
     return Response.json({ signature }, { status: 200 });
   } catch (error) {
