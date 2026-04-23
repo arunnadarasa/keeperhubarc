@@ -30,9 +30,18 @@ import { agenticWalletDailySpend } from "@/lib/db/schema";
 
 export const DEFAULT_DAILY_CAP_MICROS: bigint = BigInt(200_000_000);
 
+// Fix-pack-3 N-4: BigInt() accepts hex-prefixed strings ("0x10" → 16), so an
+// ops typo like `AGENTIC_WALLET_DAILY_CAP_MICROS=0x10` would silently cap the
+// entire feature at 0.000016 USDC/day. Reject anything that isn't a decimal
+// digit run before handing it to BigInt.
+const DECIMAL_INTEGER_RE = /^\d+$/;
+
 export function getDailyCapMicros(): bigint {
   const raw = process.env.AGENTIC_WALLET_DAILY_CAP_MICROS;
   if (!raw) {
+    return DEFAULT_DAILY_CAP_MICROS;
+  }
+  if (!DECIMAL_INTEGER_RE.test(raw)) {
     return DEFAULT_DAILY_CAP_MICROS;
   }
   try {
