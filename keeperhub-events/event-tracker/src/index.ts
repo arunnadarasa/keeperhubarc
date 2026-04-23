@@ -1,7 +1,15 @@
 import os from "node:os";
 import { syncModule } from "../lib/sync/redis";
 import { logger } from "../lib/utils/logger";
+import { chainProviderManager } from "./chains/provider-manager";
+import {
+  type HealthServerHandle,
+  startHealthServer,
+} from "./health/health-server";
 import { shutdownRegistry, synchronizeData } from "./main";
+
+const HEALTH_PORT = Number(process.env.HEALTH_PORT ?? 3001);
+let healthServer: HealthServerHandle | null = null;
 
 // Fatal-error handlers: an uncaught exception or unhandled rejection inside a
 // listener callback is almost always a bug that leaves the process in an
@@ -33,6 +41,14 @@ async function shutdown(signal: string): Promise<void> {
     const message = err instanceof Error ? err.message : String(err);
     logger.error(`[Shutdown] error during registry shutdown: ${message}`);
   }
+  if (healthServer) {
+    try {
+      await healthServer.close();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error(`[Shutdown] error closing health server: ${message}`);
+    }
+  }
   process.exit(0);
 }
 process.on("SIGTERM", () => {
@@ -45,6 +61,14 @@ process.on("SIGINT", () => {
 logger.log(`Initializing container: ${os.hostname()}`);
 
 const initialize = async (): Promise<void> => {
+  // Health server bind must succeed for K8s probes to work. Kept outside
+  // the try/catch below so a bind failure (port taken, EACCES) rejects
+  // initialize(), which the unhandledRejection handler turns into
+  // exit(1) for K8s restart. A silent bind failure would zombify the
+  // pod: process alive, no workflows running, no probe.
+  healthServer = await startHealthServer(chainProviderManager, HEALTH_PORT);
+  logger.log(`[Health] /healthz listening on :${healthServer.port}`);
+
   try {
     await syncModule.removeAllContainers();
     logger.log("Cleared stale Redis state from previous deploys");
