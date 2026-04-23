@@ -37,7 +37,7 @@
  * signature, or timestamp in error paths.
  */
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { lookupHmacSecret } from "./hmac-secret-store";
+import { listActiveHmacSecrets, lookupHmacSecret } from "./hmac-secret-store";
 
 const REPLAY_WINDOW_SECONDS = 300;
 
@@ -100,25 +100,43 @@ export async function verifyHmacRequest(
     pinnedVersion = v;
   }
 
-  const lookup = await lookupHmacSecret(subOrgId, pinnedVersion);
-  if (!lookup) {
+  const url = new URL(request.url);
+  const providedSigBuf = Buffer.from(signature, "hex");
+
+  // Fix-pack-2 R3: without a pinned key version, try every active secret
+  // (newest version first, then any still-within-grace older versions) so
+  // rotation's 24-hour grace window actually gives legacy clients time to
+  // pick up the new secret. With a pinned version, verify only against that
+  // one row — callers who explicitly pin accept the strict match.
+  const candidates =
+    pinnedVersion === undefined
+      ? await listActiveHmacSecrets(subOrgId)
+      : await (async (): Promise<{ secret: string; keyVersion: number }[]> => {
+          const single = await lookupHmacSecret(subOrgId, pinnedVersion);
+          return single ? [single] : [];
+        })();
+
+  if (candidates.length === 0) {
     return { ok: false, status: 404, error: "Unknown sub-org" };
   }
 
-  const url = new URL(request.url);
-  const expected = computeSignature(
-    lookup.secret,
-    request.method,
-    url.pathname,
-    subOrgId,
-    body,
-    timestamp
-  );
-  const a = Buffer.from(signature, "hex");
-  const b = Buffer.from(expected, "hex");
-  if (a.length !== b.length || !timingSafeEqual(a, b)) {
-    return { ok: false, status: 401, error: "Invalid signature" };
+  for (const candidate of candidates) {
+    const expected = computeSignature(
+      candidate.secret,
+      request.method,
+      url.pathname,
+      subOrgId,
+      body,
+      timestamp
+    );
+    const expectedBuf = Buffer.from(expected, "hex");
+    if (
+      providedSigBuf.length === expectedBuf.length &&
+      timingSafeEqual(providedSigBuf, expectedBuf)
+    ) {
+      return { ok: true, subOrgId };
+    }
   }
 
-  return { ok: true, subOrgId };
+  return { ok: false, status: 401, error: "Invalid signature" };
 }

@@ -44,8 +44,23 @@ const { mockLookupSecret, mockDbSelectWhere } = vi.hoisted(
   })
 );
 
+type LookupReturn = { secret: string; keyVersion: number } | null;
+type LookupFn = (
+  subOrgId: string,
+  keyVersion?: number
+) => Promise<LookupReturn>;
+
 vi.mock("@/lib/agentic-wallet/hmac-secret-store", () => ({
   lookupHmacSecret: mockLookupSecret,
+  listActiveHmacSecrets: async (
+    subOrgId: string
+  ): Promise<{ secret: string; keyVersion: number }[]> => {
+    const one = await (mockLookupSecret as unknown as LookupFn)(
+      subOrgId,
+      undefined
+    );
+    return one ? [one] : [];
+  },
 }));
 
 vi.mock("@/lib/db", () => ({

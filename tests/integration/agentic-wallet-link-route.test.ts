@@ -49,6 +49,12 @@ const {
 
 vi.mock("@/lib/agentic-wallet/hmac-secret-store", () => ({
   lookupHmacSecret: mockLookupSecret,
+  listActiveHmacSecrets: async (
+    subOrgId: string
+  ): Promise<{ secret: string; keyVersion: number }[]> => {
+    const one = await mockLookupSecret(subOrgId, undefined);
+    return one ? [one] : [];
+  },
 }));
 
 vi.mock("@/lib/auth", () => ({

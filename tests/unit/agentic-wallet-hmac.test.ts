@@ -48,6 +48,18 @@ vi.mock("@/lib/agentic-wallet/hmac-secret-store", async () => {
     ...actual,
     // Override only what the verifyHmacRequest suite needs to stub.
     lookupHmacSecret: mockLookupSecret,
+    // Fix-pack-2 R3: verifyHmacRequest now uses listActiveHmacSecrets on the
+    // unpinned path so the rotation grace window actually works. The shim
+    // delegates to the same mockLookupSecret fixture so existing
+    // mockResolvedValue setups keep driving the candidate list. Tests that
+    // need to exercise multi-version iteration can set
+    // mockLookupSecret.mockImplementation to return different shapes per call.
+    listActiveHmacSecrets: async (
+      subOrgId: string
+    ): Promise<{ secret: string; keyVersion: number }[]> => {
+      const one = await mockLookupSecret(subOrgId, undefined);
+      return one ? [one] : [];
+    },
   };
 });
 

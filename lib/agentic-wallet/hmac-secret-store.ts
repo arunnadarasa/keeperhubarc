@@ -184,3 +184,59 @@ export async function insertHmacSecret(
     expiresAt,
   });
 }
+
+/**
+ * Return ALL active (non-expired) HMAC secrets for a sub-org, newest version
+ * first. Fix-pack-2 R3: the 24-hour rotation grace window only works if the
+ * verifier tries every active version when the client doesn't pin one via
+ * X-KH-Key-Version. Without this, `lookupHmacSecret`'s highest-version-only
+ * behaviour makes rotation immediately break every legacy client that hasn't
+ * been retrofitted to send the version header — turning the grace window into
+ * a grace mirage.
+ *
+ * Decrypt failures on individual rows are logged and skipped (not fatal) so
+ * one corrupted row doesn't lock out an otherwise-valid sub-org.
+ */
+export async function listActiveHmacSecrets(
+  subOrgId: string
+): Promise<{ secret: string; keyVersion: number }[]> {
+  const now = new Date();
+  const rows = await db
+    .select({
+      keyVersion: agenticWalletHmacSecrets.keyVersion,
+      secretCiphertext: agenticWalletHmacSecrets.secretCiphertext,
+    })
+    .from(agenticWalletHmacSecrets)
+    .where(
+      and(
+        eq(agenticWalletHmacSecrets.subOrgId, subOrgId),
+        or(
+          isNull(agenticWalletHmacSecrets.expiresAt),
+          gt(agenticWalletHmacSecrets.expiresAt, now)
+        )
+      )
+    )
+    .orderBy(agenticWalletHmacSecrets.keyVersion);
+
+  const out: { secret: string; keyVersion: number }[] = [];
+  // Newest-first so the verifier tries the current secret before any
+  // still-active prior versions in the grace window.
+  for (const row of [...rows].reverse()) {
+    try {
+      const plaintext = decryptSecret(
+        row.secretCiphertext,
+        subOrgId,
+        row.keyVersion
+      );
+      out.push({ secret: plaintext, keyVersion: row.keyVersion });
+    } catch (error) {
+      logSystemError(
+        ErrorCategory.AUTH,
+        "[Agentic] hmac decrypt failed (list)",
+        error,
+        { subOrgId, keyVersion: String(row.keyVersion) }
+      );
+    }
+  }
+  return out;
+}
