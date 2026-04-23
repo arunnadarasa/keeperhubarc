@@ -12,7 +12,7 @@
  * T-33-02 (Information Disclosure): logSystemError metadata carries only
  * endpoint + subOrgId -- never the raw body or the HMAC secret.
  */
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, gt } from "drizzle-orm";
 import {
   createApprovalRequest,
   deriveApprovalBinding,
@@ -98,15 +98,22 @@ export async function POST(request: Request): Promise<Response> {
 
   // Phase 37 fix B3: per-sub-org pending-row count cap. Blocks flooding the
   // approval table with unresolved rows before we even attempt the insert.
-  // Only status='pending' counts toward the quota -- terminal rows
-  // (approved/rejected/expired) are ignored.
+  // Only status='pending' AND not-yet-expired counts toward the quota --
+  // terminal rows (approved/rejected/expired) are ignored, and stale-expired
+  // pending rows (those that timed out before anyone called /approve, which
+  // would otherwise flip them via the lazy path) are also excluded. This
+  // makes the quota self-cleaning without relying on the sweeper cron: a row
+  // whose expires_at has passed no longer counts, even if status has not yet
+  // flipped to 'expired'. The cron sweeper is still useful for disk hygiene
+  // but the quota stays functional if the scheduler is ever paused.
   const pendingCountRows = await db
     .select({ n: count() })
     .from(walletApprovalRequests)
     .where(
       and(
         eq(walletApprovalRequests.subOrgId, auth.subOrgId),
-        eq(walletApprovalRequests.status, "pending")
+        eq(walletApprovalRequests.status, "pending"),
+        gt(walletApprovalRequests.expiresAt, new Date())
       )
     );
   if ((pendingCountRows[0]?.n ?? 0) >= PENDING_QUOTA_PER_SUB_ORG) {

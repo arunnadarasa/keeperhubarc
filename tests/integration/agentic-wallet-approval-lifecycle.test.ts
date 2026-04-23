@@ -405,10 +405,18 @@ describe("agentic-wallet approval-request lifecycle", () => {
     // sub-org. Tests that seed rows in the store will see those reflected in
     // the count without needing per-test overrides. See Task 14.
     mockDbSelectWhereAwait.mockImplementation((): [{ n: number }] => {
+      // Mirror the production filter: status='pending' AND expires_at > now.
+      // Stale-expired-but-unflipped rows are excluded so the quota stays
+      // self-cleaning even if the sweeper cron is paused.
+      const now = Date.now();
       let pending = 0;
       for (const row of approvalStore.values()) {
         const r = row as ApprovalRow;
-        if (r.subOrgId === SUB_ORG && r.status === "pending") {
+        if (
+          r.subOrgId === SUB_ORG &&
+          r.status === "pending" &&
+          r.expiresAt.getTime() > now
+        ) {
           pending += 1;
         }
       }
@@ -1197,6 +1205,41 @@ describe("agentic-wallet approval-request lifecycle", () => {
       operationPayload: baseOperationPayload(),
       binding: bindingFixture(),
     });
+    mockCreateApprovalRequest.mockClear();
+
+    const body = JSON.stringify({
+      riskLevel: "ask",
+      operationPayload: baseOperationPayload(),
+    });
+    const req = makeHmacRequest(
+      "POST",
+      "/api/agentic-wallet/approval-request",
+      body,
+      SUB_ORG,
+      HMAC_SECRET
+    );
+    const res = await postApprovalRequest(req);
+    expect(res.status).toBe(201);
+    expect(mockCreateApprovalRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not count stale-expired-but-unflipped pending rows against the cap (sweeper-independence fix)", async () => {
+    // Seed 10 rows whose status is still 'pending' but whose expires_at is
+    // in the past -- simulating the state between TTL elapse and the lazy
+    // flip (or sweeper cron) catching them. The pending-quota count must
+    // EXCLUDE these rows so the quota stays functional without depending on
+    // the sweeper cron firing.
+    for (const _ of Array.from({ length: 10 })) {
+      const { id } = await mockCreateApprovalRequest({
+        subOrgId: SUB_ORG,
+        riskLevel: "ask",
+        operationPayload: baseOperationPayload(),
+        binding: bindingFixture(),
+      });
+      const row = approvalStore.get(id) as ApprovalRow;
+      row.expiresAt = new Date(Date.now() - 1000);
+      approvalStore.set(id, row);
+    }
     mockCreateApprovalRequest.mockClear();
 
     const body = JSON.stringify({
