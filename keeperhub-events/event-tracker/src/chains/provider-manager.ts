@@ -101,6 +101,24 @@ export class ChainProviderManager {
     };
   }
 
+  /**
+   * True iff a provider instance has been created for `chainId`. Intended
+   * for tests that need to assert the shared-provider invariant
+   * (N listeners on chain X share one provider).
+   */
+  hasProvider(chainId: number): boolean {
+    return this.chains.get(chainId)?.provider != null;
+  }
+
+  /**
+   * Number of active subscribers for `chainId`. Returns 0 for an unknown
+   * chain. Used by tests to assert that multiple listeners on the same
+   * chain multiplex through one ChainEntry (the demux path).
+   */
+  subscriberCount(chainId: number): number {
+    return this.chains.get(chainId)?.subscribers.size ?? 0;
+  }
+
   async destroy(): Promise<void> {
     const errors: unknown[] = [];
     for (const entry of this.chains.values()) {

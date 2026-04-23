@@ -1,9 +1,16 @@
 /**
  * E2E verifying two in-process listeners on the same chain + contract +
- * event both receive the same on-chain log and forward it to SQS, each
- * with their own workflowId. This exercises the shared-provider /
- * shared-block-subscription + demux path end-to-end - the central
+ * event share one WebSocketProvider and one block subscription, and both
+ * receive the same on-chain log via the demux path - the central
  * invariant of the Phase 1-4 refactor.
+ *
+ * Asserts, in addition to end-to-end delivery:
+ *   - `providerManager.hasProvider(chainId)` is true (provider was created)
+ *   - `providerManager.subscriberCount(chainId) === 2` (both listeners
+ *     multiplex through one ChainEntry, not two separate providers)
+ *
+ * Without those structural assertions the test would pass equally well if
+ * each listener created its own provider, silently defeating the refactor.
  *
  * Requires the `test` docker-compose profile. Skipped when
  * SKIP_INFRA_TESTS=true.
@@ -122,6 +129,10 @@ describe.skipIf(SKIP_INFRA_TESTS)(
       ids: () => string[];
       stopAll: () => Promise<void>;
     };
+    let providerManager: {
+      hasProvider: (chainId: number) => boolean;
+      subscriberCount: (chainId: number) => number;
+    };
 
     beforeAll(async () => {
       await waitForAnvil();
@@ -158,6 +169,8 @@ describe.skipIf(SKIP_INFRA_TESTS)(
       const mainMod = await import("../../src/main");
       synchronizeData = mainMod.synchronizeData;
       getRegistry = mainMod.getRegistry;
+      const pmMod = await import("../../src/chains/provider-manager");
+      providerManager = pmMod.chainProviderManager;
 
       await syncModule.removeAllContainers();
       await syncModule.registerContainer();
@@ -193,6 +206,18 @@ describe.skipIf(SKIP_INFRA_TESTS)(
       expect(registry.size()).toBe(2);
       expect(registry.has(WORKFLOW_A)).toBe(true);
       expect(registry.has(WORKFLOW_B)).toBe(true);
+
+      // Shared-provider invariant: both listeners share one provider and
+      // one block subscription, not two separate WebSocketProviders.
+      const chainId = getAnvilChainId();
+      expect(
+        providerManager.hasProvider(chainId),
+        "ChainProviderManager should have created exactly one provider for the test chain",
+      ).toBe(true);
+      expect(
+        providerManager.subscriberCount(chainId),
+        "both listeners should multiplex through one ChainEntry (subscriberCount === 2)",
+      ).toBe(2);
 
       // Emit in a retry loop until both messages arrive.
       const emitEvent = fixture.contract.getFunction("emitEvent");

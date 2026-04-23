@@ -428,6 +428,50 @@ describe("ChainProviderManager", () => {
     });
   });
 
+  describe("introspection accessors", () => {
+    it("hasProvider returns false for unknown chain", () => {
+      expect(manager.hasProvider(CHAIN_A)).toBe(false);
+    });
+
+    it("hasProvider returns true after a provider has been created", async () => {
+      await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_A,
+        topic0: TOPIC_EMITTED,
+        handler: vi.fn(),
+      });
+      expect(manager.hasProvider(CHAIN_A)).toBe(true);
+      expect(manager.hasProvider(CHAIN_B)).toBe(false);
+    });
+
+    it("subscriberCount reflects the shared-provider invariant", async () => {
+      expect(manager.subscriberCount(CHAIN_A)).toBe(0);
+
+      const unsubA = await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_A,
+        topic0: TOPIC_EMITTED,
+        handler: vi.fn(),
+      });
+      expect(manager.subscriberCount(CHAIN_A)).toBe(1);
+
+      await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_B,
+        topic0: TOPIC_EMITTED,
+        handler: vi.fn(),
+      });
+      expect(manager.subscriberCount(CHAIN_A)).toBe(2);
+      expect(factoryBundle.created).toHaveLength(1);
+
+      unsubA();
+      expect(manager.subscriberCount(CHAIN_A)).toBe(1);
+    });
+  });
+
   describe("destroy", () => {
     it("tears down every chain's provider and clears subscriber state", async () => {
       await manager.subscribeToLogs({
