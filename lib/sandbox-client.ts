@@ -9,6 +9,16 @@ import {
 const SANDBOX_URL = process.env.SANDBOX_URL ?? "http://localhost:8787";
 const RESULT_SENTINEL = "\u0001RESULT\u0002";
 
+// HTTP budget on top of the user-code timeout. Sandbox server's in-child
+// wall-clock kill adds 1000 ms; we give 2000 ms more for network RTT,
+// TCP teardown, and kubeproxy conntrack flush. If the socket yields no
+// response within (timeoutMs + HTTP_SLACK_MS), we destroy it so the
+// caller sees a timeout instead of hanging on a dead peer.
+const HTTP_SLACK_MS = Number.parseInt(
+  process.env.SANDBOX_HTTP_SLACK_MS ?? "3000",
+  10
+);
+
 const sandboxAgent = new Agent({
   keepAlive: true,
   maxSockets: 50,
@@ -46,7 +56,7 @@ function extractLineNumber(stack: string | undefined): number | undefined {
   return undefined;
 }
 
-function postOnce(body: Buffer): Promise<Buffer> {
+function postOnce(body: Buffer, timeoutMs: number): Promise<Buffer> {
   return new Promise<Buffer>((resolve, reject) => {
     const url = new URL("/run", SANDBOX_URL);
     const port = url.port
@@ -54,6 +64,20 @@ function postOnce(body: Buffer): Promise<Buffer> {
       : url.protocol === "https:"
         ? 443
         : 80;
+
+    let settled = false;
+    let budgetTimer: NodeJS.Timeout | null = null;
+    const settle = (action: () => void): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (budgetTimer) {
+        clearTimeout(budgetTimer);
+      }
+      action();
+    };
+
     const req = httpRequest(
       {
         agent: sandboxAgent,
@@ -71,21 +95,36 @@ function postOnce(body: Buffer): Promise<Buffer> {
         const chunks: Buffer[] = [];
         res.on("data", (chunk: Buffer) => chunks.push(chunk));
         res.on("end", () => {
-          const buf = Buffer.concat(chunks);
-          if (res.statusCode !== 200) {
-            reject(
-              new Error(
-                `sandbox returned ${res.statusCode ?? "no status"}: ${buf.toString("utf8").slice(0, 200)}`,
-              ),
-            );
-            return;
-          }
-          resolve(buf);
+          settle(() => {
+            const buf = Buffer.concat(chunks);
+            if (res.statusCode !== 200) {
+              reject(
+                new Error(
+                  `sandbox returned ${res.statusCode ?? "no status"}: ${buf.toString("utf8").slice(0, 200)}`
+                )
+              );
+              return;
+            }
+            resolve(buf);
+          });
         });
-        res.on("error", reject);
-      },
+        res.on("error", (err: Error) => {
+          settle(() => reject(err));
+        });
+      }
     );
-    req.on("error", reject);
+    req.on("error", (err: Error) => {
+      settle(() => reject(err));
+    });
+
+    const totalBudgetMs = timeoutMs + HTTP_SLACK_MS;
+    budgetTimer = setTimeout(() => {
+      settle(() => {
+        req.destroy();
+        reject(new Error(`sandbox request timed out after ${totalBudgetMs}ms`));
+      });
+    }, totalBudgetMs);
+
     req.write(body);
     req.end();
   });
@@ -126,11 +165,11 @@ export async function runRemote(input: {
     const timeoutSeconds = Math.ceil(input.timeoutMs / 1000);
     const body = Buffer.from(
       v8Serialize({ code: input.code, timeout: timeoutSeconds }).toString(
-        "base64",
+        "base64"
       ),
-      "ascii",
+      "ascii"
     );
-    const responseBuf = await postOnce(body);
+    const responseBuf = await postOnce(body, input.timeoutMs);
     const outcome = parseResponse(responseBuf);
     return toRunCodeResult(outcome);
   } catch (err) {
