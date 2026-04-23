@@ -1,11 +1,12 @@
 import type { ethers } from "ethers";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ChainProviderManager,
   type ProviderFactory,
 } from "../../src/chains/provider-manager";
 
 type BlockHandler = (blockNumber: number) => void | Promise<void>;
+type ErrorHandler = (err: Error) => void;
 
 interface SendCall {
   method: string;
@@ -18,23 +19,39 @@ class MockProvider {
   ready: Promise<void> = Promise.resolve();
   public sendCalls: SendCall[] = [];
   public sendResponses: unknown[] = [];
+  public blockNumberResponses: Array<number | Error> = [];
   public destroyed = false;
   private blockHandler: BlockHandler | null = null;
+  private errorHandler: ErrorHandler | null = null;
 
-  on(event: string, handler: BlockHandler): void {
+  on(event: string, handler: BlockHandler | ErrorHandler): void {
     if (event === "block") {
-      this.blockHandler = handler;
+      this.blockHandler = handler as BlockHandler;
+    } else if (event === "error") {
+      this.errorHandler = handler as ErrorHandler;
     }
   }
 
-  off(event: string, handler: BlockHandler): void {
+  off(event: string, handler: BlockHandler | ErrorHandler): void {
     if (event === "block" && this.blockHandler === handler) {
       this.blockHandler = null;
+    } else if (event === "error" && this.errorHandler === handler) {
+      this.errorHandler = null;
     }
   }
 
   async send(method: string, params: unknown[]): Promise<unknown> {
     this.sendCalls.push({ method, params });
+    if (method === "eth_blockNumber") {
+      if (this.blockNumberResponses.length === 0) {
+        return 0x1234;
+      }
+      const next = this.blockNumberResponses.shift();
+      if (next instanceof Error) {
+        throw next;
+      }
+      return next;
+    }
     if (this.sendResponses.length === 0) {
       return [];
     }
@@ -49,10 +66,18 @@ class MockProvider {
     return this.blockHandler !== null;
   }
 
+  hasErrorHandler(): boolean {
+    return this.errorHandler !== null;
+  }
+
   async emitBlock(blockNumber: number): Promise<void> {
     if (this.blockHandler) {
       await this.blockHandler(blockNumber);
     }
+  }
+
+  emitError(err: Error): void {
+    this.errorHandler?.(err);
   }
 }
 
@@ -84,10 +109,22 @@ const TOPIC_OTHER =
 describe("ChainProviderManager", () => {
   let factoryBundle: ReturnType<typeof makeFactory>;
   let manager: ChainProviderManager;
+  let onPermanentFailure: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     factoryBundle = makeFactory();
-    manager = new ChainProviderManager(factoryBundle.factory);
+    onPermanentFailure = vi.fn();
+    manager = new ChainProviderManager({
+      factory: factoryBundle.factory,
+      onPermanentFailure,
+    });
+  });
+
+  afterEach(async () => {
+    // Each test's manager starts a heartbeat on every provider it creates.
+    // destroy() clears those intervals; without this, timers leak between
+    // tests (harmless in CI but noisy when debugging with --ui).
+    await manager.destroy();
   });
 
   describe("getOrCreateProvider", () => {
@@ -469,6 +506,286 @@ describe("ChainProviderManager", () => {
 
       unsubA();
       expect(manager.subscriberCount(CHAIN_A)).toBe(1);
+    });
+  });
+
+  describe("health accessors", () => {
+    it("isHealthy returns false for unknown chain", () => {
+      expect(manager.isHealthy(CHAIN_A)).toBe(false);
+    });
+
+    it("isHealthy returns true after a provider is created", async () => {
+      await manager.getOrCreateProvider(CHAIN_A, "ws://a");
+      expect(manager.isHealthy(CHAIN_A)).toBe(true);
+    });
+
+    it("getHealth returns null for unknown chain", () => {
+      expect(manager.getHealth(CHAIN_A)).toBeNull();
+    });
+
+    it("getHealth reports connected/reconnecting/subscriberCount", async () => {
+      await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_A,
+        topic0: TOPIC_EMITTED,
+        handler: vi.fn(),
+      });
+      const h = manager.getHealth(CHAIN_A);
+      expect(h).toEqual({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        connected: true,
+        reconnecting: false,
+        lastBlockAt: null,
+        subscriberCount: 1,
+      });
+    });
+
+    it("getHealth.lastBlockAt updates after a block arrives", async () => {
+      await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_A,
+        topic0: TOPIC_EMITTED,
+        handler: vi.fn(),
+      });
+      expect(manager.getHealth(CHAIN_A)?.lastBlockAt).toBeNull();
+      await factoryBundle.created[0].emitBlock(123);
+      const after = manager.getHealth(CHAIN_A)?.lastBlockAt;
+      expect(after).not.toBeNull();
+      expect(typeof after).toBe("number");
+    });
+
+    it("getAllHealth returns an entry per known chain", async () => {
+      await manager.getOrCreateProvider(CHAIN_A, "ws://a");
+      await manager.getOrCreateProvider(CHAIN_B, "ws://b");
+      const all = manager.getAllHealth();
+      expect(all).toHaveLength(2);
+      expect(all.map((h) => h.chainId).sort()).toEqual([CHAIN_B, CHAIN_A]);
+    });
+
+    it("getAllHealth returns empty when no chains are registered", () => {
+      expect(manager.getAllHealth()).toEqual([]);
+    });
+  });
+
+  describe("onDisconnect", () => {
+    it("throws when no entry exists for the chain", () => {
+      expect(() => manager.onDisconnect(CHAIN_A, vi.fn())).toThrow(
+        /no entry for chainId/,
+      );
+    });
+
+    it("fires with chainId and reason when the provider emits an error", async () => {
+      await manager.getOrCreateProvider(CHAIN_A, "ws://a");
+      const handler = vi.fn();
+      manager.onDisconnect(CHAIN_A, handler);
+
+      factoryBundle.created[0].emitError(new Error("boom"));
+      // Allow the reconnect microtask queue to start so the disconnect
+      // handler fires; reconnect itself is delayed (INITIAL_RECONNECT_DELAY_MS).
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(handler).toHaveBeenCalledWith({
+        chainId: CHAIN_A,
+        reason: "provider_error",
+        message: "boom",
+      });
+    });
+
+    it("unsubscribe removes the handler", async () => {
+      await manager.getOrCreateProvider(CHAIN_A, "ws://a");
+      const handler = vi.fn();
+      const unsub = manager.onDisconnect(CHAIN_A, handler);
+      unsub();
+
+      factoryBundle.created[0].emitError(new Error("boom"));
+      await Promise.resolve();
+
+      expect(handler).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("reconnect cycle", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("re-creates provider, preserves subscribers, reattaches block listener", async () => {
+      const handler = vi.fn();
+      await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_A,
+        topic0: TOPIC_EMITTED,
+        handler,
+      });
+      expect(factoryBundle.created).toHaveLength(1);
+      const first = factoryBundle.created[0];
+
+      first.emitError(new Error("wss dropped"));
+      // Let disconnect handlers run, then fast-forward past the reconnect
+      // delay so the first attempt completes.
+      await vi.advanceTimersByTimeAsync(1_500);
+
+      expect(factoryBundle.created).toHaveLength(2);
+      const second = factoryBundle.created[1];
+      // The subscription must survive, and the new provider must be wired
+      // up for both block events and future errors.
+      expect(manager.subscriberCount(CHAIN_A)).toBe(1);
+      expect(second.hasBlockHandler()).toBe(true);
+      expect(second.hasErrorHandler()).toBe(true);
+      // Old provider was torn down.
+      expect(first.destroyed).toBe(true);
+      // isHealthy true again after successful reconnect.
+      expect(manager.isHealthy(CHAIN_A)).toBe(true);
+      expect(manager.getHealth(CHAIN_A)?.reconnecting).toBe(false);
+    });
+
+    it("does not re-attach block listener if all subscribers unsubscribed during reconnect", async () => {
+      const handler = vi.fn();
+      const unsub = await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_A,
+        topic0: TOPIC_EMITTED,
+        handler,
+      });
+      factoryBundle.created[0].emitError(new Error("drop"));
+      // Unsubscribe while reconnect is in flight (before the delay).
+      unsub();
+      await vi.advanceTimersByTimeAsync(1_500);
+
+      const second = factoryBundle.created[1];
+      expect(second.hasBlockHandler()).toBe(false);
+      // Error listener is still attached; it is chain-scoped, not sub-scoped.
+      expect(second.hasErrorHandler()).toBe(true);
+    });
+
+    it("onDisconnect fires before the first reconnect attempt completes", async () => {
+      await manager.getOrCreateProvider(CHAIN_A, "ws://a");
+      const order: string[] = [];
+      manager.onDisconnect(CHAIN_A, () => {
+        order.push("disconnect");
+      });
+      // Spy the factory call count - reconnect creates a new provider.
+      const createdBefore = factoryBundle.created.length;
+
+      factoryBundle.created[0].emitError(new Error("drop"));
+      await Promise.resolve();
+      order.push(
+        `after_microtasks(created=${factoryBundle.created.length - createdBefore})`,
+      );
+
+      await vi.advanceTimersByTimeAsync(1_500);
+      order.push(
+        `after_delay(created=${factoryBundle.created.length - createdBefore})`,
+      );
+
+      expect(order[0]).toBe("disconnect");
+      expect(order[1]).toBe("after_microtasks(created=0)");
+      expect(order[2]).toBe("after_delay(created=1)");
+    });
+
+    it("isHealthy is false while reconnecting", async () => {
+      await manager.getOrCreateProvider(CHAIN_A, "ws://a");
+      factoryBundle.created[0].emitError(new Error("drop"));
+      // Give the disconnect handler loop a chance to set isReconnecting,
+      // but do NOT advance past the reconnect delay.
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(manager.getHealth(CHAIN_A)?.reconnecting).toBe(true);
+      expect(manager.isHealthy(CHAIN_A)).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(1_500);
+      expect(manager.isHealthy(CHAIN_A)).toBe(true);
+    });
+
+    it("exhausted attempts call onPermanentFailure (injected)", async () => {
+      // Fail the second provider factory call and every attempt after it.
+      const failingFactory: ProviderFactory = () => {
+        throw new Error("upstream down");
+      };
+      await manager.getOrCreateProvider(CHAIN_A, "ws://a");
+      // Hot-swap the factory for the reconnect attempts by reaching into
+      // the manager. Cleaner alternative would be to make factory
+      // dynamic; this preserves the simpler public API.
+      (manager as unknown as { factory: ProviderFactory }).factory =
+        failingFactory;
+
+      factoryBundle.created[0].emitError(new Error("drop"));
+      // Fast-forward through all reconnect attempts (1s + 2s + 4s + ...,
+      // capped at 60s per attempt; 10 attempts total).
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+
+      expect(onPermanentFailure).toHaveBeenCalledTimes(1);
+      expect(onPermanentFailure).toHaveBeenCalledWith(CHAIN_A);
+    });
+  });
+
+  describe("heartbeat", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("pings eth_blockNumber periodically", async () => {
+      await manager.getOrCreateProvider(CHAIN_A, "ws://a");
+      const provider = factoryBundle.created[0];
+      const pingsBefore = provider.sendCalls.filter(
+        (c) => c.method === "eth_blockNumber",
+      ).length;
+
+      await vi.advanceTimersByTimeAsync(30_000);
+
+      const pingsAfter = provider.sendCalls.filter(
+        (c) => c.method === "eth_blockNumber",
+      ).length;
+      expect(pingsAfter).toBeGreaterThan(pingsBefore);
+    });
+
+    it("thrown eth_blockNumber triggers reconnect with heartbeat_failure reason", async () => {
+      await manager.getOrCreateProvider(CHAIN_A, "ws://a");
+      const provider = factoryBundle.created[0];
+      const reasons: string[] = [];
+      manager.onDisconnect(CHAIN_A, (ev) => {
+        reasons.push(ev.reason);
+      });
+
+      provider.blockNumberResponses.push(new Error("rpc dead"));
+      await vi.advanceTimersByTimeAsync(30_100);
+
+      expect(reasons).toEqual(["heartbeat_failure"]);
+    });
+
+    it("timeout triggers reconnect with heartbeat_timeout reason", async () => {
+      await manager.getOrCreateProvider(CHAIN_A, "ws://a");
+      const provider = factoryBundle.created[0];
+      const reasons: string[] = [];
+      manager.onDisconnect(CHAIN_A, (ev) => {
+        reasons.push(ev.reason);
+      });
+
+      // Make eth_blockNumber hang indefinitely. The 10s timeout inside
+      // runHeartbeat should fire and surface as heartbeat_timeout.
+      provider.send = ((): Promise<unknown> => {
+        return new Promise<unknown>(() => {
+          // never resolves
+        });
+      }) as unknown as typeof provider.send;
+
+      await vi.advanceTimersByTimeAsync(30_000); // schedule first heartbeat
+      await vi.advanceTimersByTimeAsync(10_000); // let timeout race win
+
+      expect(reasons).toEqual(["heartbeat_timeout"]);
     });
   });
 

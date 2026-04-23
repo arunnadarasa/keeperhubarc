@@ -12,19 +12,60 @@ import { logger } from "../../lib/utils/logger";
  * subscription count from workflow count (provider subscription caps are
  * typically ~1000 per WSS).
  *
- * Phase 1 scope: provider singleton + block-sub demux. Heartbeat and
- * reconnect continue to live in `ws-connection.ts` until Phase 3 routes
- * listeners through this manager at runtime.
+ * Per-chain reconnect + heartbeat are owned here. Drop detection uses two
+ * signals:
+ *   - `provider.on("error")` for transport-level errors surfaced by ethers
+ *   - An active heartbeat that pings `eth_blockNumber` every
+ *     `HEARTBEAT_INTERVAL_MS` with a `HEARTBEAT_TIMEOUT_MS` cap
+ *
+ * A passive `websocket.on("close")` hook was considered but rejected: it
+ * reaches into `(provider as any).websocket`, breaks between ethers
+ * versions, and adds no detection we do not already get from the
+ * heartbeat. Detection latency is bounded by heartbeat cadence, which is
+ * tuneable via the constants below.
+ *
+ * On drop: fire registered `onDisconnect` handlers, then attempt reconnect
+ * with exponential backoff. On exhaustion: call the injected
+ * `onPermanentFailure` callback (defaults to `process.exit(1)` so K8s
+ * restarts the pod - tests inject a no-op).
  */
 
 // Address list cap on `eth_getLogs` varies by provider (Alchemy ~500,
 // Infura ~1000). Chunk defensively; multiple calls per block are cheap.
 const GETLOGS_ADDRESS_BATCH = 500;
 
+const HEARTBEAT_INTERVAL_MS = 30_000;
+const HEARTBEAT_TIMEOUT_MS = 10_000;
+const INITIAL_RECONNECT_DELAY_MS = 1_000;
+const MAX_RECONNECT_DELAY_MS = 60_000;
+const MAX_RECONNECT_ATTEMPTS = 10;
+
 export type LogHandler = (log: ethers.Log) => void | Promise<void>;
 export type Unsubscribe = () => void;
 
 export type ProviderFactory = (wssUrl: string) => ethers.WebSocketProvider;
+
+export type DisconnectReason =
+  | "provider_error"
+  | "heartbeat_failure"
+  | "heartbeat_timeout";
+
+export interface DisconnectEvent {
+  chainId: number;
+  reason: DisconnectReason;
+  message: string;
+}
+
+export type DisconnectHandler = (ev: DisconnectEvent) => void | Promise<void>;
+
+export interface ChainHealth {
+  chainId: number;
+  wssUrl: string;
+  connected: boolean;
+  reconnecting: boolean;
+  lastBlockAt: number | null;
+  subscriberCount: number;
+}
 
 export interface SubscribeOptions {
   chainId: number;
@@ -32,6 +73,11 @@ export interface SubscribeOptions {
   address: string;
   topic0: string;
   handler: LogHandler;
+}
+
+export interface ChainProviderManagerOptions {
+  factory?: ProviderFactory;
+  onPermanentFailure?: (chainId: number) => void;
 }
 
 interface Subscriber {
@@ -47,17 +93,39 @@ interface ChainEntry {
   readyPromise: Promise<ethers.WebSocketProvider> | null;
   subscribers: Set<Subscriber>;
   blockListener: ((blockNumber: number) => Promise<void>) | null;
+  errorListener: ((err: Error) => void) | null;
+  heartbeatTimer: ReturnType<typeof setInterval> | null;
+  isReconnecting: boolean;
+  lastBlockAt: number | null;
+  disconnectHandlers: Set<DisconnectHandler>;
 }
 
 const defaultFactory: ProviderFactory = (wssUrl) =>
   new ethers.WebSocketProvider(wssUrl);
 
+const defaultOnPermanentFailure = (chainId: number): void => {
+  logger.error(
+    `[ChainProviderManager] chain=${chainId} permanent failure after ${MAX_RECONNECT_ATTEMPTS} reconnect attempts; exiting process for K8s restart`,
+  );
+  process.exit(1);
+};
+
 export class ChainProviderManager {
   private readonly chains = new Map<number, ChainEntry>();
   private readonly factory: ProviderFactory;
+  private readonly onPermanentFailure: (chainId: number) => void;
+  private isDestroyed = false;
 
-  constructor(factory: ProviderFactory = defaultFactory) {
-    this.factory = factory;
+  constructor(opts: ChainProviderManagerOptions | ProviderFactory = {}) {
+    // Backward-compatible: the old signature accepted a bare factory function.
+    if (typeof opts === "function") {
+      this.factory = opts;
+      this.onPermanentFailure = defaultOnPermanentFailure;
+    } else {
+      this.factory = opts.factory ?? defaultFactory;
+      this.onPermanentFailure =
+        opts.onPermanentFailure ?? defaultOnPermanentFailure;
+    }
   }
 
   async getOrCreateProvider(
@@ -102,6 +170,25 @@ export class ChainProviderManager {
   }
 
   /**
+   * Register a handler that fires when the manager detects a transport
+   * drop for `chainId`. Fires once per drop, before reconnect begins.
+   * Throws if no ChainEntry exists yet for the chain (call
+   * `subscribeToLogs` or `getOrCreateProvider` first).
+   */
+  onDisconnect(chainId: number, handler: DisconnectHandler): Unsubscribe {
+    const entry = this.chains.get(chainId);
+    if (!entry) {
+      throw new Error(
+        `onDisconnect: no entry for chainId ${chainId}; call subscribeToLogs or getOrCreateProvider first`,
+      );
+    }
+    entry.disconnectHandlers.add(handler);
+    return () => {
+      entry.disconnectHandlers.delete(handler);
+    };
+  }
+
+  /**
    * True iff a provider instance has been created for `chainId`. Intended
    * for tests that need to assert the shared-provider invariant
    * (N listeners on chain X share one provider).
@@ -119,10 +206,51 @@ export class ChainProviderManager {
     return this.chains.get(chainId)?.subscribers.size ?? 0;
   }
 
+  isHealthy(chainId: number): boolean {
+    const entry = this.chains.get(chainId);
+    if (!entry) {
+      return false;
+    }
+    return entry.provider != null && !entry.isReconnecting;
+  }
+
+  getHealth(chainId: number): ChainHealth | null {
+    const entry = this.chains.get(chainId);
+    if (!entry) {
+      return null;
+    }
+    return {
+      chainId: entry.chainId,
+      wssUrl: entry.wssUrl,
+      connected: entry.provider != null && !entry.isReconnecting,
+      reconnecting: entry.isReconnecting,
+      lastBlockAt: entry.lastBlockAt,
+      subscriberCount: entry.subscribers.size,
+    };
+  }
+
+  getAllHealth(): ChainHealth[] {
+    const out: ChainHealth[] = [];
+    for (const entry of this.chains.values()) {
+      out.push({
+        chainId: entry.chainId,
+        wssUrl: entry.wssUrl,
+        connected: entry.provider != null && !entry.isReconnecting,
+        reconnecting: entry.isReconnecting,
+        lastBlockAt: entry.lastBlockAt,
+        subscriberCount: entry.subscribers.size,
+      });
+    }
+    return out;
+  }
+
   async destroy(): Promise<void> {
+    this.isDestroyed = true;
     const errors: unknown[] = [];
     for (const entry of this.chains.values()) {
+      this.stopHeartbeat(entry);
       this.detachBlockListener(entry);
+      this.detachErrorListener(entry);
       if (entry.provider) {
         try {
           await entry.provider.destroy();
@@ -131,6 +259,7 @@ export class ChainProviderManager {
         }
       }
       entry.subscribers.clear();
+      entry.disconnectHandlers.clear();
       entry.provider = null;
       entry.readyPromise = null;
     }
@@ -161,6 +290,11 @@ export class ChainProviderManager {
       readyPromise: null,
       subscribers: new Set(),
       blockListener: null,
+      errorListener: null,
+      heartbeatTimer: null,
+      isReconnecting: false,
+      lastBlockAt: null,
+      disconnectHandlers: new Set(),
     };
     this.chains.set(chainId, entry);
     return entry;
@@ -172,6 +306,8 @@ export class ChainProviderManager {
     const provider = this.factory(entry.wssUrl);
     await provider.ready;
     entry.provider = provider;
+    this.attachErrorListener(entry);
+    this.startHeartbeat(entry);
     return provider;
   }
 
@@ -182,6 +318,7 @@ export class ChainProviderManager {
       );
     }
     const listener = async (blockNumber: number): Promise<void> => {
+      entry.lastBlockAt = Date.now();
       await this.processBlock(entry, blockNumber);
     };
     entry.blockListener = listener;
@@ -195,6 +332,155 @@ export class ChainProviderManager {
     }
     entry.provider.off("block", entry.blockListener);
     entry.blockListener = null;
+  }
+
+  private attachErrorListener(entry: ChainEntry): void {
+    if (!entry.provider) {
+      return;
+    }
+    const listener = (err: Error): void => {
+      logger.warn(
+        `[ChainProviderManager] chain=${entry.chainId} provider error: ${err.message}`,
+      );
+      void this.triggerReconnect(entry, "provider_error", err.message);
+    };
+    entry.errorListener = listener;
+    entry.provider.on("error", listener);
+  }
+
+  private detachErrorListener(entry: ChainEntry): void {
+    if (!(entry.provider && entry.errorListener)) {
+      entry.errorListener = null;
+      return;
+    }
+    entry.provider.off("error", entry.errorListener);
+    entry.errorListener = null;
+  }
+
+  private startHeartbeat(entry: ChainEntry): void {
+    this.stopHeartbeat(entry);
+    entry.heartbeatTimer = setInterval(() => {
+      void this.runHeartbeat(entry);
+    }, HEARTBEAT_INTERVAL_MS);
+  }
+
+  private stopHeartbeat(entry: ChainEntry): void {
+    if (entry.heartbeatTimer) {
+      clearInterval(entry.heartbeatTimer);
+      entry.heartbeatTimer = null;
+    }
+  }
+
+  private async runHeartbeat(entry: ChainEntry): Promise<void> {
+    if (this.isDestroyed || entry.isReconnecting || !entry.provider) {
+      return;
+    }
+    try {
+      await Promise.race([
+        entry.provider.send("eth_blockNumber", []),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error("heartbeat timeout")),
+            HEARTBEAT_TIMEOUT_MS,
+          ),
+        ),
+      ]);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const reason: DisconnectReason =
+        message === "heartbeat timeout"
+          ? "heartbeat_timeout"
+          : "heartbeat_failure";
+      logger.warn(
+        `[ChainProviderManager] chain=${entry.chainId} heartbeat failed: ${message}`,
+      );
+      void this.triggerReconnect(entry, reason, message);
+    }
+  }
+
+  private async triggerReconnect(
+    entry: ChainEntry,
+    reason: DisconnectReason,
+    message: string,
+  ): Promise<void> {
+    if (this.isDestroyed || entry.isReconnecting) {
+      return;
+    }
+    entry.isReconnecting = true;
+    this.stopHeartbeat(entry);
+
+    // Fire disconnect handlers before attempting reconnect. Handler errors
+    // are isolated so one bad consumer cannot block the reconnect.
+    for (const handler of entry.disconnectHandlers) {
+      try {
+        await handler({ chainId: entry.chainId, reason, message });
+      } catch (err) {
+        logger.warn(
+          `[ChainProviderManager] chain=${entry.chainId} disconnect handler threw: ${String(err)}`,
+        );
+      }
+    }
+
+    let delay = INITIAL_RECONNECT_DELAY_MS;
+    for (let attempt = 1; attempt <= MAX_RECONNECT_ATTEMPTS; attempt++) {
+      if (this.isDestroyed) {
+        entry.isReconnecting = false;
+        return;
+      }
+      await sleep(delay);
+      if (this.isDestroyed) {
+        entry.isReconnecting = false;
+        return;
+      }
+      try {
+        await this.reconnect(entry);
+        logger.log(
+          `[ChainProviderManager] chain=${entry.chainId} reconnected on attempt ${attempt}`,
+        );
+        entry.isReconnecting = false;
+        return;
+      } catch (err) {
+        logger.warn(
+          `[ChainProviderManager] chain=${entry.chainId} reconnect attempt ${attempt} failed: ${String(err)}`,
+        );
+        delay = Math.min(delay * 2, MAX_RECONNECT_DELAY_MS);
+      }
+    }
+
+    logger.error(
+      `[ChainProviderManager] chain=${entry.chainId} exhausted ${MAX_RECONNECT_ATTEMPTS} reconnect attempts`,
+    );
+    entry.isReconnecting = false;
+    this.onPermanentFailure(entry.chainId);
+  }
+
+  private async reconnect(entry: ChainEntry): Promise<void> {
+    // Tear down the old provider (best-effort) and unhook listeners so the
+    // old provider cannot trigger another reconnect while we are building
+    // the new one.
+    if (entry.provider) {
+      this.detachBlockListener(entry);
+      this.detachErrorListener(entry);
+      try {
+        await entry.provider.destroy();
+      } catch {
+        // ignore
+      }
+    }
+    entry.provider = null;
+    entry.readyPromise = null;
+
+    // Re-create. Any throw here propagates to triggerReconnect which
+    // handles backoff.
+    const provider = this.factory(entry.wssUrl);
+    await provider.ready;
+    entry.provider = provider;
+
+    this.attachErrorListener(entry);
+    if (entry.subscribers.size > 0) {
+      this.attachBlockListener(entry);
+    }
+    this.startHeartbeat(entry);
   }
 
   private async processBlock(
@@ -279,6 +565,10 @@ export class ChainProviderManager {
       }),
     );
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export const chainProviderManager = new ChainProviderManager();
