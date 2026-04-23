@@ -64,6 +64,7 @@ Beyond the client-side hook, a set of Turnkey-enforced policies apply to every w
 - **Per-transfer cap.** `transfer()` or `transferFrom()` of more than 100 USDC is denied. The same 100 USDC ceiling applies to EIP-3009 `TransferWithAuthorization` typed-data signing.
 - **Approval cap.** `approve()` above 100 USDC is denied. Anything over the same 100 USDC per-transfer ceiling is rejected.
 - **Chain allowlist.** EIP-712 signing is denied for any `domain.chainId` outside Base (8453), Tempo mainnet (4217), and Tempo testnet (4218).
+- **Daily spend cap.** Aggregate signed payments per wallet are bounded at **200 USDC per UTC day** by default. Requests that would exceed the cap return `429 DAILY_CAP_EXCEEDED` with a `Retry-After` header counting down to the next UTC midnight. The cap protects against a compromised HMAC secret being used to drain the wallet faster than an operator can notice and rotate. If a legitimate workflow needs a higher cap, contact KeeperHub support.
 
 These are defence-in-depth: even if an attacker bypassed the client-side hook entirely, Turnkey rejects the signature. They are also **not user-configurable today**. If you have a legitimate need to sign transfers above 100 USDC or to interact with contracts outside the USDC allowlist, contact KeeperHub support — a sub-organisation with a different policy set is possible but requires an operator action. Self-serve higher-cap configuration is on the roadmap.
 
@@ -158,7 +159,7 @@ Paid workflows settle in USDC on Base (via x402) or USDC.e on Tempo (via MPP). M
 
 ## Known limitations
 
-- Signing is supported on Base and Tempo (chain 4217) today. Solana, Arbitrum, Optimism and other chains are not yet supported.
+- Signing is supported on Base (8453), Tempo mainnet (4217), and Tempo testnet (4218) today. Solana, Arbitrum, Optimism and other chains are not yet supported.
 - Ask-tier approvals are surfaced inline via the agent's permission prompt. A browser-based review flow for larger amounts is on the roadmap.
 - Workflow discovery via the skill is scoped to KeeperHub's registry. The wallet auto-pays any x402 or MPP 402 challenge you direct it at, but discovering third-party x402 services from the agent is on the roadmap.
 
@@ -188,7 +189,7 @@ Yes. `wallet.json` is the wallet from your agent's perspective. Copy it to anoth
 
 ### Does KeeperHub have access to my funds?
 
-KeeperHub can produce signatures for your wallet, but only within the limits of the three policies above. KeeperHub never sees a private key — the key material lives inside Turnkey's secure enclave, and Turnkey is the one that produces signatures after KeeperHub's API key passes the policy engine.
+KeeperHub can produce signatures for your wallet, but only within the limits of the [server-side hard limits](#server-side-hard-limits). KeeperHub never sees a private key — the key material lives inside Turnkey's secure enclave, and Turnkey is the one that produces signatures after KeeperHub's API key passes the policy engine.
 
 ### Why don't I have a passkey or 2FA option?
 
@@ -205,7 +206,7 @@ Raising thresholds raises your exposure. Widening the contract allowlist past th
 Two layers, and they're independent:
 
 1. **Client-side hook**, running inside your agent (Claude Code, etc.). Reads `~/.keeperhub/safety.json`, classifies the amount, and either allows, asks you inline, or denies the call before it ever hits the network. This is what keeps your agent from being manipulated into calling `/sign` for amounts you didn't authorise.
-2. **Server-side Turnkey policies**, enforced inside Turnkey for every signing activity. These are the three policies above. They are the hard floor — a misconfigured hook or a compromised agent still cannot sign outside them.
+2. **Server-side Turnkey policies**, enforced inside Turnkey for every signing activity. See [Server-side hard limits](#server-side-hard-limits) for the full list. They are the hard floor — a misconfigured hook or a compromised agent still cannot sign outside them.
 
 Either layer alone isn't enough. The hook stops an agent from asking for a bad signature; the policies stop any signature from being produced outside the rules.
 
