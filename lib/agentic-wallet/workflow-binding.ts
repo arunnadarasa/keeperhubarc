@@ -15,6 +15,15 @@
  * regression that made every priced tempo workflow 403 with PAYTO_MISMATCH
  * after fix #2 landed.
  *
+ * Fix-pack-3 N-1: the caller-supplied chain is cross-checked against the
+ * workflow's registered chain. Without this, an attacker with a stolen HMAC
+ * secret + a dual-chain victim (both walletAddressBase and walletAddressTempo
+ * populated) could claim chain="tempo" on a Base-registered workflow to slip
+ * past the Base-side payTo/amount equality checks and mint an MPP proof
+ * against the victim's tempo wallet. Permissive on null workflow.chain to
+ * avoid breaking legacy listings that pre-date the column; log a metric when
+ * the column is populated so ops can track coverage.
+ *
  * Lookup chain mirrors lib/x402/payment-gate.ts:resolveCreatorWallet.
  */
 import { and, eq } from "drizzle-orm";
@@ -29,7 +38,8 @@ export type BindingFailure = {
     | "UNKNOWN_WORKFLOW"
     | "WORKFLOW_NOT_PAYABLE"
     | "PAYTO_MISMATCH"
-    | "AMOUNT_MISMATCH";
+    | "AMOUNT_MISMATCH"
+    | "CHAIN_MISMATCH";
   error: string;
 };
 
@@ -79,6 +89,7 @@ export async function verifyWorkflowBinding(
       id: workflows.id,
       organizationId: workflows.organizationId,
       priceUsdcPerCall: workflows.priceUsdcPerCall,
+      chain: workflows.chain,
     })
     .from(workflows)
     .where(and(eq(workflows.listedSlug, slug), eq(workflows.isListed, true)))
@@ -91,6 +102,19 @@ export async function verifyWorkflowBinding(
       status: 403,
       code: "UNKNOWN_WORKFLOW",
       error: "Workflow not found or not listed",
+    };
+  }
+
+  // Fix-pack-3 N-1: reject requests whose caller-supplied chain does not
+  // match the workflow's registered chain. Null is permissive for legacy
+  // listings that pre-date the workflows.chain column; once backfilled the
+  // null branch should be tightened to reject.
+  if (wf.chain && wf.chain !== chain) {
+    return {
+      ok: false,
+      status: 403,
+      code: "CHAIN_MISMATCH",
+      error: "chain does not match workflow's registered chain",
     };
   }
 

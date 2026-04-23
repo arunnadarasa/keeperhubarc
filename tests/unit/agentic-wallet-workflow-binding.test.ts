@@ -20,6 +20,7 @@ type WorkflowRow = {
   organizationId: string | null;
   priceUsdcPerCall: string | null;
   isListed: boolean;
+  chain: string | null;
 };
 
 type WalletRow = {
@@ -76,6 +77,7 @@ function queueWorkflow(row: Partial<WorkflowRow> | null): void {
     organizationId: "org_test",
     priceUsdcPerCall: "0.05",
     isListed: true,
+    chain: null,
     ...row,
   };
   mockSelectQueue.rows.push([full]);
@@ -208,5 +210,34 @@ describe("verifyWorkflowBinding", () => {
       status: 403,
       code: "UNKNOWN_WORKFLOW",
     });
+  });
+
+  // Fix-pack-3 N-1: the caller-supplied chain must match the workflow's
+  // registered chain. Without this, an attacker with a compromised HMAC
+  // secret could claim chain="tempo" on a Base-registered workflow to bypass
+  // the Base-side payTo/amount equality checks and mint an MPP proof
+  // against a dual-chain victim's tempo wallet.
+  it("returns 403 CHAIN_MISMATCH when caller chain differs from workflow chain", async () => {
+    queueWorkflow({ chain: "base" });
+    const r = await verifyWorkflowBinding(SLUG, "tempo", "", "0");
+    expect(r).toMatchObject({
+      ok: false,
+      status: 403,
+      code: "CHAIN_MISMATCH",
+    });
+  });
+
+  it("accepts a request when caller chain matches the workflow chain", async () => {
+    queueWorkflow({ chain: "tempo" });
+    queueWallet({});
+    const r = await verifyWorkflowBinding(SLUG, "tempo", "", "0");
+    expect(r.ok).toBe(true);
+  });
+
+  it("is permissive when workflow.chain is null (legacy listings)", async () => {
+    queueWorkflow({ chain: null });
+    queueWallet({});
+    const r = await verifyWorkflowBinding(SLUG, "base", CREATOR, "50000");
+    expect(r.ok).toBe(true);
   });
 });
