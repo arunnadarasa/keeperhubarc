@@ -743,6 +743,51 @@ describe("ChainProviderManager", () => {
       expect(onPermanentFailure).toHaveBeenCalledWith(CHAIN_A);
     });
 
+    it("subscribe after exhaustion re-wires block listener and heartbeat on the new provider", async () => {
+      // This covers a test-only edge case: when onPermanentFailure is a
+      // no-op (prod would exit the process), the manager is left with
+      // entry.provider=null and subscribers intact. A fresh subscribe
+      // must still produce a working provider (block listener attached,
+      // heartbeat running). Keying off `!entry.blockListener` rather
+      // than "was the subscriber set empty" is what makes this work.
+      await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_A,
+        topic0: TOPIC_EMITTED,
+        handler: vi.fn(),
+      });
+      factoryBundle.setPersistentFailure(new Error("upstream down"));
+      factoryBundle.created[0].emitError(new Error("drop"));
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+      expect(onPermanentFailure).toHaveBeenCalledTimes(1);
+
+      // Upstream is healthy again. Clear the persistent failure and add
+      // another subscriber for the same chain.
+      factoryBundle.setPersistentFailure(null);
+      await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_B,
+        topic0: TOPIC_EMITTED,
+        handler: vi.fn(),
+      });
+
+      // A fresh provider must exist AND have its block listener and
+      // heartbeat active; otherwise the new subscriber would silently
+      // never receive events.
+      expect(manager.isHealthy(CHAIN_A)).toBe(true);
+      const latest = factoryBundle.created.at(-1);
+      expect(latest?.hasBlockHandler()).toBe(true);
+      expect(latest?.hasErrorHandler()).toBe(true);
+      // Heartbeat fires periodically on the new provider.
+      await vi.advanceTimersByTimeAsync(30_100);
+      const pings = latest?.sendCalls.filter(
+        (c) => c.method === "eth_blockNumber",
+      ).length;
+      expect(pings ?? 0).toBeGreaterThan(0);
+    });
+
     it("concurrent subscribe during reconnect does not fire a second factory call (race fix)", async () => {
       // Without the reconnectPromise guard, a new subscribe arriving
       // while reconnect has torn down the old provider (entry.provider
@@ -782,7 +827,7 @@ describe("ChainProviderManager", () => {
       expect(manager.subscriberCount(CHAIN_A)).toBe(2);
     });
 
-    it("destroy during reconnect tears down any provider created after destroy wins the race", async () => {
+    it("destroy during reconnect: no orphan providers, no pending loops, chains cleared", async () => {
       await manager.subscribeToLogs({
         chainId: CHAIN_A,
         wssUrl: "ws://a",
@@ -790,26 +835,61 @@ describe("ChainProviderManager", () => {
         topic0: TOPIC_EMITTED,
         handler: vi.fn(),
       });
-      const first = factoryBundle.created[0];
 
-      first.emitError(new Error("drop"));
-      // Advance to just before the reconnect attempt fires.
+      factoryBundle.created[0].emitError(new Error("drop"));
+      // Pause just before the reconnect attempt would fire.
       await vi.advanceTimersByTimeAsync(999);
 
-      // Call destroy; the reconnect is still pending its first attempt.
-      const destroyPromise = manager.destroy();
+      // Destroy while the reconnect is sleeping. The destroy signal
+      // wakes the sleep via Promise.race so this resolves in finite
+      // time even with fake timers still paused.
+      await manager.destroy();
 
-      // Now let the reconnect's setTimeout elapse - the reconnect will
-      // see isDestroyed and bail before creating a new provider, OR
-      // will create one and then destroy it immediately.
-      await vi.advanceTimersByTimeAsync(100);
-      await destroyPromise;
-
-      // Either path is acceptable: no orphan provider should be running.
-      // If a second provider was created, it must be destroyed.
+      // Every provider that was created must have been destroyed. No
+      // more than one additional provider should exist (the one
+      // initial provider and at most one reconnect attempt before
+      // destroy won the race).
+      expect(factoryBundle.created.length).toBeLessThanOrEqual(2);
       for (const p of factoryBundle.created) {
         expect(p.destroyed).toBe(true);
       }
+
+      // No dangling per-chain state.
+      expect(manager.getAllHealth()).toEqual([]);
+      expect(manager.isHealthy(CHAIN_A)).toBe(false);
+      expect(manager.hasProvider(CHAIN_A)).toBe(false);
+    });
+
+    it("destroy awaits an in-flight reconnect rather than racing it", async () => {
+      await manager.subscribeToLogs({
+        chainId: CHAIN_A,
+        wssUrl: "ws://a",
+        address: ADDR_A,
+        topic0: TOPIC_EMITTED,
+        handler: vi.fn(),
+      });
+      // Make every reconnect attempt throw so the loop spends its full
+      // life in the backoff sleeps rather than completing.
+      factoryBundle.setPersistentFailure(new Error("upstream down"));
+
+      factoryBundle.created[0].emitError(new Error("drop"));
+      // Give the loop a tick to enter its first sleep.
+      await Promise.resolve();
+
+      const destroyDone = vi.fn();
+      const destroyPromise = manager.destroy().then(destroyDone);
+
+      // Before destroy resolves, there must have been no completion
+      // callback. destroyedPromise wakes the loop immediately; loop
+      // sees isDestroyed, runs its finally, reconnectPromise becomes
+      // null, destroy's own await unblocks, and only then does
+      // destroyDone fire.
+      await Promise.resolve();
+      // Under fake timers the above microtasks flush synchronously; by
+      // this point destroy's `await entry.reconnectPromise` has had
+      // enough turns to resolve if it was going to.
+      await destroyPromise;
+      expect(destroyDone).toHaveBeenCalledTimes(1);
     });
 
     it("a second drop after successful reconnect triggers another reconnect cycle", async () => {

@@ -122,11 +122,25 @@ export class ChainProviderManager {
   private readonly factory: ProviderFactory;
   private readonly onPermanentFailure: (chainId: number) => void;
   private isDestroyed = false;
+  // Wake-up signal for in-flight reconnect sleeps: `destroy()` resolves
+  // this promise, racing any pending backoff sleep so the reconnect loop
+  // checks `isDestroyed` and bails promptly instead of waiting out its
+  // full delay. Without this, `destroy()` hangs when tests switch from
+  // fake to real timers with a fake-timer sleep still pending.
+  private readonly destroyed: {
+    promise: Promise<void>;
+    resolve: () => void;
+  };
 
   constructor(opts: ChainProviderManagerOptions = {}) {
     this.factory = opts.factory ?? defaultFactory;
     this.onPermanentFailure =
       opts.onPermanentFailure ?? defaultOnPermanentFailure;
+    let resolve!: () => void;
+    const promise = new Promise<void>((r) => {
+      resolve = r;
+    });
+    this.destroyed = { promise, resolve };
   }
 
   async getOrCreateProvider(
@@ -165,15 +179,17 @@ export class ChainProviderManager {
       topic0: opts.topic0.toLowerCase(),
       handler: opts.handler,
     };
-    const wasEmpty = entry.subscribers.size === 0;
     entry.subscribers.add(subscriber);
 
     // Block listener and heartbeat are lifecycle-tied to subscribers:
     // attach on the first, detach on the last. Heartbeat on an idle
     // provider is wasted RPC calls, so creating a provider via bare
     // `getOrCreateProvider` without subscribing leaves it silent until
-    // the first subscribe.
-    if (wasEmpty) {
+    // the first subscribe. Key off `!entry.blockListener` rather than
+    // "was this the first subscriber" so that a fresh provider created
+    // after a permanent-failure + test-injected no-op + resubscribe
+    // still gets wired up correctly.
+    if (!entry.blockListener) {
       this.attachBlockListener(entry);
       this.startHeartbeat(entry);
     }
@@ -272,8 +288,20 @@ export class ChainProviderManager {
 
   async destroy(): Promise<void> {
     this.isDestroyed = true;
+    // Wake every reconnect loop that is currently sleeping. The loop
+    // resumes, checks `isDestroyed`, and bails via its `finally`.
+    this.destroyed.resolve();
     const errors: unknown[] = [];
     for (const entry of this.chains.values()) {
+      // Wait for any in-flight reconnect loop to settle before tearing
+      // the entry down. The loop observes `isDestroyed` at its next
+      // check and bails; `reconnectPromise` is the .catch-wrapped form
+      // so it never rejects. Without this await, destroy() could
+      // resolve while the loop is still running its teardown code,
+      // leading to observable races in tests.
+      if (entry.reconnectPromise) {
+        await entry.reconnectPromise;
+      }
       this.stopHeartbeat(entry);
       this.detachBlockListener(entry);
       this.detachErrorListener(entry);
@@ -370,7 +398,7 @@ export class ChainProviderManager {
       logger.warn(
         `[ChainProviderManager] chain=${entry.chainId} provider error: ${err.message}`,
       );
-      void this.triggerReconnect(entry, "provider_error", err.message);
+      this.triggerReconnect(entry, "provider_error", err.message);
     };
     entry.errorListener = listener;
     entry.provider.on("error", listener);
@@ -422,7 +450,7 @@ export class ChainProviderManager {
       logger.warn(
         `[ChainProviderManager] chain=${entry.chainId} heartbeat failed: ${message}`,
       );
-      void this.triggerReconnect(entry, reason, message);
+      this.triggerReconnect(entry, reason, message);
     }
   }
 
@@ -437,22 +465,23 @@ export class ChainProviderManager {
     entry.isReconnecting = true;
     this.stopHeartbeat(entry);
 
-    // Publish the reconnect promise on the entry BEFORE starting the
-    // work. `getOrCreateProvider` awaits this to avoid creating a second
-    // parallel provider while the reconnect is replacing the first.
-    // `.catch` before assigning so the stored promise never rejects: any
-    // bug in reconnectLoop surfaces via the logger, not by rejecting an
-    // await that callers would have to handle.
-    const loop = this.reconnectLoop(entry, reason, message).catch((err) => {
-      logger.error(
-        `[ChainProviderManager] chain=${entry.chainId} reconnect loop crashed: ${String(err)}`,
-      );
-    });
-    entry.reconnectPromise = loop;
-    void loop.finally(() => {
-      entry.reconnectPromise = null;
-      entry.isReconnecting = false;
-    });
+    // Publish the reconnect promise on the entry BEFORE any `await`
+    // yields. `getOrCreateProvider` awaits this to avoid creating a
+    // second parallel provider while the reconnect is replacing the
+    // first. State is cleared inside `reconnectLoop`'s `finally` so it
+    // happens synchronously with the promise settling - a follow-up
+    // error on the newly-attached provider will see
+    // `isReconnecting === false` by the time the prior loop has
+    // resolved, rather than racing an outer `.finally`.
+    // `.catch` so the stored promise never rejects: any bug surfaces
+    // via the logger, not via an await that callers have to handle.
+    entry.reconnectPromise = this.reconnectLoop(entry, reason, message).catch(
+      (err) => {
+        logger.error(
+          `[ChainProviderManager] chain=${entry.chainId} reconnect loop crashed: ${String(err)}`,
+        );
+      },
+    );
   }
 
   private async reconnectLoop(
@@ -460,48 +489,61 @@ export class ChainProviderManager {
     reason: DisconnectReason,
     message: string,
   ): Promise<void> {
-    // Fire disconnect handlers in parallel before the backoff begins.
-    // Sequential await here lets one slow handler delay reconnect start
-    // by its latency; Promise.all matches the dispatchLog pattern.
-    await Promise.all(
-      [...entry.disconnectHandlers].map(async (handler) => {
+    try {
+      // Fire disconnect handlers in parallel before the backoff begins.
+      // Sequential await here lets one slow handler delay reconnect
+      // start by its latency; Promise.all matches the dispatchLog pattern.
+      await Promise.all(
+        [...entry.disconnectHandlers].map(async (handler) => {
+          try {
+            await handler({ chainId: entry.chainId, reason, message });
+          } catch (err) {
+            logger.warn(
+              `[ChainProviderManager] chain=${entry.chainId} disconnect handler threw: ${String(err)}`,
+            );
+          }
+        }),
+      );
+
+      let delay = INITIAL_RECONNECT_DELAY_MS;
+      for (let attempt = 1; attempt <= MAX_RECONNECT_ATTEMPTS; attempt++) {
+        if (this.isDestroyed) {
+          return;
+        }
+        // Race the backoff sleep against the destroy signal so the loop
+        // wakes up immediately on teardown. The isDestroyed check after
+        // the race handles both paths: timer elapsed (normal) or
+        // destroy resolved (early).
+        await Promise.race([sleep(delay), this.destroyed.promise]);
+        if (this.isDestroyed) {
+          return;
+        }
         try {
-          await handler({ chainId: entry.chainId, reason, message });
+          await this.reconnect(entry);
+          logger.log(
+            `[ChainProviderManager] chain=${entry.chainId} reconnected on attempt ${attempt}`,
+          );
+          return;
         } catch (err) {
           logger.warn(
-            `[ChainProviderManager] chain=${entry.chainId} disconnect handler threw: ${String(err)}`,
+            `[ChainProviderManager] chain=${entry.chainId} reconnect attempt ${attempt} failed: ${String(err)}`,
           );
+          delay = Math.min(delay * 2, MAX_RECONNECT_DELAY_MS);
         }
-      }),
-    );
+      }
 
-    let delay = INITIAL_RECONNECT_DELAY_MS;
-    for (let attempt = 1; attempt <= MAX_RECONNECT_ATTEMPTS; attempt++) {
-      if (this.isDestroyed) {
-        return;
-      }
-      await sleep(delay);
-      if (this.isDestroyed) {
-        return;
-      }
-      try {
-        await this.reconnect(entry);
-        logger.log(
-          `[ChainProviderManager] chain=${entry.chainId} reconnected on attempt ${attempt}`,
-        );
-        return;
-      } catch (err) {
-        logger.warn(
-          `[ChainProviderManager] chain=${entry.chainId} reconnect attempt ${attempt} failed: ${String(err)}`,
-        );
-        delay = Math.min(delay * 2, MAX_RECONNECT_DELAY_MS);
-      }
+      logger.error(
+        `[ChainProviderManager] chain=${entry.chainId} exhausted ${MAX_RECONNECT_ATTEMPTS} reconnect attempts`,
+      );
+      this.onPermanentFailure(entry.chainId);
+    } finally {
+      // Clear synchronously with the async function's return. By the
+      // time the caller awaits the stored `reconnectPromise` and
+      // unblocks, `isReconnecting` is already false - no window where a
+      // fresh error on the new provider gets silently dropped.
+      entry.reconnectPromise = null;
+      entry.isReconnecting = false;
     }
-
-    logger.error(
-      `[ChainProviderManager] chain=${entry.chainId} exhausted ${MAX_RECONNECT_ATTEMPTS} reconnect attempts`,
-    );
-    this.onPermanentFailure(entry.chainId);
   }
 
   private async reconnect(entry: ChainEntry): Promise<void> {
