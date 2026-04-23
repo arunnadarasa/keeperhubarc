@@ -484,6 +484,37 @@ async function runLocal(
 }
 
 /**
+ * Normalize a runRemote() RunCodeResult to match the error-message shape
+ * runLocal emits. The sandbox-client translator ferries ChildOutcome
+ * error text through unchanged; the main-app contract wants "Code
+ * execution failed: ..." for general errors and "Code execution timed
+ * out after N second(s)" for timeouts so downstream consumers (UI,
+ * alerting) see identical copy across backends.
+ */
+function normalizeRemoteError(
+  outcome: RunCodeResult,
+  timeoutSeconds: number,
+): RunCodeResult {
+  if (outcome.success) {
+    return outcome;
+  }
+  const raw = outcome.error;
+  const isTimeout =
+    raw.includes("Script execution timed out") ||
+    raw === "WALL_CLOCK_TIMEOUT" ||
+    raw.includes("timed out after");
+  const rewritten = isTimeout
+    ? `Code execution timed out after ${String(timeoutSeconds)} second${timeoutSeconds === 1 ? "" : "s"}`
+    : raw.startsWith("Code execution failed:") ||
+        raw.startsWith("sandbox client error:") ||
+        raw.startsWith("No code provided") ||
+        raw.startsWith("Unresolved template variables:")
+      ? raw
+      : `Code execution failed: ${raw}`;
+  return { ...outcome, error: rewritten };
+}
+
+/**
  * Backend dispatcher. SANDBOX_BACKEND is read once at module init; when
  * "remote" we delegate to lib/sandbox-client.ts, otherwise runLocal handles
  * the invocation via the in-pod child_process path.
@@ -499,10 +530,11 @@ async function stepHandler(input: RunCodeCoreInput): Promise<RunCodeResult> {
     MAX_TIMEOUT_SECONDS,
   );
   if (SANDBOX_BACKEND === "remote") {
-    return runRemote({
+    const outcome = await runRemote({
       code: input.code,
       timeoutMs: clampedSeconds * 1000,
     });
+    return normalizeRemoteError(outcome, clampedSeconds);
   }
   return runLocal(input, clampedSeconds);
 }
