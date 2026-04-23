@@ -1,42 +1,24 @@
-# Helm values for the keeperhub-sandbox-staging release.
-# Rendered by the techops-services/common chart (>=0.0.35). Minimal by
-# design — no ingress, no cron, no SSL (internal ClusterIP only).
+# Helm values for keeperhub-sandbox-staging via techops-services/common@0.2.1.
 #
-# Apply with:
-#   helm upgrade --install keeperhub-sandbox-staging \
-#     techops-services/common \
-#     --namespace keeperhub \
-#     -f deploy/keeperhub-sandbox/staging/values.yaml
+# ECR_REGISTRY and IMAGE_TAG are substituted by deploy-sandbox.yaml at
+# deploy time (sed replacement, same pattern as deploy/event-tracker/).
 #
-# Then apply the raw SA manifest (chart v0.0.35 does not support
-# automountServiceAccountToken at the SA object level nor zero RoleBinding
-# SAs; see research/SUMMARY.md §Pre-Execution Blockers):
-#   kubectl apply -f deploy/keeperhub-sandbox/staging/sa.yaml
+# apply order (deploy-sandbox.yaml handles this automatically):
+#   1. helm upgrade --install keeperhub-sandbox ... -f this-file
+#   2. kubectl apply -f deploy/keeperhub-sandbox/staging/sa.yaml
+#   3. kubectl patch deployment --patch-file pod-automount-patch.yaml
 #
-# And the Pod-level automount patch (strategic merge against the rendered
-# Deployment — needed because the chart does not expose
-# automountServiceAccountToken on pod spec either):
-#   kubectl -n keeperhub patch deployment keeperhub-sandbox-staging \
-#     --patch-file deploy/keeperhub-sandbox/staging/pod-automount-patch.yaml
+# Sandbox intentionally has:
+#   - ZERO externalSecrets (no AWS creds, no DB, no Turnkey, no Stripe)
+#   - no IRSA annotation (see sa.yaml)
+#   - automountServiceAccountToken: false at BOTH SA and Pod level
+#   - no RoleBinding targeting keeperhub-sandbox-staging
+#
+# This is the v1.9 security boundary: an escape from user JS yields no
+# main-pod secrets (CHILD_ENV_ALLOWLIST scrub), no K8s API access (no SA
+# token projected), no AWS STS access (no IRSA role).
 
 replicaCount: 1
-
-# Explicit dedicated ServiceAccount. The SA itself is created via
-# deploy/keeperhub-sandbox/staging/sa.yaml so we can set
-# automountServiceAccountToken: false at the SA object level (which the
-# chart does not expose). This block tells the chart to USE the pre-
-# created SA and not create its own.
-serviceAccount:
-  create: false
-  name: keeperhub-sandbox-staging
-
-image:
-  # Operator publishes the sandbox image to ECR during the initial rollout
-  # with: docker build -f sandbox/Dockerfile -t <ECR>/keeperhub-sandbox:<tag> .
-  # && docker push. See SUMMARY.md for the one-time image-publish runbook.
-  repository: 068992353948.dkr.ecr.us-east-2.amazonaws.com/keeperhub-sandbox
-  tag: staging-latest
-  pullPolicy: IfNotPresent
 
 service:
   enabled: true
@@ -44,44 +26,37 @@ service:
   port: 8787
   type: ClusterIP
   containerPort: 8787
-  # No TLS terminator — intra-cluster traffic only. Phase 38.x or later can
-  # wrap with mTLS via a service mesh if evidence warrants; research/
-  # SUMMARY.md notes this as deferred for v1.9.
   tls:
     enabled: false
 
 ingress:
   enabled: false
 
-# Per POD spec resources — conservative to start. Adjust after soak.
+image:
+  repository: ${ECR_REGISTRY}/keeperhub-sandbox-staging
+  tag: sandbox-${IMAGE_TAG}
+  pullPolicy: Always
+
+deployment:
+  enabled: true
+
+# Use the pre-created SA from sa.yaml so automountServiceAccountToken:
+# false is set at the SA object level (chart doesn't expose that toggle).
+serviceAccount:
+  create: false
+  name: keeperhub-sandbox-staging
+
+podAnnotations:
+  reloader.stakater.com/auto: "true"
+
 resources:
   requests:
-    cpu: "100m"
-    memory: "128Mi"
+    cpu: 100m
+    memory: 128Mi
   limits:
-    cpu: "500m"
-    memory: "512Mi"
+    cpu: 500m
+    memory: 512Mi
 
-# Readiness / liveness from sandbox/src/index.ts GET /healthz.
-probes:
-  readiness:
-    httpGet:
-      path: /healthz
-      port: 8787
-    initialDelaySeconds: 2
-    periodSeconds: 5
-    timeoutSeconds: 2
-    failureThreshold: 3
-  liveness:
-    httpGet:
-      path: /healthz
-      port: 8787
-    initialDelaySeconds: 10
-    periodSeconds: 15
-    timeoutSeconds: 2
-    failureThreshold: 3
-
-# Env vars scoped to the sandbox Pod.
 env:
   NODE_ENV:
     type: kv
@@ -89,24 +64,21 @@ env:
   SANDBOX_PORT:
     type: kv
     value: "8787"
-  # NOTE: no DATABASE_URL, no AWS_*, no TURNKEY_*, no WALLET_*. Defence in
-  # depth for the scrubbed-env threat model: the sandbox Pod's env has
-  # nothing interesting even if the Node CHILD_ENV_ALLOWLIST were bypassed.
 
-podSecurityContext:
-  runAsNonRoot: true
-  runAsUser: 1001
-  runAsGroup: 1001
-  seccompProfile:
-    type: RuntimeDefault
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8787
+  initialDelaySeconds: 10
+  periodSeconds: 15
+  timeoutSeconds: 2
+  failureThreshold: 3
 
-containerSecurityContext:
-  allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: false
-  capabilities:
-    drop:
-      - ALL
-
-# DO NOT add cron.* blocks — sandbox is long-lived HTTP, not batch.
-# DO NOT add rbac.* blocks — sandbox needs ZERO Kubernetes API access
-# (no RoleBinding anywhere in the cluster targets keeperhub-sandbox-*).
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: 8787
+  initialDelaySeconds: 2
+  periodSeconds: 5
+  timeoutSeconds: 2
+  failureThreshold: 3
