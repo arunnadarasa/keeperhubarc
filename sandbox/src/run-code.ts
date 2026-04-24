@@ -308,14 +308,21 @@ function parseChildOutput(stdout: string): ChildOutcome {
 
 /**
  * Spawn a child Node process with a scrubbed env, run the user code inside
- * it, and return the child's outcome. Kills the child on timeout.
+ * it, and return the child's outcome. Kills the child on timeout or when
+ * the caller's AbortSignal fires.
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: single cohesive spawner with timeout + stream aggregation + graceful teardown
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: single cohesive spawner with timeout + stream aggregation + graceful teardown + signal wiring
 async function runInChild(
   code: string,
   timeoutMs: number,
+  signal?: AbortSignal
 ): Promise<ChildOutcome> {
   return await new Promise<ChildOutcome>((resolve) => {
+    if (signal?.aborted) {
+      resolve({ ok: false, errorMessage: "ABORTED", logs: [] });
+      return;
+    }
+
     const child = spawn(process.execPath, ["-e", CHILD_SOURCE], {
       env: buildChildEnv(),
       stdio: ["pipe", "pipe", "pipe"],
@@ -325,12 +332,18 @@ async function runInChild(
     let stderr = "";
     let settled = false;
 
+    const onAbort = (): void => {
+      finish({ ok: false, errorMessage: "ABORTED", logs: [] });
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+
     function finish(outcome: ChildOutcome): void {
       if (settled) {
         return;
       }
       settled = true;
       clearTimeout(killTimer);
+      signal?.removeEventListener("abort", onAbort);
       if (!child.killed) {
         try {
           child.kill("SIGKILL");
@@ -401,6 +414,7 @@ async function runInChild(
 export async function runCode(input: {
   code: string;
   timeoutMs: number;
+  signal?: AbortSignal;
 }): Promise<ChildOutcome> {
-  return runInChild(input.code, input.timeoutMs);
+  return runInChild(input.code, input.timeoutMs, input.signal);
 }

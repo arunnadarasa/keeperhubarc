@@ -56,8 +56,17 @@ function extractLineNumber(stack: string | undefined): number | undefined {
   return undefined;
 }
 
-function postOnce(body: Buffer, timeoutMs: number): Promise<Buffer> {
+function postOnce(
+  body: Buffer,
+  timeoutMs: number,
+  signal?: AbortSignal
+): Promise<Buffer> {
   return new Promise<Buffer>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error("aborted"));
+      return;
+    }
+
     const url = new URL("/run", SANDBOX_URL);
     const port = url.port
       ? Number.parseInt(url.port, 10)
@@ -67,6 +76,7 @@ function postOnce(body: Buffer, timeoutMs: number): Promise<Buffer> {
 
     let settled = false;
     let budgetTimer: NodeJS.Timeout | null = null;
+    let onAbort: (() => void) | null = null;
     const settle = (action: () => void): void => {
       if (settled) {
         return;
@@ -74,6 +84,9 @@ function postOnce(body: Buffer, timeoutMs: number): Promise<Buffer> {
       settled = true;
       if (budgetTimer) {
         clearTimeout(budgetTimer);
+      }
+      if (onAbort && signal) {
+        signal.removeEventListener("abort", onAbort);
       }
       action();
     };
@@ -125,6 +138,16 @@ function postOnce(body: Buffer, timeoutMs: number): Promise<Buffer> {
       });
     }, totalBudgetMs);
 
+    if (signal) {
+      onAbort = (): void => {
+        settle(() => {
+          req.destroy();
+          reject(new Error("aborted"));
+        });
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+
     req.write(body);
     req.end();
   });
@@ -160,6 +183,7 @@ function toRunCodeResult(outcome: ChildOutcome): RunCodeResult {
 export async function runRemote(input: {
   code: string;
   timeoutMs: number;
+  signal?: AbortSignal;
 }): Promise<RunCodeResult> {
   try {
     const timeoutSeconds = Math.ceil(input.timeoutMs / 1000);
@@ -169,7 +193,7 @@ export async function runRemote(input: {
       ),
       "ascii"
     );
-    const responseBuf = await postOnce(body, input.timeoutMs);
+    const responseBuf = await postOnce(body, input.timeoutMs, input.signal);
     const outcome = parseResponse(responseBuf);
     return toRunCodeResult(outcome);
   } catch (err) {

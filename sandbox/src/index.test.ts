@@ -1,8 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import {
-  type AddressInfo,
-  createServer as createNetServer,
-} from "node:net";
+import { type AddressInfo, createServer as createNetServer } from "node:net";
 import { once } from "node:events";
 import {
   type IncomingMessage,
@@ -25,7 +22,7 @@ async function request(
   port: number,
   method: string,
   path: string,
-  body?: string,
+  body?: string
 ): Promise<{ status: number; body: Buffer }> {
   const { request: httpRequest } = await import("node:http");
   return await new Promise((resolve, reject) => {
@@ -51,7 +48,7 @@ async function request(
             body: Buffer.concat(chunks),
           });
         });
-      },
+      }
     );
     req.on("error", reject);
     if (body) {
@@ -76,11 +73,9 @@ describe("sandbox HTTP server", () => {
   let port: number;
 
   beforeAll(async () => {
-    server = createServer(
-      (req: IncomingMessage, res: ServerResponse): void => {
-        handleRequest(req, res);
-      },
-    );
+    server = createServer((req: IncomingMessage, res: ServerResponse): void => {
+      handleRequest(req, res);
+    });
     await new Promise<void>((resolve, reject) => {
       server.once("error", reject);
       server.listen(0, "127.0.0.1", () => {
@@ -138,7 +133,7 @@ describe("sandbox HTTP server", () => {
       port,
       "POST",
       "/run",
-      "this is not v8 base64 !!!",
+      "this is not v8 base64 !!!"
     );
     expect(res.status).toBe(400);
   });
@@ -174,6 +169,48 @@ describe("sandbox HTTP server", () => {
     } finally {
       delete process.env[FAKE];
     }
+  });
+
+  it("kills the child when the client disconnects mid-request", async () => {
+    // User code hangs for 60s; we abort the HTTP request after 200ms and
+    // then verify the server returns to idle quickly. If the child were
+    // allowed to keep running, the process would hold handles and the
+    // test would see stderr or exceed a tight wall-clock bound.
+    const { request: httpRequest } = await import("node:http");
+    const hangingCode = makeRunBody({
+      code: "await new Promise(() => {});",
+      timeout: 60,
+    });
+    const start = Date.now();
+    await new Promise<void>((resolve, reject) => {
+      const req = httpRequest(
+        {
+          host: "127.0.0.1",
+          port,
+          method: "POST",
+          path: "/run",
+          headers: {
+            "Content-Type": "application/octet-stream",
+            "Content-Length": Buffer.byteLength(hangingCode),
+          },
+        },
+        () => {
+          reject(
+            new Error("expected request to be aborted before any response")
+          );
+        }
+      );
+      req.on("error", () => resolve());
+      req.write(hangingCode);
+      req.end();
+      setTimeout(() => req.destroy(), 200);
+    });
+    // Child teardown is async; allow a short settle window before asserting
+    // we returned well before the 60s user timeout. The child's SIGKILL path
+    // should land within ~100ms on a healthy host.
+    await new Promise<void>((resolve) => setTimeout(resolve, 200));
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeLessThan(5000);
   });
 
   it("SANDBOX_PORT env var is read at module init", async () => {

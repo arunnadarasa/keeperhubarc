@@ -77,8 +77,27 @@ function decodeRunRequest(raw: Buffer): RunRequest | null {
 
 async function handlePostRun(
   req: IncomingMessage,
-  res: ServerResponse,
+  res: ServerResponse
 ): Promise<void> {
+  // If the client disconnects before we finish writing the response, we
+  // cancel the child so sandbox capacity is not pinned beyond the caller's
+  // view. Without this, a slow user script keeps running after the main-app
+  // request timed out and gave up on the socket.
+  //
+  // Listen on `res`, not `req`: IncomingMessage's 'close' fires at end of
+  // body-stream consumption (often well before the response is sent), while
+  // ServerResponse's 'close' fires when the underlying connection is torn
+  // down either by our res.end() or by a client disconnect. The guard
+  // `!res.writableEnded` means "we hadn't finished writing yet" — that's
+  // the true client-abort condition.
+  const abortController = new AbortController();
+  const onResClose = (): void => {
+    if (!res.writableEnded) {
+      abortController.abort();
+    }
+  };
+  res.on("close", onResClose);
+
   try {
     const raw = await readBody(req);
     if (raw.length === 0) {
@@ -97,16 +116,27 @@ async function handlePostRun(
         ? request.timeout
         : DEFAULT_TIMEOUT_SECONDS;
     const timeoutMs = Math.max(1, Math.min(120, timeoutSeconds)) * 1000;
-    const outcome = await runCode({ code: request.code, timeoutMs });
+    const outcome = await runCode({
+      code: request.code,
+      timeoutMs,
+      signal: abortController.signal,
+    });
+    // Client already gone; writing would throw ERR_STREAM_DESTROYED. The
+    // abort wired above has already killed the child, so we just return.
+    if (res.writableEnded || res.destroyed) {
+      return;
+    }
     writeRunResult(res, outcome);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     // biome-ignore lint/suspicious/noConsole: sandbox runtime emits stderr for fatal paths so platform logs surface them
     console.error(`[Sandbox] /run failed: ${message}`);
-    if (!res.headersSent) {
+    if (!res.headersSent && !res.destroyed) {
       res.writeHead(500);
       res.end("sandbox internal error");
     }
+  } finally {
+    res.off("close", onResClose);
   }
 }
 
@@ -114,10 +144,7 @@ async function handlePostRun(
  * Main HTTP request dispatcher. Separated from server creation so tests
  * can mount their own server on an ephemeral port.
  */
-export function handleRequest(
-  req: IncomingMessage,
-  res: ServerResponse,
-): void {
+export function handleRequest(req: IncomingMessage, res: ServerResponse): void {
   const url = (req.url ?? "").split("?")[0];
 
   if (req.method === "GET" && url === "/healthz") {
@@ -139,12 +166,14 @@ async function main(): Promise<void> {
   const server = createServer(
     (req: IncomingMessage, res: ServerResponse): void => {
       handleRequest(req, res);
-    },
+    }
   );
 
   process.on("uncaughtException", (err: Error) => {
     // biome-ignore lint/suspicious/noConsole: fatal path; must surface to pod stderr before exit
-    console.error(`[Fatal] uncaughtException: ${err.message}\n${err.stack ?? ""}`);
+    console.error(
+      `[Fatal] uncaughtException: ${err.message}\n${err.stack ?? ""}`
+    );
     process.exit(1);
   });
 

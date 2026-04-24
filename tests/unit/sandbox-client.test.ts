@@ -215,6 +215,54 @@ describe("lib/sandbox-client runRemote", () => {
     });
   });
 
+  it("rejects immediately when the caller's AbortSignal fires mid-request", async () => {
+    const hangingSockets: IncomingMessage[] = [];
+    const hangingServer = createServer((req: IncomingMessage): void => {
+      hangingSockets.push(req);
+    });
+    await new Promise<void>((resolve, reject) => {
+      hangingServer.once("error", reject);
+      hangingServer.listen(0, "127.0.0.1", () => {
+        hangingServer.off("error", reject);
+        resolve();
+      });
+    });
+    const hangingPort = (hangingServer.address() as AddressInfo).port;
+    const savedUrl = process.env.SANDBOX_URL;
+    process.env.SANDBOX_URL = `http://127.0.0.1:${hangingPort}`;
+    try {
+      vi.resetModules();
+      const { runRemote } = await import("@/lib/sandbox-client");
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 50);
+      const start = Date.now();
+      const outcome = await runRemote({
+        code: "return 1;",
+        timeoutMs: 120_000,
+        signal: controller.signal,
+      });
+      const elapsed = Date.now() - start;
+      expect(outcome.success).toBe(false);
+      if (!outcome.success) {
+        expect(outcome.error).toContain("aborted");
+      }
+      expect(elapsed).toBeLessThan(1000);
+    } finally {
+      for (const req of hangingSockets) {
+        req.socket.destroy();
+      }
+      if (savedUrl === undefined) {
+        delete process.env.SANDBOX_URL;
+      } else {
+        process.env.SANDBOX_URL = savedUrl;
+      }
+      await new Promise<void>((resolve) => {
+        hangingServer.close(() => resolve());
+      });
+      vi.resetModules();
+    }
+  });
+
   it("rejects with a timeout error when the sandbox never responds", async () => {
     const hangingSockets: IncomingMessage[] = [];
     const hangingServer = createServer((req: IncomingMessage): void => {
