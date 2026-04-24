@@ -55,15 +55,115 @@ const CHILD_SOURCE = `
 "use strict";
 const { createContext, runInContext } = require("node:vm");
 const v8 = require("node:v8");
+const dnsPromises = require("node:dns").promises;
+const { BlockList, isIP } = require("node:net");
 
 const MAX_LOG_ENTRIES = 200;
-const BLOCKED_HOST_SUBSTRINGS = [
-  "169.254.169.254",
-  "fd00:ec2::254",
-  "169.254.170.2",
-  "metadata.google.internal",
-  "metadata.azure.com",
-];
+
+// SSRF guard: ported from lib/safe-fetch.ts (KEEP-314). Modeled on the
+// main-app pattern but inlined here because the sandbox package is
+// zero-runtime-dep by design and the grandchild gets only node: builtins.
+// The defense here is DNS-resolved denylist — it catches hostnames that
+// resolve to RFC 1918, loopback, link-local (IMDS), CGNAT, and reserved
+// ranges, where the old substring check only caught named metadata hosts.
+// TOCTOU: we do not have undici's per-connect hook (would require adding
+// undici as a sandbox dep), so there is a small window between our
+// dns.lookup and the fetch's internal connect where the record could
+// change. NetworkPolicy is the real defense for that (tracked elsewhere).
+const ALLOWED_SCHEMES = new Set(["http:", "https:"]);
+const IPV4_MAPPED_PREFIX = "::ffff:";
+const IPV4_MAPPED_HEX_REGEX = /^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/;
+
+const SSRF_BLOCK_LIST = new BlockList();
+SSRF_BLOCK_LIST.addSubnet("0.0.0.0", 8, "ipv4");
+SSRF_BLOCK_LIST.addSubnet("10.0.0.0", 8, "ipv4");
+SSRF_BLOCK_LIST.addSubnet("100.64.0.0", 10, "ipv4");
+SSRF_BLOCK_LIST.addSubnet("127.0.0.0", 8, "ipv4");
+SSRF_BLOCK_LIST.addSubnet("169.254.0.0", 16, "ipv4");
+SSRF_BLOCK_LIST.addSubnet("172.16.0.0", 12, "ipv4");
+SSRF_BLOCK_LIST.addSubnet("192.0.0.0", 24, "ipv4");
+SSRF_BLOCK_LIST.addSubnet("192.0.2.0", 24, "ipv4");
+SSRF_BLOCK_LIST.addSubnet("192.88.99.0", 24, "ipv4");
+SSRF_BLOCK_LIST.addSubnet("192.168.0.0", 16, "ipv4");
+SSRF_BLOCK_LIST.addSubnet("198.18.0.0", 15, "ipv4");
+SSRF_BLOCK_LIST.addSubnet("198.51.100.0", 24, "ipv4");
+SSRF_BLOCK_LIST.addSubnet("203.0.113.0", 24, "ipv4");
+SSRF_BLOCK_LIST.addSubnet("224.0.0.0", 4, "ipv4");
+SSRF_BLOCK_LIST.addSubnet("240.0.0.0", 4, "ipv4");
+SSRF_BLOCK_LIST.addAddress("255.255.255.255", "ipv4");
+SSRF_BLOCK_LIST.addAddress("::", "ipv6");
+SSRF_BLOCK_LIST.addAddress("::1", "ipv6");
+// Note: ::ffff:0:0/96 (IPv4-mapped IPv6) not added — Node treats that
+// subnet as "all IPv4" which would make every IPv4 check return true.
+// IPv4-mapped IPv6 pointing at private IPv4 is caught via the mapped
+// extraction below.
+SSRF_BLOCK_LIST.addSubnet("64:ff9b::", 96, "ipv6");
+SSRF_BLOCK_LIST.addSubnet("100::", 64, "ipv6");
+SSRF_BLOCK_LIST.addSubnet("fc00::", 7, "ipv6");
+SSRF_BLOCK_LIST.addSubnet("fe80::", 10, "ipv6");
+SSRF_BLOCK_LIST.addSubnet("ff00::", 8, "ipv6");
+
+function extractMappedIpv4(ipv6) {
+  const lower = ipv6.toLowerCase();
+  if (!lower.startsWith(IPV4_MAPPED_PREFIX)) {
+    return undefined;
+  }
+  const suffix = lower.slice(IPV4_MAPPED_PREFIX.length);
+  if (isIP(suffix) === 4) {
+    return suffix;
+  }
+  const hexMatch = suffix.match(IPV4_MAPPED_HEX_REGEX);
+  if (!hexMatch) {
+    return undefined;
+  }
+  const high = Number.parseInt(hexMatch[1] || "", 16);
+  const low = Number.parseInt(hexMatch[2] || "", 16);
+  if (!(Number.isFinite(high) && Number.isFinite(low))) {
+    return undefined;
+  }
+  return [((high >> 8) & 0xff), (high & 0xff), ((low >> 8) & 0xff), (low & 0xff)].join(".");
+}
+
+function isBlockedIp(ip) {
+  const family = isIP(ip);
+  if (family === 0) {
+    return { blocked: false };
+  }
+  const familyKey = family === 4 ? "ipv4" : "ipv6";
+  if (SSRF_BLOCK_LIST.check(ip, familyKey)) {
+    return { blocked: true, ip: ip };
+  }
+  if (family === 6) {
+    const mapped = extractMappedIpv4(ip);
+    if (mapped && SSRF_BLOCK_LIST.check(mapped, "ipv4")) {
+      return { blocked: true, ip: mapped };
+    }
+  }
+  return { blocked: false };
+}
+
+function stripIpv6Brackets(hostname) {
+  if (hostname.startsWith("[") && hostname.endsWith("]")) {
+    return hostname.slice(1, -1);
+  }
+  return hostname;
+}
+
+async function checkHostnameSsrf(hostname) {
+  if (isIP(hostname) !== 0) {
+    return isBlockedIp(hostname);
+  }
+  // all:true catches split-horizon DNS where A and AAAA differ — one
+  // private address in the response is enough to reject.
+  const records = await dnsPromises.lookup(hostname, { all: true });
+  for (const rec of records) {
+    const check = isBlockedIp(rec.address);
+    if (check.blocked) {
+      return check;
+    }
+  }
+  return { blocked: false };
+}
 
 function safeCloneArg(value) {
   try {
@@ -114,14 +214,26 @@ function run(input) {
     }
   }
 
-  function sandboxedFetch(resource, init) {
+  async function sandboxedFetch(resource, init) {
     const url = extractUrl(resource);
-    for (const blocked of BLOCKED_HOST_SUBSTRINGS) {
-      if (url.indexOf(blocked) !== -1) {
-        return Promise.reject(
-          new Error("Fetch to metadata endpoint is blocked: " + blocked)
-        );
-      }
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch (_e) {
+      throw new TypeError("sandbox fetch: invalid URL: " + url);
+    }
+    if (!ALLOWED_SCHEMES.has(parsed.protocol)) {
+      throw new Error("sandbox fetch: scheme not allowed: " + parsed.protocol);
+    }
+
+    const hostname = stripIpv6Brackets(parsed.hostname);
+    const ssrfCheck = await checkHostnameSsrf(hostname);
+    if (ssrfCheck.blocked) {
+      const targetIp = ssrfCheck.ip;
+      const suffix = targetIp && targetIp !== hostname ? " -> " + targetIp : "";
+      throw new Error(
+        "sandbox fetch: SSRF blocked (" + hostname + suffix + ")"
+      );
     }
 
     const controller = new AbortController();
