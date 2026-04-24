@@ -137,6 +137,7 @@
     "drizzle-kit": "^0.31.10",
     "jsdom": "^27.4.0",
     "knip": "^5.88.1",
+    "monaco-editor": "0.55.1",
     "permissionless": "^0.3.4",
     "prettier": "^3.8.1",
     "tailwindcss": "^4",
