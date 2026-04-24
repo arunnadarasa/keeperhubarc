@@ -213,6 +213,58 @@ describe("sandbox HTTP server", () => {
     expect(elapsed).toBeLessThan(5000);
   });
 
+  it("returns 413 when the request body exceeds the size cap", async () => {
+    const saved = process.env.SANDBOX_MAX_BODY_BYTES;
+    process.env.SANDBOX_MAX_BODY_BYTES = "128";
+    try {
+      // 200 bytes of A's — decodeRunRequest is never reached because
+      // readBody throws "body too large" first.
+      const body = "A".repeat(200);
+      const res = await request(port, "POST", "/run", body);
+      expect(res.status).toBe(413);
+      expect(res.body.toString()).toBe("body too large");
+    } finally {
+      if (saved === undefined) {
+        delete process.env.SANDBOX_MAX_BODY_BYTES;
+      } else {
+        process.env.SANDBOX_MAX_BODY_BYTES = saved;
+      }
+    }
+  });
+
+  it("returns 429 with Retry-After when concurrency cap is exceeded", async () => {
+    const saved = process.env.SANDBOX_MAX_CONCURRENT_RUNS;
+    process.env.SANDBOX_MAX_CONCURRENT_RUNS = "2";
+    try {
+      // User code sleeps long enough that 4 concurrent fires race at the
+      // cap. Two get in, two get rejected with 429 before readBody.
+      const slowBody = makeRunBody({
+        code: "await new Promise(r => setTimeout(r, 400)); return 1;",
+        timeout: 5,
+      });
+      const results = await Promise.all([
+        request(port, "POST", "/run", slowBody),
+        request(port, "POST", "/run", slowBody),
+        request(port, "POST", "/run", slowBody),
+        request(port, "POST", "/run", slowBody),
+      ]);
+      const statuses = results.map((r) => r.status);
+      const ok = statuses.filter((s) => s === 200).length;
+      const rejected = statuses.filter((s) => s === 429).length;
+      expect(ok).toBeGreaterThanOrEqual(2);
+      expect(rejected).toBeGreaterThanOrEqual(1);
+      // 429 body should be the short "at capacity" marker.
+      const rejectedResult = results.find((r) => r.status === 429);
+      expect(rejectedResult?.body.toString()).toBe("sandbox at capacity");
+    } finally {
+      if (saved === undefined) {
+        delete process.env.SANDBOX_MAX_CONCURRENT_RUNS;
+      } else {
+        process.env.SANDBOX_MAX_CONCURRENT_RUNS = saved;
+      }
+    }
+  });
+
   it("SANDBOX_PORT env var is read at module init", async () => {
     // The module already imported at test start; the constant captured by
     // handleRequest closure is fixed. We assert the module exports a

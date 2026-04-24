@@ -16,8 +16,16 @@ import { runCode } from "./run-code.js";
  */
 const RESULT_SENTINEL = "\u0001RESULT\u0002";
 
-/** Hard cap to prevent oversized-body DoS. Anything larger is rejected. */
-const MAX_BODY_BYTES = 10 * 1024 * 1024;
+/** Default maximum request body size (256 KiB). Envelope is small because
+ * the body carries only user-written JS plus a v8-serialized envelope; any
+ * reasonable Code node fits in a small fraction of this. Env-overridable. */
+const DEFAULT_MAX_BODY_BYTES = 256 * 1024;
+
+/** Default maximum concurrent /run calls per Pod. With 500m CPU + ~80 ms
+ * cold-spawn + V8 compile of CHILD_SOURCE, the Pod saturates around 8
+ * parallel runs; more than that queues on the OS scheduler and degrades
+ * tail latency for everyone. Env-overridable. */
+const DEFAULT_MAX_CONCURRENT_RUNS = 8;
 
 /** Default timeout when the payload omits one — matches main-app default. */
 const DEFAULT_TIMEOUT_SECONDS = 60;
@@ -34,13 +42,52 @@ export function getSandboxPort(): number {
   return SANDBOX_PORT;
 }
 
-async function readBody(req: IncomingMessage): Promise<Buffer> {
+/**
+ * Per-request env lookup. Kept dynamic so tests (and operational knobs)
+ * can adjust caps without a process restart; per-request Number.parseInt
+ * is negligible versus the spawn cost it gates.
+ */
+function getMaxBodyBytes(): number {
+  const raw = process.env.SANDBOX_MAX_BODY_BYTES;
+  if (raw === undefined) {
+    return DEFAULT_MAX_BODY_BYTES;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_MAX_BODY_BYTES;
+}
+
+function getMaxConcurrentRuns(): number {
+  const raw = process.env.SANDBOX_MAX_CONCURRENT_RUNS;
+  if (raw === undefined) {
+    return DEFAULT_MAX_CONCURRENT_RUNS;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_MAX_CONCURRENT_RUNS;
+}
+
+/** Global in-flight /run counter. Single-event-loop mutation is race-free
+ * because check-and-increment happens without an intervening await. */
+let inFlightRuns = 0;
+
+/** Test/operational hook to observe current load. */
+export function getInFlightRuns(): number {
+  return inFlightRuns;
+}
+
+async function readBody(
+  req: IncomingMessage,
+  maxBytes: number
+): Promise<Buffer> {
   const chunks: Buffer[] = [];
   let total = 0;
   for await (const chunk of req) {
     const buf = chunk as Buffer;
     total += buf.length;
-    if (total > MAX_BODY_BYTES) {
+    if (total > maxBytes) {
       throw new Error("body too large");
     }
     chunks.push(buf);
@@ -75,10 +122,23 @@ function decodeRunRequest(raw: Buffer): RunRequest | null {
   }
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: a single dispatcher handling body-size cap, concurrency gate, cancellation, and error mapping
 async function handlePostRun(
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<void> {
+  // Concurrency gate BEFORE anything else so we shed load without paying
+  // the cost of reading the body or spawning a child. 429 + Retry-After
+  // tells the main-app client to back off; the kept-alive HTTP.Agent there
+  // will reuse the socket for the retry, so this is cheap.
+  if (inFlightRuns >= getMaxConcurrentRuns()) {
+    res.setHeader("Retry-After", "1");
+    res.writeHead(429);
+    res.end("sandbox at capacity");
+    return;
+  }
+  inFlightRuns++;
+
   // If the client disconnects before we finish writing the response, we
   // cancel the child so sandbox capacity is not pinned beyond the caller's
   // view. Without this, a slow user script keeps running after the main-app
@@ -99,7 +159,7 @@ async function handlePostRun(
   res.on("close", onResClose);
 
   try {
-    const raw = await readBody(req);
+    const raw = await readBody(req, getMaxBodyBytes());
     if (raw.length === 0) {
       res.writeHead(400);
       res.end("empty body");
@@ -129,6 +189,13 @@ async function handlePostRun(
     writeRunResult(res, outcome);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    if (message === "body too large") {
+      if (!res.headersSent && !res.destroyed) {
+        res.writeHead(413);
+        res.end("body too large");
+      }
+      return;
+    }
     // biome-ignore lint/suspicious/noConsole: sandbox runtime emits stderr for fatal paths so platform logs surface them
     console.error(`[Sandbox] /run failed: ${message}`);
     if (!res.headersSent && !res.destroyed) {
@@ -136,6 +203,7 @@ async function handlePostRun(
       res.end("sandbox internal error");
     }
   } finally {
+    inFlightRuns--;
     res.off("close", onResClose);
   }
 }
