@@ -213,6 +213,23 @@ describe("sandbox HTTP server", () => {
     expect(elapsed).toBeLessThan(5000);
   });
 
+  it("falls back to the default timeout when payload sends NaN/Infinity", async () => {
+    // typeof NaN === "number" so a naive `typeof x === "number"` guard
+    // would let NaN through; downstream Math.min/Math.max preserves NaN
+    // and setTimeout(fn, NaN) becomes setTimeout(fn, 0), surfacing a
+    // misleading WALL_CLOCK_TIMEOUT. Asserting the request runs to the
+    // arithmetic result confirms the default kicked in instead.
+    const body = makeRunBody({ code: "return 41 + 1;", timeout: Number.NaN });
+    const res = await request(port, "POST", "/run", body);
+    expect(res.status).toBe(200);
+    const outcome = parseRunResponse(res.body) as {
+      ok: boolean;
+      result?: unknown;
+    };
+    expect(outcome.ok).toBe(true);
+    expect(outcome.result).toBe(42);
+  });
+
   it("returns 413 when the request body exceeds the size cap", async () => {
     const saved = process.env.SANDBOX_MAX_BODY_BYTES;
     process.env.SANDBOX_MAX_BODY_BYTES = "128";

@@ -171,8 +171,12 @@ async function handlePostRun(
       res.end("malformed body");
       return;
     }
+    // typeof NaN === "number" is true; Number.isFinite weeds out NaN
+    // and ±Infinity which would otherwise propagate into setTimeout as 0
+    // and surface a misleading WALL_CLOCK_TIMEOUT instead of a clear
+    // "bad input" rejection.
     const timeoutSeconds =
-      typeof request.timeout === "number"
+      typeof request.timeout === "number" && Number.isFinite(request.timeout)
         ? request.timeout
         : DEFAULT_TIMEOUT_SECONDS;
     const timeoutMs = Math.max(1, Math.min(120, timeoutSeconds)) * 1000;
