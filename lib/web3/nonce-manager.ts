@@ -20,6 +20,7 @@ import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import type { ethers } from "ethers";
 import { db } from "@/lib/db";
 import { pendingTransactions, walletLocks } from "@/lib/db/schema-extensions";
+import { ErrorCategory, logSystemError } from "@/lib/logging";
 
 export type NonceSession = {
   walletAddress: string;
@@ -372,6 +373,23 @@ export class NonceManager {
         return;
       }
 
+      // Read the prior holder before the takeover so observability can
+      // distinguish "took over from a wedged execution" from "took over a
+      // never-held row." We only log this if the takeover actually wins.
+      const priorHolderRow = await db
+        .select({
+          lockedBy: walletLocks.lockedBy,
+          expiresAt: walletLocks.expiresAt,
+        })
+        .from(walletLocks)
+        .where(
+          and(
+            eq(walletLocks.walletAddress, walletAddress),
+            eq(walletLocks.chainId, chainId)
+          )
+        )
+        .limit(1);
+
       const taken = await db
         .update(walletLocks)
         .set({
@@ -392,6 +410,21 @@ export class NonceManager {
         .returning({ walletAddress: walletLocks.walletAddress });
 
       if (taken.length > 0) {
+        const priorHolder = priorHolderRow[0]?.lockedBy ?? null;
+        const priorExpires = priorHolderRow[0]?.expiresAt;
+        if (priorHolder !== null) {
+          // Takeover from an expired holder is the operational smoke signal
+          // for KEEP-344-class incidents — log it loudly so we can correlate
+          // with whichever execution leaked the lock.
+          const expiredAgoMs = priorExpires
+            ? Date.now() - priorExpires.getTime()
+            : null;
+          console.warn(
+            `[NonceManager] Lock takeover for ${walletAddress}:${chainId}, ` +
+              `priorHolder=${priorHolder}, expiredAgoMs=${expiredAgoMs}, ` +
+              `newHolder=${executionId}`
+          );
+        }
         console.log(
           `[NonceManager] Lock acquired for ${walletAddress}:${chainId}, ` +
             `execution=${executionId}, expires=${expiresAt.toISOString()}, ` +
@@ -403,10 +436,25 @@ export class NonceManager {
       await this.sleep(this.lockRetryDelayMs);
     }
 
-    throw new Error(
+    // Acquire failure after the full retry budget — emit a metric so the
+    // operations team gets paged on repeated failures rather than finding
+    // out via support tickets like in KEEP-344.
+    const failure = new Error(
       `Failed to acquire nonce lock for ${walletAddress}:${chainId} ` +
         `after ${this.maxLockRetries} attempts`
     );
+    logSystemError(
+      ErrorCategory.INFRASTRUCTURE,
+      "[NonceManager] acquire_failed",
+      failure,
+      {
+        wallet_address: walletAddress,
+        chain_id: String(chainId),
+        execution_id: executionId,
+        max_retries: String(this.maxLockRetries),
+      }
+    );
+    throw failure;
   }
 
   /**

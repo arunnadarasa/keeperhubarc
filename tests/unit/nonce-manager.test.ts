@@ -38,6 +38,15 @@ vi.mock("@/lib/db/schema-extensions", () => ({
   },
 }));
 
+const { mockLogSystemError } = vi.hoisted(() => ({
+  mockLogSystemError: vi.fn(),
+}));
+
+vi.mock("@/lib/logging", () => ({
+  ErrorCategory: { INFRASTRUCTURE: "infrastructure" },
+  logSystemError: mockLogSystemError,
+}));
+
 import {
   getNonceManager,
   NonceManager,
@@ -210,7 +219,7 @@ describe("NonceManager", () => {
       expect(mockUpdate).toHaveBeenCalled();
     });
 
-    it("throws if lock cannot be acquired after max retries", async () => {
+    it("throws and emits a metric when lock cannot be acquired", async () => {
       // Both INSERT and UPDATE return 0 rows on every attempt.
       setupLockMocks({ insertedRows: 0, updatedRows: 0 });
 
@@ -228,6 +237,73 @@ describe("NonceManager", () => {
           provider as unknown as import("ethers").Provider
         )
       ).rejects.toThrow(FAILED_LOCK_REGEX);
+
+      // Observability: failure emits a structured log so ops gets paged
+      // instead of waiting for support tickets (KEEP-344).
+      expect(mockLogSystemError).toHaveBeenCalledWith(
+        "infrastructure",
+        expect.stringContaining("acquire_failed"),
+        expect.any(Error),
+        expect.objectContaining({
+          wallet_address: "0x1234567890123456789012345678901234567890",
+          chain_id: "1",
+          execution_id: "exec_123",
+        })
+      );
+    });
+
+    it("warns when taking over an expired lock from a prior holder", async () => {
+      // INSERT returns 0 rows, SELECT returns a stale prior holder, UPDATE
+      // takes it over.
+      mockInsert.mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          onConflictDoNothing: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue([]),
+          }),
+          onConflictDoUpdate: vi.fn().mockResolvedValue(undefined),
+        }),
+      });
+      mockUpdate.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue([{ walletAddress: "0x" }]),
+          }),
+        }),
+      });
+      mockSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([
+              {
+                lockedBy: "exec_wedged",
+                expiresAt: new Date(Date.now() - 30_000),
+              },
+            ]),
+            orderBy: vi.fn().mockResolvedValue([]),
+          }),
+        }),
+      });
+
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {
+        // suppress test output
+      });
+
+      const manager = new NonceManager();
+      const provider = createMockProvider();
+
+      await manager.startSession(
+        "0x1234567890123456789012345678901234567890",
+        1,
+        "exec_takeover",
+        provider as unknown as import("ethers").Provider
+      );
+
+      const takeoverLogged = warnSpy.mock.calls.some((call) =>
+        String(call[0] ?? "").includes("Lock takeover")
+      );
+      expect(takeoverLogged).toBe(true);
+
+      warnSpy.mockRestore();
     });
   });
 
