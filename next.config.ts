@@ -149,6 +149,17 @@ const nextConfig = {
       // explicitly here makes the bundle robust regardless of which other
       // pageExtensions are active. See KEEP-348 follow-up incident.
       "./node_modules/next/**/*",
+      // Next 16's standalone tracer doesn't follow next's own runtime
+      // dependencies through pnpm's .pnpm/ store. Force-include the full
+      // set listed in next/package.json `dependencies` plus the
+      // architecture-specific @next/swc binary used on Alpine (musl).
+      "./node_modules/@next/env/**/*",
+      "./node_modules/@next/swc-linux-x64-musl/**/*",
+      "./node_modules/@swc/helpers/**/*",
+      "./node_modules/baseline-browser-mapping/**/*",
+      "./node_modules/caniuse-lite/**/*",
+      "./node_modules/postcss/**/*",
+      "./node_modules/styled-jsx/**/*",
       "./node_modules/@babel/code-frame/**/*",
       "./node_modules/@babel/helper-validator-identifier/**/*",
       "./node_modules/@cbor-extract/cbor-extract-darwin-arm64/**/*",
