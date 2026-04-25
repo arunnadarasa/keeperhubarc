@@ -174,8 +174,19 @@ export class ChainMonitor {
       try {
         provider = new ethers.WebSocketProvider(url);
 
+        // ethers v6 WebSocketProvider does not attach an 'error' listener on
+        // the underlying ws. Without one, an HTTP 429 (or any non-101 upgrade
+        // response) makes ws emit 'error' on the socket which Node escalates
+        // to uncaughtException, killing the entire dispatcher process.
+        //
+        // Attach our own listener so the error is consumed and surfaces as a
+        // normal rejection of the connect race below, allowing the fallback
+        // URL loop and reconnect-with-backoff to do their job.
+        const wsErrorPromise = this.attachConnectErrorListener(provider);
+
         await Promise.race([
           provider.ready,
+          wsErrorPromise,
           new Promise((_, reject) =>
             setTimeout(
               () => reject(new Error("Connection timeout")),
@@ -206,6 +217,24 @@ export class ChainMonitor {
     }
 
     throw new Error("Unreachable");
+  }
+
+  private attachConnectErrorListener(
+    provider: ethers.WebSocketProvider
+  ): Promise<never> {
+    const ws = provider.websocket as unknown as {
+      on?: (event: string, cb: (err: Error) => void) => void;
+    };
+
+    return new Promise<never>((_, reject) => {
+      ws?.on?.("error", (err: Error) => {
+        const message = err?.message ?? String(err);
+        console.warn(
+          `[BlockMonitor:${this.chainName}] WebSocket error during connect: ${message}`
+        );
+        reject(new Error(`WebSocket error: ${message}`));
+      });
+    });
   }
 
   private async validateConnection(): Promise<void> {

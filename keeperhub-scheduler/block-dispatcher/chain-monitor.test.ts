@@ -516,5 +516,71 @@ describe("ChainMonitor", () => {
       expect(latestProvider().url).toBe("wss://fallback.test");
       expect(monitor.isAlive()).toBe(true);
     });
+
+    it("falls over to fallback WSS when primary ws emits 'error' (HTTP 429)", async () => {
+      // Simulates the failure mode where the WSS upgrade returns 429:
+      // ws emits 'error' on the underlying socket and provider.ready never
+      // resolves. The connect race must reject via the ws-error path so the
+      // fallback URL is tried instead of crashing the dispatcher.
+      let callCount = 0;
+      providerFactory = (url: string): MockProvider => {
+        callCount++;
+        const instance = new MockProvider(url);
+        if (callCount === 1) {
+          instance.ready = new Promise<unknown>(() => {
+            // never resolves — mimics ethers v6 not wiring ready on ws error
+          });
+          // emit on next tick so the connect Promise.race is set up first
+          setTimeout(() => {
+            instance.websocket.emit(
+              "error",
+              new Error("Unexpected server response: 429")
+            );
+          }, 0);
+        }
+        return instance;
+      };
+
+      const monitor = new ChainMonitor({
+        chain: makeChain(),
+        workflows: [makeWorkflow()],
+      });
+
+      await monitor.start();
+
+      expect(providerInstances).toHaveLength(2);
+      expect(latestProvider().url).toBe("wss://fallback.test");
+      expect(monitor.isAlive()).toBe(true);
+    });
+
+    it("does not propagate ws 'error' as an uncaughtException", async () => {
+      // Sanity check that the listener attached in connect() consumes the
+      // error. Without the listener, EventEmitter would re-throw because
+      // 'error' has no other subscribers.
+      let callCount = 0;
+      providerFactory = (url: string): MockProvider => {
+        callCount++;
+        const instance = new MockProvider(url);
+        if (callCount === 1) {
+          instance.ready = new Promise<unknown>(() => {
+            // never resolves
+          });
+          setTimeout(() => {
+            instance.websocket.emit(
+              "error",
+              new Error("Unexpected server response: 429")
+            );
+          }, 0);
+        }
+        return instance;
+      };
+
+      const monitor = new ChainMonitor({
+        chain: makeChain(),
+        workflows: [makeWorkflow()],
+      });
+
+      await expect(monitor.start()).resolves.toBeUndefined();
+    });
   });
 });
