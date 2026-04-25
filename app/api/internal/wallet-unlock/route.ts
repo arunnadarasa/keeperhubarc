@@ -74,7 +74,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json({ released: false, previousHolder: null });
     }
 
-    await db
+    // Conditional update: only clear if we observe the same holder we read.
+    // If the lock was legitimately released and re-acquired between the
+    // SELECT and this UPDATE, the WHERE will fail and we report no release
+    // — the operator can re-issue rather than us killing an unrelated holder.
+    const released = await db
       .update(walletLocks)
       .set({
         lockedBy: null,
@@ -84,9 +88,15 @@ export async function POST(request: Request): Promise<NextResponse> {
       .where(
         and(
           eq(walletLocks.walletAddress, normalizedAddress),
-          eq(walletLocks.chainId, chainId)
+          eq(walletLocks.chainId, chainId),
+          eq(walletLocks.lockedBy, previousHolder)
         )
-      );
+      )
+      .returning({ walletAddress: walletLocks.walletAddress });
+
+    if (released.length === 0) {
+      return NextResponse.json({ released: false, previousHolder: null });
+    }
 
     return NextResponse.json({ released: true, previousHolder });
   } catch (error) {

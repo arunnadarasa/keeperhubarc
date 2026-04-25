@@ -48,9 +48,12 @@ const DEFAULT_OPTIONS: Required<NonceManagerOptions> = {
   // Worst-case credentialed write is ~90s (full RPC failover round). 5min
   // gives generous headroom; a wedged lock auto-clears at expires_at.
   lockTtlMs: 300_000,
-  // 150 * 200ms = 30s acquire budget. Waiting longer than the TTL is pointless;
-  // fail fast and let the caller decide.
-  maxLockRetries: 150,
+  // 600 * 200ms = 120s acquire budget. Must outwait one full RPC failover
+  // round (~90s per provider including timeouts and exponential backoff),
+  // since preflight failover runs while a legitimate holder still has the
+  // lock. The TTL bounds *stuck* holders; the retry budget bounds the wait
+  // for *legitimate* holders to finish.
+  maxLockRetries: 600,
   lockRetryDelayMs: 200,
 };
 

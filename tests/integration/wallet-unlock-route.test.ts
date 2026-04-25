@@ -18,6 +18,7 @@ vi.mock("@/lib/logging", () => ({
 }));
 
 let mockSelectResult: { lockedBy: string | null; expiresAt: Date }[] = [];
+let mockUpdateRows: { walletAddress: string }[] = [];
 let updateInvoked = false;
 let selectThrows = false;
 
@@ -37,10 +38,12 @@ vi.mock("@/lib/db", () => ({
     })),
     update: vi.fn(() => ({
       set: vi.fn(() => ({
-        where: vi.fn(() => {
-          updateInvoked = true;
-          return Promise.resolve(undefined);
-        }),
+        where: vi.fn(() => ({
+          returning: vi.fn(() => {
+            updateInvoked = true;
+            return Promise.resolve(mockUpdateRows);
+          }),
+        })),
       })),
     })),
   },
@@ -78,6 +81,7 @@ describe("POST /api/internal/wallet-unlock", () => {
     vi.clearAllMocks();
     mockAuthResult.authenticated = true;
     mockSelectResult = [];
+    mockUpdateRows = [];
     updateInvoked = false;
     selectThrows = false;
   });
@@ -168,6 +172,10 @@ describe("POST /api/internal/wallet-unlock", () => {
         expiresAt: new Date(Date.now() + 60_000),
       },
     ];
+    // The conditional UPDATE finds the row (still held by exec_wedged).
+    mockUpdateRows = [
+      { walletAddress: "0x1234567890123456789012345678901234567890" },
+    ];
 
     const response = await POST(
       createRequest({
@@ -182,12 +190,41 @@ describe("POST /api/internal/wallet-unlock", () => {
     expect(updateInvoked).toBe(true);
   });
 
+  // Race protection: the lock can be legitimately released and re-acquired
+  // between our SELECT and our UPDATE. The conditional UPDATE (WHERE
+  // locked_by = previousHolder) returns 0 rows in that case; we must not
+  // report success and must not have killed an unrelated holder.
+  it("returns released:false when the holder changed between SELECT and UPDATE", async () => {
+    mockSelectResult = [
+      {
+        lockedBy: "exec_first",
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    ];
+    // Conditional UPDATE matches no row — someone else now holds it.
+    mockUpdateRows = [];
+
+    const response = await POST(
+      createRequest({
+        walletAddress: "0x1234567890123456789012345678901234567890",
+        chainId: 1,
+      })
+    );
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data).toEqual({ released: false, previousHolder: null });
+  });
+
   it("normalizes wallet address to lowercase before lookup", async () => {
     mockSelectResult = [
       {
         lockedBy: "exec_wedged",
         expiresAt: new Date(Date.now() + 60_000),
       },
+    ];
+    mockUpdateRows = [
+      { walletAddress: "0xabcdef1234567890123456789012345678901234" },
     ];
 
     const response = await POST(
