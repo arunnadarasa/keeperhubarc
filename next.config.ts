@@ -137,6 +137,18 @@ const nextConfig = {
   ],
   outputFileTracingIncludes: {
     "/*": [
+      // Force-include the next package itself. The standalone server.js
+      // emitted by `output: "standalone"` does a bare `require('next')`,
+      // which needs next/package.json to resolve. Next's tracer only
+      // catches that bare specifier when some other file in the bundle
+      // also imports next directly. In prod builds INCLUDE_TEST_ENDPOINTS
+      // is empty, the staging-only `*.staging.ts` files that triggered
+      // the side-effect are excluded, and the standalone output ends up
+      // with next/dist/ but no next/package.json -- runtime crashes with
+      // "Cannot find module 'next'" on server.js line 16. Including next
+      // explicitly here makes the bundle robust regardless of which other
+      // pageExtensions are active. See KEEP-348 follow-up incident.
+      "./node_modules/next/**/*",
       "./node_modules/@babel/code-frame/**/*",
       "./node_modules/@babel/helper-validator-identifier/**/*",
       "./node_modules/@cbor-extract/cbor-extract-darwin-arm64/**/*",
