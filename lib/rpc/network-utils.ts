@@ -50,6 +50,10 @@ export function getChainIdFromNetwork(network: string | number): number {
     "solana-mainnet": SUPPORTED_CHAIN_IDS.SOLANA_MAINNET,
     "solana-devnet": SUPPORTED_CHAIN_IDS.SOLANA_DEVNET,
     "solana-testnet": SUPPORTED_CHAIN_IDS.SOLANA_DEVNET,
+    // Arc Testnet (chainId 5042002 / 0x4cef52)
+    "arc-testnet": 5_042_002,
+    arc: 5_042_002,
+    "0x4cef52": 5_042_002,
   };
 
   const chainId = networkMap[network.toLowerCase()];
@@ -76,6 +80,7 @@ export function getNetworkName(chainId: number): string {
     [SUPPORTED_CHAIN_IDS.TEMPO_MAINNET]: "Tempo",
     [SUPPORTED_CHAIN_IDS.SOLANA_MAINNET]: "Solana",
     [SUPPORTED_CHAIN_IDS.SOLANA_DEVNET]: "Solana Devnet",
+    5_042_002: "Arc Testnet",
   };
 
   return chainNames[chainId] || `Chain ${chainId}`;

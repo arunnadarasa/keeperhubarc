@@ -414,6 +414,28 @@ const DEFAULT_CHAINS: NewChain[] = [
     usePrivateMempoolRpc: getUsePrivateMempoolRpc({ rpcConfig, jsonKey: "plasma-testnet" }),
     defaultPrivateRpcUrl: getPrivateRpcUrl({ rpcConfig, jsonKey: "plasma-testnet" }),
   },
+  {
+    chainId: getChainConfigValue("arc-testnet", "chainId", 5_042_002),
+    name: "Arc Testnet",
+    symbol: getChainConfigValue("arc-testnet", "symbol", "USDC"),
+    chainType: "evm",
+    defaultPrimaryRpc: getRpcUrlByChainId(5_042_002, "primary"),
+    defaultFallbackRpc: getRpcUrlByChainId(5_042_002, "fallback"),
+    defaultPrimaryWss: getWssUrl({
+      rpcConfig,
+      jsonKey: CHAIN_CONFIG[5_042_002].jsonKey,
+      type: "primary",
+    }),
+    defaultFallbackWss: getWssUrl({
+      rpcConfig,
+      jsonKey: CHAIN_CONFIG[5_042_002].jsonKey,
+      type: "fallback",
+    }),
+    isTestnet: getChainConfigValue("arc-testnet", "isTestnet", true),
+    isEnabled: getChainConfigValue("arc-testnet", "isEnabled", true),
+    usePrivateMempoolRpc: getUsePrivateMempoolRpc({ rpcConfig, jsonKey: "arc-testnet" }),
+    defaultPrivateRpcUrl: getPrivateRpcUrl({ rpcConfig, jsonKey: "arc-testnet" }),
+  },
   // Solana chains (non-EVM - uses SolanaProviderManager)
   {
     chainId: getChainConfigValue("solana-mainnet", "chainId", 101),
@@ -629,6 +651,16 @@ const EXPLORER_CONFIG_TEMPLATES: Record<
     explorerAddressPath: "/address/{address}",
     explorerContractPath: "/address/{address}#code",
   },
+  // Arc Testnet - Arcscan (Blockscout-compatible API)
+  5_042_002: {
+    chainType: "evm",
+    explorerUrl: "https://testnet.arcscan.app",
+    explorerApiType: "blockscout",
+    explorerApiUrl: "https://testnet.arcscan.app/api",
+    explorerTxPath: "/tx/{hash}",
+    explorerAddressPath: "/address/{address}",
+    explorerContractPath: "/address/{address}?tab=contract",
+  },
   // Solana Mainnet - Solscan
   101: {
     chainType: "solana",
@@ -717,6 +749,7 @@ async function seedChains() {
     "Avalanche Fuji": 43_113,
     Plasma: 9745,
     "Plasma Testnet": 9746,
+    "Arc Testnet": 5_042_002,
     Solana: 101,
     "Solana Devnet": 103,
   };

@@ -53,6 +53,7 @@ export const PUBLIC_RPCS = {
   PLASMA_MAINNET_FALLBACK: "https://plasma.drpc.org",
   PLASMA_TESTNET: "https://testnet-rpc.plasma.to",
   PLASMA_TESTNET_FALLBACK: "https://9746.rpc.thirdweb.com",
+  ARC_TESTNET: "https://rpc.testnet.arc.network",
   SOLANA_MAINNET: "https://api.mainnet-beta.solana.com",
   SOLANA_DEVNET: "https://api.devnet.solana.com",
 } as const;
@@ -191,6 +192,13 @@ export const CHAIN_CONFIG: Record<number, ChainConfigEntry> = {
     fallbackEnvKey: "CHAIN_PLASMA_TESTNET_FALLBACK_RPC",
     publicDefault: PUBLIC_RPCS.PLASMA_TESTNET,
     publicFallback: PUBLIC_RPCS.PLASMA_TESTNET_FALLBACK,
+  },
+  // Arc Testnet
+  5_042_002: {
+    jsonKey: "arc-testnet",
+    envKey: "CHAIN_ARC_TESTNET_PRIMARY_RPC",
+    fallbackEnvKey: "CHAIN_ARC_TESTNET_FALLBACK_RPC",
+    publicDefault: PUBLIC_RPCS.ARC_TESTNET,
   },
   // Solana Mainnet
   101: {
