@@ -81,8 +81,9 @@ export async function parseTokenAddress(
   input: Pick<TransferTokenCoreInput, "tokenConfig" | "tokenAddress">,
   chainId: number
 ): Promise<string | null> {
-  // Legacy support: if tokenAddress is provided directly, use it
-  if (input.tokenAddress && !input.tokenConfig) {
+  // Direct execution compatibility: explicit tokenAddress should always win,
+  // even when tokenConfig is present as metadata-only object.
+  if (input.tokenAddress) {
     return input.tokenAddress;
   }
 
@@ -115,8 +116,35 @@ export async function parseTokenAddress(
 
   // New format: single supported token ID
   if (parsed.supportedTokenId) {
+    // #region agent log
+    fetch("http://127.0.0.1:7690/ingest/6763d774-eed0-493a-8b58-d55203d9fdc2", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "aded7a",
+      },
+      body: JSON.stringify({
+        sessionId: "aded7a",
+        runId: "arc-transfer-debug",
+        hypothesisId: "H3",
+        location: "plugins/web3/steps/transfer-token-core.ts:117",
+        message: "token_lookup_query_input",
+        data: {
+          mode: "supportedTokenId",
+          chainId,
+          supportedTokenId: parsed.supportedTokenId,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     const tokens = await db
-      .select({ tokenAddress: supportedTokens.tokenAddress })
+      .select({
+        id: supportedTokens.id,
+        symbol: supportedTokens.symbol,
+        chainId: supportedTokens.chainId,
+        tokenAddress: supportedTokens.tokenAddress,
+      })
       .from(supportedTokens)
       .where(
         and(
@@ -125,6 +153,30 @@ export async function parseTokenAddress(
         )
       )
       .limit(1);
+    // #region agent log
+    fetch("http://127.0.0.1:7690/ingest/6763d774-eed0-493a-8b58-d55203d9fdc2", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "aded7a",
+      },
+      body: JSON.stringify({
+        sessionId: "aded7a",
+        runId: "arc-transfer-debug",
+        hypothesisId: "H4",
+        location: "plugins/web3/steps/transfer-token-core.ts:139",
+        message: "token_lookup_query_result",
+        data: {
+          mode: "supportedTokenId",
+          found: Boolean(tokens[0]),
+          id: tokens[0]?.id ?? null,
+          symbol: tokens[0]?.symbol ?? null,
+          chainId: tokens[0]?.chainId ?? null,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     if (tokens[0]?.tokenAddress) {
       return tokens[0].tokenAddress;
     }
@@ -220,6 +272,30 @@ export async function transferTokenCore(
 
   // Validate token address
   if (!(tokenAddress && ethers.isAddress(tokenAddress))) {
+    // #region agent log
+    fetch("http://127.0.0.1:7690/ingest/6763d774-eed0-493a-8b58-d55203d9fdc2", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "aded7a",
+      },
+      body: JSON.stringify({
+        sessionId: "aded7a",
+        runId: "arc-transfer-debug",
+        hypothesisId: "H5",
+        location: "plugins/web3/steps/transfer-token-core.ts:264",
+        message: "token_address_validation_failed",
+        data: {
+          network,
+          chainId,
+          tokenAddress: tokenAddress ?? null,
+          isHexAddress: tokenAddress ? ethers.isAddress(tokenAddress) : false,
+          reason: tokenAddress ? "invalid_address" : "no_token_selected",
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     return {
       success: false,
       error: tokenAddress
@@ -259,6 +335,29 @@ export async function transferTokenCore(
   }
 
   const { organizationId, userId } = orgCtx;
+  // #region agent log
+  fetch("http://127.0.0.1:7690/ingest/6763d774-eed0-493a-8b58-d55203d9fdc2", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Debug-Session-Id": "aded7a",
+    },
+    body: JSON.stringify({
+      sessionId: "aded7a",
+      runId: "arc-transfer-debug",
+      hypothesisId: "H2",
+      location: "plugins/web3/steps/transfer-token-core.ts:331",
+      message: "transfer_org_context_resolved",
+      data: {
+        network,
+        chainId,
+        hasOrganizationId: Boolean(organizationId),
+        hasUserId: Boolean(userId),
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
 
   // Resolve RPC config (with failover)
   let rpcUrl: string;

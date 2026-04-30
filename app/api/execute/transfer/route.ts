@@ -39,6 +39,30 @@ export async function POST(request: Request): Promise<NextResponse> {
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;
+    // #region agent log
+    fetch("http://127.0.0.1:7690/ingest/6763d774-eed0-493a-8b58-d55203d9fdc2", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "aded7a",
+      },
+      body: JSON.stringify({
+        sessionId: "aded7a",
+        runId: "arc-transfer-debug",
+        hypothesisId: "H1",
+        location: "app/api/execute/transfer/route.ts:42",
+        message: "transfer_request_parsed",
+        data: {
+          hasTokenAddress: "tokenAddress" in body,
+          tokenAddressType: typeof body.tokenAddress,
+          hasTokenConfig: "tokenConfig" in body,
+          tokenConfigType: typeof body.tokenConfig,
+          network: body.network,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
