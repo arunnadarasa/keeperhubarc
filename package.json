@@ -5,7 +5,8 @@
   "license": "Apache-2.0",
   "description": "A template for building your own AI-driven workflow automation platform",
   "scripts": {
-    "dev": "pnpm discover-plugins && pnpm copy-monaco && next dev",
+    "dev": "pnpm discover-plugins && pnpm copy-monaco && next dev -p 3001",
+    "dev:webpack": "pnpm discover-plugins && pnpm copy-monaco && next dev -p 3001 --webpack",
     "dev:sandbox": "docker compose up sandbox",
     "build": "tsx scripts/migrate-prod.ts && pnpm discover-plugins && pnpm copy-monaco && next build",
     "copy-monaco": "node scripts/copy-monaco.mjs",
